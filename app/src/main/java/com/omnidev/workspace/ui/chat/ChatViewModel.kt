@@ -957,26 +957,45 @@ class ChatViewModel(
                     runPartial = next.responsePrefix.takeIf { it.isNotEmpty() }
                     _uiState.update { it.copy(streamingContent = runPartial) }
                     streamingCompletionProvider?.let { stream ->
-                        val buffer = StringBuilder(next.responsePrefix)
-                        var lastRenderMs = 0L
-                        val response = stream(next) { delta ->
-                            if (runId == activeRunId.get()) {
-                                buffer.append(delta)
-                                val now = android.os.SystemClock.uptimeMillis()
-                                if (now - lastRenderMs >= 50) {
-                                    runPartial = buffer.toString()
-                                    _uiState.update { it.copy(streamingContent = runPartial) }
-                                    lastRenderMs = now
-                                    checkpoint()
+                        kotlinx.coroutines.coroutineScope {
+                            val buffer = StringBuilder(next.responsePrefix)
+                            val bufferLock = Any()
+                            var revision = 0L
+                            var displayedRevision = -1L
+                            val updates = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
+                            suspend fun flush(force: Boolean) {
+                                if (runId != activeRunId.get()) return
+                                val text = synchronized(bufferLock) {
+                                    if (!force && revision == displayedRevision) null else {
+                                        displayedRevision = revision
+                                        buffer.toString()
+                                    }
+                                } ?: return
+                                runPartial = text
+                                _uiState.update { it.copy(streamingContent = text) }
+                                checkpoint(force)
+                            }
+                            // A pending update flushes even if the provider pauses; no ticker
+                            // runs when there are no new deltas. The buffer is safe across IO/Main.
+                            val display = launch {
+                                for (ignored in updates) {
+                                    kotlinx.coroutines.delay(50)
+                                    flush(force = false)
                                 }
                             }
+                            try {
+                                val response = stream(next) { delta ->
+                                    if (runId == activeRunId.get()) {
+                                        synchronized(bufferLock) { buffer.append(delta); revision++ }
+                                        updates.trySend(Unit)
+                                    }
+                                }
+                                display.cancel()
+                                display.join()
+                                flush(force = true)
+                                response
+                            } finally { display.cancel(); updates.close() }
                         }
-                        if (runId == activeRunId.get()) {
-                            runPartial = buffer.toString()
-                            _uiState.update { it.copy(streamingContent = runPartial) }
-                            checkpoint(force = true)
-                        }
-                        response
                     } ?: completionProvider?.invoke(next)
                     ?: throw IllegalStateException("Chat completion service is unavailable.")
                 },
