@@ -33,7 +33,7 @@ class ChatReplayModeTest {
 
     @Test fun regenerationAndEditingUseEveryCurrentlySelectedMode() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        for (mode in listOf(OmniMode.CHAT, OmniMode.AGENT, OmniMode.SWARM)) for (edit in listOf(false, true)) {
+        for (mode in listOf(OmniMode.CHAT, OmniMode.AGENT, OmniMode.SWARM).filter(OmniMode::permitted)) for (edit in listOf(false, true)) {
             val reachedProvider = CountDownLatch(1)
             val route = AtomicReference<OmniMode>()
             suspend fun holdProvider(selected: OmniMode): Nothing {
@@ -82,6 +82,7 @@ class ChatReplayModeTest {
     }
 
     @Test fun currentAgentScopeIsValidatedBeforeReplacingTheOriginalChatTurn() {
+        org.junit.Assume.assumeTrue(OmniMode.permitted(OmniMode.AGENT))
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
             val vm = ChatViewModel(SettingsRepository(instrumentation.targetContext),

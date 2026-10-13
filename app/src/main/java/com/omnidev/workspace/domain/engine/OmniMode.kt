@@ -22,5 +22,15 @@ enum class OmniMode(val label: String) {
     AGENT("Agent"),
 
     /** Multi-agent swarm — Orchestrator plans, Workers implement. */
-    SWARM("Team Agents")
+    SWARM("Team Agents");
+
+    companion object {
+        fun available(policy: com.omnidev.workspace.core.policy.TierPolicy = com.omnidev.workspace.core.policy.TierPolicyHolder.current): List<OmniMode> = buildList {
+            add(CHAT)
+            if (policy.allowAgent) { add(AUTO); add(AGENT) }
+            if (policy.allowTeam) add(SWARM)
+        }
+        fun permitted(mode: OmniMode) = mode in available()
+        fun constrain(mode: OmniMode) = if (permitted(mode)) mode else CHAT
+    }
 }

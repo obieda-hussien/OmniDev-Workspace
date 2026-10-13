@@ -29,7 +29,7 @@ class WakePreferences(context: Context) {
     fun setAutoDictation(value: Boolean) = prefs.edit().putBoolean("auto_dictation", value).commit()
     fun allowedNow(): Boolean {
         val consent = DeviceConsentStore(context)
-        return WakeActivationPolicy.canListen(enabled, TierPolicyHolder.current.allowAccessibility, consent.locked(),
+        return WakeActivationPolicy.canListen(enabled, TierPolicyHolder.current.allowLocalVoice, consent.locked(),
             context.getSystemService(android.os.PowerManager::class.java)?.isInteractive == true,
             lockScreen, consent.enabled(Scope.WAKE), consent.enabled(Scope.LOCK_OVERLAY))
     }

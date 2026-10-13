@@ -10,17 +10,31 @@ import com.omnidev.workspace.data.model.ModelProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.datastore.core.DataMigration
 
 /**
  * Dedicated DataStore namespace for API keys, kept separate from settings to reduce
  * the risk of accidental logging or debug exports that include credentials.
  *
- * NOTE: Keys are stored in the app's private data directory (inaccessible to other
- * apps without root). For production-grade hardening, wrap with Android Keystore
- * encryption using `EncryptedSharedPreferences` from `androidx.security.crypto`.
+ * Keys are AES-GCM encrypted with a non-exportable Android Keystore key.
+ * Existing plaintext preferences migrate atomically before the first read.
  */
 private val Context.apiKeyDataStore: DataStore<Preferences> by preferencesDataStore(
-    name = "omnidev_api_keys"
+    name = "omnidev_api_keys",
+    produceMigrations = { listOf(object : DataMigration<Preferences> {
+        override suspend fun shouldMigrate(currentData: Preferences) = currentData.asMap().any { (key, value) -> key.name.startsWith("api_key_") && value is String && !value.startsWith(ApiKeyCipher.PREFIX) }
+        override suspend fun migrate(currentData: Preferences): Preferences = withContext(Dispatchers.IO) {
+            currentData.toMutablePreferences().apply {
+                currentData.asMap().forEach { (key, value) ->
+                    if (key.name.startsWith("api_key_") && value is String && !value.startsWith(ApiKeyCipher.PREFIX))
+                        this[stringPreferencesKey(key.name)] = ApiKeyCipher.encrypt(key.name, value)
+                }
+            }
+        }
+        override suspend fun cleanUp() = Unit
+    }) }
 )
 
 /**
@@ -40,7 +54,7 @@ class ApiKeyRepository(private val context: Context) {
      * Emits null if no key has been saved yet.
      */
     fun observeApiKey(provider: ModelProvider): Flow<String?> =
-        context.apiKeyDataStore.data.map { prefs -> prefs[keyFor(provider)] }
+        context.apiKeyDataStore.data.map { prefs -> prefs[keyFor(provider)]?.let { encrypted -> withContext(Dispatchers.IO) { ApiKeyCipher.decrypt(keyFor(provider).name, encrypted) } } }
 
     /**
      * Observes which providers currently have an API key stored.
@@ -55,7 +69,7 @@ class ApiKeyRepository(private val context: Context) {
      * Returns null if no key is stored.
      */
     suspend fun getApiKey(provider: ModelProvider): String? =
-        context.apiKeyDataStore.data.first()[keyFor(provider)]
+        context.apiKeyDataStore.data.first()[keyFor(provider)]?.let { withContext(Dispatchers.IO) { ApiKeyCipher.decrypt(keyFor(provider).name, it) } }
 
     // ──────────────────────────────────────────────
     //  Write
@@ -65,8 +79,9 @@ class ApiKeyRepository(private val context: Context) {
      * Saves or overwrites the API key for [provider].
      */
     suspend fun setApiKey(provider: ModelProvider, apiKey: String) {
+        val encrypted = withContext(Dispatchers.IO) { ApiKeyCipher.encrypt(keyFor(provider).name, apiKey) }
         context.apiKeyDataStore.edit { prefs ->
-            prefs[keyFor(provider)] = apiKey
+            prefs[keyFor(provider)] = encrypted
         }
     }
 

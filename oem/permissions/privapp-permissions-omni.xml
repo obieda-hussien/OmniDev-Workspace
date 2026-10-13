@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<permissions>
+    <privapp-permissions package="com.omnidev.workspace.oem">
+        <permission name="android.permission.CAPTURE_AUDIO_HOTWORD" />
+        <permission name="android.permission.MANAGE_VOICE_KEYPHRASES" />
+    </privapp-permissions>
+    <privapp-permissions package="com.omnidev.system">
+        <permission name="android.permission.WRITE_SECURE_SETTINGS" />
+    </privapp-permissions>
+</permissions>

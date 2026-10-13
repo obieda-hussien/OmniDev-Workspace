@@ -42,7 +42,7 @@ class VoiceWakeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        if (!TierPolicyHolder.current.allowAccessibility || !WakePreferences(this).userCanConfigure()) { finish(); return }
+        if (!TierPolicyHolder.current.allowLocalVoice || !WakePreferences(this).userCanConfigure()) { finish(); return }
         setContent { OmniDevTheme(dynamicColor = false) { VoiceWakeScreen(model, refresh, ::finish) } }
     }
     override fun onResume() {
@@ -50,7 +50,7 @@ class VoiceWakeActivity : ComponentActivity() {
         if (!WakePreferences(this).userCanConfigure()) finish()
         refresh++
     }
-    override fun onPause() { if (TierPolicyHolder.current.allowAccessibility) model.pauseRecording(); super.onPause() }
+    override fun onPause() { if (TierPolicyHolder.current.allowLocalVoice) model.pauseRecording(); super.onPause() }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)

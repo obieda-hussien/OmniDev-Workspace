@@ -102,6 +102,11 @@ android {
             versionNameSuffix = "-lite"
             resValue("string", "app_name", "OmniDev Lite")
 
+            buildConfigField("boolean", "ALLOW_AGENT", "false")
+            buildConfigField("boolean", "ALLOW_TEAM", "false")
+            buildConfigField("boolean", "ALLOW_LOCAL_VOICE", "true")
+            buildConfigField("boolean", "ALLOW_ASSISTANT", "true")
+            buildConfigField("boolean", "ALLOW_BUBBLE", "true")
             buildConfigField("String",  "TIER",                     "\"LITE\"")
             buildConfigField("boolean", "ALLOW_ROOT",               "false")
             buildConfigField("boolean", "ALLOW_SHIZUKU",            "false")
@@ -109,20 +114,13 @@ android {
             buildConfigField("boolean", "ALLOW_DEEP_SECURITY",      "false")
             buildConfigField("boolean", "AUTO_APPROVE_CONFIRMATIONS","false")
             buildConfigField("boolean", "ALLOW_DEVICE_ADMIN_WIPE",  "false")
-            buildConfigField("boolean", "ENABLE_LOCAL_SLM",         "false")
+            buildConfigField("boolean", "ENABLE_LOCAL_SLM",         "true")
             buildConfigField("boolean", "ALLOW_SYSTEM_INTEGRATION", "false")
 
             // Smaller APK for Play Store; only arm64 (main production ABI)
             ndk {
                 abiFilters.clear()
                 abiFilters += "arm64-v8a"
-            }
-            // llama.cpp is completely disabled for lite — native build is gated in afterEvaluate
-            externalNativeBuild {
-                cmake {
-                    // Sentinel flag picked up below to skip CMake entirely
-                    arguments += "-DOMNIDEV_DISABLE_NATIVE=ON"
-                }
             }
         }
 
@@ -132,6 +130,11 @@ android {
             versionNameSuffix   = "-norm"
             resValue("string", "app_name", "OmniDev Standard")
 
+            buildConfigField("boolean", "ALLOW_AGENT", "true")
+            buildConfigField("boolean", "ALLOW_TEAM", "false")
+            buildConfigField("boolean", "ALLOW_LOCAL_VOICE", "true")
+            buildConfigField("boolean", "ALLOW_ASSISTANT", "true")
+            buildConfigField("boolean", "ALLOW_BUBBLE", "true")
             buildConfigField("String",  "TIER",                     "\"NORM\"")
             buildConfigField("boolean", "ALLOW_ROOT",               "false")
             buildConfigField("boolean", "ALLOW_SHIZUKU",            "false")
@@ -159,6 +162,11 @@ android {
             versionNameSuffix   = "-pro"
             resValue("string", "app_name", "OmniDev Pro")
 
+            buildConfigField("boolean", "ALLOW_AGENT", "true")
+            buildConfigField("boolean", "ALLOW_TEAM", "true")
+            buildConfigField("boolean", "ALLOW_LOCAL_VOICE", "true")
+            buildConfigField("boolean", "ALLOW_ASSISTANT", "true")
+            buildConfigField("boolean", "ALLOW_BUBBLE", "true")
             buildConfigField("String",  "TIER",                     "\"PRO\"")
             buildConfigField("boolean", "ALLOW_ROOT",               "true")
             buildConfigField("boolean", "ALLOW_SHIZUKU",            "true")
@@ -168,7 +176,7 @@ android {
             buildConfigField("boolean", "ALLOW_DEVICE_ADMIN_WIPE",  "true")
             buildConfigField("boolean", "ENABLE_LOCAL_SLM",         "true")
             buildConfigField("boolean", "ALLOW_SYSTEM_INTEGRATION", "false")
-            // Pro keeps the full ABI set for native llama.cpp inference
+            // ABI-specific delivery is configured by the distributor.
         }
 
         create("oem") {
@@ -177,12 +185,17 @@ android {
             versionNameSuffix   = "-oem"
             resValue("string", "app_name", "OmniDev OEM")
 
+            buildConfigField("boolean", "ALLOW_AGENT", "true")
+            buildConfigField("boolean", "ALLOW_TEAM", "true")
+            buildConfigField("boolean", "ALLOW_LOCAL_VOICE", "true")
+            buildConfigField("boolean", "ALLOW_ASSISTANT", "true")
+            buildConfigField("boolean", "ALLOW_BUBBLE", "true")
             buildConfigField("String",  "TIER",                     "\"OEM\"")
             buildConfigField("boolean", "ALLOW_ROOT",               "false") // OEM uses system uid, not su
             buildConfigField("boolean", "ALLOW_SHIZUKU",            "false")
-            buildConfigField("boolean", "ALLOW_ACCESSIBILITY",      "true")
+            buildConfigField("boolean", "ALLOW_ACCESSIBILITY",      "false")
             buildConfigField("boolean", "ALLOW_DEEP_SECURITY",      "false")
-            buildConfigField("boolean", "AUTO_APPROVE_CONFIRMATIONS","true")  // ← ZERO-CLICK EXECUTION
+            buildConfigField("boolean", "AUTO_APPROVE_CONFIRMATIONS","false")  // ← ZERO-CLICK EXECUTION
             buildConfigField("boolean", "ALLOW_DEVICE_ADMIN_WIPE",  "false") // OEM policy: wipe disabled
             buildConfigField("boolean", "ENABLE_LOCAL_SLM",         "true")  // Offline llama.cpp
             buildConfigField("boolean", "ALLOW_SYSTEM_INTEGRATION", "true")  // android.uid.system
@@ -202,6 +215,11 @@ android {
             versionNameSuffix   = "-admin"
             resValue("string", "app_name", "OmniDev Admin")
 
+            buildConfigField("boolean", "ALLOW_AGENT", "true")
+            buildConfigField("boolean", "ALLOW_TEAM", "true")
+            buildConfigField("boolean", "ALLOW_LOCAL_VOICE", "true")
+            buildConfigField("boolean", "ALLOW_ASSISTANT", "true")
+            buildConfigField("boolean", "ALLOW_BUBBLE", "true")
             buildConfigField("String",  "TIER",                     "\"ADMIN\"")
             buildConfigField("boolean", "ALLOW_ROOT",               "true")
             buildConfigField("boolean", "ALLOW_SHIZUKU",            "true")
@@ -225,6 +243,16 @@ android {
     //                 Admin is treated as the "super-set" of pro + oem so it
     //                 inherits every high-privilege facade automatically.
     sourceSets {
+        listOf("norm", "pro", "oem", "admin").forEach { getByName("test" + it.replaceFirstChar { c -> c.uppercase() }).java.srcDir("src/testAdvanced/java") }
+        listOf("norm", "pro", "oem", "admin").forEach { getByName("test" + it.replaceFirstChar { c -> c.uppercase() }).java.srcDir("src/testAgent/java") }
+        listOf("pro", "oem", "admin").forEach { getByName("test" + it.replaceFirstChar { c -> c.uppercase() }).java.srcDir("src/testTeam/java") }
+        listOf("lite", "norm", "pro", "admin").forEach { getByName(it).java.srcDir("src/noOem/java") }
+        listOf("norm", "pro", "oem", "admin").forEach { getByName(it).java.srcDir("src/advanced/java"); getByName(it).assets.srcDir("src/advanced/assets"); getByName(it).res.srcDir("src/advanced/res") }
+        listOf("norm", "pro", "oem", "admin").forEach { getByName(it).java.srcDir("src/agent/java") }
+        listOf("pro", "oem", "admin").forEach { getByName(it).java.srcDir("src/team/java") }
+        listOf("lite", "norm").forEach { getByName(it).java.srcDir("src/noTeam/java") }
+        listOf("pro", "admin").forEach { getByName(it).java.srcDir("src/shizuku/java") }
+        listOf("lite", "norm", "oem").forEach { getByName(it).java.srcDir("src/noShizuku/java") }
         getByName("lite").java.srcDir("src/liteNorm/java")
         getByName("norm").java.srcDir("src/liteNorm/java")
         getByName("pro").java.srcDir("src/proOem/java")
@@ -262,8 +290,7 @@ android {
                 null
             } else {
                 signingConfigs.findByName("omniSharedRelease")
-                    ?: signingConfigs.findByName("omniSharedDebug")
-                    ?: signingConfigs.getByName("debug")
+                    // Intentionally unsigned without the production signer; never use a debug key.
             }
             isMinifyEnabled = true
             isShrinkResources = true // Reduce packaged resources after ProGuard.
@@ -358,13 +385,13 @@ tasks.configureEach {
     }
 }
 
-// ── Skip native build entirely for lite + norm flavors ──────────────────────
+// ── Standard excludes the native model engine; Lite retains offline inference ──────────────────────
 // llama.cpp is ~40 MB of binaries and 4+ minutes of CMake. For the Play-Store
-// (lite) and Standard (norm) tiers we don't ship local SLM inference, so we
+// Standard (norm) tier does not ship local SLM inference, so we
 // disable the entire externalNativeBuild pipeline for those flavor variants.
 android.applicationVariants.configureEach {
     val flavor = productFlavors.firstOrNull()?.name
-    if (flavor == "lite" || flavor == "norm") {
+    if (flavor == "norm") {
         val variantName = name.replaceFirstChar { it.uppercase() }
         tasks.matching { task ->
             val n = task.name
@@ -383,12 +410,13 @@ android.applicationVariants.configureEach {
 }
 
 dependencies {
+    add("oemImplementation", project(":oem-system-contract"))
     // OmniLink typed IPC + embedded-agent gateway.
     // Stable tagged OmniLink protocol shared by Workspace and connected apps.
     implementation("com.github.obieda-hussien.OmniLinkSDK:omni-link-sdk:v3.0.0")
 
     implementation("androidx.webkit:webkit:1.17.0")
-    implementation("org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r")
+    listOf("norm", "pro", "oem", "admin").forEach { add("${it}Implementation", "org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r") }
     // Direct offline PCM recognition; no Android/Google SpeechRecognizer startup sounds.
     implementation("com.alphacephei:vosk-android:0.3.75@aar")
     implementation("net.java.dev.jna:jna:5.18.1@aar")
@@ -427,15 +455,11 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     // ── Shizuku (The God-Mode Key) ──
-    // NOTE: Shizuku is currently on the `main` classpath (all flavors).
-    // Runtime access is gated by TierPolicy.allowShizuku, and the ShizukuProvider
-    // manifest entry is stripped from lite/norm/oem via tools:node="remove".
-    // TODO(Commit 6): Physically relocate ShizukuCommandTool + 18 callers into
-    //                 :tools:advanced so Shizuku is purely a `proImplementation`
-    //                 dependency and cannot even be linked in lite/norm.
-    //                 See PROJECT_ARCHITECTURE.md → Modularization Roadmap.
-    implementation(libs.shizuku.api)
-    implementation(libs.shizuku.provider)
+    // Shizuku implementations and dependencies are compiled only for Pro/Admin.
+    add("proImplementation", libs.shizuku.api)
+    add("adminImplementation", libs.shizuku.api)
+    add("proImplementation", libs.shizuku.provider)
+    add("adminImplementation", libs.shizuku.provider)
 
     // ── Web Scraping & Auth ──
     implementation(libs.androidx.browser)

@@ -1,0 +1,657 @@
+package com.omnidev.workspace.data.ipc
+
+import android.content.Context
+import android.os.Build
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.omnidev.workspace.data.tools.ExecutionRetryPolicy
+import com.omnidev.workspace.data.tools.ShizukuCommandTool
+import com.omnidev.workspace.data.tools.ShizukuResult
+
+/**
+ * PrivilegedExecutionManager — The patched and improved version.
+ *
+ * ### Execution Backends
+ * 1. **Shizuku UserService** — preferred Android shell UID.
+ * 2. **rish** — fallback ADB-equivalent shell when Shizuku transport is unavailable.
+ * 3. **Root/SU** — explicit-only via `executeRootCommand()` or opt-in fallback; never implicit.
+ *
+ * ### Fixes / Improvements
+ * 1. Non-zero privileged commands never become success merely because they printed output.
+ * 2. Backend fallback is allowed only when the backend itself is unavailable; a command-level
+ *    failure is authoritative and is never replayed automatically on rish/root.
+ * 3. Root readiness requires a real uid=0 smoke test, not path visibility.
+ * 4. Clear diagnostic messages and Termux bootstrap helpers are retained.
+ */
+object PrivilegedExecutionManager {
+
+    private const val TAG = "PrivMgr"
+    private const val MAX_OUTPUT = 8_000
+
+    @Volatile private var rishManager: RishShellManager? = null
+    @Volatile private var appContext: Context? = null
+    private val rishInitLock = Any()
+
+    private enum class RootHealth { UNKNOWN, READY, UNAVAILABLE }
+    private const val ROOT_HEALTH_TTL_MS = 15_000L
+    @Volatile private var rootHealth: RootHealth = RootHealth.UNKNOWN
+    @Volatile private var rootHealthCheckedAtMs: Long = 0L
+
+    // ──────────────────────────────────────────────────────────────
+    // Initialization
+    // ──────────────────────────────────────────────────────────────
+
+    fun init(context: Context) {
+        appContext = context.applicationContext
+        if (rishManager == null) {
+            synchronized(rishInitLock) {
+                if (rishManager == null) {
+                    rishManager = RishShellManager(context.applicationContext)
+                }
+            }
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Status
+    // ──────────────────────────────────────────────────────────────
+
+    fun getRishManager(): RishShellManager? = rishManager
+    fun isShizukuReady(): Boolean =
+        ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()
+    fun isRishReady(): Boolean = rishManager?.isAvailable() ?: false
+
+    /**
+     * File/path visibility is not root readiness. Root probing may display a superuser prompt, so
+     * passive capability/status code must never trigger it.
+     *
+     * [forceProbe] is reserved for an explicit root operation. A short TTL prevents one logical
+     * root action from prompting/probing repeatedly while still allowing capability changes later.
+     */
+    fun isRootAvailable(forceProbe: Boolean = false, probeTimeoutMs: Long = 1_500L): Boolean {
+        val now = System.currentTimeMillis()
+        val age = now - rootHealthCheckedAtMs
+        if (rootHealth != RootHealth.UNKNOWN && age in 0 until ROOT_HEALTH_TTL_MS) {
+            return rootHealth == RootHealth.READY
+        }
+        if (!forceProbe) return rootHealth == RootHealth.READY
+
+        val ready = runCatching {
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+            val finished = process.waitFor(probeTimeoutMs.coerceIn(1_500L, 30_000L), java.util.concurrent.TimeUnit.MILLISECONDS)
+            if (!finished) {
+                process.destroy()
+                false
+            } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() } +
+                    process.errorStream.bufferedReader().use { it.readText() }
+                process.exitValue() == 0 &&
+                    Regex("""\buid=0(?:\(|\b)""").containsMatchIn(output)
+            }
+        }.getOrDefault(false)
+
+        rootHealth = if (ready) RootHealth.READY else RootHealth.UNAVAILABLE
+        rootHealthCheckedAtMs = System.currentTimeMillis()
+        return ready
+    }
+
+    fun cachedRootAvailable(): Boolean? {
+        val age = System.currentTimeMillis() - rootHealthCheckedAtMs
+        if (rootHealth == RootHealth.UNKNOWN || age !in 0 until ROOT_HEALTH_TTL_MS) return null
+        return rootHealth == RootHealth.READY
+    }
+
+    fun resetRootHealth() {
+        rootHealth = RootHealth.UNKNOWN
+        rootHealthCheckedAtMs = 0L
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // executeCommand — The core execution function
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Executes [command] via the best available backend.
+     *
+     * ### Fallback Chain
+     * Shizuku → rish → Failure by default.
+     * Root is opt-in only via [allowRootFallback] or [executeRootCommand]; it is never a silent
+     * privilege escalation for an ordinary Android-shell request.
+     */
+    suspend fun executeCommand(
+        command: String,
+        allowRootFallback: Boolean = false
+    ): Result<String> = withContext(Dispatchers.IO) {
+        if (command.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Command is empty."))
+        }
+        // Android shell/rish/root identities cannot reliably access OmniDev's app-private
+        // filesDir. Never inject app-private PATH/JAR helpers into privileged commands.
+        val preparedCommand = command
+        val crossBackendRetrySafe = ExecutionRetryPolicy.isSafeToRetry(command)
+
+        // ── 1. Shizuku UserService (preferred Android shell domain) ──
+        var allowBackendFallback = !ShizukuCommandTool.isAvailable()
+        if (ShizukuCommandTool.isAvailable()) {
+            when (val r = ShizukuCommandTool.execute(preparedCommand)) {
+                is ShizukuResult.Success -> {
+                    Log.d(TAG, "Shizuku ✅ exit=0: ${command.take(40)}")
+                    return@withContext Result.success(r.output.trim().take(MAX_OUTPUT))
+                }
+
+                // Retained only for source compatibility; treat it as a real command failure.
+                is ShizukuResult.PartialSuccess -> {
+                    return@withContext Result.failure(
+                        IllegalStateException(
+                            "Shizuku command failed (exit=${r.exitCode}): " +
+                                r.output.trim().ifBlank { "(no output)" }.take(2_000)
+                        )
+                    )
+                }
+
+                is ShizukuResult.PermissionRequired -> {
+                    Log.w(TAG, "Shizuku permission unavailable → backend fallback allowed: ${r.message}")
+                    allowBackendFallback = true
+                }
+
+                is ShizukuResult.Unavailable -> {
+                    Log.w(TAG, "Shizuku unavailable → backend fallback allowed: ${r.message}")
+                    allowBackendFallback = true
+                }
+
+                is ShizukuResult.Failure -> {
+                    if (isShizukuBackendFailure(r.reason)) {
+                        if (!crossBackendRetrySafe) {
+                            return@withContext Result.failure(
+                                IllegalStateException(
+                                    "MUTATION_OUTCOME_UNKNOWN: Shizuku transport failed after an " +
+                                        "at-most-once command. Do not replay on rish/root until a " +
+                                        "read-only postcondition check proves the mutation did not happen. " +
+                                        "Backend detail: ${r.reason.take(1_000)}"
+                                )
+                            )
+                        }
+                        Log.w(
+                            TAG,
+                            "Shizuku backend failed after retries → safe read/idempotent fallback allowed: ${r.reason}"
+                        )
+                        allowBackendFallback = true
+                    } else {
+                        // The UserService executed the command and rejected/failed it. Replaying the
+                        // same mutation through rish/root risks duplicate side effects and hides truth.
+                        return@withContext Result.failure(
+                            IllegalStateException("Shizuku command failed: ${r.reason}")
+                        )
+                    }
+                }
+            }
+        }
+
+        if (!allowBackendFallback) {
+            return@withContext Result.failure(
+                IllegalStateException("Privileged command failed without a safe backend fallback.")
+            )
+        }
+
+        // ── 2. rish (full ADB-equivalent shell) ──
+        var rishAttempted = false
+        if (isRishReady()) {
+            rishAttempted = true
+            Log.d(TAG, "Trying rish: ${command.take(40)}")
+            val rishResult = rishManager!!.execute(preparedCommand)
+            if (rishResult.isSuccess) {
+                val out = rishResult.getOrThrow()
+                Log.d(TAG, "rish ✅: ${command.take(40)}")
+                return@withContext Result.success(out.take(MAX_OUTPUT))
+            }
+            Log.w(TAG, "rish failed: ${rishResult.exceptionOrNull()?.message}")
+            if (!crossBackendRetrySafe) {
+                return@withContext Result.failure(
+                    IllegalStateException(
+                        "MUTATION_OUTCOME_UNKNOWN: rish failed after an at-most-once command. " +
+                            "Do not replay it through root until a read-only postcondition check " +
+                            "proves the mutation did not happen. Backend detail: " +
+                            rishResult.exceptionOrNull()?.message.orEmpty().take(1_000)
+                    )
+                )
+            }
+        }
+
+        // ── 3. Root/SU — explicit opt-in only ──
+        val rootMayRun = allowRootFallback && (!rishAttempted || crossBackendRetrySafe)
+        val rootReady = if (rootMayRun) isRootAvailable(forceProbe = true) else null
+        if (rootMayRun && rootReady == true) {
+            Log.d(TAG, "Trying explicitly allowed root fallback: ${command.take(40)}")
+            return@withContext executeViaRoot(preparedCommand)
+        }
+
+        // ── Failure: Clear diagnostics ──
+        Result.failure(
+            IllegalStateException(
+                buildFailureMessage(
+                    rootReady = rootReady,
+                    rootFallbackAllowed = allowRootFallback
+                )
+            )
+        )
+    }
+
+    /**
+     * ShizukuCommandTool already retries transient transport faults internally. Only failures that
+     * still describe transport/service availability may fall through to another backend.
+     */
+    private fun isShizukuBackendFailure(reason: String): Boolean {
+        val lower = reason.lowercase()
+        return lower.contains("userservice error") ||
+            lower.contains("user service error") ||
+            lower.contains("client is not initialized") ||
+            lower.contains("connection timeout") ||
+            lower.contains("deadobject") ||
+            lower.contains("remoteexception") ||
+            lower.contains("binder") ||
+            lower.contains("service disconnected") ||
+            lower.contains("transaction failed")
+    }
+
+    /**
+     * Execute through real root only. This API intentionally never falls back to Shizuku/rish,
+     * so callers named/advertised as root cannot silently run as shell uid=2000.
+     */
+    suspend fun executeRootCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
+        if (command.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Root command is empty."))
+        }
+        if (!isRootAvailable(forceProbe = true)) {
+            return@withContext Result.failure(
+                IllegalStateException("Root backend is unavailable or su did not return uid=0.")
+            )
+        }
+        executeViaRoot(command)
+    }
+
+    /**
+     * Builds a diagnostic failure message explaining why execution failed and the solution.
+     */
+    private fun buildFailureMessage(
+        rootReady: Boolean?,
+        rootFallbackAllowed: Boolean
+    ): String = buildString {
+        appendLine("❌ No execution backend available.")
+        appendLine()
+        val shizukuAvail = ShizukuCommandTool.isAvailable()
+        val shizukuPerm  = if (shizukuAvail) ShizukuCommandTool.hasPermission() else false
+        appendLine("• Shizuku: ${when {
+            !shizukuAvail -> "❌ Unavailable (Shizuku is not running)"
+            !shizukuPerm  -> "⚠️ Available but without permission"
+            else          -> "⚠️ Available but execution failed"
+        }}")
+        appendLine("• rish: ${if (isRishReady()) "⚠️ Available but failed" else "❌ Unavailable"}")
+        appendLine(
+            "• root: " + when {
+                !rootFallbackAllowed -> "not probed (explicit root capability was not requested)"
+                rootReady == true -> "✅ ready and explicitly allowed"
+                else -> "❌ unavailable"
+            }
+        )
+        appendLine()
+        appendLine("Solution:")
+        if (!shizukuAvail) {
+            appendLine("  1. Open the Shizuku app and start it")
+        } else if (!shizukuPerm) {
+            appendLine("  1. Open Shizuku → Grant permission to the app")
+        }
+        appendLine("  2. Run: execution_diagnostics action=fix_shizuku")
+    }
+
+
+    // POSIX-safe single-quote escaping:
+    // close quote + escaped single quote + reopen quote => '\'' pattern.
+    fun shellQuote(value: String): String =
+        "'" + value.replace("'", "'\\''") + "'"
+
+    // ──────────────────────────────────────────────────────────────
+    // System info helpers
+    // ──────────────────────────────────────────────────────────────
+
+    suspend fun getDeviceState(context: Context): DeviceStateSnapshot =
+        withContext(Dispatchers.IO) {
+            val foregroundPkg = getForegroundPackage()
+            val batteryLevel  = getBatteryLevel()
+            val totalRamMb    = getTotalRamMb()
+            DeviceStateSnapshot(
+                buildFingerprint  = Build.FINGERPRINT,
+                sdkInt            = Build.VERSION.SDK_INT,
+                model             = "${Build.MANUFACTURER} ${Build.MODEL}",
+                androidVersion    = Build.VERSION.RELEASE,
+                shizukuReady      = isShizukuReady(),
+                rishAvailable     = isRishReady(),
+                rootAvailable     = cachedRootAvailable() == true,
+                foregroundPackage = foregroundPkg,
+                batteryLevel      = batteryLevel,
+                totalRamMb        = totalRamMb
+            )
+        }
+
+    suspend fun getSystemProperty(key: String): Result<String> =
+        executeCommand("getprop ${sanitizeArgument(key)}")
+
+    suspend fun setSystemProperty(key: String, value: String): Result<String> =
+        executeCommand("setprop ${sanitizeArgument(key)} ${sanitizeArgument(value)}")
+
+    suspend fun dumpSysInfo(service: String): Result<String> {
+        val safe = service.replace(Regex("[^a-zA-Z0-9._/\\-]"), "").take(64)
+        if (safe.isEmpty()) return Result.failure(IllegalArgumentException("Invalid service name."))
+        return executeCommand("dumpsys $safe").map { it.take(MAX_OUTPUT) }
+    }
+
+    suspend fun listRunningProcesses(): Result<String> =
+        executeCommand("ps -A").map { it.take(MAX_OUTPUT) }
+
+    suspend fun readSetting(namespace: String, key: String): Result<String> {
+        val ns = validateSettingsNamespace(namespace)
+            ?: return Result.failure(IllegalArgumentException("Invalid namespace. Use: system, secure, global."))
+        val safeKey = key.replace(Regex("[^a-zA-Z0-9_.]"), "")
+        if (safeKey.isEmpty()) return Result.failure(IllegalArgumentException("Invalid key."))
+        return executeCommand("settings get $ns $safeKey")
+    }
+
+    suspend fun writeSetting(namespace: String, key: String, value: String): Result<String> {
+        val ns = validateSettingsNamespace(namespace)
+            ?: return Result.failure(IllegalArgumentException("Invalid namespace."))
+        val safeKey   = key.replace(Regex("[^a-zA-Z0-9_.]"), "")
+        val safeValue = value.replace(Regex("[;&|`\$\\\\\n\r]"), "")
+        if (safeKey.isEmpty()) return Result.failure(IllegalArgumentException("Invalid key."))
+        return executeCommand("settings put $ns $safeKey $safeValue")
+    }
+
+    suspend fun listSettings(namespace: String): Result<String> {
+        val ns = validateSettingsNamespace(namespace)
+            ?: return Result.failure(IllegalArgumentException("Invalid namespace."))
+        return executeCommand("settings list $ns").map { it.take(MAX_OUTPUT) }
+    }
+
+    suspend fun queryPackages(filter: String): Result<String> {
+        val safeFilter = filter.replace(Regex("[^a-zA-Z0-9._]"), "")
+        val cmd = if (safeFilter.isNotEmpty()) "pm list packages | grep -F $safeFilter"
+                  else "pm list packages"
+        return executeCommand(cmd).map { it.take(MAX_OUTPUT) }
+    }
+
+    suspend fun installApk(apkPath: String): Result<String> {
+        val safePath = apkPath.replace(Regex("[^a-zA-Z0-9_.\\-/]"), "")
+        if (!safePath.endsWith(".apk")) {
+            return Result.failure(IllegalArgumentException("Path must end with .apk"))
+        }
+        return executeCommand("pm install -r -g $safePath")
+    }
+
+    suspend fun uninstallPackage(packageName: String): Result<String> {
+        val safePkg = sanitizePackageName(packageName)
+            ?: return Result.failure(IllegalArgumentException("Invalid package name."))
+        return executeCommand("pm uninstall $safePkg")
+    }
+
+    suspend fun grantPermission(packageName: String, permission: String): Result<String> {
+        val safePkg  = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("Invalid package name."))
+        val safePerm = permission.replace(Regex("[^a-zA-Z0-9._]"), "")
+        return executeCommand("pm grant $safePkg $safePerm")
+    }
+
+    suspend fun revokePermission(packageName: String, permission: String): Result<String> {
+        val safePkg  = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("Invalid package name."))
+        val safePerm = permission.replace(Regex("[^a-zA-Z0-9._]"), "")
+        return executeCommand("pm revoke $safePkg $safePerm")
+    }
+
+    suspend fun getPackageInfo(packageName: String): Result<String> {
+        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("Invalid package name."))
+        return executeCommand("pm dump $safePkg").map { it.take(MAX_OUTPUT) }
+    }
+
+    suspend fun forceStopApp(packageName: String): Result<String> {
+        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("Invalid package name."))
+        return executeCommand("am force-stop $safePkg")
+    }
+
+    suspend fun launchComponent(component: String): Result<String> {
+        if (component.isBlank()) return Result.failure(IllegalArgumentException("Component is empty."))
+        val safeComponent = component.replace(Regex("[;&|`\$\\\\\n\r]"), "").take(256)
+        return executeCommand("am start $safeComponent")
+    }
+
+    suspend fun sendBroadcast(action: String): Result<String> {
+        val safeAction = action.replace(Regex("[^a-zA-Z0-9._]"), "")
+        if (safeAction.isEmpty()) return Result.failure(IllegalArgumentException("Invalid action."))
+        return executeCommand("am broadcast -a $safeAction")
+    }
+
+    suspend fun injectTap(x: Int, y: Int): Result<String> =
+        executeCommand("input tap $x $y")
+
+    suspend fun injectSwipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Int): Result<String> =
+        executeCommand("input swipe $x1 $y1 $x2 $y2 $durationMs")
+
+    suspend fun injectText(text: String): Result<String> {
+        if (text.isBlank()) return Result.failure(IllegalArgumentException("Text is empty."))
+        return executeCommand("input text ${sanitizeArgument(text)}")
+    }
+
+    suspend fun injectKeyEvent(keyCode: Int): Result<String> =
+        executeCommand("input keyevent $keyCode")
+
+    suspend fun captureScreen(outputPath: String): Result<String> {
+        val safePath = outputPath.replace(Regex("[^a-zA-Z0-9_.\\-/]"), "")
+        if (safePath.isEmpty()) return Result.failure(IllegalArgumentException("Invalid path."))
+        return executeCommand("screencap -p $safePath").map { safePath }
+    }
+
+    suspend fun controlService(service: String, action: String): Result<String> {
+        val safeService = service.lowercase().replace(Regex("[^a-z]"), "")
+        val safeAction  = action.lowercase().replace(Regex("[^a-z]"), "")
+        if (safeService !in setOf("wifi", "data", "bluetooth", "nfc", "power")) {
+            return Result.failure(IllegalArgumentException("Invalid service."))
+        }
+        if (safeAction !in setOf("enable", "disable")) {
+            return Result.failure(IllegalArgumentException("Action must be 'enable' or 'disable'."))
+        }
+        return executeCommand("svc $safeService $safeAction")
+    }
+
+    suspend fun windowManager(subCommand: String, value: String): Result<String> {
+        val safeSub = subCommand.lowercase().replace(Regex("[^a-z ]"), "").trim()
+        if (safeSub !in setOf("size", "density", "size reset", "density reset")) {
+            return Result.failure(IllegalArgumentException("Invalid subcommand."))
+        }
+        val cmd = if (value.isBlank()) "wm $safeSub"
+                  else "wm $safeSub ${value.replace(Regex("[^0-9x]"), "")}"
+        return executeCommand(cmd)
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Termux bootstrap (Install Termux without Termux)
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Generates instructions to install Termux without needing an app store.
+     * The agent can execute these steps via Shizuku.
+     */
+    fun getTermuxBootstrapHints(): String = buildString {
+        appendLine("=== Install Termux via Shizuku (Store-free) ===")
+        appendLine()
+        appendLine("Method 1 — Download APK and install via pm install:")
+        appendLine("""  # Download Termux APK from F-Droid""")
+        appendLine("""  curl -L "https://f-droid.org/repo/com.termux_118.apk" \\""")
+        appendLine("""       -o /data/local/tmp/termux.apk""")
+        appendLine("""  # Or wget:""")
+        appendLine("""  wget -O /data/local/tmp/termux.apk \\""")
+        appendLine("""       "https://f-droid.org/repo/com.termux_118.apk"""")
+        appendLine("""  # Install with shell privileges:""")
+        appendLine("""  pm install -r -g /data/local/tmp/termux.apk""")
+        appendLine()
+        appendLine("Method 2 — Use agent_runtime action=tool_bootstrap:")
+        appendLine("""  agent_runtime action=tool_bootstrap tool=termux""")
+        appendLine()
+        appendLine("Method 3 — Manual installation from F-Droid:")
+        appendLine("""  https://f-droid.org/en/packages/com.termux/""")
+        appendLine()
+        appendLine("After installation, run in Termux:")
+        appendLine("""  pkg update && pkg upgrade -y""")
+        appendLine("""  pkg install -y python git curl wget nodejs""")
+    }
+
+    /**
+     * Attempts to download and install Termux APK via Shizuku.
+     * Requires curl or wget available via Shizuku.
+     */
+    suspend fun installTermuxViaShizuku(): Result<String> = withContext(Dispatchers.IO) {
+        if (!isShizukuReady()) {
+            return@withContext Result.failure(IllegalStateException("Shizuku is unavailable."))
+        }
+
+        val apkUrl = "https://f-droid.org/repo/com.termux_118.apk"
+        val apkPath = "/data/local/tmp/termux_install.apk"
+        val sb = StringBuilder()
+
+        // Check for downloader presence
+        val hasCurl = executeCommand("which curl 2>/dev/null").getOrNull()?.startsWith("/") == true
+        val hasWget = executeCommand("which wget 2>/dev/null").getOrNull()?.startsWith("/") == true
+
+        if (!hasCurl && !hasWget) {
+            return@withContext Result.failure(
+                IllegalStateException(
+                    "No curl or wget found. Use agent_runtime action=tool_bootstrap tool=termux\n" +
+                    "or install Termux manually from F-Droid."
+                )
+            )
+        }
+
+        // Download APK
+        sb.appendLine("⬇️ Downloading Termux APK...")
+        val downloadCmd = if (hasCurl) {
+            "curl -L -o '$apkPath' '$apkUrl' 2>&1 && echo DOWNLOAD_OK"
+        } else {
+            "wget -O '$apkPath' '$apkUrl' 2>&1 && echo DOWNLOAD_OK"
+        }
+
+        val downloadResult = executeCommand(downloadCmd)
+        if (downloadResult.isFailure || downloadResult.getOrDefault("").contains("DOWNLOAD_OK").not()) {
+            return@withContext Result.failure(RuntimeException("Download failed: ${downloadResult.exceptionOrNull()?.message}"))
+        }
+        sb.appendLine("✅ Downloaded")
+
+        // Install APK
+        sb.appendLine("📦 Installing Termux...")
+        val installResult = executeCommand("pm install -r -g '$apkPath'")
+        val installOut = installResult.getOrNull() ?: installResult.exceptionOrNull()?.message ?: ""
+        sb.appendLine(installOut)
+
+        if (installOut.contains("Success", ignoreCase = true)) {
+            sb.appendLine("✅ Termux installed successfully!")
+            sb.appendLine("Open Termux and run: pkg update && pkg install python git")
+            Result.success(sb.toString())
+        } else {
+            Result.failure(RuntimeException("Installation failed: $installOut"))
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Private helpers
+    // ──────────────────────────────────────────────────────────────
+
+    private fun executeViaRoot(command: String): Result<String> = runCatching {
+        val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
+
+        val stdoutBuf = StringBuffer()
+        val stderrBuf = StringBuffer()
+
+        val sout = Thread {
+            try { process.inputStream.bufferedReader().use { r ->
+                r.lineSequence().forEach { if (stdoutBuf.length < MAX_OUTPUT) stdoutBuf.appendLine(it) }
+            }} catch (_: Exception) {}
+        }.apply { isDaemon = true; start() }
+
+        val serr = Thread {
+            try { process.errorStream.bufferedReader().use { r ->
+                r.lineSequence().forEach { if (stderrBuf.length < 3_000) stderrBuf.appendLine(it) }
+            }} catch (_: Exception) {}
+        }.apply { isDaemon = true; start() }
+
+        val wait = Thread {
+            try { process.waitFor() } catch (_: InterruptedException) {}
+        }.apply { isDaemon = true; start() }
+
+        wait.join(30_000L)
+        if (wait.isAlive) {
+            process.destroy(); sout.interrupt(); serr.interrupt()
+            throw RuntimeException("Root command exceeded 30s")
+        }
+        sout.join(2_000L); serr.join(2_000L)
+
+        val stdout = stdoutBuf.toString().trim()
+        val stderr = stderrBuf.toString().trim()
+        val exit   = process.exitValue()
+
+        val output = when {
+            stdout.isNotBlank() && stderr.isNotBlank() -> "$stdout\n[stderr]: $stderr"
+            stdout.isNotBlank() -> stdout
+            stderr.isNotBlank() -> stderr
+            else -> "(no output)"
+        }
+
+        if (exit == 0) {
+            output.trim().ifBlank { "(no output)" }
+        } else {
+            throw RuntimeException("Root exited $exit:\n$output")
+        }
+    }
+
+    private suspend fun getForegroundPackage(): String = withContext(Dispatchers.IO) {
+        runCatching {
+            when (val r = ShizukuCommandTool.execute(
+                "dumpsys activity activities | grep mResumedActivity | head -1"
+            )) {
+                is ShizukuResult.Success        -> r.output.trim()
+                is ShizukuResult.PartialSuccess -> r.output.trim()
+                else -> "unknown"
+            }
+        }.getOrDefault("unknown")
+    }
+
+    private suspend fun getBatteryLevel(): Int = withContext(Dispatchers.IO) {
+        runCatching {
+            when (val r = ShizukuCommandTool.execute("dumpsys battery | grep level | head -1")) {
+                is ShizukuResult.Success, is ShizukuResult.PartialSuccess ->
+                    Regex("level:\\s*(\\d+)").find(r.toDisplayString())?.groupValues?.getOrNull(1)?.toIntOrNull() ?: -1
+                else -> -1
+            }
+        }.getOrDefault(-1)
+    }
+
+    private suspend fun getTotalRamMb(): Long = withContext(Dispatchers.IO) {
+        runCatching {
+            when (val r = ShizukuCommandTool.execute("cat /proc/meminfo | grep MemTotal | head -1")) {
+                is ShizukuResult.Success, is ShizukuResult.PartialSuccess ->
+                    Regex("(\\d+)").find(r.toDisplayString())?.groupValues?.getOrNull(1)
+                        ?.toLongOrNull()?.let { it / 1024 } ?: -1L
+                else -> -1L
+            }
+        }.getOrDefault(-1L)
+    }
+
+    private fun sanitizePackageName(name: String): String? {
+        val safe = name.replace(Regex("[^a-zA-Z0-9._]"), "")
+        return if (safe.isEmpty()) null else safe
+    }
+
+    private fun sanitizeArgument(arg: String): String = "'${arg.replace("'", "'\\''")}'"
+
+    private fun validateSettingsNamespace(namespace: String): String? {
+        val ns = namespace.lowercase()
+        return if (ns in setOf("system", "secure", "global")) ns else null
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// DeviceStateSnapshot
+// ──────────────────────────────────────────────────────────────────────────────

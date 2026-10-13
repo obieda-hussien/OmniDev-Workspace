@@ -11,7 +11,7 @@ import com.omnidev.workspace.domain.model.ToolAccessMode
 internal object TierToolGate {
 
     internal val LITE_TOOLS: Set<String> = setOf(
-        "media_generation", "web_search", "web_search_deep", "web_scraper", "scrape_multiple", "read_file",
+        "compress_context", "headless_browser", "fetch_page", "read_file_lines", "create_file", "patch_file_content", "append_to_file", "delete_file", "multi_read", "omni_link", "github_manager", "planner_tool", "media_generation", "web_search", "web_search_deep", "web_scraper", "scrape_multiple", "read_file",
         "remember_fact", "search_knowledge", "update_memory", "delete_memory",
         "list_chat_sessions", "search_messages", "read_chat_session", "read_chat_message",
         "vector_store", "vector_search", "vector_similar", "brain_reflexion_search",
@@ -51,10 +51,10 @@ internal object TierToolGate {
             "LITE"          -> visible.filter { it.name in LITE_TOOLS }
             "NORM"          -> visible.filterNot { it.name in PRO_ONLY_TOOLS }
             "PRO"           -> visible
-            "OEM"           -> visible.filterNot { it.name in SHIZUKU_DEPENDENT_TOOLS }
+            "OEM"           -> visible.filterNot { it.name in PRO_ONLY_TOOLS || it.name in setOf("semantic_ui", "ui_automation", "autofill_assist", "device_admin", "run_terminal", "agent_runtime", "python_runner", "python_runtime", "install_tool", "git_manager", "ime_tool") || it.name.startsWith("god_") }
             "ADMIN"         -> visible
-            "UNINITIALIZED" -> visible.filter { it.name in LITE_TOOLS }
-            else            -> visible
+            "UNINITIALIZED" -> emptyList()
+            else            -> emptyList()
         }
     }
 
@@ -70,17 +70,18 @@ internal object TierToolGate {
         val policy = TierPolicyHolder.current
         return when (policy.tier) {
             "LITE" -> if (toolName in LITE_TOOLS) null
-            else "The Lite tier exposes only the web-browsing toolkit plus the Persistent Memory & Vector Knowledge Base tools. Upgrade to Standard/Pro for this capability."
+            else "This capability is not included in Lite. Research, delegated files, memory, media and trusted connected apps are available."
 
             "NORM" -> if (toolName !in PRO_ONLY_TOOLS) null
             else "This tool requires the Pro tier (Shizuku / root / deep-security capability)."
 
-            "OEM" -> if (toolName !in SHIZUKU_DEPENDENT_TOOLS) null
-            else "OEM builds use system-uid privilege and do not ship the Shizuku bridge."
+            "OEM" -> if (toolName !in PRO_ONLY_TOOLS && toolName !in setOf("semantic_ui", "ui_automation", "autofill_assist", "device_admin", "run_terminal", "agent_runtime", "python_runner", "python_runtime", "install_tool", "git_manager", "ime_tool") && !toolName.startsWith("god_")) null
+            else "OEM builds use the typed system broker and trusted app integrations; arbitrary privileged commands are unavailable."
 
             "ADMIN" -> null
             "UNINITIALIZED" -> "Tier policy has not been installed yet — refusing tool execution for safety."
-            else -> null
+            "PRO" -> null
+            else -> "Unknown build policy; execution refused."
         }
     }
 }

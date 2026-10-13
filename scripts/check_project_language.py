@@ -40,7 +40,7 @@ def main() -> None:
         if path.suffix in {'.md', '.xml', '.toml', '.kts', '.pro'}:
             if ARABIC.search(path.read_text()):
                 failures.append(f'{name}: authored prose/resources must be English')
-        elif path.suffix == '.kt' and '/src/main/' in name:
+        elif path.suffix == '.kt' and ('/src/main/' in name or name in reviewed):
             try:
                 literals = functional_literals(path.read_text())
             except ValueError as error:

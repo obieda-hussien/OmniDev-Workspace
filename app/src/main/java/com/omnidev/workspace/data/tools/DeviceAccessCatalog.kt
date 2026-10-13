@@ -152,7 +152,7 @@ object DeviceAccessCatalog {
         for (entry in entries) appendLine("${entry.key}: ${status(context, entry.key)}")
         for (key in listOf("shizuku", "rish", "root", "system", "device_owner", "profile_owner")) appendLine("$key: ${status(context, key)}")
         if (TierPolicyHolder.current.allowShizuku && ShizukuCommandTool.hasPermission()) {
-            val uid = runCatching { rikka.shizuku.Shizuku.getUid() }.getOrNull()
+            val uid = runCatching { com.omnidev.workspace.core.privileged.ShizukuPermissionBridge.getUid() }.getOrNull()
             appendLine("Shizuku server UID: ${uid ?: "unknown"} (0=root, 2000=ADB shell; per-operation restrictions still apply)")
         }
         if (Build.VERSION.SDK_INT >= 26) {

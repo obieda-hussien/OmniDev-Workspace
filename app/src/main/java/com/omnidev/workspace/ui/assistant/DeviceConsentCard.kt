@@ -21,7 +21,7 @@ import com.omnidev.workspace.data.admin.*
 @Composable
 fun DeviceConsentCard() {
     val context = LocalContext.current
-    if (!TierPolicyHolder.current.allowAccessibility) return
+    if (!TierPolicyHolder.current.allowAssistant) return
     val store = remember { DeviceConsentStore(context) }
     val vault = remember { DevicePinVault(context) }
     var version by remember { mutableIntStateOf(0) }
@@ -58,7 +58,8 @@ fun DeviceConsentCard() {
             Text("Lock screen and sensitive access", style = MaterialTheme.typography.titleMedium)
             Text("Choose each permission yourself. Enabling requires Android identity confirmation, including in Admin. You can revoke access immediately.", style = MaterialTheme.typography.bodySmall)
             val scopes = DeviceConsentPolicy.Scope.entries.filter {
-                it != DeviceConsentPolicy.Scope.SAVED_PIN || TierPolicyHolder.current.tier == "ADMIN"
+                (TierPolicyHolder.current.allowAccessibility || it in setOf(DeviceConsentPolicy.Scope.WAKE, DeviceConsentPolicy.Scope.LOCK_OVERLAY)) &&
+                    (it != DeviceConsentPolicy.Scope.SAVED_PIN || TierPolicyHolder.current.tier == "ADMIN")
             }
             for (scope in scopes) {
                 val enabled = remember(version, scope) { store.enabled(scope) }
@@ -73,7 +74,7 @@ fun DeviceConsentCard() {
                     })
                 }
             }
-            Text("Permissions alone do not provide your device code. For automatic PIN input, save your PIN below and choose Remember PIN authorization. Private local code entry remains available when offline voice is unavailable.", style = MaterialTheme.typography.bodySmall)
+            if (TierPolicyHolder.current.allowAccessibility) Text("Permissions alone do not provide your device code. For automatic PIN input, save your PIN below and choose Remember PIN authorization. Private local code entry remains available when offline voice is unavailable.", style = MaterialTheme.typography.bodySmall)
             if (store.enabled(DeviceConsentPolicy.Scope.SAVED_PIN)) {
                 Text(if (vault.exists()) "Local PIN saved · ${store.pinAuthorizationStatus()}" else "No local PIN saved", style = MaterialTheme.typography.labelMedium)
                 OutlinedTextField(value = pin, onValueChange = { value ->

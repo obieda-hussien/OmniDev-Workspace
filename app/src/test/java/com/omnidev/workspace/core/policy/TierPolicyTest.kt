@@ -11,14 +11,12 @@ import org.junit.Test
 /**
  * Unit tests for [TierPolicy] + [ConfirmationGate] + [OmniAuditLog].
  *
- * These tests deliberately avoid importing any flavor-specific policy class
+ * These confirmation/audit fixtures deliberately avoid importing any flavor-specific policy class
  * (LiteTierPolicy / NormTierPolicy / ProTierPolicy / OemTierPolicy) so they can
- * run under any build variant. They use hand-rolled stub policies that mirror
- * the production behaviour.
+ * run under any build variant. They exercise configurable gate and audit contracts. Active build boundaries are
+ * verified separately by FlavorModeBoundaryTest and AssistantFlavorPolicyTest.
  *
- * The four stub policies below are contractually identical to the four
- * production TierPolicy implementations and act as the "test fixtures"
- * mentioned in the architecture proposal.
+ * The fixture labels describe historical gate examples, not current flavor entitlements.
  */
 class TierPolicyTest {
 

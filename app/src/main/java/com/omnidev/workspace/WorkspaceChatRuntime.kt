@@ -56,8 +56,8 @@ object WorkspaceChatRuntime {
         val memoryManager = MemoryManager(database.knowledgeDao())
 
         val fileToolManager = FileToolManager()
-        val environmentSetupManager = EnvironmentSetupManager
-        val godEyeProfilerTool = GodEyeProfilerTool(applicationContext, ShizukuCommandTool)
+        val environmentSetupManager = if (com.omnidev.workspace.BuildConfig.ALLOW_AGENT) EnvironmentSetupManager else null
+        val godEyeProfilerTool = if (com.omnidev.workspace.BuildConfig.ALLOW_DEEP_SECURITY) GodEyeProfilerTool(applicationContext, ShizukuCommandTool) else null
         val notionPublisherTool = com.omnidev.workspace.data.tools.NotionPublisherTool(settingsRepository)
 
         val app = OmniDevApp.instance
@@ -87,7 +87,7 @@ object WorkspaceChatRuntime {
             buildDoctorTools = buildDoctorTools,
             causalChainPlannerTool = app.causalChainPlannerTool,
             progressiveTrustTool = ProgressiveTrustTool(app.progressiveTrustEngine),
-            scriptRunnerTool = ScriptRunnerTool()
+            scriptRunnerTool = if (com.omnidev.workspace.BuildConfig.ALLOW_AGENT) ScriptRunnerTool() else null
         )
 
         val completionService = CompletionService(settingsRepository)

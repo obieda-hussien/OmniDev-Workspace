@@ -68,12 +68,12 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item { ModelSectionTitle("Conversations") }
-        items(listOf(ModelRole.CHAT, ModelRole.AGENT), key = { it.name }) { role ->
+        items(listOf(ModelRole.CHAT, ModelRole.AGENT).filter { it == ModelRole.CHAT || com.omnidev.workspace.BuildConfig.ALLOW_AGENT }, key = { it.name }) { role ->
             ModelAssignmentRow(role, selected(role), state.modelAssignments[role].orEmpty(),
                 selected(role)?.provider in available, onClick = { onOpen(role) })
         }
-        item { ModelSectionTitle("Multi-agent") }
-        items(listOf(ModelRole.SWARM_ORCHESTRATOR, ModelRole.SWARM_WORKER), key = { it.name }) { role ->
+        if (com.omnidev.workspace.BuildConfig.ALLOW_TEAM) item { ModelSectionTitle("Multi-agent") }
+        items(listOf(ModelRole.SWARM_ORCHESTRATOR, ModelRole.SWARM_WORKER).filter { com.omnidev.workspace.BuildConfig.ALLOW_TEAM }, key = { it.name }) { role ->
             ModelAssignmentRow(role, selected(role), state.modelAssignments[role].orEmpty(),
                 selected(role)?.provider in available, onClick = { onOpen(role) })
         }

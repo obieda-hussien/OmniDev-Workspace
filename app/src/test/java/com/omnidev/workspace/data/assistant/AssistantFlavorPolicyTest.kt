@@ -24,12 +24,12 @@ class AssistantFlavorPolicyTest {
     }
     @After fun clearAudit() { OmniAuditLog.clearForTest() }
 
-    @Test fun liteDoesNotAdvertiseLiveDeviceActionsOrBubble() {
+    @Test fun liteSupportsBubbleAndConnectedAppsWithoutAccessibility() {
         val flavor = AssistantFlavorPolicy(Policy("LITE"))
         assertFalse(flavor.allowScreenActions)
-        assertFalse(flavor.allowBubble)
+        assertTrue(flavor.allowBubble)
         assertFalse(ToolDomain.DEVICE_CONTROL in flavor.toolDomains)
-        assertTrue(flavor.preferredToolNames.isEmpty())
+        assertTrue("omni_link" in flavor.preferredToolNames)
         assertTrue(ToolDomain.WEB_SEARCH in flavor.toolDomains)
     }
     @Test fun normExposesOrdinaryUiWithoutPrivilegedBackends() {
@@ -64,8 +64,8 @@ class AssistantFlavorPolicyTest {
     @Test fun tierNameCannotGrantMissingCapabilities() {
         val flavor = AssistantFlavorPolicy(Policy("ADMIN"))
         assertFalse(flavor.allowScreenActions)
-        assertFalse(flavor.allowBubble)
-        assertTrue(flavor.preferredToolNames.isEmpty())
+        assertTrue(flavor.allowBubble)
+        assertTrue("omni_link" in flavor.preferredToolNames)
     }
     private fun buildPolicy(): TierPolicy {
         val name = mapOf("LITE" to "Lite", "NORM" to "Norm", "PRO" to "Pro", "OEM" to "Oem", "ADMIN" to "Admin").getValue(BuildConfig.TIER)
@@ -77,7 +77,7 @@ class AssistantFlavorPolicyTest {
         val flavor = AssistantFlavorPolicy(policy)
         assertEquals(BuildConfig.TIER, flavor.tier)
         assertEquals(BuildConfig.ALLOW_ACCESSIBILITY, flavor.allowScreenActions)
-        assertEquals(BuildConfig.ALLOW_ACCESSIBILITY, flavor.allowBubble)
+        assertEquals(BuildConfig.ALLOW_BUBBLE, flavor.allowBubble)
         assertEquals(BuildConfig.ALLOW_ACCESSIBILITY, "semantic_ui" in flavor.preferredToolNames)
     }
     @Test fun actualFlavorControlsConsentAndAutomaticApproval() = runBlocking {
@@ -89,9 +89,9 @@ class AssistantFlavorPolicyTest {
         })
         val approved = gate.request(ConfirmationKind.ASSISTANT_ACTION, "Fill N3 with Hello", null)
         when (BuildConfig.TIER) {
-            "LITE" -> { assertFalse(approved); assertEquals(0, uiCalls) }
-            "NORM", "PRO" -> { assertFalse(approved); assertEquals(1, uiCalls) }
-            "OEM", "ADMIN" -> {
+            "LITE" -> { assertFalse(approved); assertEquals(1, uiCalls) }
+            "NORM", "PRO", "OEM" -> { assertFalse(approved); assertEquals(1, uiCalls) }
+            "ADMIN" -> {
                 assertTrue(approved); assertEquals(0, uiCalls)
                 assertTrue(OmniAuditLog.snapshot().any { it.tier == policy.tier && it.autoApproved && it.kind == ConfirmationKind.ASSISTANT_ACTION })
             }

@@ -19,6 +19,12 @@ package com.omnidev.workspace.core.policy
  * classpath for any given build variant.
  */
 interface TierPolicy {
+    val allowAgent: Boolean get() = tier in setOf("NORM", "PRO", "OEM", "ADMIN")
+    val allowTeam: Boolean get() = tier in setOf("PRO", "OEM", "ADMIN")
+    val allowLocalVoice: Boolean get() = tier in setOf("LITE", "NORM", "PRO", "OEM", "ADMIN")
+    val allowAssistant: Boolean get() = allowLocalVoice
+    val allowBubble: Boolean get() = allowAssistant
+
 
     /** Human-readable tier name, e.g. `"LITE"`, `"NORM"`, `"PRO"`, `"OEM"`, `"ADMIN"`. */
     val tier: String

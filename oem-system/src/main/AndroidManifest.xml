@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <permission android:name="com.omnidev.system.permission.EXECUTE" android:protectionLevel="signature" />
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <application android:label="Omni System Service" android:allowBackup="false" android:usesCleartextTraffic="false">
+        <service android:name=".OmniSystemService" android:exported="true" android:permission="com.omnidev.system.permission.EXECUTE" />
+    </application>
+</manifest>

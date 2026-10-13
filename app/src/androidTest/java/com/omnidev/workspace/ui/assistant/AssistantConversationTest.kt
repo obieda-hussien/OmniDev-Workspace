@@ -46,7 +46,7 @@ class AssistantConversationTest {
                         AgentConsoleEntry.ToolEntry("semantic_ui", "action=dump_tree", 1))), assistantTestFlavor())
             }
         } }
-        val console = compose.onNodeWithText("Agent Console").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val console = compose.onNodeWithText(if (com.omnidev.workspace.BuildConfig.ALLOW_AGENT) "Agent Console" else "Tool activity").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
         val output = compose.onNodeWithText("Checking the selected screen.").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
         assertTrue(console.bottom < output.top)
         compose.onNodeWithText("Activity ·", substring = true).assertDoesNotExist()
@@ -61,7 +61,7 @@ class AssistantConversationTest {
             AssistantConversation(AssistantScreenState(visible = true), ChatUiState(messages = listOf(response),
                 consoleEntries = entries, messageConsoleEntries = mapOf(response.timestamp to entries)), assistantTestFlavor())
         } }
-        compose.onAllNodesWithText("Agent Console").assertCountEquals(1)
+        compose.onAllNodesWithText(if (com.omnidev.workspace.BuildConfig.ALLOW_AGENT) "Agent Console" else "Tool activity").assertCountEquals(1)
         compose.onNodeWithText("Screen checked.").assertIsDisplayed()
         compose.onNodeWithText("Activity ·", substring = true).assertDoesNotExist()
     }
@@ -142,14 +142,14 @@ class AssistantConversationTest {
         compose.onNodeWithContentDescription("Assistant tools").assertExists()
     }
 
-    @Test fun liteDoesNotAdvertiseBubbleOrDeviceAccessAndWelcomeDoesNotSubmit() {
+    @Test fun liteKeepsBubbleWithoutDeviceAccessAndWelcomeDoesNotSubmit() {
         val input = mutableStateOf("")
         var sends = 0
         compose.setContent { OmniDevTheme(darkTheme = false, dynamicColor = false) {
             AssistantConversation(AssistantScreenState(visible = true, input = input.value), ChatUiState(), assistantTestFlavor(false),
                 onInputChanged = { input.value = it }, onSend = { sends++ })
         } }
-        compose.onNodeWithContentDescription("Minimize to floating bubble").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Minimize to floating bubble").assertExists()
         compose.onNodeWithContentDescription("Send question").assertIsNotEnabled()
         saveChatPreview(compose, "floating-assistant", "assistant-welcome-light.png")
         compose.onNodeWithText("Help with a task").performScrollTo().performClick()

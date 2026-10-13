@@ -1,6 +1,6 @@
 # OmniDev Workspace architecture
 
-The project has one Gradle module, `:app`, with five build flavors. See [README](README.md) for counts and their method, and the [file guide](docs/PROJECT_FILES.md) for navigation.
+The UI app has five build flavors. `:oem-system-contract` supplies the OEM Binder interface and `:oem-system` builds the separate ROM broker APK. See [README](README.md) for counts and their method, and the [file guide](docs/PROJECT_FILES.md) for navigation.
 
 ## Runtime layers
 
@@ -40,7 +40,7 @@ Room v17 stores chats, system knowledge, execution logs, memories, repository sy
 
 ## Flavors and privileged integrations
 
-`app/build.gradle.kts` defines `lite`, `norm`, `pro`, `oem`, `admin`, with shared source sets `liteNorm`, `proOem`, `proOemAdmin`. `TierPolicy`, `ConfirmationGate` and `core/privileged/` define application boundaries; actual Android grants, a companion application and Shizuku/root availability remain separate. Admin is intended for internal testing. See [the link protocol](LINK_PROTOCOL.md) and [OmniLink v3](OMNILINK_V3_INTEGRATION.md).
+`app/build.gradle.kts` defines `lite`, `norm`, `pro`, `oem`, `admin`. Real autonomous engines use `agent`/`team`; the Shizuku SDK uses `shizuku` for Pro/Admin only. Lite has separate safe tools and denial-only backend contracts. OEM uses a dedicated Binder broker with an independent UID; see [ROM integration](oem/README.md). `TierPolicy`, `ConfirmationGate` and `core/privileged/` define application boundaries; actual Android grants, a companion application and Shizuku/root availability remain separate. Admin is intended for internal testing. See [the link protocol](LINK_PROTOCOL.md) and [OmniLink v3](OMNILINK_V3_INTEGRATION.md).
 
 Five `.aidl` files are tracked. Similar names alone do not imply duplication: package, signatures and callers determine each interface. Removing or merging contracts requires caller analysis and builds of the affected flavors.
 
@@ -54,7 +54,7 @@ Five `.aidl` files are tracked. Similar names alone do not imply duplication: pa
 
 | Change | Review | Initial validation |
 | --- | --- | --- |
-| New tool | `core/tools/`, `data/tools/CompositeToolManager.kt`, `TierToolGate.kt` | Flavor visibility, consent and success/failure paths |
+| New tool | `core/tools/`, `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt`, `TierToolGate.kt` | Flavor visibility, consent and success/failure paths |
 | Mode policy | `domain/engine/`, `ui/chat/ChatViewModel.kt` | Classifier, engine and user-choice precedence tests |
 | Room table | `data/db/OmniDevDatabase.kt`, entities/DAOs | Migrations and opening older databases |
 | Permission or service | Main and flavor manifests | Android prompts and affected-flavor behavior |

@@ -161,7 +161,7 @@ fun AppNavigation(
                 onNavigateToProviders = { navController.navigate(Routes.PROVIDERS) { launchSingleTop = true } },
                 onNavigateToDebug = { navController.navigate(Routes.DEBUG) { launchSingleTop = true } },
                 onNavigateToMemoryExplorer = { navController.navigate(Routes.MEMORY_EXPLORER) { launchSingleTop = true } },
-                onNavigateToIntegrations = { navController.navigate(Routes.INTEGRATIONS) { launchSingleTop = true } },
+                onNavigateToIntegrations = { if (com.omnidev.workspace.BuildConfig.TIER != "LITE") navController.navigate(Routes.INTEGRATIONS) { launchSingleTop = true } },
                 onNavigateToLocalModels = { navController.navigate(Routes.LOCAL_MODELS) { launchSingleTop = true } },
                 onNavigateToScheduledTasks = { navController.navigate(Routes.SCHEDULED_TASKS) { launchSingleTop = true } },
                 onNavigateToToolRegistry = { navController.navigate(Routes.TOOL_REGISTRY) { launchSingleTop = true } },

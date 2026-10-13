@@ -35,11 +35,11 @@ object OmniLinkTierCapabilityPolicy {
             return when (tier.uppercase()) {
                 "ADMIN", "PRO", "OEM" -> capability in launcherRead || capability in launcherControl
                 "NORM" -> capability in launcherRead || capability == "launcher.open_app" || capability == "launcher.open_drawer"
-                "LITE" -> capability == "launcher.health"
+                "LITE" -> capability in launcherRead || capability in launcherControl
                 else -> false
             }
         }
-        if (!capability.startsWith("ide.")) return true
+        if (!capability.startsWith("ide.")) return tier.uppercase() in setOf("LITE", "NORM", "PRO", "OEM", "ADMIN")
         // The SDK also verifies the actual service signer and permission; package is an
         // additional scope constraint, never sufficient evidence on its own.
         if (extensionId.substringBefore('/') != IDE_PACKAGE) return false
@@ -50,7 +50,7 @@ object OmniLinkTierCapabilityPolicy {
             "NORM" -> capability in status || capability in setOf(
                 "ide.read_lines", "ide.search_text", "ide.git_status"
             )
-            "LITE" -> capability in setOf("ide.health", "ide.get_project_context")
+            "LITE" -> capability in read || capability in setOf("ide.apply_line_patch", "ide.write_file", "ide.create_file")
             else -> false
         }
     }

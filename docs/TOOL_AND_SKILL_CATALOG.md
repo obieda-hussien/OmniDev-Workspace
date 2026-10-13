@@ -2,9 +2,9 @@
 
 | Metric | Count |
 | --- | ---: |
-| Unique declared local tool names | 150 |
-| Catalog names excluding hidden legacy aliases | 148 |
-| Bundled skills | 6 |
+| Unique declared local tool names | 152 |
+| Catalog names excluding hidden legacy aliases | 150 |
+| Bundled skills | 7 |
 
 ## Count scope
 
@@ -23,11 +23,12 @@ python3 scripts/tool_catalog.py --format markdown
 
 ## Bundled skills
 
-Only shipped `app/src/main/assets/agent-skills/*/SKILL.md` packages count here; user-installed/imported skills are additional.
+The inventory is the union of shipped flavor asset packages; each APK includes only its applicable skills. user-installed/imported skills are additional.
 
 - `omnidev-android-engineering`
 - `omnidev-browser-research`
 - `omnidev-core-operator`
+- `omnidev-lite-workspace`
 - `omnidev-orchestrating-agents`
 - `omnidev-quality-gate`
 - `omnidev-security-research`
@@ -41,7 +42,7 @@ Only shipped `app/src/main/assets/agent-skills/*/SKILL.md` packages count here; 
 | `analyze_logcat` | `app/src/main/java/com/omnidev/workspace/data/tools/LogcatAnalyzerTool.kt` |
 | `android_security_research` | `app/src/main/java/com/omnidev/workspace/data/tools/AndroidSecurityResearchTool.kt` |
 | `app_manager_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/SystemAssistantTools.kt` |
-| `append_to_file` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `append_to_file` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `archive_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedFileTools.kt` |
 | `autofill_assist` | `app/src/main/java/com/omnidev/workspace/data/tools/AutofillAssistTool.kt` |
 | `brain_recall_episodes` | `app/src/main/java/com/omnidev/workspace/data/tools/AgentBrainTools.kt` |
@@ -57,28 +58,29 @@ Only shipped `app/src/main/assets/agent-skills/*/SKILL.md` packages count here; 
 | `causal_plan_simulate` | `app/src/main/java/com/omnidev/workspace/data/tools/CausalChainPlannerTool.kt` |
 | `causal_plan_what_if` | `app/src/main/java/com/omnidev/workspace/data/tools/CausalChainPlannerTool.kt` |
 | `check_permission` | `app/src/main/java/com/omnidev/workspace/data/tools/PermissionManagerTool.kt` |
-| `clear_file` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `clear_file` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `clipboard` | `app/src/main/java/com/omnidev/workspace/data/tools/ClipboardTool.kt` |
 | `communicate_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/SystemAssistantTools.kt` |
+| `compress_context` | `app/src/main/java/com/omnidev/workspace/data/tools/ContextCompressionTool.kt` |
 | `copy_move` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedFileTools.kt` |
-| `create_file` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `create_file` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `create_notion_page` | `app/src/main/java/com/omnidev/workspace/data/tools/NotionPublisherTool.kt` |
-| `delete_file` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
-| `delete_lines` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `delete_file` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `delete_lines` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `delete_memory` | `app/src/main/java/com/omnidev/workspace/data/tools/MemoryManager.kt` |
-| `delete_text` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `delete_text` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `device_admin` | `app/src/main/java/com/omnidev/workspace/data/tools/DeviceAdminTool.kt` |
 | `diff_files` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedFileTools.kt` |
 | `direct_terminal` | `app/src/main/java/com/omnidev/workspace/data/tools/DirectTerminalTool.kt` |
 | `discord_bot` | `app/src/main/java/com/omnidev/workspace/data/tools/DiscordBotTool.kt` |
 | `disk_usage` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedFileTools.kt` |
-| `enhanced_attack_surface` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
-| `enhanced_cached_analysis` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
-| `enhanced_intent_resolver` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
-| `enhanced_manifest_analyzer` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
-| `enhanced_manifest_to_html` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
-| `enhanced_network_security` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
-| `eval_expression` | `app/src/main/java/com/omnidev/workspace/data/tools/ScriptRunnerTool.kt` |
+| `enhanced_attack_surface` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `enhanced_cached_analysis` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `enhanced_intent_resolver` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `enhanced_manifest_analyzer` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `enhanced_manifest_to_html` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `enhanced_network_security` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `eval_expression` | `app/src/advanced/java/com/omnidev/workspace/data/tools/ScriptRunnerTool.kt` |
 | `execution_diagnostics` | `app/src/main/java/com/omnidev/workspace/data/tools/OmniExecutionDiagnostics.kt` |
 | `fetch_page` | `app/src/main/java/com/omnidev/workspace/data/tools/research/PageFetchTool.kt` |
 | `file_info` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedFileTools.kt` |
@@ -87,51 +89,52 @@ Only shipped `app/src/main/assets/agent-skills/*/SKILL.md` packages count here; 
 | `get_current_location` | `app/src/main/java/com/omnidev/workspace/data/tools/SystemAssistantTools.kt` |
 | `get_device_info` | `app/src/main/java/com/omnidev/workspace/data/tools/SystemAssistantTools.kt` |
 | `get_trust_profile` | `app/src/main/java/com/omnidev/workspace/data/tools/ProgressiveTrustTool.kt` |
-| `git_manager` | `app/src/main/java/com/omnidev/workspace/data/tools/GitManagerTool.kt` |
+| `git_manager` | `app/src/advanced/java/com/omnidev/workspace/data/tools/GitManagerTool.kt` |
 | `github_manager` | `app/src/main/java/com/omnidev/workspace/data/tools/GitHubManagerTool.kt` |
-| `god_copy_file` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
-| `god_delete_file` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
-| `god_list_directory` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
-| `god_read_file` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
-| `god_stat_file` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
-| `god_write_file` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `god_copy_file` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `god_delete_file` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `god_list_directory` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `god_read_file` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `god_stat_file` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `god_write_file` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `grep_search` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedFileTools.kt` |
 | `hardware_toggle_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/SystemAssistantTools.kt` |
 | `headless_browser` | `app/src/main/java/com/omnidev/workspace/data/tools/HeadlessBrowserManager.kt` |
 | `hex_dump` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedFileTools.kt` |
-| `ime_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
-| `insert_lines` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
-| `install_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/ToolDownloaderEngine.kt` |
-| `intelligent_automation` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `ime_tool` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `insert_lines` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `install_tool` | `app/src/advanced/java/com/omnidev/workspace/data/tools/ToolDownloaderEngine.kt` |
+| `intelligent_automation` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
 | `learned_routine` | `app/src/main/java/com/omnidev/workspace/data/routines/LearnedRoutineTool.kt` |
 | `list_chat_sessions` | `app/src/main/java/com/omnidev/workspace/data/tools/research/MessageSearchTool.kt` |
 | `list_earned_capabilities` | `app/src/main/java/com/omnidev/workspace/data/tools/ProgressiveTrustTool.kt` |
-| `media_control` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `media_control` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
 | `media_generation` | `app/src/main/java/com/omnidev/workspace/data/tools/MediaGenerationTool.kt` |
 | `memory_snapshot` | `app/src/main/java/com/omnidev/workspace/data/tools/GodEyeProfilerTool.kt` |
-| `multi_patch_file_content` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
-| `multi_read` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `multi_patch_file_content` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `multi_read` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `n8n_automation` | `app/src/main/java/com/omnidev/workspace/data/tools/N8nAutomationTool.kt` |
 | `network_monitor` | `app/src/main/java/com/omnidev/workspace/data/tools/NetworkMonitorTool.kt` |
 | `network_request` | `app/src/main/java/com/omnidev/workspace/data/tools/NetworkRequestTool.kt` |
+| `oem_system` | `app/src/oem/java/com/omnidev/workspace/data/tools/OemSystemTools.kt` |
 | `omni_link` | `app/src/main/java/com/omnidev/workspace/data/tools/OmniLinkTool.kt` |
 | `package_installer_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedSystemTools.kt` |
-| `patch_file_content` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `patch_file_content` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `planner_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/SystemAssistantTools.kt` |
-| `predictive_analytics` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `predictive_analytics` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
 | `privileged_tool` | `app/src/main/java/com/omnidev/workspace/data/ipc/OmniCoreAgentTool.kt` |
-| `python_runner` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `python_runner` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `python_runtime` | `app/src/main/java/com/omnidev/workspace/data/tools/PythonRuntimeManager.kt` |
 | `quality_security_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/QualitySecurityTool.kt` |
 | `read_chat_message` | `app/src/main/java/com/omnidev/workspace/data/tools/research/MessageSearchTool.kt` |
 | `read_chat_session` | `app/src/main/java/com/omnidev/workspace/data/tools/research/MessageSearchTool.kt` |
 | `read_db_schema` | `app/src/main/java/com/omnidev/workspace/data/tools/GodEyeProfilerTool.kt` |
-| `read_file_lines` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
-| `read_incoming_sms` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `read_file_lines` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `read_incoming_sms` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
 | `read_network_log` | `app/src/main/java/com/omnidev/workspace/data/tools/GodEyeProfilerTool.kt` |
 | `read_notifications` | `app/src/main/java/com/omnidev/workspace/data/tools/NotificationCaptureTool.kt` |
 | `remember_fact` | `app/src/main/java/com/omnidev/workspace/data/tools/MemoryManager.kt` |
-| `replace_lines` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `replace_lines` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `repo_file_symbols` | `app/src/main/java/com/omnidev/workspace/data/tools/RepoContextTools.kt` |
 | `repo_find_context` | `app/src/main/java/com/omnidev/workspace/data/tools/RepoContextTools.kt` |
 | `repo_index_scope` | `app/src/main/java/com/omnidev/workspace/data/tools/RepoContextTools.kt` |
@@ -146,24 +149,24 @@ Only shipped `app/src/main/assets/agent-skills/*/SKILL.md` packages count here; 
 | `rollback_list_groups` | `app/src/main/java/com/omnidev/workspace/data/tools/RollbackTools.kt` |
 | `rollback_list_recent` | `app/src/main/java/com/omnidev/workspace/data/tools/RollbackTools.kt` |
 | `root_shell_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedSystemTools.kt` |
-| `run_script` | `app/src/main/java/com/omnidev/workspace/data/tools/ScriptRunnerTool.kt` |
-| `run_terminal` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `run_script` | `app/src/advanced/java/com/omnidev/workspace/data/tools/ScriptRunnerTool.kt` |
+| `run_terminal` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `sandbox_execution_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/AgentSandboxTool.kt` |
 | `scrape_multiple` | `app/src/main/java/com/omnidev/workspace/data/tools/WebScraperTool.kt` |
 | `screenshot_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedSystemTools.kt` |
-| `search_codebase` | `app/src/main/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `search_codebase` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `search_contacts` | `app/src/main/java/com/omnidev/workspace/data/tools/SystemContactsTool.kt` |
 | `search_knowledge` | `app/src/main/java/com/omnidev/workspace/data/tools/MemoryManager.kt` |
 | `search_messages` | `app/src/main/java/com/omnidev/workspace/data/tools/research/MessageSearchTool.kt` |
 | `secure_delete` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedFileTools.kt` |
-| `security_analyzer` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
-| `semantic_ui` | `app/src/main/java/com/omnidev/workspace/data/accessibility/SemanticUITool.kt` |
+| `security_analyzer` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `semantic_ui` | `app/src/advanced/java/com/omnidev/workspace/data/accessibility/SemanticUITool.kt` |
 | `sendgrid_email` | `app/src/main/java/com/omnidev/workspace/data/tools/SendGridEmailTool.kt` |
 | `slack` | `app/src/main/java/com/omnidev/workspace/data/tools/SlackTool.kt` |
 | `sms_reader_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedSystemTools.kt` |
 | `social_media_video` | `app/src/main/java/com/omnidev/workspace/data/tools/SocialMediaTool.kt` |
 | `symlink_manager` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedFileTools.kt` |
-| `sync_service` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `sync_service` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
 | `system_launcher_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/LauncherControlTool.kt` |
 | `system_power` | `app/src/main/java/com/omnidev/workspace/data/tools/SystemPowerTool.kt` |
 | `system_settings_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedSystemTools.kt` |
@@ -171,8 +174,8 @@ Only shipped `app/src/main/assets/agent-skills/*/SKILL.md` packages count here; 
 | `task_scheduler` | `app/src/main/java/com/omnidev/workspace/data/tools/TaskSchedulerTool.kt` |
 | `telegram_bot` | `app/src/main/java/com/omnidev/workspace/data/tools/TelegramBotTool.kt` |
 | `termux_bridge` | `app/src/main/java/com/omnidev/workspace/data/tools/TermuxEnvironmentBridge.kt` |
-| `tool_monitoring` | `app/src/main/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
-| `tools_status` | `app/src/main/java/com/omnidev/workspace/data/tools/ToolDownloaderEngine.kt` |
+| `tool_monitoring` | `app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt` |
+| `tools_status` | `app/src/advanced/java/com/omnidev/workspace/data/tools/ToolDownloaderEngine.kt` |
 | `ui_automation` | `app/src/main/java/com/omnidev/workspace/data/tools/UIAutomationTool.kt` |
 | `ui_replica_pipeline` | `app/src/main/java/com/omnidev/workspace/data/tools/UIReplicaPipelineTool.kt` |
 | `update_memory` | `app/src/main/java/com/omnidev/workspace/data/tools/MemoryManager.kt` |
