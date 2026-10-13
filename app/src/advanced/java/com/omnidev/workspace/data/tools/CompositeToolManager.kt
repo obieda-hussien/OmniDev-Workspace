@@ -163,6 +163,7 @@ class CompositeToolManager(
         addAll(memoryManager.getToolDefinitions())
         addAll(CommunicationTool.getToolDefinitions())
         addAll(PlannerTool.getToolDefinitions())
+        add(ContextCompressionTool.definition())
         addAll(HardwareToggleTool.getToolDefinitions())
         addAll(LocationTool.getToolDefinitions())
         addAll(DeviceInfoTool.getToolDefinitions())
@@ -497,6 +498,7 @@ class CompositeToolManager(
         scriptRunnerTool?.execute(name, arguments)?.let { return it }
 
         return when (name) {
+            "compress_context" -> ContextCompressionTool.result()
             "oem_system" -> context?.let { OemSystemTools.execute(it, arguments, confirmationGate) } ?: ToolExecutionResult("Context unavailable", true)
             // ── Execution Diagnostics tool ──
             "execution_diagnostics" -> {

@@ -51,6 +51,8 @@ class CompositeToolManager(
         addAll(OmniLinkTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
         addAll(PlannerTool.getToolDefinitions())
+        add(ContextCompressionTool.definition())
+        addAll(ScriptRunnerTool().getDefinitions())
         if (context != null) add(MediaGenerationTool.definition())
         addAll(MessageSearchTool.getToolDefinitions())
     })
@@ -71,6 +73,8 @@ class CompositeToolManager(
         if (name in memoryManager.getToolDefinitions().map { it.name }) return memoryManager.executeTool(name, arguments)
         if (name.startsWith("vector_")) return vectorMemoryManager?.executeTool(name, arguments) ?: ToolExecutionResult("Memory unavailable", true)
         return when (name) {
+            "compress_context" -> ContextCompressionTool.result()
+            "eval_expression" -> requireNotNull(ScriptRunnerTool().execute(name, arguments))
             "web_search", "web_search_deep" -> if (name == "web_search") WebSearchTool.execute(arguments["query"].orEmpty(), null, null, null) else WebSearchTool.executeDeep(arguments["query"].orEmpty(), arguments["max_sites"]?.toIntOrNull() ?: 5, null, null, null)
             "fetch_page" -> PageFetchTool.execute(arguments["url"].orEmpty())
             "web_scraper", "scrape_multiple" -> WebScraperTool.executeTool(name, arguments)

@@ -89,6 +89,7 @@ fun AISettingsScreen(
     val allowVoice = com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowLocalVoice
     val entries = remember(allowVoice) {
         SettingsCatalog.entries.filter { entry ->
+            (com.omnidev.workspace.BuildConfig.TIER != "LITE" || entry.destination != SettingsDestination.INTEGRATIONS) &&
             (allowVoice || entry.destination != SettingsDestination.VOICE) &&
                 (com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility || entry.destination != SettingsDestination.ACCESSIBILITY) &&
                 (com.omnidev.workspace.BuildConfig.ALLOW_AGENT || entry.destination !in setOf(SettingsDestination.FILE_ACCESS, SettingsDestination.SCHEDULE))
@@ -193,7 +194,7 @@ fun AISettingsScreen(
                     providersUiState?.configuredProviders?.map { it.provider }?.toSet() ?: emptySet(),
                     ModelRegistry.modelsByProvider, viewModel::toggleDropdown, viewModel::dismissDropdown,
                     viewModel::selectModelForRole, { providersViewModel?.refreshModels(it) },
-                    onNavigateToProviders, onNavigateToIntegrations, onNavigateToLocalModels,
+                    onNavigateToProviders, if (com.omnidev.workspace.BuildConfig.TIER == "LITE") onNavigateToProviders else onNavigateToIntegrations, onNavigateToLocalModels,
                     modifier = Modifier.padding(padding).consumeWindowInsets(padding), onMediaSave = viewModel::saveMediaConfig)
             } else {
                 key(page) {

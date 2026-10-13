@@ -243,6 +243,7 @@ android {
     //                 Admin is treated as the "super-set" of pro + oem so it
     //                 inherits every high-privilege facade automatically.
     sourceSets {
+        listOf("norm", "pro", "oem", "admin").forEach { getByName("test" + it.replaceFirstChar { c -> c.uppercase() }).java.srcDir("src/testAdvanced/java") }
         listOf("norm", "pro", "oem", "admin").forEach { getByName("test" + it.replaceFirstChar { c -> c.uppercase() }).java.srcDir("src/testAgent/java") }
         listOf("pro", "oem", "admin").forEach { getByName("test" + it.replaceFirstChar { c -> c.uppercase() }).java.srcDir("src/testTeam/java") }
         listOf("lite", "norm", "pro", "admin").forEach { getByName(it).java.srcDir("src/noOem/java") }

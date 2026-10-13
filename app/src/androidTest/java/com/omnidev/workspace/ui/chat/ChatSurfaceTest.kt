@@ -34,10 +34,21 @@ class ChatSurfaceTest {
         val mode = mutableStateOf(OmniMode.CHAT)
         compose.setContent { MaterialTheme { ModeSelector(mode.value, { mode.value = it }) } }
         compose.onNodeWithContentDescription("Choose conversation mode").performClick()
+        if (!OmniMode.permitted(OmniMode.AGENT)) {
+            modeOption("Agent").assertDoesNotExist()
+            modeOption("Multi-agent").assertDoesNotExist()
+            modeOption("Chat").assertIsSelected().performClick()
+            return
+        }
         modeOption("Agent").performClick()
         compose.runOnIdle { assertEquals(OmniMode.AGENT, mode.value) }
         compose.onNodeWithContentDescription("Choose conversation mode").performClick()
         modeOption("Agent").assertIsSelected()
+        if (!OmniMode.permitted(OmniMode.SWARM)) {
+            modeOption("Multi-agent").assertDoesNotExist()
+            modeOption("Chat").performClick()
+            return
+        }
         modeOption("Multi-agent").performClick()
         compose.runOnIdle { assertEquals(OmniMode.SWARM, mode.value) }
         compose.onNodeWithContentDescription("Choose conversation mode").performClick()

@@ -95,13 +95,16 @@ internal fun AssistantConversation(
         focus.requestFocus(); keyboard?.show()
     }
     // The window owns safe drawing/IME padding once, before measuring the available panel height.
-    BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+    val imeVisible = WindowInsets.isImeVisible
+    val safeInsets = if (imeVisible) WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal).union(WindowInsets.ime)
+        else WindowInsets.safeDrawing
+    BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(safeInsets)) {
         val compact = maxHeight < 400.dp
         val margin = if (compact) 4.dp else 12.dp
         val panelHeight = ((maxHeight - margin * 2).coerceAtLeast(0.dp) * if (compact) 1f else .86f).coerceAtMost(640.dp)
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .14f)).clickable(onClick = onDismiss)
             .semantics { contentDescription = "Dismiss floating assistant" })
-        OmniAnimatedVisibility(if (motion.reduced) screen.visible else presented, Modifier.align(Alignment.BottomCenter).padding(horizontal = 12.dp, vertical = margin),
+        OmniAnimatedVisibility(if (motion.reduced) screen.visible else presented, Modifier.align(Alignment.BottomCenter).padding(start = 12.dp, end = 12.dp, top = margin, bottom = if (imeVisible) 0.dp else margin),
             enter = fadeIn(tween(motion.responseMillis, easing = OmniEasing)) +
                 slideInVertically(tween(motion.navigationMillis, easing = OmniEasing)) { it / 8 },
             exit = fadeOut(tween(motion.responseMillis / 2)) +

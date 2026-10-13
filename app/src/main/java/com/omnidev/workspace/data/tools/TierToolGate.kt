@@ -11,7 +11,7 @@ import com.omnidev.workspace.domain.model.ToolAccessMode
 internal object TierToolGate {
 
     internal val LITE_TOOLS: Set<String> = setOf(
-        "headless_browser", "fetch_page", "read_file_lines", "create_file", "patch_file_content", "append_to_file", "delete_file", "multi_read", "omni_link", "github_manager", "planner_tool", "media_generation", "web_search", "web_search_deep", "web_scraper", "scrape_multiple", "read_file",
+        "compress_context", "headless_browser", "fetch_page", "read_file_lines", "create_file", "patch_file_content", "append_to_file", "delete_file", "multi_read", "omni_link", "github_manager", "planner_tool", "media_generation", "web_search", "web_search_deep", "web_scraper", "scrape_multiple", "read_file",
         "remember_fact", "search_knowledge", "update_memory", "delete_memory",
         "list_chat_sessions", "search_messages", "read_chat_session", "read_chat_message",
         "vector_store", "vector_search", "vector_similar", "brain_reflexion_search",

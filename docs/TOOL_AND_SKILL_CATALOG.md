@@ -2,8 +2,8 @@
 
 | Metric | Count |
 | --- | ---: |
-| Unique declared local tool names | 151 |
-| Catalog names excluding hidden legacy aliases | 149 |
+| Unique declared local tool names | 152 |
+| Catalog names excluding hidden legacy aliases | 150 |
 | Bundled skills | 7 |
 
 ## Count scope
@@ -61,6 +61,7 @@ The inventory is the union of shipped flavor asset packages; each APK includes o
 | `clear_file` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `clipboard` | `app/src/main/java/com/omnidev/workspace/data/tools/ClipboardTool.kt` |
 | `communicate_tool` | `app/src/main/java/com/omnidev/workspace/data/tools/SystemAssistantTools.kt` |
+| `compress_context` | `app/src/main/java/com/omnidev/workspace/data/tools/ContextCompressionTool.kt` |
 | `copy_move` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedFileTools.kt` |
 | `create_file` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `create_notion_page` | `app/src/main/java/com/omnidev/workspace/data/tools/NotionPublisherTool.kt` |

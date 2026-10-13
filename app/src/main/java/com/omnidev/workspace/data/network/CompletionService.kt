@@ -372,9 +372,9 @@ class CompletionService(
                 )
 
             if (model.provider == ModelProvider.ANTHROPIC) {
-                withRetry { callAnthropic(request, model.provider, apiKey) }
+                withRetry(maxRetries = if (request.retryManagedByCaller) 0 else 2) { callAnthropic(request, model.provider, apiKey) }
             } else {
-                withRetry { callOpenAiCompatible(request, model.provider, apiKey) }
+                withRetry(maxRetries = if (request.retryManagedByCaller) 0 else 2) { callOpenAiCompatible(request, model.provider, apiKey) }
             }
         }
 
@@ -674,10 +674,15 @@ class CompletionService(
                     "Add one via the Providers screen (Settings → API Keys)."
             )
 
-        if (model.provider == ModelProvider.ANTHROPIC) {
-            streamAnthropic(request, model.provider, apiKey, onChunk)
-        } else {
-            streamOpenAiCompatible(request, model.provider, apiKey, onChunk)
+        var emitted = false
+        val chunks: suspend (String) -> Unit = { chunk -> emitted = true; onChunk(chunk) }
+        try {
+            if (model.provider == ModelProvider.ANTHROPIC) streamAnthropic(request, model.provider, apiKey, chunks)
+            else streamOpenAiCompatible(request, model.provider, apiKey, chunks)
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: IOException) {
+            if (emitted) throw PartialCompletionException(error)
+            throw error
         }
     }
 
@@ -759,7 +764,7 @@ class CompletionService(
                 404 -> "Model not found (${url.host}). The selected model may not be available on your API tier."
                 422 -> "Invalid request format. The provider rejected the payload (unprocessable entity)."
                 429 -> "Rate limit exceeded. The agent will retry automatically after a short delay."
-                500, 502, 503 -> "The provider's server encountered an error ($responseCode). Retrying…"
+                500, 502, 503 -> "The provider's server encountered an error ($responseCode). Try again shortly."
                 else -> "API error $responseCode from ${url.host}: $errorBody"
             }
             throw IOException(friendlyMessage)
@@ -893,7 +898,7 @@ class CompletionService(
                 403 -> "Access forbidden. Your API key may not have permission to use this model."
                 404 -> "Model not found. The selected model may not be available on your API tier."
                 429 -> "Rate limit exceeded. The agent will retry automatically after a short delay."
-                500, 502, 503 -> "Anthropic server error ($responseCode). Retrying…"
+                500, 502, 503 -> "Anthropic server error ($responseCode). Try again shortly."
                 else -> "API error $responseCode from ${url.host}: $errorBody"
             }
             throw IOException(friendlyMessage)
@@ -1033,7 +1038,7 @@ class CompletionService(
             404 -> "Model not found (${url.host}). The selected model may not be available on your API tier."
             422 -> "Invalid request format. The provider rejected the payload (unprocessable entity). Check model parameters."
             429 -> "Rate limit exceeded. The agent will retry automatically after a short delay."
-            500, 502, 503 -> "The provider's server encountered an error ($responseCode). Retrying…"
+            500, 502, 503 -> "The provider's server encountered an error ($responseCode). Try again shortly."
             else -> "API error $responseCode from ${url.host}: $errorBody"
         }
         throw IOException(friendlyMessage)

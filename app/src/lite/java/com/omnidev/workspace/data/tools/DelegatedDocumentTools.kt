@@ -56,7 +56,10 @@ class DelegatedDocumentTools(private val context: Context, private val confirm: 
                     }
                     ToolExecutionResult("Created $relative through the selected document provider.")
                 }
-                "delete_file" -> ToolExecutionResult("Deleted: ${DocumentsContract.deleteDocument(resolver, requireNotNull(document))}")
+                "delete_file" -> {
+                    if (DocumentsContract.deleteDocument(resolver, requireNotNull(document))) ToolExecutionResult("Deleted $relative.")
+                    else ToolExecutionResult("Document provider refused deletion; the file was not deleted.", true)
+                }
                 else -> {
                     val uri = requireNotNull(document) { "Document does not exist." }
                     val text = read(uri)

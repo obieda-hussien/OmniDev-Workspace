@@ -32,7 +32,7 @@ class ChatToolLoop(
         val WEB_TOOLS = setOf(
             "web_search", "web_search_deep", "web_scraper", "fetch_page", "scrape_multiple"
         )
-        val CHAT_TOOLS = WEB_TOOLS + setOf("media_generation", "headless_browser", "read_file", "read_file_lines", "create_file", "patch_file_content", "append_to_file", "delete_file", "remember_fact", "search_knowledge", "update_memory", "delete_memory", "vector_store", "vector_search", "vector_similar", "omni_link", "planner_tool", "list_chat_sessions", "search_messages", "read_chat_session", "read_chat_message")
+        val CHAT_TOOLS = WEB_TOOLS + setOf("compress_context", "eval_expression", "brain_reflexion_search", "brain_episode_search", "brain_recent_episodes", "brain_stats", "get_trust_profile", "list_earned_capabilities", "media_generation", "headless_browser", "read_file", "read_file_lines", "create_file", "patch_file_content", "append_to_file", "delete_file", "remember_fact", "search_knowledge", "update_memory", "delete_memory", "vector_store", "vector_search", "vector_similar", "omni_link", "planner_tool", "list_chat_sessions", "search_messages", "read_chat_session", "read_chat_message")
         const val REQUEST_MODE = "request_execution_mode"
         private const val CHAT_TOKEN_BUDGET = 32_000
         private const val MIN_OUTPUT_RESERVE = 256
@@ -130,6 +130,8 @@ class ChatToolLoop(
 
         for (round in 1..MAX_ROUNDS) {
             roundsObserved = round
+            ContextCompressor.compactHistoricalToolEvidence(history,
+                keepRecentToolGroups = if (history.lastOrNull()?.toolResults?.any { it.toolName == "compress_context" && !it.isError } == true) 0 else 1)
             val toolsAllowedThisRound = round <= MAX_TOOL_ROUNDS && calls < MAX_TOOL_CALLS
             val provisional = base.copy(
                 messages = history.toList(),
@@ -156,7 +158,9 @@ class ChatToolLoop(
             val canUseTools = toolsAllowedThisRound && request.tools?.isNotEmpty() == true
 
             event(AgentEvent.Thinking(round))
-            val response = complete(request)
+            val response = CompletionRetry.run(onRetry = { attempt ->
+                event(AgentEvent.PhaseChanged(AgentExecutionPhase.ANALYZE, "Provider temporarily unavailable. Retrying the response ($attempt/2); completed tools will not run again."))
+            }) { complete(request.copy(retryManagedByCaller = true)) }
             val usage = TokenAccounting.usage(request, response)
             tokens += usage.totalTokens
             event(
@@ -262,7 +266,7 @@ class ChatToolLoop(
                 results += ToolCallResult(
                     call.id,
                     call.name,
-                    output.take(4000),
+                    output,
                     modelSafe.isError
                 )
             }

@@ -8,9 +8,10 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ChatToolLoopTest {
+    @org.junit.Before fun installFlavor() = com.omnidev.workspace.core.policy.TierPolicyBootstrap.install()
     private class FakeTools : ToolManager {
         val executed = mutableListOf<String>()
-        override fun getToolDefinitions() = (ChatToolLoop.WEB_TOOLS + "delete_file").map { ToolDefinition(it, it, listOf(ToolParameter("query", "string", "Query", false))) }
+        override fun getToolDefinitions() = (ChatToolLoop.WEB_TOOLS + "semantic_ui").map { ToolDefinition(it, it, listOf(ToolParameter("query", "string", "Query", false))) }
         override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
             executed += name
             return ToolExecutionResult("verified result")
@@ -22,7 +23,7 @@ class ChatToolLoopTest {
         val tools = FakeTools()
         var round = 0
         val result = ChatToolLoop(tools).run(request, setOf("web_search_deep"), "user", complete = {
-            assertFalse(it.tools.orEmpty().any { tool -> tool.name == "delete_file" || tool.name == "web_search_deep" })
+            assertFalse(it.tools.orEmpty().any { tool -> tool.name == "semantic_ui" || tool.name == "web_search_deep" })
             if (round++ == 0) CompletionResponse("", listOf(ToolCall("call-1", "web_search", mapOf("query" to "test"))))
             else {
                 assertEquals("call-1", it.messages.last().toolResults.single().toolCallId)
@@ -50,6 +51,7 @@ class ChatToolLoopTest {
     }
 
     @Test fun `mode tool proposes but never executes a worker`() = runTest {
+        org.junit.Assume.assumeTrue(OmniMode.permitted(OmniMode.SWARM))
         val tools = FakeTools()
         val result = ChatToolLoop(tools).run(request, emptySet(), "user", complete = {
             CompletionResponse("", listOf(ToolCall("request", ChatToolLoop.REQUEST_MODE,
@@ -66,7 +68,7 @@ class ChatToolLoopTest {
         var completions = 0
         ChatToolLoop(tools).run(request, emptySet(), "user", complete = {
             completions++
-            CompletionResponse("", listOf(ToolCall("call-$completions", "delete_file", emptyMap())))
+            CompletionResponse("", listOf(ToolCall("call-$completions", "semantic_ui", emptyMap())))
         }, event = {})
         assertTrue(tools.executed.isEmpty())
         assertEquals(7, completions)

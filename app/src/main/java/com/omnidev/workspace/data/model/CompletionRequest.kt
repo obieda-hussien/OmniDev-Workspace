@@ -95,7 +95,10 @@ data class CompletionRequest(
      * comes from deterministic AgentEvent phase/tool/result telemetry.
      */
     @kotlinx.serialization.Transient
-    var onReasoning: (suspend (String) -> Unit)? = null
+    var onReasoning: (suspend (String) -> Unit)? = null,
+    /** The execution loop owns retries so network retries cannot multiply its budget. */
+    @kotlinx.serialization.Transient
+    val retryManagedByCaller: Boolean = false
 ) {
     init {
         messages = AgentPromptSanitizer.sanitizeMessages(messages)

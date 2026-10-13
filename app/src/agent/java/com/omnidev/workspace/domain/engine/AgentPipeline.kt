@@ -407,6 +407,7 @@ Do not use tools. Do not rewrite merely for style.
                             observedOutputChars.addAndGet(it.length)
                             send(AgentEvent.StreamChunk(it))
                         },
+                        onRetry = { detail -> send(AgentEvent.PhaseChanged(AgentExecutionPhase.ANALYZE, detail)) },
                         onFatalError = { error ->
                             steering?.check(revision)
                             val outcome = if (isInfrastructureError(error)) EpisodeOutcome.BLOCKED else EpisodeOutcome.FAILURE
@@ -703,7 +704,7 @@ Do not use tools. Do not rewrite merely for style.
 
             // Full observations have already been emitted to UI + learning. Keep only the latest
             // tool group verbatim in the next model request; older evidence is compacted locally.
-            ContextCompressor.compactHistoricalToolEvidence(messages, keepRecentToolGroups = 1)
+            ContextCompressor.compactHistoricalToolEvidence(messages, keepRecentToolGroups = if (toolResults.any { it.toolName == "compress_context" && !it.isError }) 0 else 1)
         }
 
         brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "max iterations reached after ${config.maxIterations} loops")
@@ -933,6 +934,7 @@ Do not use tools. Do not rewrite merely for style.
         request: CompletionRequest,
         iteration: Int,
         onStreamChunk: suspend (String) -> Unit = {},
+        onRetry: suspend (String) -> Unit = {},
         onFatalError: suspend (String) -> Unit
     ): CompletionResponse? {
         val normalMaxAttempts = if (config.enableRetry) config.maxRetries + 1 else 1
@@ -947,7 +949,8 @@ Do not use tools. Do not rewrite merely for style.
                     emitted = true
                     onStreamChunk(it)
                 }
-                val streamRequest = request.copy(
+                val managedRequest = request.copy(retryManagedByCaller = true)
+                val streamRequest = managedRequest.copy(
                     onReasoning = {
                         emitted = true
                         request.onReasoning?.invoke(it)
@@ -957,12 +960,12 @@ Do not use tools. Do not rewrite merely for style.
                     withTimeout(config.maxIterationTimeMs) {
                         if (streamingCompletionProvider != null) {
                             streamingCompletionProvider.invoke(streamRequest, chunkHandler)
-                        } else completionProvider(request)
+                        } else completionProvider(managedRequest)
                     }
                 } else {
                     if (streamingCompletionProvider != null) {
                         streamingCompletionProvider.invoke(streamRequest, chunkHandler)
-                    } else completionProvider(request)
+                    } else completionProvider(managedRequest)
                 }
                 recordAnalytics(request, response, callStarted, false)
                 return response
@@ -990,6 +993,7 @@ Do not use tools. Do not rewrite merely for style.
                     return null
                 }
                 if (rateLimited && rateLimitAttemptsRemaining > 0) {
+                    onRetry("Provider rate limited this response. Waiting before retry; completed tools are preserved.")
                     rateLimitAttemptsRemaining--
                     val retryNumber = RATE_LIMIT_MAX_RETRIES - rateLimitAttemptsRemaining
                     delay(
@@ -1012,6 +1016,7 @@ Do not use tools. Do not rewrite merely for style.
                     return null
                 }
 
+                onRetry("Provider response failed temporarily. Retrying (${normalAttempt + 1}/${normalMaxAttempts - 1}); completed tools are preserved.")
                 delay(min(config.baseRetryDelayMs * (1L shl normalAttempt), 30_000L))
                 normalAttempt++
             }

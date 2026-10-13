@@ -11,6 +11,7 @@ public final class OmniHotwordAdapter implements AutoCloseable {
     private AlwaysOnHotwordDetector detector;
     private boolean enrolled;
     private boolean running;
+    private boolean requested;
     private boolean closed;
     private final Consumer<String> status;
 
@@ -27,8 +28,10 @@ public final class OmniHotwordAdapter implements AutoCloseable {
                     @Override public void onAvailabilityChanged(int state) {
                         if (closed) return;
                         enrolled = state == AlwaysOnHotwordDetector.STATE_KEYPHRASE_ENROLLED;
+                        if (!enrolled) running = false;
                         status.accept(enrolled ? "Manufacturer wake model enrolled" :
                                 "Manufacturer SoundTrigger model is unavailable or not enrolled: " + state);
+                        if (requested && enrolled) startRecognition();
                     }
                     @Override public void onDetected(AlwaysOnHotwordDetector.EventPayload payload) {
                         if (!closed && running) { running = false; detected.run(); startRecognition(); }
@@ -40,6 +43,7 @@ public final class OmniHotwordAdapter implements AutoCloseable {
     }
 
     public boolean startRecognition() {
+        requested = !closed;
         if (closed || !enrolled || detector == null) return false;
         if (running) return true;
         running = detector.startRecognition(0);
@@ -47,6 +51,7 @@ public final class OmniHotwordAdapter implements AutoCloseable {
         return running;
     }
     public void stopRecognition() {
+        requested = false;
         if (detector != null && running) detector.stopRecognition();
         running = false;
     }
