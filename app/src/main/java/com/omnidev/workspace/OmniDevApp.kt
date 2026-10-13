@@ -193,11 +193,16 @@ class OmniDevApp : Application(), Configuration.Provider {
 
         com.omnidev.workspace.data.debug.RuntimeDiagnostics.start(applicationContext)
         appScope.launch {
-            runCatching {
-                LauncherConnectionManager.initialize(applicationContext)
-                ExtensionConnectionManager.initialize(applicationContext)
-                com.omnidev.workspace.data.background.BackgroundServiceSupervisor.bootstrap(applicationContext)
-            }.onFailure { DebugLogManager.appendError("StartupDiscovery", it) }
+            runCatching { com.omnidev.workspace.data.background.BackgroundServiceSupervisor.bootstrap(applicationContext) }
+                .onFailure { DebugLogManager.appendError("StartupRecovery", it) }
+        }
+        appScope.launch {
+            runCatching { LauncherConnectionManager.initialize(applicationContext) }
+                .onFailure { DebugLogManager.appendError("LauncherDiscovery", it) }
+        }
+        appScope.launch {
+            runCatching { ExtensionConnectionManager.initialize(applicationContext) }
+                .onFailure { DebugLogManager.appendError("ExtensionDiscovery", it) }
         }
 
         if (BuildConfig.ALLOW_AGENT) com.omnidev.workspace.data.tools.TaskSchedulerTool.initialize(
