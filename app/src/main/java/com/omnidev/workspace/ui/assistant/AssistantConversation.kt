@@ -49,6 +49,7 @@ import com.omnidev.workspace.ui.companion.companionViewport
 import com.omnidev.workspace.ui.companion.companionActivity
 
 /** Presentation shared by the VoiceInteractionSession and translucent Activity. No dialog windows. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AssistantConversation(
     screen: AssistantScreenState, chat: ChatUiState, flavor: AssistantFlavorPolicy,
