@@ -2,19 +2,9 @@ package com.omnidev.workspace.core.policy
 
 import com.omnidev.workspace.BuildConfig
 
-/**
- * [TierPolicy] for the LITE flavor (Google Play Store Safe, B2C Free).
- *
- * Capabilities (summary):
- *   * Tools: `web_search`, `web_search_deep`, `web_scraper`, `read_file` only.
- *   * Monetization: Ads + BYOK.
- *   * No Shizuku, no root, no Accessibility, no system integration.
- *   * No local SLM (llama.cpp disabled, APK is ~40 MB smaller).
- *
- * The [confirmationGate] returns a deny-all gate as defense-in-depth:
- * the privileged tools that would call it are not even registered on Lite,
- * but if one slipped through a bug path it would be blocked here too.
- */
+/** Lite keeps chat, bounded tools, delegated files, local models/voice and the floating assistant.
+ * No autonomous Agent/Team, Shizuku, root, Accessibility or system broker is included.
+ * Allowed mutations delegate to the user's confirmation gate. */
 class LiteTierPolicy : TierPolicy {
     override val tier: String                 = BuildConfig.TIER
     override val allowRoot: Boolean            = BuildConfig.ALLOW_ROOT

@@ -6,7 +6,7 @@ internal enum class SettingsGroup(val title: String, val description: String) {
     AI("AI & models", "Providers, model selection and reasoning"),
     ASSISTANT("Assistant & device", "Voice, gestures and device permissions"),
     PERSONAL("Personalization & memory", "Your profile and what Omni remembers"),
-    AUTOMATION("Connections & automation", "Linked accounts, tools and scheduled work"),
+    AUTOMATION("Connections & automation", "Connected tools, skills and scheduled work"),
     INSIGHTS("Usage & diagnostics", "Costs, agent activity and troubleshooting")
 }
 

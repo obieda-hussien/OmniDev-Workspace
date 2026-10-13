@@ -8,6 +8,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class MentionExecutionTest {
+    @org.junit.Before fun installFlavor() = com.omnidev.workspace.core.policy.TierPolicyBootstrap.install()
     private class Tools : ToolManager {
         val executed = mutableListOf<String>()
         override fun getToolDefinitions() = listOf("web_search", "fetch_page", "read_file").map { ToolDefinition(it, it) }
@@ -67,7 +68,7 @@ class MentionExecutionTest {
             ChatMessage(MessageRole.USER, "@tool:web_search Research")))
         var round = 0
         ChatToolLoop(tools).run(base, emptySet(), "message", complete = { request ->
-            assertEquals(setOf("web_search", "fetch_page", ChatToolLoop.REQUEST_MODE), request.tools.orEmpty().map { it.name }.toSet())
+            assertEquals(setOf("web_search", "fetch_page", "read_file", ChatToolLoop.REQUEST_MODE), request.tools.orEmpty().map { it.name }.toSet())
             assertEquals("web_search", request.tools.orEmpty().first().name)
             when (++round) {
                 1 -> CompletionResponse("", listOf(ToolCall("wrong", "fetch_page", emptyMap())))

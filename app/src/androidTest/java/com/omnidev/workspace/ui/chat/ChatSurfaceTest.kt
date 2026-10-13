@@ -30,14 +30,17 @@ class ChatSurfaceTest {
     private fun modeOption(title: String) = compose.onNode(hasText(title) and
         SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
 
-    @Test fun modePickerPreservesTheChosenModeAndOffersAllThreeManualModes() {
+    @Test fun modePickerPreservesTheChosenModeAndOffersOnlyAvailableModes() {
         val mode = mutableStateOf(OmniMode.CHAT)
         compose.setContent { MaterialTheme { ModeSelector(mode.value, { mode.value = it }) } }
         compose.onNodeWithContentDescription("Choose conversation mode").performClick()
         if (!OmniMode.permitted(OmniMode.AGENT)) {
             modeOption("Agent").assertDoesNotExist()
             modeOption("Multi-agent").assertDoesNotExist()
-            modeOption("Chat").assertIsSelected().performClick()
+            modeOption("Chat").assertDoesNotExist()
+            compose.onNodeWithText("Chat").assertIsDisplayed()
+            compose.onAllNodes(isDialog()).assertCountEquals(0)
+            compose.runOnIdle { assertEquals(OmniMode.CHAT, mode.value) }
             return
         }
         modeOption("Agent").performClick()

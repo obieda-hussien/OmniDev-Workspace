@@ -40,7 +40,9 @@ class OmniLinkTierCapabilityPolicyTest {
         }
         assertFalse(OmniLinkTierCapabilityPolicy.allowed("NORM", launcher, "launcher.set_preference"))
         assertTrue(OmniLinkTierCapabilityPolicy.allowed("NORM", launcher, "launcher.open_app"))
-        assertFalse(OmniLinkTierCapabilityPolicy.allowed("LITE", launcher, "launcher.list_apps"))
+        assertTrue(OmniLinkTierCapabilityPolicy.allowed("LITE", launcher, "launcher.list_apps"))
+        assertTrue(OmniLinkTierCapabilityPolicy.allowed("LITE", launcher, "launcher.set_preference"))
+        assertFalse(OmniLinkTierCapabilityPolicy.allowed("LITE", "evil.app/Service", "launcher.open_app"))
         assertTrue(OmniLinkTierCapabilityPolicy.allowed("LITE", launcher, "launcher.health"))
         assertFalse(OmniLinkTierCapabilityPolicy.allowed("ADMIN", "evil.app/Service", "launcher.health"))
         assertFalse(OmniLinkTierCapabilityPolicy.allowed("ADMIN", launcher, "launcher.clear_home"))
