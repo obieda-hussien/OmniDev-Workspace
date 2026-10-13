@@ -9,24 +9,24 @@ class AssistantFlavorPolicy(private val policy: TierPolicy) {
     fun confirmationGate(uiGate: ConfirmationGate): ConfirmationGate = policy.confirmationGate(uiGate)
     val tier get() = policy.tier
     val allowScreenActions get() = policy.allowAccessibility
-    // Lite strips overlay/FGS permissions as well as Accessibility; no unsupported setup CTA.
-    val allowBubble get() = policy.allowAccessibility
+    // Assistant and microphone availability are independent of Accessibility.
+    val allowBubble get() = policy.allowBubble
     val toolDomains: Set<ToolDomain> get() = buildSet {
         add(ToolDomain.CORE)
         add(ToolDomain.WEB_SEARCH)
         add(ToolDomain.GENERAL)
         add(ToolDomain.CODE_TERMINAL) // e.g. read_file; the tier tool filter remains authoritative.
-        if (allowScreenActions) {
+        if (allowScreenActions || policy.allowSystemIntegration) {
             add(ToolDomain.DEVICE_CONTROL)
             add(ToolDomain.MESSAGING)
         }
     }
     val preferredToolNames: Set<String> get() = if (allowScreenActions)
-        setOf("semantic_ui", "autofill_assist", "ui_automation", "check_permission", "request_permission", "omni_link", "device_admin") else emptySet()
+        setOf("semantic_ui", "autofill_assist", "ui_automation", "check_permission", "request_permission", "omni_link", "device_admin") else if (policy.allowSystemIntegration) setOf("oem_system", "omni_link", "planner_tool") else setOf("omni_link", "planner_tool")
     val promptContext: String get() = buildString {
         append("Build: $tier. ")
         if (allowScreenActions) append("Live app inspection and ordinary field actions are supported with Android permission. ")
-        else append("Research, memory and user-attached screens/files only; live app control and floating bubbles are unavailable. ")
+        else append("Research, browser, delegated files and trusted connected-app actions are available. Accessibility gestures are unavailable. ")
         append(if (policy.allowShizuku) "Shizuku requires its runtime grant. " else "Shizuku is unavailable. ")
         append(if (policy.allowRoot) "Root requires an available authorized backend. " else "Root is unavailable. ")
         if (policy.allowSystemIntegration) append("System integration requires the corresponding device entitlement. ")

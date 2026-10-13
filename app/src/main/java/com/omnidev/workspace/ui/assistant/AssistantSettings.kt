@@ -62,7 +62,7 @@ fun AssistantSettingsCard(showAccessLinks: Boolean = true) {
             if (showAccessLinks) {
                 TextButton(onClick = { context.startActivity(Intent(context, DeviceAccessActivity::class.java)) }) { Text("Device access and permissions") }
             }
-            if (showAccessLinks && com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility) {
+            if (showAccessLinks && com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAssistant) {
                 OutlinedButton(onClick = { context.startActivity(Intent(context, VoiceWakeActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) { Text("Voice activation · phrase, training & listening") }
                 Text("Wake/lock-screen permissions alone do not start listening. Choose a phrase, record your voice examples, then press Start listening.", style = MaterialTheme.typography.bodySmall)
             }

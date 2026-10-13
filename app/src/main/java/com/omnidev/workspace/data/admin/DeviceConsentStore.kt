@@ -20,7 +20,7 @@ class DeviceConsentStore(context: Context) {
     ) }
     private fun available() = context.getSystemService(UserManager::class.java)?.isUserUnlocked == true
     fun enabled(scope: DeviceConsentPolicy.Scope): Boolean = available() &&
-        TierPolicyHolder.current.allowAccessibility &&
+        (if (scope in setOf(DeviceConsentPolicy.Scope.WAKE, DeviceConsentPolicy.Scope.LOCK_OVERLAY)) TierPolicyHolder.current.allowAssistant else TierPolicyHolder.current.allowAccessibility) &&
         (scope != DeviceConsentPolicy.Scope.SAVED_PIN || TierPolicyHolder.current.tier == "ADMIN") &&
         prefs.getBoolean(scope.name, false)
 

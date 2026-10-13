@@ -177,16 +177,18 @@ class LocalWakeService : Service() {
             fun unavailable(reason: String): Boolean { state.value = reason; return false }
             if (!WakePreferences(context).userCanConfigure()) return unavailable("Unlock the phone, then start listening from Voice activation settings.")
             if (!AssistantSettings.isSelected(context)) return unavailable("Choose Omni as Android's default digital assistant first.")
-            if (!WakeProfileStore(context).exists()) return unavailable("No trained wake profile. Complete the voice recordings in Step 2 first.")
+            if (!WakeProfileStore(context).exists() && com.omnidev.workspace.BuildConfig.TIER != "OEM") return unavailable("No trained wake profile. Complete the voice recordings in Step 2 first.")
             if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED)
                 return unavailable("Microphone permission is missing. Allow it in Voice activation settings.")
             if (context.getSystemService(AudioManager::class.java)?.isMicrophoneMute == true)
                 return unavailable("The microphone is muted. Enable microphone access in Android, then try again.")
             if (!WakePreferences(context).setEnabled(true)) return unavailable("Could not save listening activation. Try again.")
+            if (com.omnidev.workspace.data.assistant.OemHotwordController.refresh()) { state.value = "Listening with manufacturer hardware"; return true }
+            if (!WakeProfileStore(context).exists()) { WakePreferences(context).setEnabled(false); return unavailable("No manufacturer wake model or trained offline profile is available.") }
             return runCatching { ContextCompat.startForegroundService(context, Intent(context, LocalWakeService::class.java)); true }
                 .getOrElse { WakePreferences(context).setEnabled(false); state.value = "Android could not start the microphone service. Open settings and try again."; false }
         }
-        fun stop(context: Context) { WakePreferences(context).setEnabled(false); active?.interruptCapture(); context.stopService(Intent(context, LocalWakeService::class.java)) }
+        fun stop(context: Context) { WakePreferences(context).setEnabled(false); com.omnidev.workspace.data.assistant.OemHotwordController.refresh(); active?.interruptCapture(); context.stopService(Intent(context, LocalWakeService::class.java)) }
         fun pauseCapture() { active?.interruptCapture() }
     }
 }

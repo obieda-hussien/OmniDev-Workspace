@@ -196,8 +196,8 @@ class ChatViewModel(
     private fun observeGodMode() {
         viewModelScope.launch {
             settingsRepository.observeGodMode().collect { enabled ->
-                fileToolManager?.godModeEnabled = enabled
-                _uiState.update { it.copy(isGodModeEnabled = enabled) }
+                fileToolManager?.godModeEnabled = enabled && com.omnidev.workspace.BuildConfig.ALLOW_AGENT
+                _uiState.update { it.copy(isGodModeEnabled = enabled && com.omnidev.workspace.BuildConfig.ALLOW_AGENT) }
             }
         }
     }
@@ -292,6 +292,7 @@ class ChatViewModel(
      * before changing mode so late events cannot leak into the newly selected runtime.
      */
     fun setMode(mode: OmniMode) {
+        if (!OmniMode.permitted(mode)) return
         if (_uiState.value.activeMode == mode) return
         if (_uiState.value.isProcessing) {
             cancelCurrentRun()
@@ -510,7 +511,7 @@ class ChatViewModel(
         if (_uiState.value.isProcessing) return submitSteering(text, attachments)
         assistantAppContext = appContext
         configureAssistantActionGuard(text)
-        _uiState.update { it.copy(inputText = text, pendingAttachments = attachments, activeMode = OmniMode.AGENT) }
+        _uiState.update { it.copy(inputText = text, pendingAttachments = attachments, activeMode = OmniMode.constrain(OmniMode.AGENT)) }
         sendMessage()
         return true
     }
@@ -536,15 +537,15 @@ class ChatViewModel(
             val settings = _uiState.value.chatSettings
             val local = if (settings.toolAccessMode.name == "DISABLED") emptyList() else
                 compositeToolManager?.getToolDefinitions().orEmpty().filter { it.name !in settings.disabledToolNames() }
-            val connected = if (settings.toolAccessMode.name == "DISABLED" || _uiState.value.activeMode == OmniMode.CHAT) emptyList() else
+            val connected = if (settings.toolAccessMode.name == "DISABLED") emptyList() else
                 kotlinx.coroutines.withTimeoutOrNull(8_000) {
                     try { com.omnidev.workspace.OmniDevApp.instance.mcpRegistry.fetchAllAvailableTools() }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { emptyList() }
                 }.orEmpty().filter { it.name !in settings.disabledToolNames() }
             val definitions = (local + connected).distinctBy { it.name }.filter {
-                (_uiState.value.activeMode != OmniMode.CHAT || it.name in com.omnidev.workspace.domain.engine.ChatToolLoop.CHAT_TOOLS) &&
-                    com.omnidev.workspace.data.tools.TierToolGate.denyReason(it.name) == null
+                (_uiState.value.activeMode != OmniMode.CHAT || it.name in com.omnidev.workspace.domain.engine.ChatToolLoop.CHAT_TOOLS || it.name.startsWith("mcp_")) &&
+                    (it.name.startsWith("mcp_") || com.omnidev.workspace.data.tools.TierToolGate.denyReason(it.name) == null)
             }
             definitions.map { com.omnidev.workspace.domain.engine.MentionCandidate("tool", it.name, it.description) } +
                 com.omnidev.workspace.data.skills.SkillManager(com.omnidev.workspace.OmniDevApp.instance.applicationContext)
@@ -635,7 +636,7 @@ class ChatViewModel(
         val focus = try { com.omnidev.workspace.domain.engine.MentionFocus.parse(input) } catch (error: IllegalArgumentException) {
             _uiState.update { it.copy(errorMessage = error.message) }; return
         }
-        val mode = state.activeMode
+        val mode = OmniMode.constrain(state.activeMode)
         val matchingRoutine = if (!focus.active && mode != OmniMode.CHAT && attachments.isEmpty())
             compositeToolManager?.learnedRoutineTool?.let {
                 com.omnidev.workspace.data.routines.RoutineMatcher.match(input, it.hub.store.list())
@@ -936,14 +937,16 @@ class ChatViewModel(
                     focus.prompt() + if (focus.skills.isEmpty()) "" else com.omnidev.workspace.data.skills.SkillManager(
                         com.omnidev.workspace.OmniDevApp.instance.applicationContext).buildMentionedPromptContext(focus.skills)
                 } +
-                "\nChat can use its supplied research tools directly. Request AGENT only when execution tools are required, and TEAM only when independent parallel work is materially useful. A request is a proposal, never permission.",
+                "\nUse only the supplied tools and delegated scope. " + if (com.omnidev.workspace.BuildConfig.ALLOW_AGENT)
+                    "Request only execution modes available in this build; a request is never permission."
+                else "This build has no Agent or Team mode. Perform bounded chat-tool tasks, and explain unavailable capabilities.",
             maxTokens = minOf(model.maxOutputTokens, 4096),
             enableThinking = settingsRepository.observeDeepThinking().first() && model.supportsThinking,
             apiKey = apiKeyRepository?.getApiKey(model.provider)
         )
 
         try {
-            val result = com.omnidev.workspace.domain.engine.ChatToolLoop(compositeToolManager).run(
+            val result = com.omnidev.workspace.domain.engine.ChatToolLoop(compositeToolManager, com.omnidev.workspace.OmniDevApp.instance.mcpRegistry, { preview, diff -> assistantConfirmationGate?.request(com.omnidev.workspace.core.policy.ConfirmationKind.CONNECTED_APP_ACTION, preview, diff) == true }).run(
                 base = request,
                 disabled = _uiState.value.chatSettings.disabledToolNames(),
                 originMessageId = original.messageId,
@@ -1033,7 +1036,7 @@ class ChatViewModel(
         if (state.isProcessing) return
         val proposal = state.messages.find { it.messageId == messageId } ?: return
         val request = proposal.executionRequest?.takeIf { it.status == "pending" } ?: return
-        val target = request.mode.toOmniModeOrNull() ?: return
+        val target = request.mode.toOmniModeOrNull()?.takeIf { OmniMode.permitted(it) } ?: return
         val source = request.sourceMode?.toOmniModeOrNull() ?: state.activeMode
         val sessionId = state.currentSessionId ?: return
         modePermissionStore.recordDecision(source, target, sessionId, approval)
@@ -1054,7 +1057,7 @@ class ChatViewModel(
         if (state.isProcessing) return
         val proposal = state.messages.find { it.messageId == messageId } ?: return
         val request = proposal.executionRequest?.takeIf { it.status == "pending" } ?: return
-        val target = request.mode.toOmniModeOrNull() ?: return
+        val target = request.mode.toOmniModeOrNull()?.takeIf { OmniMode.permitted(it) } ?: return
         val source = request.sourceMode?.toOmniModeOrNull() ?: state.activeMode
         modePermissionStore.recordDecision(source, target, state.currentSessionId, ModeSwitchPermissionStore.Approval.DENY)
         val denied = proposal.copy(executionRequest = request.copy(status = "denied"))
@@ -1067,7 +1070,7 @@ class ChatViewModel(
         request: ExecutionModeRequest,
         sessionId: Long
     ) {
-        val target = request.mode.toOmniModeOrNull() ?: return
+        val target = request.mode.toOmniModeOrNull()?.takeIf { OmniMode.permitted(it) } ?: return
         val source = request.sourceMode?.toOmniModeOrNull() ?: _uiState.value.activeMode
         if (!modePermissionStore.canAutoSwitch(source, target, sessionId)) return
         val accepted = proposal.copy(executionRequest = request.copy(status = "accepted_auto"))
@@ -1081,6 +1084,7 @@ class ChatViewModel(
         request: ExecutionModeRequest,
         autoApproved: Boolean
     ) {
+        if (!OmniMode.permitted(target)) return
         val state = _uiState.value
         if (state.isProcessing) return
         val sessionId = state.currentSessionId ?: return

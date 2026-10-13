@@ -557,7 +557,14 @@ class HeadlessBrowserManager(context: Context) {
     // Tool Definitions
     // ────────────────────────────────────────────────────────────────────────
 
-    fun getToolDefinitions(): List<ToolDefinition> = listOf(
+    fun getToolDefinitions(): List<ToolDefinition> = fullToolDefinitions().map { definition ->
+        if (com.omnidev.workspace.BuildConfig.TIER != "LITE") definition
+        else definition.copy(description = "Browse and research with named page operations. User approval is required for website interactions. Available actions: " + BrowserToolPolicy.liteActions.sorted().joinToString(", "),
+            parameters = definition.parameters.filterNot { it.name in setOf("js_code", "cookie_name", "cookie_value", "storage_key", "storage_value", "css", "user_agent", "domains", "min_score") }.map {
+                if (it.name == "action") it.copy(allowedValues = BrowserToolPolicy.liteActions.sorted()) else it
+            })
+    }
+    private fun fullToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "headless_browser",
             description = """
@@ -638,6 +645,8 @@ ACTIONS:
     private var blockedDomains: Set<String> = DEFAULT_BLOCKED_DOMAINS
 
     suspend fun execute(action: String, args: Map<String, String>): ToolExecutionResult {
+        if (!BrowserToolPolicy.allowed(com.omnidev.workspace.BuildConfig.TIER, action.trim()))
+            return ToolExecutionResult("Browser action is not included in this build.", true, classification = "TIER_DENIED")
         restoreSessions()
         val normalizedAction = action.lowercase().trim()
         val sessionId = args["session_id"] ?: activeSessionId
@@ -1049,13 +1058,13 @@ ACTIONS:
                 }
                 override fun onJsConfirm(view: WebView?, url: String?, message: String?,
                                          result: android.webkit.JsResult?): Boolean {
-                    result?.confirm()
+                    result?.cancel()
                     return true
                 }
                 override fun onJsPrompt(view: WebView?, url: String?, message: String?,
                                         defaultValue: String?,
                                         result: android.webkit.JsPromptResult?): Boolean {
-                    result?.confirm(defaultValue)
+                    result?.cancel()
                     return true
                 }
             }

@@ -7,12 +7,14 @@ import android.service.voice.VoiceInteractionService
 import com.omnidev.workspace.ui.assistant.AssistantActivity
 
 class OmniVoiceInteractionService : VoiceInteractionService() {
-    override fun onReady() { super.onReady(); active = this }
+    override fun onReady() { super.onReady(); active = this; OemHotwordController.ready(this) }
     override fun onShutdown() {
+        OemHotwordController.stop()
         if (active === this) { active = null; com.omnidev.workspace.data.voice.LocalWakeService.stop(this); com.omnidev.workspace.data.voice.LocalVoiceSessionService.stop(this) }
         super.onShutdown()
     }
     override fun onDestroy() {
+        OemHotwordController.stop()
         if (active === this) { active = null; com.omnidev.workspace.data.voice.LocalWakeService.stop(this); com.omnidev.workspace.data.voice.LocalVoiceSessionService.stop(this) }
         super.onDestroy()
     }

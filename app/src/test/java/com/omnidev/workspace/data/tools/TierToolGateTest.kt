@@ -78,7 +78,7 @@ class TierToolGateTest {
     fun `lite tier exposes approved media browsing memory and read-only recall tools`() {
         TierPolicyHolder.install(stubPolicy("LITE"))
         val filtered = TierToolGate.filter(fullDefs).map { it.name }.toSet()
-        assertEquals(TierToolGate.LITE_TOOLS, filtered)
+        assertEquals(fullDefs.map { it.name }.filter { it in TierToolGate.LITE_TOOLS }.toSet(), filtered)
     }
 
     @Test
@@ -134,23 +134,21 @@ class TierToolGateTest {
     }
 
     @Test
-    fun `oem tier exposes everything except Shizuku-specific tools`() {
+    fun `oem exposes typed integration and denies generic privilege`() {
         TierPolicyHolder.install(stubPolicy("OEM"))
-        val filtered = TierToolGate.filter(fullDefs).map { it.name }.toSet()
-        assertTrue("OEM keeps advanced_security_analyzer (android.uid.system)",
-                   "advanced_security_analyzer" in filtered)
-        assertTrue("OEM keeps vpn_control",       "vpn_control"       in filtered)
-        assertTrue("OEM keeps god_eye_profiler",  "god_eye_profiler"  in filtered)
-        assertTrue("OEM drops shizuku_command",   "shizuku_command"   !in filtered)
-        assertNotNull(TierToolGate.denyReason("shizuku_command"))
-        assertNull(TierToolGate.denyReason("advanced_security_analyzer"))
+        assertNull(TierToolGate.denyReason("oem_system"))
+        assertNull(TierToolGate.denyReason("omni_link"))
+        for (name in listOf("shizuku_command", "advanced_security_analyzer", "vpn_control", "god_eye_profiler", "run_terminal", "semantic_ui")) {
+            assertNotNull("OEM must deny $name", TierToolGate.denyReason(name))
+            assertTrue(TierToolGate.filter(listOf(ToolDefinition(name, "", emptyList()))).isEmpty())
+        }
     }
 
     @Test
-    fun `uninitialised tier fails safe to Lite behaviour`() {
+    fun `uninitialised tier exposes no tools`() {
         TierPolicyHolder.install(stubPolicy("UNINITIALIZED"))
         val filtered = TierToolGate.filter(fullDefs).map { it.name }.toSet()
-        assertEquals(TierToolGate.LITE_TOOLS, filtered)
+        assertTrue(filtered.isEmpty())
         assertNotNull(TierToolGate.denyReason("terminal_command"))
         assertNotNull("Media must not execute before tier initialization", TierToolGate.denyReason("media_generation"))
     }

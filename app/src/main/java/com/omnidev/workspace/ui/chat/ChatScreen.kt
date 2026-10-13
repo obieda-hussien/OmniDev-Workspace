@@ -168,10 +168,10 @@ internal fun ChatConversation(
                     }
                     ChatInputBar(state.inputText, onInputChanged, onSend, onStop, state.isProcessing, state.pendingAttachments, onAttach,
                         onRemoveAttachment, state.replyingTo, onDismissReply, state.chatSettings, onUpdateChatSettings, focusRequester,
-                        scopeLabel = if (state.activeMode == OmniMode.CHAT || state.isGodModeEnabled) null
+                        scopeLabel = if ((state.activeMode == OmniMode.CHAT && com.omnidev.workspace.BuildConfig.ALLOW_AGENT) || state.isGodModeEnabled) null
                             else state.targetContextDisplayName ?: state.targetContext?.substringAfterLast('/')?.ifBlank { state.targetContext },
                         onChooseScope = onChooseScope, compact = compactComposer,
-                        showScopeChooser = state.activeMode != OmniMode.CHAT && !state.isGodModeEnabled,
+                        showScopeChooser = (state.activeMode != OmniMode.CHAT || !com.omnidev.workspace.BuildConfig.ALLOW_AGENT) && !state.isGodModeEnabled,
                         allowSteering = state.canSteer, submittedRevision = state.submittedSteeringRevision,
                         appliedRevision = state.appliedSteeringRevision, mentionLoader = mentionLoader)
                 }

@@ -163,7 +163,7 @@ fun AgentLiveConsole(
             ) {
                 Icon(Icons.Filled.Code, null, tint = TerminalGreen, modifier = Modifier.size(15.dp))
                 Spacer(Modifier.width(5.dp))
-                Text("Agent Console", color = TerminalGreen, fontFamily = FontFamily.Monospace,
+                Text(if (com.omnidev.workspace.BuildConfig.ALLOW_AGENT) "Agent Console" else "Tool activity", color = TerminalGreen, fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 Spacer(Modifier.width(6.dp))
                 // Running / Done status

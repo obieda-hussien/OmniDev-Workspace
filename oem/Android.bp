@@ -1,0 +1,47 @@
+// Copy release artifacts here only in the manufacturer's private ROM checkout.
+android_app_import {
+    name: "OmniAssistant",
+    apk: "prebuilts/OmniAssistant.apk",
+    certificate: "platform",
+    privileged: true,
+    product_specific: true,
+    dex_preopt: { enabled: true },
+    required: ["privapp-permissions-omni"],
+    optional_uses_libs: ["com.omnidev.hardware"],
+}
+
+java_library {
+    name: "com.omnidev.hardware",
+    stem: "omni-hardware",
+    srcs: ["framework/src/**/*.java"],
+    sdk_version: "system_current",
+    installable: true,
+    product_specific: true,
+    required: ["omni-hardware-library"],
+}
+
+prebuilt_etc {
+    name: "omni-hardware-library",
+    src: "permissions/omni-hardware-library.xml",
+    filename: "omni-hardware-library.xml",
+    sub_dir: "permissions",
+    product_specific: true,
+}
+
+android_app_import {
+    name: "OmniSystemService",
+    apk: "prebuilts/OmniSystemService.apk",
+    certificate: "platform",
+    privileged: true,
+    product_specific: true,
+    dex_preopt: { enabled: true },
+    required: ["privapp-permissions-omni"],
+}
+
+prebuilt_etc {
+    name: "privapp-permissions-omni",
+    src: "permissions/privapp-permissions-omni.xml",
+    filename: "privapp-permissions-omni.xml",
+    sub_dir: "permissions",
+    product_specific: true,
+}

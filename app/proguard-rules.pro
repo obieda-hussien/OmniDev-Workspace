@@ -53,24 +53,24 @@
 }
 
 # ── Accessibility Service (Semantic UI) ───────────────────────────────────────
--keep class com.omnidev.workspace.data.accessibility.OmniAccessibilityService { *; }
--keep class com.omnidev.workspace.data.accessibility.AccessibilityStateManager { *; }
--keep class com.omnidev.workspace.data.accessibility.SemanticTreeParser { *; }
--keep class com.omnidev.workspace.data.accessibility.SemanticUITool { *; }
--keep class com.omnidev.workspace.data.accessibility.GodModeAccessibility { *; }
+
+
+
+
+
 
 # ── App Manifest Analyzer & Vector Memory ─────────────────────────────────────
--keep class com.omnidev.workspace.data.tools.AppManifestAnalyzerTool { *; }
--keep class com.omnidev.workspace.data.tools.VectorMemoryManager { *; }
+
+
 
 # ── Deep Research & Advanced Tools ─────────────────────────────────────────────
--keep class com.omnidev.workspace.data.tools.WebScraperTool { *; }
--keep class com.omnidev.workspace.data.tools.HeadlessBrowserManager { *; }
--keep class com.omnidev.workspace.data.tools.AdvancedFileTools { *; }
+
+
+
 
 # ── Jsoup (HTML parser) ──────────────────────────────────────────────────────
 -dontwarn org.jsoup.**
--keep class org.jsoup.** { *; }
+
 
 # ── Retrofit & OkHttp (Keep networking classes to prevent reflection-related failures) ────────────────────────
 -dontwarn okhttp3.**
@@ -106,16 +106,16 @@
 -dontwarn javax.management.**
 -dontwarn java.lang.management.**
 -dontwarn org.slf4j.impl.StaticLoggerBinder
--keep class org.eclipse.jgit.** { *; }
+
 -dontwarn java.lang.ProcessHandle
 -dontwarn org.ietf.jgss.**
 
 # ── Progressive Trust Engine & Tools (Phase 2) ────────────────────────────────
 -keep class com.omnidev.workspace.data.brain.ProgressiveTrustEngine { *; }
 -keep class com.omnidev.workspace.data.brain.ProgressiveTrustEngine$* { *; }
--keep class com.omnidev.workspace.data.tools.ProgressiveTrustTool { *; }
--keep class com.omnidev.workspace.data.tools.ScriptRunnerTool { *; }
--keep class com.omnidev.workspace.data.tools.ScriptRunnerTool$* { *; }
+
+
+
 # JNA looks up Pointer.peer and its bridge classes by name from jnidispatch.
 # Keep the complete reflective/native API, including Vosk's direct mappings.
 # https://github.com/java-native-access/jna/blob/master/www/FrequentlyAskedQuestions.md#jna-on-android

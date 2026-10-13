@@ -26,17 +26,6 @@ class LiteTierPolicy : TierPolicy {
     override val allowSystemIntegration: Boolean = BuildConfig.ALLOW_SYSTEM_INTEGRATION
     override val autoApproveConfirmations: Boolean = BuildConfig.AUTO_APPROVE_CONFIRMATIONS
 
-    override fun confirmationGate(uiGate: ConfirmationGate): ConfirmationGate =
-        // Lite should never reach this gate, but as a final safety net we
-        // record the attempt (so bugs surface in analytics) and deny.
-        ConfirmationGate { kind, preview, diff ->
-            OmniAuditLog.record(
-                tier = tier,
-                autoApproved = false,
-                kind = kind,
-                preview = "[LITE DENIED] $preview",
-                diffContent = diff
-            )
-            false
-        }
+    // Allowed file/browser/connected-app mutations retain explicit user confirmation.
+    override fun confirmationGate(uiGate: ConfirmationGate): ConfirmationGate = uiGate
 }

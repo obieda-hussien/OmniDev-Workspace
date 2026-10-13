@@ -1,24 +1,45 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:sharedUserId="android.uid.system"
-    tools:ignore="SharedUserId">
-
-    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" tools:node="remove" />
-    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
-
+<?xml version='1.0' encoding='utf-8'?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" tools:ignore="SharedUserId">
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <queries>
         <package android:name="com.termux" />
+        <package android:name="com.omnidev.system" />
     </queries>
-
     <application>
-        <provider
-            android:name="rikka.shizuku.ShizukuProvider"
-            tools:node="remove" />
-
-        <receiver
-            android:name=".data.tools.TermuxResultReceiver"
-            android:exported="false" />
+        <provider android:name="rikka.shizuku.ShizukuProvider" tools:node="remove" />
+        <receiver android:name=".data.tools.TermuxResultReceiver" android:exported="false" />
+        <service android:name=".data.accessibility.OmniAccessibilityService" tools:node="remove" />
+        <service android:name=".data.ipc.OmniCoreService" tools:node="remove" />
+        <service android:name=".data.network.OmniDevVpnService" tools:node="remove" />
+        <service android:name=".data.tools.AgentNotificationService" tools:node="remove" />
+        <service android:name=".data.input.OmniInputMethodService" tools:node="remove" />
+        <service android:name=".data.vision.OmniScreenCaptureService" tools:node="remove" />
+        <service android:name=".data.integration.TelegramPollingService" tools:node="remove" />
+        <service android:name=".data.integration.DiscordPollingService" tools:node="remove" />
+        <service android:name=".data.integration.WhatsAppBridgeService" tools:node="remove" />
+        <service android:name=".data.media.OmniMediaSessionService" tools:node="remove" />
+        <service android:name=".data.sync.OmniSyncService" tools:node="remove" />
+        <receiver android:name=".data.admin.OmniDeviceAdminReceiver" tools:node="remove" />
+        <receiver android:name=".data.communication.OmniSmsReceiver" tools:node="remove" />
+        <activity-alias android:name=".ui.assistant.HealthPermissionUsageActivity" tools:node="remove" />
+        <uses-library android:name="com.omnidev.hardware" android:required="false" />
     </application>
-
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="com.omnilink.sdk.permission.BIND_EXTENSION" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAPTURE_AUDIO_HOTWORD" />
+    <uses-permission android:name="com.omnidev.system.permission.EXECUTE" />
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.MANAGE_VOICE_KEYPHRASES" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 </manifest>

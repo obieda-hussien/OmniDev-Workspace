@@ -222,7 +222,7 @@ class SkillManager(context: Context) {
         private const val MAX_INVOCATION_CHARS = 64 * 1024
         private val NAME_REGEX = Regex("^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
 
-        val BUILTIN_SKILLS = listOf(
+        val BUILTIN_SKILLS = listOf("omnidev-lite-workspace",
             CORE_SKILL,
             "omnidev-orchestrating-agents",
             "omnidev-browser-research",

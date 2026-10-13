@@ -17,12 +17,15 @@ class McpRegistry(
     private val refreshMutex = Mutex()
     @Volatile private var routes: Map<String, McpToolRoute> = emptyMap()
     private val discovery = McpToolDiscovery(connect = { config ->
-        when (config.type.lowercase()) {
+        when {
+            com.omnidev.workspace.BuildConfig.TIER == "LITE" && config.type.lowercase() in setOf("native", "git", "hybrid_git") -> null
+            else -> when (config.type.lowercase()) {
             "http", "streamable_http" -> StreamableMcpConnection(config)
             "rest" -> RemoteMcpConnection(config, httpClient)
             "native" -> NativeLocalMcpConnection()
             "git", "hybrid_git" -> HybridGitMcpConnection()
             else -> null
+            }
         }
     })
 

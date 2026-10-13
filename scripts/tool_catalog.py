@@ -48,7 +48,7 @@ def definitions(path: Path) -> list[str]:
 
 
 def inventory() -> dict:
-    composite = MAIN / 'data/tools/CompositeToolManager.kt'
+    composite = ROOT / 'app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt'
     source = composite.read_text()
     method = source.split('private fun buildAllToolDefinitions()', 1)[1].split('override suspend fun executeTool', 1)[0]
     # Include only providers actually referenced by the catalog builder. Resolve
@@ -68,7 +68,7 @@ def inventory() -> dict:
             raise ValueError(f'Unresolved provider field: {field}')
         providers.add(fields[field])
     paths = {}
-    for path in MAIN.rglob('*.kt'):
+    for path in list(MAIN.rglob('*.kt')) + list((ROOT / 'app/src/advanced/java').rglob('*.kt')) + list((ROOT / 'app/src/oem/java').rglob('*.kt')):
         text = path.read_text()
         for owner in re.findall(r'\b(?:class|object)\s+(\w+)', text):
             if owner in providers:
@@ -93,7 +93,7 @@ def inventory() -> dict:
     gate = (MAIN / 'data/tools/TierToolGate.kt').read_text()
     hidden_body = gate.split('HIDDEN_LEGACY_TOOL_ALIASES:', 1)[1].split(')', 1)[0]
     hidden = set(re.findall(r'"([a-z][a-z0-9_]*)"', hidden_body))
-    skills = sorted(path.parent.name for path in (ROOT / 'app/src/main/assets/agent-skills').glob('*/SKILL.md'))
+    skills = sorted(path.parent.name for path in (ROOT / 'app/src').glob('*/assets/agent-skills/*/SKILL.md'))
     return {'declared_local_tools': len(catalog),
             'catalog_tools_excluding_hidden_aliases': len(catalog.keys() - hidden),
             'hidden_registered_aliases': sorted(catalog.keys() & hidden),
@@ -122,7 +122,7 @@ def markdown(data: dict) -> str:
              'python3 scripts/tool_catalog.py',
              'python3 scripts/tool_catalog.py --format markdown', '```', '',
              '## Bundled skills', '',
-             'Only shipped `app/src/main/assets/agent-skills/*/SKILL.md` packages count here; '
+             'The inventory is the union of shipped flavor asset packages; each APK includes only its applicable skills. '
              'user-installed/imported skills are additional.', '']
     lines.extend(f'- `{name}`' for name in data['skills'])
     lines.extend(['', '## Local tool definitions', '', '| Name | Source |', '| --- | --- |'])

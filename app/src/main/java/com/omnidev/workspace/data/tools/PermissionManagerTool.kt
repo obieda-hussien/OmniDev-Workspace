@@ -124,7 +124,7 @@ object PermissionManagerTool {
             if (!ShizukuCommandTool.isAvailable()) return pending("Start Shizuku via wireless debugging, ADB or root, then return.")
             if (ShizukuCommandTool.hasPermission()) return ToolExecutionResult("Shizuku grant verified.")
             return withContext(Dispatchers.Main) {
-                runCatching { rikka.shizuku.Shizuku.requestPermission(0x4F61) }.fold(
+                runCatching { com.omnidev.workspace.core.privileged.ShizukuPermissionBridge.requestPermission(0x4F61) }.fold(
                     onSuccess = { pending("Approve OmniDev in the Shizuku permission dialog, then recheck.") },
                     onFailure = { failure("Shizuku request failed: ${it.message}", "SHIZUKU_PERMISSION_REQUIRED") })
             }

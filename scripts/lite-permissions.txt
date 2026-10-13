@@ -1,0 +1,16 @@
+android.permission.ACCESS_NETWORK_STATE
+android.permission.FOREGROUND_SERVICE
+android.permission.FOREGROUND_SERVICE_DATA_SYNC
+android.permission.FOREGROUND_SERVICE_MICROPHONE
+android.permission.FOREGROUND_SERVICE_SPECIAL_USE
+android.permission.INTERNET
+android.permission.MODIFY_AUDIO_SETTINGS
+android.permission.POST_NOTIFICATIONS
+android.permission.RECORD_AUDIO
+android.permission.SYSTEM_ALERT_WINDOW
+android.permission.USE_BIOMETRIC
+android.permission.VIBRATE
+android.permission.WAKE_LOCK
+com.android.alarm.permission.SET_ALARM
+com.omnilink.sdk.permission.BIND_EXTENSION
+com.omnidev.workspace.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION

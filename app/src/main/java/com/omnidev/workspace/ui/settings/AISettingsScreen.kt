@@ -86,9 +86,13 @@ fun AISettingsScreen(
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
     val context = LocalContext.current
-    val allowVoice = com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility
+    val allowVoice = com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowLocalVoice
     val entries = remember(allowVoice) {
-        SettingsCatalog.entries.filter { allowVoice || it.destination != SettingsDestination.VOICE }
+        SettingsCatalog.entries.filter { entry ->
+            (allowVoice || entry.destination != SettingsDestination.VOICE) &&
+                (com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility || entry.destination != SettingsDestination.ACCESSIBILITY) &&
+                (com.omnidev.workspace.BuildConfig.ALLOW_AGENT || entry.destination !in setOf(SettingsDestination.FILE_ACCESS, SettingsDestination.SCHEDULE))
+        }
     }
     val accessibilityConnected by com.omnidev.workspace.data.accessibility.AccessibilityStateManager
         .isServiceConnected.collectAsStateWithLifecycle()

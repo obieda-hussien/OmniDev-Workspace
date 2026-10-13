@@ -23,12 +23,16 @@ import kotlin.math.min
  * Completed Chat runs feed local mode-outcome learning so AUTO routing can compare real outcomes
  * instead of assuming execution modes are always superior.
  */
-class ChatToolLoop(private val tools: ToolManager?) {
+class ChatToolLoop(
+    private val tools: ToolManager?,
+    private val connected: com.omnidev.workspace.data.mcp.McpRegistry? = null,
+    private val confirmConnected: (suspend (String, String?) -> Boolean)? = null
+) {
     companion object {
         val WEB_TOOLS = setOf(
             "web_search", "web_search_deep", "web_scraper", "fetch_page", "scrape_multiple"
         )
-        val CHAT_TOOLS = WEB_TOOLS + "media_generation"
+        val CHAT_TOOLS = WEB_TOOLS + setOf("media_generation", "headless_browser", "read_file", "read_file_lines", "create_file", "patch_file_content", "append_to_file", "delete_file", "remember_fact", "search_knowledge", "update_memory", "delete_memory", "vector_store", "vector_search", "vector_similar", "omni_link", "planner_tool", "list_chat_sessions", "search_messages", "read_chat_session", "read_chat_message")
         const val REQUEST_MODE = "request_execution_mode"
         private const val CHAT_TOKEN_BUDGET = 32_000
         private const val MIN_OUTPUT_RESERVE = 256
@@ -97,7 +101,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
         }
 
         val mediaRequest = isMediaRequest(userRequest)
-        val localSuggestion = if (mediaRequest || mentionFocus.active) null else AdaptiveModeRouter.fromChatRequest(userRequest)
+        val localSuggestion = if (!OmniMode.permitted(OmniMode.AGENT) || mediaRequest || mentionFocus.active) null else AdaptiveModeRouter.fromChatRequest(userRequest)
         if (localSuggestion != null && localSuggestion.confidence >= 0.72f) {
             val request = ExecutionModeRequest(
                 mode = localSuggestion.to.name,
@@ -111,10 +115,15 @@ class ChatToolLoop(private val tools: ToolManager?) {
             return Result(localSuggestion.reason, request)
         }
 
-        val definitions = tools?.getToolDefinitions().orEmpty()
-            .filter { toolAccessMode != "DISABLED" && it.name in CHAT_TOOLS && it.name !in disabled }
+        val remote = if (toolAccessMode != "DISABLED" && connected != null &&
+            (toolAccessMode == "AUTO" || mentionFocus.tools.any { it.startsWith("mcp_") })) {
+            kotlinx.coroutines.withTimeoutOrNull(8_000) { connected.fetchAllAvailableTools() }.orEmpty()
+        } else emptyList()
+        val remoteNames = remote.map { it.name }.toSet()
+        val definitions = (tools?.getToolDefinitions().orEmpty() + remote)
+            .filter { toolAccessMode != "DISABLED" && (it.name in CHAT_TOOLS || it.name in remoteNames) && it.name !in disabled }
         mentionFocus.validateTools(definitions.map { it.name }.toSet())
-        val orderedDefinitions = definitions.sortedBy { it.name !in mentionFocus.tools }
+        val orderedDefinitions = definitions.sortedBy { it.name !in mentionFocus.tools }.take(48)
         val allowed = definitions.map { it.name }.toSet()
         val history = base.messages.toMutableList()
         val seen = mutableSetOf<Pair<String, Map<String, String>>>()
@@ -124,7 +133,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
             val toolsAllowedThisRound = round <= MAX_TOOL_ROUNDS && calls < MAX_TOOL_CALLS
             val provisional = base.copy(
                 messages = history.toList(),
-                tools = if (toolsAllowedThisRound) orderedDefinitions + MODE_TOOL else null,
+                tools = if (toolsAllowedThisRound) orderedDefinitions + if (OmniMode.permitted(OmniMode.AGENT)) listOf(MODE_TOOL) else emptyList() else null,
                 systemPrompt = base.systemPrompt.orEmpty() + "\n" + mentionFocus.prompt() + if (toolsAllowedThisRound) "" else
                     "\nTool budget exhausted. Summarize verified results and any remaining limitations; do not claim unfinished work is complete."
             )
@@ -187,7 +196,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
                 event(AgentEvent.ToolExecution(call.name, call.arguments, round))
                 val mode = call.arguments["mode"]?.takeIf { it == "AGENT" || it == "SWARM" }
                 val reason = call.arguments["reason"]?.trim()?.take(1200)
-                if (batchErrors[callIndex] == null && call.name == REQUEST_MODE && mode != null && !reason.isNullOrBlank()) {
+                if (batchErrors[callIndex] == null && call.name == REQUEST_MODE && mode != null && OmniMode.permitted(OmniMode.valueOf(mode)) && !reason.isNullOrBlank()) {
                     event(
                         AgentEvent.ToolResult(
                             call.name,
@@ -225,7 +234,15 @@ class ChatToolLoop(private val tools: ToolManager?) {
                         calls++
                         try {
                             withTimeoutOrNull(60_000) {
-                                tools!!.executeTool(call.name, call.arguments, null)
+                                if (call.name in remoteNames) {
+                                    val approved = confirmConnected?.invoke("Connected service action: ${call.name}",
+                                        com.omnidev.workspace.ui.chat.ConsoleRedactor.text(call.arguments.toString())) == true
+                                    if (!approved) ToolExecutionResult("Connected action denied. Do not retry.", true)
+                                    else {
+                                        val output = connected!!.executeMcpTool(call.name, call.arguments)
+                                        ToolExecutionResult(output, output.startsWith("Error", true))
+                                    }
+                                } else tools!!.executeTool(call.name, call.arguments, null)
                             } ?: ToolExecutionResult("Tool timed out after 60 seconds.", true)
                         } catch (cancelled: CancellationException) {
                             throw cancelled

@@ -83,7 +83,7 @@ internal fun ModeSelector(activeMode: OmniMode, onModeSelected: (OmniMode) -> Un
     val haptic = LocalHapticFeedback.current
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    Surface(onClick = { focus.clearFocus(); keyboard?.hide(); open = true }, enabled = enabled, shape = RoundedCornerShape(12.dp),
+    Surface(onClick = { focus.clearFocus(); keyboard?.hide(); open = OmniMode.available().size > 1 }, enabled = enabled, shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface, modifier = Modifier.heightIn(min = 48.dp)
             .semantics { contentDescription = "Choose conversation mode" }) {
         Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
@@ -92,7 +92,7 @@ internal fun ModeSelector(activeMode: OmniMode, onModeSelected: (OmniMode) -> Un
             ChatControlTransition(activeMode, "conversation mode") { mode ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(modeTitle(mode), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    Icon(Icons.Default.KeyboardArrowDown, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                    if (OmniMode.available().size > 1) Icon(Icons.Default.KeyboardArrowDown, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -105,7 +105,7 @@ internal fun ModeSelector(activeMode: OmniMode, onModeSelected: (OmniMode) -> Un
                     else "Choose a mode for this conversation.", style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
             }
-            items(listOf(OmniMode.CHAT, OmniMode.AGENT, OmniMode.SWARM), key = { it.name }) { mode ->
+            items(OmniMode.available().filter { it != OmniMode.AUTO }, key = { it.name }) { mode ->
                 Surface(shape = RoundedCornerShape(20.dp), color = if (mode == activeMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier.fillMaxWidth().selectable(selected = mode == activeMode, role = Role.RadioButton,
                         onClick = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onModeSelected(mode); open = false })) {
