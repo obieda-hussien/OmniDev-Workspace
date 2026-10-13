@@ -47,4 +47,16 @@ class AgentPromptSanitizerTest {
         val response = CompletionResponse(content = "done", thinkingContent = "secret thought")
         assertNull(response.thinkingContent)
     }
+    @Test fun `request copies keep one policy and preserve appended task focus`() {
+        var request = CompletionRequest("test", listOf(ChatMessage(MessageRole.USER, "Question")), systemPrompt = "You are Omni.")
+        request = request.copy(systemPrompt = request.systemPrompt + "\nSelected capability: launcher.open_drawer")
+        val initialLength = request.systemPrompt!!.length
+        repeat(10) { request = request.copy(maxTokens = 500) }
+        val prompt = request.systemPrompt!!
+        org.junit.Assert.assertEquals(initialLength, prompt.length)
+        org.junit.Assert.assertEquals(1, Regex("## OBSERVABLE AGENT POLICY").findAll(prompt).count())
+        assertTrue(prompt.contains("Selected capability: launcher.open_drawer"))
+        org.junit.Assert.assertEquals(prompt, AgentPromptSanitizer.sanitizeSystemPrompt(prompt))
+    }
+
 }

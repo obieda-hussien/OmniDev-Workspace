@@ -27,17 +27,7 @@ object AgentPromptSanitizer {
         Regex("(?im)^.*Observation:.*Reasoning:.*Plan:.*Action:.*$")
     )
 
-    fun sanitizeSystemPrompt(prompt: String?): String? {
-        if (prompt.isNullOrBlank()) return prompt
-        var clean = prompt
-            .replace(chainOfThoughtSection, "")
-            .replace(deepThinkingDisclosure, "")
-        explicitDisclosureLines.forEach { pattern -> clean = clean.replace(pattern, "") }
-        clean = clean.trim()
-        return buildString(clean.length + 1_100) {
-            append(clean)
-            appendLine()
-            appendLine()
+    private val observablePolicy = buildString {
             appendLine("## OBSERVABLE AGENT POLICY")
             appendLine("Keep private chain-of-thought internal. Do not print hidden reasoning or <thinking> blocks.")
             appendLine("Expose only concise operational telemetry: objective, selected capability/domain, tool action, verification result, and blockers.")
@@ -60,7 +50,18 @@ object AgentPromptSanitizer {
             appendLine("- MUTATION_OUTCOME_UNKNOWN means transport failed after an at-most-once mutation: never repeat it blindly; inspect the postcondition/state first.")
             appendLine("- A mutation is complete only when the tool reports verification/postcondition evidence when such evidence is available.")
             append("- Never append a fake success echo merely to force exit code 0.")
-        }
+    }
+
+    fun sanitizeSystemPrompt(prompt: String?): String? {
+        if (prompt.isNullOrBlank()) return prompt
+        var clean = prompt
+            .replace(chainOfThoughtSection, "")
+            .replace(deepThinkingDisclosure, "")
+        explicitDisclosureLines.forEach { pattern -> clean = clean.replace(pattern, "") }
+        // copy() constructs another CompletionRequest. Remove the exact generated contract
+        // before reapplying it, while preserving caller-added focus/constraints after the block.
+        clean = clean.replace(observablePolicy, "").trim()
+        return "$clean\n\n$observablePolicy"
     }
 
     /** Never replay provider/model thinking blocks into later ReAct requests. */
