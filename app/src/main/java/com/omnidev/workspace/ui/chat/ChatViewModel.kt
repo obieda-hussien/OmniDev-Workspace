@@ -166,7 +166,7 @@ class ChatViewModel(
         viewModelScope.launch {
             _uiState.map { it.currentSessionId }.distinctUntilChanged().collectLatest { session ->
                 if (session == null || session <= 0) return@collectLatest
-                repo.observeMessages(session).collect { rows ->
+                repo.observeMediaMessages(session).collect { rows ->
                     val ready = rows.filter { it.messageId.startsWith(com.omnidev.workspace.data.chatmedia.MediaCompletion.MESSAGE_PREFIX) }
                         .map { ChatMessage(role = MessageRole.ASSISTANT, content = it.content, timestamp = it.timestamp, messageId = it.messageId, replyToMessageId = it.replyToMessageId) }
                     _uiState.update { state ->
@@ -312,11 +312,11 @@ class ChatViewModel(
         _uiState.update { it.copy(isProcessing = false, canSteer = false, streamingContent = null) }
         sessionObservation?.cancel()
         sessionObservation = viewModelScope.launch {
-            repo.observeMessages(sessionId).collect {
-                if (_uiState.value.isProcessing) return@collect
+            repo.observeMessages(sessionId).collectLatest { rows ->
+                if (_uiState.value.isProcessing) return@collectLatest
                 val observedRun = activeRunId.get()
-                val (messages, consoleMap) = repo.loadMessages(sessionId)
-                if (_uiState.value.isProcessing || observedRun != activeRunId.get()) return@collect
+                val (messages, consoleMap) = repo.decodeMessages(rows)
+                if (_uiState.value.isProcessing || observedRun != activeRunId.get()) return@collectLatest
                 compositeToolManager?.currentSessionId = sessionId
                 _uiState.update {
                     it.copy(

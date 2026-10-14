@@ -146,6 +146,11 @@ def scan_current_files() -> list[str]:
         for lineno, line in enumerate(text.splitlines(), start=1):
             for label in line_secret_labels(line):
                 findings.append(f"{label}: {rel}:{lineno}")
+            # Prevent a new Telegram credential leak. The existing historical
+            # Telegram alert must be resolved by revoking the old token at its
+            # provider; deleting it from today's tree cannot establish revocation.
+            if re.search(r"\b[0-9]{7,12}:[A-Za-z0-9_-]{35}\b", line):
+                findings.append(f"Telegram bot token: {rel}:{lineno}")
     return findings
 
 

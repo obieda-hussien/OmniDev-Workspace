@@ -45,6 +45,9 @@ jobs:
       - name: Validate English project text and tool/skill catalog
         run: python3 scripts/check_project_language.py
 
+      - name: Self-test dependency security policy
+        run: python3 scripts/test_dependency_security.py
+
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
@@ -85,7 +88,7 @@ jobs:
         run: bash .github/scripts/fetch-omnilink.sh
 
       - name: Share OmniLinkSDK with downstream jobs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: omnilink-maven-${{ github.run_id }}
           path: ci-m2
@@ -100,20 +103,35 @@ jobs:
             -Pkotlin.incremental=false \
             -Dorg.gradle.vfs.watch=false \
             :app:verifyLiteRuntimeDependencies \
+            writeBuildToolDependencyInventory \
+            :app:writeRuntimeDependencyInventories \
             :app:compileLiteReleaseKotlin \
             :app:compileOemReleaseKotlin \
             :oem-system:compileReleaseKotlin \
             --stacktrace
+
+      - name: Verify security floors in resolved build and runtime dependencies
+        run: python3 scripts/verify_dependency_security.py build/reports/build-tool-dependencies.txt app/build/reports/runtime-dependencies/*.txt
 
       - name: Verify final Lite manifest permissions
         run: python3 scripts/verify_flavors.py --lite-manifest app/build/intermediates/merged_manifests/liteRelease/processLiteReleaseManifest/AndroidManifest.xml
 
       - name: Upload resolved Lite runtime dependency inventory
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lite-runtime-dependencies-${{ github.run_id }}
           path: app/build/reports/lite-runtime-dependencies.txt
+          if-no-files-found: ignore
+
+      - name: Upload build and runtime dependency inventories
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: resolved-dependency-inventories-${{ github.run_id }}
+          path: |
+            build/reports/build-tool-dependencies.txt
+            app/build/reports/runtime-dependencies/
           if-no-files-found: ignore
 
       - name: Check optional static-analysis tasks
@@ -146,7 +164,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore staged OmniLinkSDK
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: omnilink-maven-${{ github.run_id }}
           path: ci-m2
@@ -189,7 +207,7 @@ jobs:
       - name: Upload lint reports
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lint-reports-${{ github.run_number }}
           path: |
@@ -213,7 +231,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore staged OmniLinkSDK
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: omnilink-maven-${{ github.run_id }}
           path: ci-m2
@@ -257,7 +275,7 @@ jobs:
       - name: Upload test reports
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: unit-test-reports-${{ github.run_number }}
           path: |
@@ -283,7 +301,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore staged OmniLinkSDK
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: omnilink-maven-${{ github.run_id }}
           path: ci-m2
@@ -335,7 +353,7 @@ jobs:
       - name: Upload release APKs
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-apks-${{ github.run_number }}
           path: |
@@ -358,7 +376,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Restore staged OmniLinkSDK
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: omnilink-maven-${{ github.run_id }}
           path: ci-m2
@@ -386,7 +404,7 @@ jobs:
         run: bash .github/scripts/run-ui-regressions.sh
       - name: Upload UI test reports
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ui-regression-reports-${{ github.run_number }}
           path: |
@@ -414,7 +432,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore staged OmniLinkSDK
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: omnilink-maven-${{ github.run_id }}
           path: ci-m2

@@ -79,6 +79,9 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     fun observeBySession(sessionId: Long): Flow<List<ChatMessageEntity>>
 
+    @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId AND messageId LIKE 'media-result:%' ORDER BY timestamp ASC, id ASC")
+    fun observeMediaBySession(sessionId: Long): Flow<List<ChatMessageEntity>>
+
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     suspend fun getBySession(sessionId: Long): List<ChatMessageEntity>
 

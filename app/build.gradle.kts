@@ -410,13 +410,18 @@ android.applicationVariants.configureEach {
 }
 
 dependencies {
+    constraints {
+        // DataStore/AndroidX can retain an older Lite protobuf runtime. This is a
+        // minimum on an existing transitive module, not another bundled SDK.
+        implementation("com.google.protobuf:protobuf-javalite:3.25.5")
+    }
     add("oemImplementation", project(":oem-system-contract"))
     // OmniLink typed IPC + embedded-agent gateway.
     // Stable tagged OmniLink protocol shared by Workspace and connected apps.
     implementation("com.github.obieda-hussien.OmniLinkSDK:omni-link-sdk:v3.0.0")
 
     implementation("androidx.webkit:webkit:1.17.0")
-    listOf("norm", "pro", "oem", "admin").forEach { add("${it}Implementation", "org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r") }
+    listOf("norm", "pro", "oem", "admin").forEach { add("${it}Implementation", "org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r") }
     // Direct offline PCM recognition; no Android/Google SpeechRecognizer startup sounds.
     implementation("com.alphacephei:vosk-android:0.3.75@aar")
     implementation("net.java.dev.jna:jna:5.18.1@aar")
@@ -514,5 +519,19 @@ tasks.register("verifyLiteRuntimeDependencies") {
         report.writeText(modules.joinToString("\n", postfix = "\n"))
         check(leaked.isEmpty()) { "Prohibited SDKs in Lite runtime graph: $leaked" }
         logger.lifecycle("Verified ${modules.size} Lite runtime modules; report: $report")
+    }
+}
+
+tasks.register("writeRuntimeDependencyInventories") {
+    group = "verification"
+    doLast {
+        listOf("lite", "norm", "pro", "oem", "admin").forEach { flavor ->
+            val modules = configurations.getByName("${flavor}ReleaseRuntimeClasspath")
+                .incoming.resolutionResult.allComponents.mapNotNull { it.moduleVersion }
+                .map { "${it.group}:${it.name}:${it.version}" }.distinct().sorted()
+            val report = layout.buildDirectory.file("reports/runtime-dependencies/$flavor.txt").get().asFile
+            report.parentFile.mkdirs()
+            report.writeText(modules.joinToString("\n", postfix = "\n"))
+        }
     }
 }
