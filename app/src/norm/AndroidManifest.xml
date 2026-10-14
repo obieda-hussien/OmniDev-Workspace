@@ -204,7 +204,6 @@
             </intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config" />
         </service>
-        <provider android:name="rikka.shizuku.ShizukuProvider" tools:node="remove" />
         <service android:name=".data.ipc.OmniCoreService" tools:node="remove" />
         <receiver android:name=".data.tools.TermuxResultReceiver" android:exported="false" />
     </application>

@@ -44,11 +44,15 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     private var composition: ComposeView? = null
     private var preserveOnHide = false
     private var userDismissed = false
+    private fun launchAssistantActivity(intent: Intent) {
+        if (android.os.Build.VERSION.SDK_INT >= 26) startAssistantActivity(intent)
+        else context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
     private fun handoff(action: String, media: AttachmentMeta? = null): Boolean = handoff(
         if (media == null) AssistantInputActivity.intent(context, action) else AssistantInputActivity.saveMediaIntent(context, media))
     private fun handoff(intent: Intent): Boolean {
         speech.stop()
-        return runCatching { startAssistantActivity(intent) }
+        return runCatching { launchAssistantActivity(intent) }
             .onSuccess { preserveOnHide = true; hide() }
             .onFailure { controller.message("Could not open this window. Try again or open the full conversation.") }.isSuccess
     }
@@ -85,7 +89,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
                     AssistantOverlay(controller, onDismiss = { userDismissed = true; preserveOnHide = false; hide() }, onExpand = {
                         controller.openConversation {
                             preserveOnHide = true
-                            startAssistantActivity(Intent(context, MainActivity::class.java)
+                            launchAssistantActivity(Intent(context, MainActivity::class.java)
                                 .putExtra("open_assistant_conversation", true)
                                 .putExtra("assistant_session_id", controller.chat.uiState.value.currentSessionId ?: -1L))
                             hide()

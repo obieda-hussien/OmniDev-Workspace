@@ -12,7 +12,6 @@
         <service android:name=".data.sync.OmniSyncService" tools:node="remove" />
         <service android:name=".data.network.OmniDevVpnService" tools:node="remove" />
         <service android:name=".data.ipc.OmniCoreService" tools:node="remove" />
-        <provider android:name="rikka.shizuku.ShizukuProvider" tools:node="remove" />
         <receiver android:name=".data.admin.OmniDeviceAdminReceiver" tools:node="remove" />
         <receiver android:name=".data.communication.OmniSmsReceiver" tools:node="remove" />
         <receiver android:name=".data.system.BootReceiver" tools:node="remove" />

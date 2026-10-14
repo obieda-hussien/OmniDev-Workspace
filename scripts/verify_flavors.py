@@ -35,6 +35,16 @@ def check(merged=None):
         services = [e for e in manifest.findall('./application/service') if e.get(ANDROID+'name') == accessibility]
         assert len(services) == 1, f'Missing or duplicated Accessibility declaration in {flavor}'
         assert services[0].get(ANDROID+'permission') == 'android.permission.BIND_ACCESSIBILITY_SERVICE'
+    provider = 'rikka.shizuku.ShizukuProvider'
+    assert not any(e.get(ANDROID+'name') == provider for e in main.findall('./application/provider'))
+    for flavor in ('lite', 'norm', 'oem'):
+        manifest = ET.parse(ROOT / f'app/src/{flavor}/AndroidManifest.xml').getroot()
+        assert not any(e.get(ANDROID+'name') == provider for e in manifest.findall('./application/provider'))
+    for flavor in ('pro', 'admin'):
+        manifest = ET.parse(ROOT / f'app/src/{flavor}/AndroidManifest.xml').getroot()
+        providers = [e for e in manifest.findall('./application/provider') if e.get(ANDROID+'name') == provider]
+        assert len(providers) == 1, f'Missing or duplicated Shizuku provider in {flavor}'
+        assert providers[0].get(ANDROID+'permission') == 'android.permission.INTERACT_ACROSS_USERS_FULL'
     oem_facade = (ROOT / 'app/src/oem/java/com/omnidev/workspace/core/privileged/PrivilegedExecutionFacadeBootstrap.kt').read_text()
     assert 'Runtime.getRuntime().exec(' not in oem_facade
     broker = (ROOT / 'oem-system/src/main/java/com/omnidev/system/OmniSystemService.kt').read_text()
