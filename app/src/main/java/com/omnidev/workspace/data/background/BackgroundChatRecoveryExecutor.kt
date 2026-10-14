@@ -86,7 +86,8 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
                 OmniMode.CHAT -> executeChat(
                     runtime = runtime,
                     origin = origin,
-                    history = recentHistory,
+                    // Chat compacts its working prompt; recovery must not cut saved history.
+                    history = allMessages,
                     resumePrompt = resumePrompt,
                     onText = { text -> partial = text; persist("Writing response…") },
                     onEvent = { event ->
