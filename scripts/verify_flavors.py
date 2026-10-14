@@ -14,6 +14,16 @@ def check(merged=None):
     for unused in ('libs.androidx.camera', 'libs.mlkit', 'libs.retrofit', 'libs.androidx.window'):
         assert unused not in dependencies, f'Unused SDK restored: {unused}'
     main = ET.parse(ROOT / 'app/src/main/AndroidManifest.xml').getroot()
+    app = main.find('application')
+    assert app.get(ANDROID+'allowBackup') == 'false'
+    receivers = {e.get(ANDROID+'name'): e for e in app.findall('receiver')}
+    assert receivers['.data.system.BootReceiver'].get(ANDROID+'exported') == 'false'
+    assert receivers['.data.communication.OmniSmsReceiver'].get(ANDROID+'permission') == 'android.permission.BROADCAST_SMS'
+    sensitive = {('file', 'datastore/omnidev_api_keys.preferences_pb'), ('sharedpref', 'copilot_session_secure_v1.xml')}
+    backup = ET.parse(ROOT / 'app/src/main/res/xml/backup_rules.xml').getroot()
+    extraction = ET.parse(ROOT / 'app/src/main/res/xml/data_extraction_rules.xml').getroot()
+    for rules in (backup, extraction.find('cloud-backup'), extraction.find('device-transfer')):
+        assert sensitive <= {(e.get('domain'), e.get('path')) for e in rules.findall('exclude')}
     actual = {e.get(ANDROID+'name') for e in main.findall('uses-permission')}
     assert actual <= allowed, f'Unexpected shared permissions: {actual - allowed}'
     lite = ROOT / 'app/src/lite/java/com/omnidev/workspace'

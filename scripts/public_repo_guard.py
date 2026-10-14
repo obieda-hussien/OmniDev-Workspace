@@ -69,6 +69,10 @@ SECRET_PATTERNS = (
     ),
 )
 
+# A valid suffix can end with '-' (not a regex word character). Match the
+# credential alphabet explicitly, including credentials inside /bot<TOKEN> URLs.
+TELEGRAM_TOKEN = re.compile(r"(?<![0-9])[0-9]{7,12}:[A-Za-z0-9_-]{35}(?![A-Za-z0-9_-])")
+
 WORKFLOW_WRITE_PERMISSION = re.compile(
     r"(?im)^\s*(?:actions|checks|contents|deployments|id-token|issues|packages|"
     r"pull-requests|repository-projects|security-events|statuses):\s*write\s*$"
@@ -121,6 +125,13 @@ def line_secret_labels(line: str) -> list[str]:
     return [label for label, pattern in SECRET_PATTERNS if pattern.search(line)]
 
 
+def current_tree_secret_labels(line: str) -> list[str]:
+    labels = line_secret_labels(line)
+    if TELEGRAM_TOKEN.search(line):
+        labels.append("Telegram bot token")
+    return labels
+
+
 def scan_current_files() -> list[str]:
     findings: list[str] = []
     for rel in tracked_files():
@@ -144,8 +155,11 @@ def scan_current_files() -> list[str]:
 
         text = data.decode("utf-8", errors="replace")
         for lineno, line in enumerate(text.splitlines(), start=1):
-            for label in line_secret_labels(line):
+            for label in current_tree_secret_labels(line):
                 findings.append(f"{label}: {rel}:{lineno}")
+            # Prevent a new Telegram credential leak. The existing historical
+            # Telegram alert must be resolved by revoking the old token at its
+            # provider; deleting it from today's tree cannot establish revocation.
     return findings
 
 

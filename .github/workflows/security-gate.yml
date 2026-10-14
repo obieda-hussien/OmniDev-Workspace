@@ -32,5 +32,8 @@ jobs:
           persist-credentials: false
           submodules: false
 
+      - name: Self-test credential detection boundaries
+        run: python3 scripts/test_public_repo_guard.py
+
       - name: Scan current tree, workflows, and full Git history
         run: python3 scripts/public_repo_guard.py --history

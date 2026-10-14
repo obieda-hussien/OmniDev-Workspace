@@ -8,7 +8,12 @@ import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.ui.chat.AgentConsoleEntry
 import com.omnidev.workspace.ui.chat.AgentConsoleSerializer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -67,25 +72,32 @@ class ChatRepository(
     private fun decodeMetadata(raw: String): ChatMessage? =
         runCatching { json.decodeFromString<ChatMessage>(raw) }.getOrNull()
 
-    suspend fun updateRun(rowId: Long, message: ChatMessage, entries: List<AgentConsoleEntry>) {
-        if (rowId < 0) return
+    suspend fun updateRun(rowId: Long, message: ChatMessage, entries: List<AgentConsoleEntry>) = withContext(Dispatchers.Default) {
+        if (rowId < 0) return@withContext
         messageDao.updateChatRun(rowId, message.content.take(MAX_STORED_MESSAGE_CHARS),
             AgentConsoleSerializer.serialize(entries), metadata(message))
     }
 
     suspend fun replaceLastTurn(sessionId: Long, expectedUserId: String, replacement: ChatMessage): Boolean =
-        messageDao.replaceLastTurn(expectedUserId, ChatMessageEntity(
+        withContext(Dispatchers.Default) { messageDao.replaceLastTurn(expectedUserId, ChatMessageEntity(
             sessionId = sessionId, role = replacement.role.name,
             content = replacement.content.take(MAX_STORED_MESSAGE_CHARS), timestamp = replacement.timestamp,
             messageId = replacement.messageId, replyToMessageId = replacement.replyToMessageId,
             metadataJson = metadata(replacement)
-        ))
+        )) }
 
     suspend fun updateMetadata(sessionId: Long, message: ChatMessage) =
-        messageDao.updateMetadata(sessionId, message.messageId, metadata(message))
+        withContext(Dispatchers.Default) {
+            messageDao.updateMetadata(sessionId, message.messageId, metadata(message))
+        }
 
     /** Observe all sessions ordered newest-first (for the navigation drawer). */
     fun observeMessages(sessionId: Long) = messageDao.observeBySession(sessionId)
+
+    // A stream checkpoint changes the table frequently. Media delivery only needs
+    // media rows, not a second full transcript and its console/source payloads.
+    fun observeMediaMessages(sessionId: Long) =
+        messageDao.observeMediaBySession(sessionId).distinctUntilChanged()
 
     fun observeSessions(): Flow<List<ChatSessionEntity>> = sessionDao.observeAll()
 
@@ -197,7 +209,7 @@ class ChatRepository(
         message: ChatMessage,
         consoleEntries: List<AgentConsoleEntry> = emptyList(),
         sourceContextJson: String = ""
-    ): Long =
+    ): Long = withContext(Dispatchers.Default) {
         messageDao.insert(
             ChatMessageEntity(
                 sessionId = sessionId,
@@ -212,6 +224,8 @@ class ChatRepository(
             )
         )
 
+    }
+
     /**
      * Loads all messages for a session and converts them to [ChatMessage] domain objects.
      * Also returns a map from message timestamp → agent console entries for assistant messages
@@ -219,85 +233,54 @@ class ChatRepository(
      *
      * @return Pair of (messages, messageConsoleEntries map keyed by message timestamp).
      */
-    suspend fun loadMessages(sessionId: Long): Pair<List<ChatMessage>, Map<Long, List<AgentConsoleEntry>>> {
-        val entities = messageDao.getBySession(sessionId)
-        val messages = entities.map { entity ->
-            ChatMessage(
-                role = runCatching { MessageRole.valueOf(entity.role) }.getOrDefault(MessageRole.USER),
-                content = entity.content,
-                timestamp = entity.timestamp,
-                messageId = entity.messageId.ifBlank { entity.id.toString() },
-                replyToMessageId = entity.replyToMessageId,
-                executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
-                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty(),
-                userInput = decodeMetadata(entity.metadataJson)?.userInput,
-                userMode = decodeMetadata(entity.metadataJson)?.userMode,
-                userScopePath = decodeMetadata(entity.metadataJson)?.userScopePath
-            )
-        }
-        val consoleMap = entities
-            .filter { it.consoleEntriesJson.isNotBlank() }
-            .associate { entity ->
-                entity.timestamp to AgentConsoleSerializer.deserialize(entity.consoleEntriesJson)
-            }
-        return messages to consoleMap
-    }
+    suspend fun loadMessages(sessionId: Long): Pair<List<ChatMessage>, Map<Long, List<AgentConsoleEntry>>> =
+        decodeMessages(messageDao.getBySession(sessionId))
 
-    /**
-     * Looks up a single [ChatMessage] by its stable [messageId] UUID.
-     * Returns null when no message with that ID exists in the given session.
-     */
-    suspend fun getMessageById(messageId: String): ChatMessage? {
-        val entity = messageDao.getByMessageId(messageId) ?: return null
+    /** Reuse the rows Room already emitted; never query the whole transcript twice. */
+    internal suspend fun decodeMessages(entities: List<ChatMessageEntity>): Pair<List<ChatMessage>, Map<Long, List<AgentConsoleEntry>>> =
+        withContext(Dispatchers.Default) {
+            val messages = ArrayList<ChatMessage>(entities.size)
+            val consoles = LinkedHashMap<Long, List<AgentConsoleEntry>>()
+            for (entity in entities) {
+                currentCoroutineContext().ensureActive()
+                messages += decodeMessage(entity)
+                if (entity.consoleEntriesJson.isNotBlank()) {
+                    consoles[entity.timestamp] = AgentConsoleSerializer.deserialize(entity.consoleEntriesJson)
+                }
+            }
+            messages to consoles
+        }
+
+    /** Metadata is decoded once per row, including legacy or malformed rows. */
+    private fun decodeMessage(entity: ChatMessageEntity): ChatMessage {
+        val meta = decodeMetadata(entity.metadataJson)
         return ChatMessage(
             role = runCatching { MessageRole.valueOf(entity.role) }.getOrDefault(MessageRole.USER),
             content = entity.content,
             timestamp = entity.timestamp,
             messageId = entity.messageId.ifBlank { entity.id.toString() },
             replyToMessageId = entity.replyToMessageId,
-                executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
-                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty(),
-                userInput = decodeMetadata(entity.metadataJson)?.userInput,
-                userMode = decodeMetadata(entity.metadataJson)?.userMode,
-                userScopePath = decodeMetadata(entity.metadataJson)?.userScopePath
+            executionRequest = meta?.executionRequest,
+            attachments = meta?.attachments.orEmpty(),
+            userInput = meta?.userInput,
+            userMode = meta?.userMode,
+            userScopePath = meta?.userScopePath
         )
     }
 
-    /**
-     * Searches messages in the given session whose content contains [query] (case-insensitive
-     * substring match via SQL LIKE). Returns matching [ChatMessage] objects ordered by time.
-     */
+    /** Looks up a message by stable identity, preserving its edit/reply metadata. */
+    suspend fun getMessageById(messageId: String): ChatMessage? = withContext(Dispatchers.Default) {
+        messageDao.getByMessageId(messageId)?.let(::decodeMessage)
+    }
 
     suspend fun searchAllMessages(query: String, limit: Int = 10): List<ChatMessage> =
-        messageDao.searchAllByContent(query, limit).map { entity ->
-            ChatMessage(
-                role = runCatching { MessageRole.valueOf(entity.role) }.getOrDefault(MessageRole.USER),
-                content = entity.content,
-                timestamp = entity.timestamp,
-                messageId = entity.messageId.ifBlank { entity.id.toString() },
-                replyToMessageId = entity.replyToMessageId,
-                executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
-                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty(),
-                userInput = decodeMetadata(entity.metadataJson)?.userInput,
-                userMode = decodeMetadata(entity.metadataJson)?.userMode,
-                userScopePath = decodeMetadata(entity.metadataJson)?.userScopePath
-            )
+        withContext(Dispatchers.Default) {
+            messageDao.searchAllByContent(query, limit).map(::decodeMessage)
         }
 
     suspend fun searchMessages(sessionId: Long, query: String): List<ChatMessage> =
-        messageDao.searchByContent(sessionId, query).map { entity ->
-            ChatMessage(
-                role = runCatching { MessageRole.valueOf(entity.role) }.getOrDefault(MessageRole.USER),
-                content = entity.content,
-                timestamp = entity.timestamp,
-                messageId = entity.messageId.ifBlank { entity.id.toString() },
-                replyToMessageId = entity.replyToMessageId,
-                executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
-                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty(),
-                userInput = decodeMetadata(entity.metadataJson)?.userInput,
-                userMode = decodeMetadata(entity.metadataJson)?.userMode,
-                userScopePath = decodeMetadata(entity.metadataJson)?.userScopePath
-            )
+        withContext(Dispatchers.Default) {
+            messageDao.searchByContent(sessionId, query).map(::decodeMessage)
         }
 
     /** Deletes a session and all its messages (cascade delete handles messages). */

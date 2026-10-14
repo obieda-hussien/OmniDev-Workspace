@@ -145,7 +145,7 @@
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".data.system.BootReceiver" android:exported="true">
+        <receiver android:name=".data.system.BootReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.USER_UNLOCKED" />
@@ -154,7 +154,7 @@
             </intent-filter>
         </receiver>
         <receiver android:name=".data.background.BackgroundRecoveryReceiver" android:exported="false" />
-        <receiver android:name=".data.communication.OmniSmsReceiver" android:exported="true" android:directBootAware="true">
+        <receiver android:name=".data.communication.OmniSmsReceiver" android:exported="true" android:permission="android.permission.BROADCAST_SMS" android:directBootAware="true">
             <intent-filter android:priority="999">
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
