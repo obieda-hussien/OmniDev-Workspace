@@ -19,6 +19,8 @@ Unused CameraX core/camera2/lifecycle/view, ML Kit text recognition, Retrofit/co
 
 Displaying a panel or bubble does not require Accessibility. It also does not authorize tapping arbitrary other applications. OEM hardware wake requires actual manufacturer SoundTrigger/DSP support and a manufacturer model; sideloading an APK cannot supply it.
 
+The Accessibility service declaration lives only in Norm/Pro/Admin manifests, so Lite/OEM do not rely on removing a shared service declaration. The flavor guard verifies this boundary. Release builds use the [R8 9.1.29 compiler required for Kotlin 2.4 metadata](https://developer.android.com/build/kotlin-support), via the [documented compiler override](https://r8.googlesource.com/r8/+/refs/tags/9.1.29). Four optional Error Prone analysis annotations referenced by Tink are individually allowlisted; missing runtime crypto implementations still fail shrinking.
+
 ## What Omni System means
 
 `oem-system` is a separate service application, paired with `oem-system-contract`. The manufacturer installs and grants it through the ROM configuration in [the OEM guide](../oem/README.md). The OEM assistant calls typed AIDL operations, while the broker checks its exact caller package, signing identity, signature permission, action allowlist, arguments, lock state and ROM provisioning before acting.

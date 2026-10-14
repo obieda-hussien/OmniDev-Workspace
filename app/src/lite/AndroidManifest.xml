@@ -2,7 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />
     <application android:persistent="false" tools:replace="android:persistent">
-        <service android:name=".data.accessibility.OmniAccessibilityService" tools:node="remove" />
         <service android:name=".data.tools.AgentNotificationService" tools:node="remove" />
         <service android:name=".data.input.OmniInputMethodService" tools:node="remove" />
         <service android:name=".data.vision.OmniScreenCaptureService" tools:node="remove" />

@@ -7,7 +7,6 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 ANDROID = '{http://schemas.android.com/apk/res/android}'
-TOOLS = '{http://schemas.android.com/tools}'
 
 def check(merged=None):
     allowed = set((ROOT / 'scripts/lite-permissions.txt').read_text().splitlines())
@@ -25,11 +24,17 @@ def check(merged=None):
         assert 'import rikka.' not in text and 'org.eclipse.jgit' not in text, path
         assert not re.search(r':\s*AccessibilityService\s*\(', text), path
         assert 'ProcessBuilder(' not in text and 'Runtime.getRuntime().exec(' not in text, path
+    accessibility = '.data.accessibility.OmniAccessibilityService'
+    assert not any(e.get(ANDROID+'name') == accessibility for e in main.findall('./application/service'))
     for flavor in ('lite', 'oem'):
         manifest = ET.parse(ROOT / f'app/src/{flavor}/AndroidManifest.xml').getroot()
         assert ANDROID+'sharedUserId' not in manifest.attrib
-        removed = {e.get(ANDROID+'name') for e in manifest.findall('./application/service') if e.get(TOOLS+'node') == 'remove'}
-        assert '.data.accessibility.OmniAccessibilityService' in removed
+        assert not any(e.get(ANDROID+'name') == accessibility for e in manifest.findall('./application/service'))
+    for flavor in ('norm', 'pro', 'admin'):
+        manifest = ET.parse(ROOT / f'app/src/{flavor}/AndroidManifest.xml').getroot()
+        services = [e for e in manifest.findall('./application/service') if e.get(ANDROID+'name') == accessibility]
+        assert len(services) == 1, f'Missing or duplicated Accessibility declaration in {flavor}'
+        assert services[0].get(ANDROID+'permission') == 'android.permission.BIND_ACCESSIBILITY_SERVICE'
     oem_facade = (ROOT / 'app/src/oem/java/com/omnidev/workspace/core/privileged/PrivilegedExecutionFacadeBootstrap.kt').read_text()
     assert 'Runtime.getRuntime().exec(' not in oem_facade
     broker = (ROOT / 'oem-system/src/main/java/com/omnidev/system/OmniSystemService.kt').read_text()
