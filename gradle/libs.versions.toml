@@ -10,7 +10,8 @@ espressoCore = "3.7.0"
 lifecycleRuntimeKtx = "2.10.0"
 # Activity 1.13 pulls Core 1.18; Lifecycle 2.11 Compose requires API 37.
 activityCompose = "1.12.4"
-composeBom = "2026.06.01"
+# Compose 1.10+ introduces Window into the Lite runtime; keep the patched 1.9 line.
+composeBom = "2025.11.01"
 navigationCompose = "2.9.7"
 lifecycleViewmodelCompose = "2.10.0"
 datastorePreferences = "1.2.1"
