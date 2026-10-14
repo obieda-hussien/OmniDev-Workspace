@@ -6,9 +6,7 @@
         <package android:name="com.omnidev.system" />
     </queries>
     <application>
-        <provider android:name="rikka.shizuku.ShizukuProvider" tools:node="remove" />
         <receiver android:name=".data.tools.TermuxResultReceiver" android:exported="false" />
-        <service android:name=".data.accessibility.OmniAccessibilityService" tools:node="remove" />
         <service android:name=".data.ipc.OmniCoreService" tools:node="remove" />
         <service android:name=".data.network.OmniDevVpnService" tools:node="remove" />
         <service android:name=".data.tools.AgentNotificationService" tools:node="remove" />

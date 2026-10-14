@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -25,17 +26,20 @@ class DebugViewModel : ViewModel() {
     val uiState: StateFlow<DebugUiState> = _uiState.asStateFlow()
 
     init {
-        loadLogs()
+        // Exit-history and stall diagnostics arrive asynchronously after startup.
+        viewModelScope.launch { DebugLogManager.revision.collectLatest { refreshLogs() } }
     }
 
     fun loadLogs() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            val entries = withContext(Dispatchers.IO) { DebugLogManager.readAll() }
-            val deviceInfo = withContext(Dispatchers.IO) { DebugLogManager.deviceInfo() }
-            _uiState.update {
-                it.copy(entries = entries, deviceInfo = deviceInfo, isLoading = false)
-            }
+        viewModelScope.launch { refreshLogs() }
+    }
+
+    private suspend fun refreshLogs() {
+        _uiState.update { it.copy(isLoading = true) }
+        val entries = withContext(Dispatchers.IO) { DebugLogManager.readAll() }
+        val deviceInfo = withContext(Dispatchers.IO) { DebugLogManager.deviceInfo() }
+        _uiState.update {
+            it.copy(entries = entries, deviceInfo = deviceInfo, isLoading = false)
         }
     }
 

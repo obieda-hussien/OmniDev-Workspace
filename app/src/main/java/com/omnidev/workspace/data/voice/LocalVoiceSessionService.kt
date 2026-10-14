@@ -159,8 +159,11 @@ class LocalVoiceSessionService : Service() {
                 }
             }
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (error: VoiceNativeUnavailableException) { update(error.message ?: "Offline speech library unavailable.") }
-        catch (error: Exception) { update(VoiceSessionFailure.describe(stage)) }
+        catch (error: VoiceNativeUnavailableException) {
+            recordVoiceFailure(error)
+            update(error.message ?: "Offline speech library unavailable.")
+        }
+        catch (error: Exception) { recordVoiceFailure(error); update(VoiceSessionFailure.describe(stage)) }
         finally {
             credential?.close(); credential = null; privatePhase = false; handingOff = false
             input?.stop(); input = null; releaseSpeechOutput()
@@ -168,6 +171,12 @@ class LocalVoiceSessionService : Service() {
             if (cpu.isHeld) cpu.release()
             stopSelf()
         }
+    }
+    private fun recordVoiceFailure(error: Exception) {
+        // Keep stage, exception type and frames only: private credentials may be in flight.
+        val diagnostic = IllegalStateException("Voice stage=$stage type=${error.javaClass.simpleName}")
+        diagnostic.stackTrace = error.stackTrace
+        com.omnidev.workspace.data.debug.DebugLogManager.appendError("LocalVoiceSession", diagnostic)
     }
     private suspend fun awaitReply(known: Set<String>) {
         val controller = AssistantRuntime.get(this)

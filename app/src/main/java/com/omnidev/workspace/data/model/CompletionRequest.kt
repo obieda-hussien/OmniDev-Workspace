@@ -98,7 +98,10 @@ data class CompletionRequest(
     var onReasoning: (suspend (String) -> Unit)? = null,
     /** The execution loop owns retries so network retries cannot multiply its budget. */
     @kotlinx.serialization.Transient
-    val retryManagedByCaller: Boolean = false
+    val retryManagedByCaller: Boolean = false,
+    /** UI prefix for automatic output continuation; never serialized to the provider. */
+    @kotlinx.serialization.Transient
+    val responsePrefix: String = ""
 ) {
     init {
         messages = AgentPromptSanitizer.sanitizeMessages(messages)

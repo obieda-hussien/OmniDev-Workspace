@@ -57,11 +57,15 @@ object BackgroundServiceSupervisor {
 
     /** Existing behavior is "always-on" unless the user explicitly stops it. */
     fun isSyncDesired(context: Context): Boolean {
+        // Lite has no OmniSyncService component. Never restart an absent service,
+        // even if an older install left its always-on preference enabled.
+        if (!com.omnidev.workspace.BuildConfig.ALLOW_AGENT) return false
         if (!isUserUnlocked(context)) return false
         return prefs(context).getBoolean(KEY_SYNC_DESIRED, true)
     }
 
     fun setSyncDesired(context: Context, desired: Boolean) {
+        if (!com.omnidev.workspace.BuildConfig.ALLOW_AGENT) { cancelPendingRecovery(context); return }
         prefs(context).edit().putBoolean(KEY_SYNC_DESIRED, desired).apply()
         if (desired) {
             scheduleRecovery(context, "desired_state_enabled", 250L)
@@ -100,6 +104,13 @@ object BackgroundServiceSupervisor {
         if (!isMainProcess(app)) return
         if (!isUserUnlocked(app)) {
             Log.i(TAG, "Credential storage is locked; deferring WorkManager bootstrap")
+            return
+        }
+        if (!com.omnidev.workspace.BuildConfig.ALLOW_AGENT) {
+            BackgroundServiceWatchdogWorker.cancelPeriodic(app)
+            cancelPendingRecovery(app)
+            // Actual durable Chat work remains recoverable on user reopen.
+            if (BackgroundChatTaskStore.active(app).isNotEmpty()) recoverNow(app, "lite_reopen")
             return
         }
         BackgroundServiceWatchdogWorker.schedulePeriodic(app)

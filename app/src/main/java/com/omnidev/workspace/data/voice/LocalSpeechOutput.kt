@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Only installed offline voices. Never speak a credential or silently choose a network voice. */
 class LocalSpeechOutput(private val context: Context) : AutoCloseable {
+    // Serialize engine calls while keeping every blocking Binder operation off Main.
+    private val engineDispatcher = Dispatchers.IO.limitedParallelism(1)
     private val ready = CompletableDeferred<Int>()
     private val lifecycle = SpeechOutputLifecycle<TextToSpeech>(
         stopEngine = { it.stop() },
@@ -18,15 +20,18 @@ class LocalSpeechOutput(private val context: Context) : AutoCloseable {
         onCleanupFailure = { Log.w("LocalSpeechOutput", "Speech connection already disconnected during cleanup", it) }
     )
     private val completion = AtomicReference<CompletableDeferred<Boolean>?>(null)
+    private val closed = java.util.concurrent.atomic.AtomicBoolean()
     var language = "en"
         private set
 
-    suspend fun initialize() = withContext(Dispatchers.Main.immediate) {
+    suspend fun initialize() = withContext(engineDispatcher) {
+        check(!closed.get()) { "Speech output closed." }
         check(lifecycle.beginInitialization()) { "Speech output already initialized or closed." }
         try {
             val candidate = TextToSpeech(context.applicationContext) { ready.complete(it) }
             check(lifecycle.install(candidate)) { "Speech output closed during initialization." }
             check(withTimeoutOrNull(10_000) { ready.await() } == TextToSpeech.SUCCESS) { "Speech output unavailable." }
+            check(!closed.get()) { "Speech output closed." }
             val tts = lifecycle.current() ?: error("Speech output unavailable.")
             val requestedLanguage = OfflineVoiceModels(context).language()
             check(lifecycle.withCurrent(tts) {
@@ -49,13 +54,15 @@ class LocalSpeechOutput(private val context: Context) : AutoCloseable {
         }
     }
 
-    suspend fun say(text: String): Boolean = withContext(Dispatchers.Main.immediate) {
+    suspend fun say(text: String): Boolean = withContext(engineDispatcher) {
+        if (closed.get()) return@withContext false
         val tts = lifecycle.current() ?: return@withContext false
         val id = UUID.randomUUID().toString()
         val done = CompletableDeferred<Boolean>()
         completion.getAndSet(done)?.complete(false)
         try {
             val queued = lifecycle.withCurrent(tts) {
+                if (closed.get()) return@withCurrent false
                 tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
                     override fun onDone(utteranceId: String?) { if (utteranceId == id) done.complete(true) }
@@ -74,12 +81,18 @@ class LocalSpeechOutput(private val context: Context) : AutoCloseable {
 
     fun stop() {
         completion.getAndSet(null)?.complete(false)
-        lifecycle.stop()
+        cleanupScope.launch(engineDispatcher) { if (completion.get() == null) lifecycle.stop() }
     }
 
     override fun close() {
+        if (!closed.compareAndSet(false, true)) return
         completion.getAndSet(null)?.complete(false)
         ready.complete(TextToSpeech.ERROR)
-        lifecycle.close()
+        // Never wait for a hung TTS Binder connection in a Service lifecycle callback.
+        cleanupScope.launch(engineDispatcher) { lifecycle.close() }
+    }
+
+    companion object {
+        private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }

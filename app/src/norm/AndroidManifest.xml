@@ -198,7 +198,12 @@
     <uses-permission android:name="android.permission.ACCESS_KEYGUARD_SECURE_STORAGE" tools:node="remove" />
     <uses-permission android:name="android.permission.CONTROL_KEYGUARD" tools:node="remove" />
     <application>
-        <provider android:name="rikka.shizuku.ShizukuProvider" tools:node="remove" />
+        <service android:name=".data.accessibility.OmniAccessibilityService" android:exported="false" android:directBootAware="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config" />
+        </service>
         <service android:name=".data.ipc.OmniCoreService" tools:node="remove" />
         <receiver android:name=".data.tools.TermuxResultReceiver" android:exported="false" />
     </application>

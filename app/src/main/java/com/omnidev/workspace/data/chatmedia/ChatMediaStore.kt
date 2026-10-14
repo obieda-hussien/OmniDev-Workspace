@@ -145,7 +145,7 @@ object ChatMediaStore {
         FileProvider.getUriForFile(context, "${context.packageName}.chatmedia", target)
     }
     suspend fun save(context: Context, meta: AttachmentMeta): Uri = withContext(Dispatchers.IO) {
-        require(Build.VERSION.SDK_INT >= 29) { "Use Save as to choose a folder on this Android version." }
+        if (Build.VERSION.SDK_INT < 29) throw IllegalArgumentException("Use Save as to choose a folder on this Android version.")
         val local = materialize(context, meta)
         val collection = when (local.mediaType) {
             AttachmentMediaType.IMAGE -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI

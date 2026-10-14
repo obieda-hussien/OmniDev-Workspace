@@ -57,11 +57,19 @@ object WakeAudio {
         chunk.fill(0); levels.sort()
         return levels[levels.size / 2].also { check(it < 5000) { "Background audio is too loud. Try a quieter room." } }
     }
-    internal fun readFrame(recorder: AudioRecord, chunk: ShortArray) {
+    internal suspend fun readFrame(recorder: AudioRecord, chunk: ShortArray, allowed: () -> Boolean = { true }) {
         var offset = 0
+        val deadline = android.os.SystemClock.elapsedRealtime() + 2_000
         while (offset < chunk.size) {
-            val count = recorder.read(chunk, offset, chunk.size - offset, AudioRecord.READ_BLOCKING)
-            check(count > 0) { "Microphone stopped or became unavailable." }
+            currentCoroutineContext().ensureActive()
+            check(allowed()) { "Microphone capture cancelled." }
+            val count = recorder.read(chunk, offset, chunk.size - offset, AudioRecord.READ_NON_BLOCKING)
+            check(count >= 0) { "Microphone stopped or became unavailable." }
+            if (count == 0) {
+                check(android.os.SystemClock.elapsedRealtime() < deadline) { "Microphone is not producing audio." }
+                delay(5)
+                continue
+            }
             offset += count
         }
     }

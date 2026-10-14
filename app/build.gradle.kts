@@ -87,7 +87,7 @@ android {
     //          now includes Persistent Memory & Vector Knowledge Base tools)
     //  norm  → B2C Basic (Accessibility + Terminal, no root, no Shizuku)
     //  pro   → B2C Premium God Mode (Shizuku + Pentesting + full Swarm)
-    //  oem   → B2B OEM / Custom ROM (system uid, zero-click, local SLM, no root/Shizuku)
+    //  oem   → B2B OEM / Custom ROM (separate signed broker, local SLM, no root/Shizuku)
     //  admin → 🔑 MASTER KEY (lead-developer-only testing build). EVERY capability
     //          is unlocked: root + Shizuku + Accessibility + Deep Security +
     //          Device Admin wipe + Local SLM + System Integration + zero-click
@@ -191,14 +191,14 @@ android {
             buildConfigField("boolean", "ALLOW_ASSISTANT", "true")
             buildConfigField("boolean", "ALLOW_BUBBLE", "true")
             buildConfigField("String",  "TIER",                     "\"OEM\"")
-            buildConfigField("boolean", "ALLOW_ROOT",               "false") // OEM uses system uid, not su
+            buildConfigField("boolean", "ALLOW_ROOT",               "false") // OEM uses the separate signed ROM broker, not su
             buildConfigField("boolean", "ALLOW_SHIZUKU",            "false")
             buildConfigField("boolean", "ALLOW_ACCESSIBILITY",      "false")
             buildConfigField("boolean", "ALLOW_DEEP_SECURITY",      "false")
-            buildConfigField("boolean", "AUTO_APPROVE_CONFIRMATIONS","false")  // ← ZERO-CLICK EXECUTION
+            buildConfigField("boolean", "AUTO_APPROVE_CONFIRMATIONS","false")  // Explicit OEM approvals
             buildConfigField("boolean", "ALLOW_DEVICE_ADMIN_WIPE",  "false") // OEM policy: wipe disabled
             buildConfigField("boolean", "ENABLE_LOCAL_SLM",         "true")  // Offline llama.cpp
-            buildConfigField("boolean", "ALLOW_SYSTEM_INTEGRATION", "true")  // android.uid.system
+            buildConfigField("boolean", "ALLOW_SYSTEM_INTEGRATION", "true")  // Separate signed ROM broker
         }
 
         // ──────────────────────────────────────────────────────────────────────
@@ -435,9 +435,6 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
 
-    // Window management for floating bubbles and panels.
-    implementation(libs.androidx.window)
-
     // ── Navigation & ViewModel ──
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -469,20 +466,14 @@ dependencies {
     // AI agent libraries.
     // ==========================================================
     
-    // Networking (OkHttp/Retrofit) for Telegram and data retrieval.
+    // All provider/MCP/connector requests use OkHttp directly.
     implementation(libs.okhttp)
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.kotlinx.serialization)
     
     // WorkManager for scheduled background work.
     implementation(libs.androidx.work.runtime.ktx)
     
-    // CameraX and ML Kit for screen analysis and OCR.
-    implementation(libs.androidx.camera.core)
-    implementation(libs.androidx.camera.camera2)
-    implementation(libs.androidx.camera.lifecycle)
-    implementation(libs.androidx.camera.view)
-    implementation(libs.mlkit.text.recognition)
+    // CameraX, ML Kit, Retrofit and Window were unused. Do not ship their SDKs,
+    // transitive Play Services/model assets or startup providers in any flavor.
 
     // ── Testing ──
     testImplementation(libs.junit)
@@ -504,4 +495,24 @@ android {
 dependencyCheck {
     failOnError = false
     autoUpdate = false // prevent long downloads in CI without NVD key
+}
+
+// Check the resolved graph, including indirect dependencies; shrinking an APK is
+// not a substitute for keeping prohibited SDKs out of the Lite build entirely.
+tasks.register("verifyLiteRuntimeDependencies") {
+    group = "verification"
+    doLast {
+        val modules = configurations.getByName("liteReleaseRuntimeClasspath")
+            .incoming.resolutionResult.allComponents.mapNotNull { it.moduleVersion }
+            .map { "${it.group}:${it.name}:${it.version}" }.sorted()
+        val prohibited = listOf("dev.rikka.shizuku:", "org.eclipse.jgit:",
+            "androidx.camera:", "androidx.window:", "com.google.mlkit:",
+            "com.google.android.gms:", "com.squareup.retrofit2:")
+        val leaked = modules.filter { name -> prohibited.any(name::startsWith) }
+        val report = layout.buildDirectory.file("reports/lite-runtime-dependencies.txt").get().asFile
+        report.parentFile.mkdirs()
+        report.writeText(modules.joinToString("\n", postfix = "\n"))
+        check(leaked.isEmpty()) { "Prohibited SDKs in Lite runtime graph: $leaked" }
+        logger.lifecycle("Verified ${modules.size} Lite runtime modules; report: $report")
+    }
 }

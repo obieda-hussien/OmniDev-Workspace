@@ -13,12 +13,13 @@ import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.data.tools.ToolParameter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.math.min
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
- * Small native-tool loop for Chat.
+ * Native-tool loop for Chat with no application-imposed run budget.
  *
- * Chat can research with a tiny read-only web set. Before spending a model call, a deterministic
+ * Chat uses the permitted flavor/scoped tool set. Before spending a model call, a deterministic
  * local preflight detects obvious execution-capability gaps and proposes Agent/Team directly.
  * Completed Chat runs feed local mode-outcome learning so AUTO routing can compare real outcomes
  * instead of assuming execution modes are always superior.
@@ -34,11 +35,6 @@ class ChatToolLoop(
         )
         val CHAT_TOOLS = WEB_TOOLS + setOf("compress_context", "eval_expression", "brain_reflexion_search", "brain_episode_search", "brain_recent_episodes", "brain_stats", "get_trust_profile", "list_earned_capabilities", "media_generation", "headless_browser", "read_file", "read_file_lines", "create_file", "patch_file_content", "append_to_file", "delete_file", "remember_fact", "search_knowledge", "update_memory", "delete_memory", "vector_store", "vector_search", "vector_similar", "omni_link", "planner_tool", "list_chat_sessions", "search_messages", "read_chat_session", "read_chat_message")
         const val REQUEST_MODE = "request_execution_mode"
-        private const val CHAT_TOKEN_BUDGET = 32_000
-        private const val MIN_OUTPUT_RESERVE = 256
-        private const val MAX_ROUNDS = 7
-        private const val MAX_TOOL_ROUNDS = 6
-        private const val MAX_TOOL_CALLS = 8
 
         val MODE_TOOL = ToolDefinition(
             REQUEST_MODE,
@@ -126,63 +122,95 @@ class ChatToolLoop(
         val orderedDefinitions = definitions.sortedBy { it.name !in mentionFocus.tools }.take(48)
         val allowed = definitions.map { it.name }.toSet()
         val history = base.messages.toMutableList()
-        val seen = mutableSetOf<Pair<String, Map<String, String>>>()
+        val seen = mutableSetOf<String>()
+        val answer = StringBuilder()
+        var lastTruncatedChunk: String? = null
+        var finalize = false
+        var continuingAnswer = false
+        var round = 0
 
-        for (round in 1..MAX_ROUNDS) {
+        fun fingerprint(name: String, arguments: Map<String, String>): String {
+            val encoded = kotlinx.serialization.json.buildJsonObject {
+                put("name", kotlinx.serialization.json.JsonPrimitive(name))
+                put("arguments", kotlinx.serialization.json.buildJsonObject {
+                    arguments.toSortedMap().forEach { (key, value) -> put(key, kotlinx.serialization.json.JsonPrimitive(value)) }
+                })
+            }.toString()
+            return java.security.MessageDigest.getInstance("SHA-256").digest(encoded.toByteArray())
+                .joinToString("") { "%02x".format(it.toInt() and 255) }
+        }
+
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            round = (round.toLong() + 1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             roundsObserved = round
-            if (history.lastOrNull()?.toolResults?.any { it.toolName == "compress_context" && !it.isError } == true)
-                ContextCompressor.compactLocally(history) { event(it) }
-            else ContextCompressor.compactHistoricalToolEvidence(history, keepRecentToolGroups = 1)
-            val toolsAllowedThisRound = round <= MAX_TOOL_ROUNDS && calls < MAX_TOOL_CALLS
-            val provisional = base.copy(
-                messages = history.toList(),
-                tools = if (toolsAllowedThisRound) orderedDefinitions + if (OmniMode.permitted(OmniMode.AGENT)) listOf(MODE_TOOL) else emptyList() else null,
-                systemPrompt = base.systemPrompt.orEmpty() + "\n" + mentionFocus.prompt() + if (toolsAllowedThisRound) "" else
-                    "\nTool budget exhausted. Summarize verified results and any remaining limitations; do not claim unfinished work is complete."
-            )
-
-            val remaining = CHAT_TOKEN_BUDGET - tokens
-            val estimatedInput = TokenAccounting.estimateInputTokens(provisional)
-            if (remaining <= estimatedInput + MIN_OUTPUT_RESERVE) {
-                return learnedResult(
-                    content = "Chat token budget reached. Continue in a new message if more work is needed.",
-                    outcome = ModeOutcomeLearner.Outcome.ABANDONED
-                )
+            val compactions = mutableListOf<AgentEvent.ContextCompaction>()
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                if (history.lastOrNull()?.toolResults?.any { it.toolName == "compress_context" && !it.isError } == true)
+                    ContextCompressor.compactLocally(history) { compactions += it }
+                else ContextCompressor.compactHistoricalToolEvidence(history, keepRecentToolGroups = 1)
+                // Compact the prompt copy off Main; keep all saved messages and the task itself.
+                ContextCompressor.checkAndCompact(history, tokenBudget = 12_000, modelId = base.modelId,
+                    completionProvider = { error("Chat compaction is local") }, allowModelSummary = false,
+                    emitCompaction = { compactions += it })
             }
-
-            val request = provisional.copy(
-                maxTokens = min(
-                    provisional.maxTokens,
-                    (remaining - estimatedInput).coerceAtLeast(MIN_OUTPUT_RESERVE)
-                )
+            compactions.forEach { event(it) }
+            val request = base.copy(
+                messages = history.toList(),
+                tools = if (!finalize) orderedDefinitions + if (OmniMode.permitted(OmniMode.AGENT)) listOf(MODE_TOOL) else emptyList() else null,
+                responsePrefix = answer.toString(),
+                systemPrompt = base.systemPrompt.orEmpty() + "\n" + mentionFocus.prompt() + if (!finalize) "" else if (continuingAnswer)
+                    "\nContinue the interrupted final answer without tools or repetition." else
+                    "\nThe last tool batch made no executable progress. Give the best answer from verified evidence, explain blocked actions, and do not request more tools or claim unfinished work is complete."
             )
-            val canUseTools = toolsAllowedThisRound && request.tools?.isNotEmpty() == true
+            val canUseTools = !finalize && request.tools?.isNotEmpty() == true
 
             event(AgentEvent.Thinking(round))
             val response = CompletionRetry.run(onRetry = { attempt ->
                 event(AgentEvent.PhaseChanged(AgentExecutionPhase.ANALYZE, "Provider temporarily unavailable. Retrying the response ($attempt/2); completed tools will not run again."))
             }) { complete(request.copy(retryManagedByCaller = true)) }
             val usage = TokenAccounting.usage(request, response)
-            tokens += usage.totalTokens
+            tokens = (tokens.toLong() + usage.totalTokens).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             event(
                 AgentEvent.TokenUsageUpdate(
                     iterationTokens = usage.totalTokens,
                     totalTokens = tokens,
-                    budget = CHAT_TOKEN_BUDGET
+                    budget = null
                 )
             )
 
             if (response.toolCalls.isEmpty()) {
+                val truncated = response.finishReason?.lowercase() in setOf("length", "max_tokens", "max_output_tokens")
+                if (response.content.isBlank()) return learnedResult(
+                    answer.toString().ifBlank { "The provider returned no answer. Check its response/output settings and retry." },
+                    ModeOutcomeLearner.Outcome.ABANDONED)
+                val chunk = fingerprint("continuation", mapOf("text" to response.content))
+                if (truncated && chunk == lastTruncatedChunk) return learnedResult(
+                    answer.toString() + "\n\nThe provider repeated an identical continuation; generation stopped to avoid a loop.",
+                    ModeOutcomeLearner.Outcome.ABANDONED)
+                answer.append(response.content)
+                if (truncated) {
+                    lastTruncatedChunk = chunk
+                    // A provider's per-response limit is not the end of the user's task.
+                    // Continue in the same saved response until EOS or user cancellation.
+                    history += ChatMessage(MessageRole.ASSISTANT, response.content)
+                    history += ChatMessage(MessageRole.SYSTEM,
+                        "Continue the interrupted answer exactly where it ended. Do not restart, repeat previous text or use tools. Finish the original user's request.")
+                    finalize = true
+                    continuingAnswer = true
+                    event(AgentEvent.PhaseChanged(AgentExecutionPhase.IMPLEMENT, "Continuing the response after the provider's output limit."))
+                    continue
+                }
                 return learnedResult(
-                    content = response.content,
+                    content = answer.toString(),
                     outcome = ModeOutcomeLearner.Outcome.SUCCESS,
                     verified = calls > 0 && !hadToolError
                 )
             }
             if (!canUseTools) {
                 return learnedResult(
-                    content = response.content.ifBlank {
-                        "Chat tool budget reached. Continue the research in a new message if needed."
+                    content = answer.toString() + response.content.ifBlank {
+                        "The model did not provide a final answer after a blocked or repeated tool batch. Saved tool results remain available."
                     },
                     outcome = ModeOutcomeLearner.Outcome.ABANDONED
                 )
@@ -196,6 +224,7 @@ class ChatToolLoop(
             )
             val results = mutableListOf<ToolCallResult>()
 
+            val callsBeforeBatch = calls
             val batchErrors = ToolCallPreflight(request.tools.orEmpty()).checkBatch(response.toolCalls)
             for ((callIndex, call) in response.toolCalls.withIndex()) {
                 event(AgentEvent.ToolExecution(call.name, call.arguments, round))
@@ -226,12 +255,11 @@ class ChatToolLoop(
                 val validationError = batchErrors[callIndex]
                 val rawResult = when {
                     validationError != null -> validationError
-                    calls >= MAX_TOOL_CALLS -> ToolExecutionResult("Chat tool budget exhausted.", true)
                     call.name !in allowed -> ToolExecutionResult(
                         "Tool unavailable in Chat. Use request_execution_mode only if execution is required.",
                         true
                     )
-                    !seen.add(call.name to call.arguments) -> ToolExecutionResult(
+                    !seen.add(fingerprint(call.name, call.arguments)) -> ToolExecutionResult(
                         "Identical request already executed. Use its previous result or change the query.",
                         true
                     )
@@ -272,6 +300,9 @@ class ChatToolLoop(
                 )
             }
 
+            // Finalize when every request was rejected or already executed. This is
+            // a no-progress rule, not a token/call/round cap on useful work.
+            if (calls == callsBeforeBatch) finalize = true
             history += ChatMessage(
                 MessageRole.TOOL,
                 results.joinToString("\n") { it.output },
@@ -279,9 +310,5 @@ class ChatToolLoop(
             )
         }
 
-        return learnedResult(
-            content = "Chat tool budget reached. Continue the research in a new message if needed.",
-            outcome = ModeOutcomeLearner.Outcome.ABANDONED
-        )
     }
 }

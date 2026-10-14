@@ -60,6 +60,7 @@ class BackgroundServiceWatchdogWorker(
         const val KEY_REASON = "recovery_reason"
 
         fun schedulePeriodic(context: Context) {
+            if (!com.omnidev.workspace.BuildConfig.ALLOW_AGENT) { cancelPeriodic(context); return }
             val request = PeriodicWorkRequestBuilder<BackgroundServiceWatchdogWorker>(
                 15, TimeUnit.MINUTES
             ).build()
@@ -68,6 +69,10 @@ class BackgroundServiceWatchdogWorker(
                 ExistingPeriodicWorkPolicy.KEEP,
                 request
             )
+        }
+
+        fun cancelPeriodic(context: Context) {
+            WorkManager.getInstance(context.applicationContext).cancelUniqueWork(PERIODIC_WORK)
         }
     }
 }

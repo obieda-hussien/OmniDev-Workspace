@@ -6,6 +6,13 @@
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 
+# Tink references optional Error Prone analysis annotations, not runtime APIs.
+# Keep this allowlist exact; missing crypto implementations must still fail R8.
+-dontwarn com.google.errorprone.annotations.CanIgnoreReturnValue
+-dontwarn com.google.errorprone.annotations.CheckReturnValue
+-dontwarn com.google.errorprone.annotations.Immutable
+-dontwarn com.google.errorprone.annotations.RestrictedApi
+
 # ── kotlinx.serialization ─────────────────────────────────────────────────────
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.AnnotationsKt
@@ -72,16 +79,9 @@
 -dontwarn org.jsoup.**
 
 
-# ── Retrofit & OkHttp (Keep networking classes to prevent reflection-related failures) ────────────────────────
+# ── OkHttp ──────────────────────────────────────────────────────────────────
 -dontwarn okhttp3.**
 -dontwarn okio.**
--dontwarn retrofit2.**
--keepattributes Signature, Exceptions
--keepclasseswithmembers interface * {
-    @retrofit2.http.* <methods>;
-}
--keep,allowobfuscation,allowshrinking interface retrofit2.Call
--keep,allowobfuscation,allowshrinking class retrofit2.Response
 
 # ── DataStore & Protobuf ──────────────────────────────────────────────────────
 -keep class * extends com.google.protobuf.GeneratedMessageLite { *; }

@@ -50,7 +50,9 @@ fun DeviceConsentCard() {
     DisposableEffect(context) {
         val activity = context as? Activity
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        if (Build.VERSION.SDK_INT >= 31) activity?.window?.setHideOverlayWindows(true)
+        if (Build.VERSION.SDK_INT >= 31 &&
+            context.checkSelfPermission(android.Manifest.permission.HIDE_OVERLAY_WINDOWS) == android.content.pm.PackageManager.PERMISSION_GRANTED)
+            activity?.window?.setHideOverlayWindows(true)
         onDispose { pending = null; pin = "" }
     }
     Card(Modifier.fillMaxWidth()) {

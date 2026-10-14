@@ -929,9 +929,9 @@ class ChatViewModel(
             )
         }
 
-        val request = CompletionRequest(
+        val request = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { CompletionRequest(
             modelId = modelId,
-            messages = _uiState.value.messages.takeLast(20),
+            messages = _uiState.value.messages.toList(),
             systemPrompt = CHAT_SYSTEM_PROMPT + "\n" + settingsRepository.observeUserPromptContext().first() + "\n" +
                 turnMentionFocus(input).let { focus ->
                     focus.prompt() + if (focus.skills.isEmpty()) "" else com.omnidev.workspace.data.skills.SkillManager(
@@ -939,11 +939,11 @@ class ChatViewModel(
                 } +
                 "\nUse only the supplied tools and delegated scope. " + if (com.omnidev.workspace.BuildConfig.ALLOW_AGENT)
                     "Request only execution modes available in this build; a request is never permission."
-                else "This build has no Agent or Team mode. Perform bounded chat-tool tasks, and explain unavailable capabilities.",
-            maxTokens = minOf(model.maxOutputTokens, 4096),
+                else "This build has no Agent or Team mode. Perform permitted chat-tool tasks, and explain unavailable capabilities.",
+            maxTokens = model.maxOutputTokens,
             enableThinking = settingsRepository.observeDeepThinking().first() && model.supportsThinking,
             apiKey = apiKeyRepository?.getApiKey(model.provider)
-        )
+        ) }
 
         try {
             val result = com.omnidev.workspace.domain.engine.ChatToolLoop(compositeToolManager, com.omnidev.workspace.OmniDevApp.instance.mcpRegistry, { preview, diff -> assistantConfirmationGate?.request(com.omnidev.workspace.core.policy.ConfirmationKind.CONNECTED_APP_ACTION, preview, diff) == true }).run(
@@ -954,15 +954,47 @@ class ChatViewModel(
                 toolAccessMode = _uiState.value.chatSettings.toolAccessMode.name,
                 complete = { next ->
                     if (runId != activeRunId.get()) throw CancellationException("Run superseded")
-                    runPartial = null
-                    _uiState.update { it.copy(streamingContent = null) }
+                    runPartial = next.responsePrefix.takeIf { it.isNotEmpty() }
+                    _uiState.update { it.copy(streamingContent = runPartial) }
                     streamingCompletionProvider?.let { stream ->
-                        stream(next) { delta ->
-                            if (runId == activeRunId.get()) {
-                                _uiState.update { it.copy(streamingContent = (it.streamingContent ?: "") + delta) }
-                                runPartial = _uiState.value.streamingContent
-                                checkpoint()
+                        kotlinx.coroutines.coroutineScope {
+                            val buffer = StringBuilder(next.responsePrefix)
+                            val bufferLock = Any()
+                            var revision = 0L
+                            var displayedRevision = -1L
+                            val updates = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
+                            suspend fun flush(force: Boolean) {
+                                if (runId != activeRunId.get()) return
+                                val text = synchronized(bufferLock) {
+                                    if (!force && revision == displayedRevision) null else {
+                                        displayedRevision = revision
+                                        buffer.toString()
+                                    }
+                                } ?: return
+                                runPartial = text
+                                _uiState.update { it.copy(streamingContent = text) }
+                                checkpoint(force)
                             }
+                            // A pending update flushes even if the provider pauses; no ticker
+                            // runs when there are no new deltas. The buffer is safe across IO/Main.
+                            val display = launch {
+                                for (ignored in updates) {
+                                    kotlinx.coroutines.delay(50)
+                                    flush(force = false)
+                                }
+                            }
+                            try {
+                                val response = stream(next) { delta ->
+                                    if (runId == activeRunId.get()) {
+                                        synchronized(bufferLock) { buffer.append(delta); revision++ }
+                                        updates.trySend(Unit)
+                                    }
+                                }
+                                display.cancel()
+                                display.join()
+                                flush(force = true)
+                                response
+                            } finally { display.cancel(); updates.close() }
                         }
                     } ?: completionProvider?.invoke(next)
                     ?: throw IllegalStateException("Chat completion service is unavailable.")

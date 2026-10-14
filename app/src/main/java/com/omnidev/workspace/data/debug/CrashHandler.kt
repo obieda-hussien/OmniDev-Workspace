@@ -5,7 +5,7 @@ import android.util.Log
 /**
  * Global uncaught-exception handler that writes a crash report before the process terminates.
  *
- * Install once in [com.omnidev.workspace.OmniDevApp.onCreate] via [install].
+ * Install in Application.attachBaseContext, before providers and startup work.
  * The original handler (typically the Android default crash dialog handler) is preserved
  * and invoked after the log file is flushed so that crash dialogs and ADB `crash` tags
  * still appear normally.

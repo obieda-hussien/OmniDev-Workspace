@@ -34,6 +34,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -52,6 +55,7 @@ import org.json.JSONObject
  * invalidate the same connection so the next operation rebinds instead of keeping a dead handle.
  */
 object ExtensionConnectionManager {
+    private val lifecycleScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(2))
     private const val TAG = "ExtensionConnectionMgr"
     private const val MAX_BIND_RETRIES = 15
     private const val BIND_RETRY_DELAY_MS = 100L
@@ -356,6 +360,10 @@ object ExtensionConnectionManager {
         }
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                if (handles[handle.id] !== handle || serviceConnections[handle.id] !== this) {
+                    runCatching { context.unbindService(this) }
+                    return
+                }
                 if (name != ComponentName(handle.packageName, handle.serviceClassName) ||
                     !isVerifiedProvider(context, handle)
                 ) {
@@ -370,14 +378,17 @@ object ExtensionConnectionManager {
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
+                if (serviceConnections[handle.id] !== this) return
                 // The binding itself remains active after a transient service-process death;
                 // Android will reconnect this ServiceConnection when the service comes back.
                 // Starting a second bind here leaks/duplicates connections.
                 handle.binder = null
+                handle.eventCallback = null
                 Log.w(TAG, "Disconnected extension; awaiting system reconnect: " + handle.id)
             }
 
             override fun onBindingDied(name: ComponentName?) {
+                if (serviceConnections[handle.id] !== this) return
                 handle.binder = null
                 Log.w(TAG, "Binding died extension; rebinding: " + handle.id)
                 unbindById(handle.id)
@@ -385,20 +396,22 @@ object ExtensionConnectionManager {
             }
 
             override fun onNullBinding(name: ComponentName?) {
+                if (serviceConnections[handle.id] !== this) return
                 handle.binder = null
                 Log.w(TAG, "Null binding extension: " + handle.id)
                 unbindById(handle.id)
             }
         }
 
+        // Reserve before binding: discovery and UI refresh can race on IO.
+        if (serviceConnections.putIfAbsent(id, connection) != null) return
         val didBind = runCatching {
             context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
         }.getOrElse {
             Log.w(TAG, "Failed binding extension: " + handle.id, it)
             false
         }
-        if (didBind) serviceConnections[id] = connection
-        else handle.binder = null
+        if (!didBind) { serviceConnections.remove(id, connection); handle.binder = null }
     }
 
     private fun isVerifiedProvider(context: Context, handle: ExtensionHandle): Boolean =
@@ -414,9 +427,9 @@ object ExtensionConnectionManager {
         }
 
     private fun registerEventStream(handle: ExtensionHandle, binder: IExtensionService) {
-        if (handle.eventCallback != null) return
         val callback = object : IOmniEventCallback.Stub() {
             override fun onEvent(eventJson: String) {
+                if (handles[handle.id] !== handle || handle.binder !== binder || handle.eventCallback !== this) return
                 val queue = eventQueues.getOrPut(handle.id) { ConcurrentLinkedDeque() }
                 queue.addLast(eventJson.take(64_000))
                 while (queue.size > MAX_RECENT_EVENTS) {
@@ -424,13 +437,24 @@ object ExtensionConnectionManager {
                 }
             }
         }
-        val registered = runCatching { binder.registerEventListener(callback) }
-            .getOrElse {
+        synchronized(handle) {
+            if (handle.binder !== binder || handle.eventCallback != null) return
+            handle.eventCallback = callback
+        }
+        // ServiceConnection callbacks run on Main. A connected application's Binder
+        // must never block this process's UI/assistant lifecycle during subscription.
+        lifecycleScope.launch {
+            if (handle.binder !== binder || handle.eventCallback !== callback) return@launch
+            val registered = runCatching { binder.registerEventListener(callback) }.getOrElse {
                 Log.w(TAG, "Failed registering extension event stream: " + handle.id, it)
                 false
             }
-        if (registered) {
-            handle.eventCallback = callback
+            val stillCurrent = synchronized(handle) {
+                val current = handles[handle.id] === handle && handle.binder === binder && handle.eventCallback === callback
+                if (!registered && handle.eventCallback === callback) handle.eventCallback = null
+                current
+            }
+            if (registered && !stillCurrent) runCatching { binder.unregisterEventListener(callback) }
         }
     }
 
@@ -446,10 +470,10 @@ object ExtensionConnectionManager {
         val handle = handles[id]
         val callback = handle?.eventCallback
         val binder = handle?.binder
+        if (handle != null) { handle.eventCallback = null; handle.binder = null }
         if (callback != null && binder != null) {
-            runCatching { binder.unregisterEventListener(callback) }
+            lifecycleScope.launch { runCatching { binder.unregisterEventListener(callback) } }
         }
-        if (handle != null) handle.eventCallback = null
 
         val conn = serviceConnections.remove(id) ?: return
         runCatching { context.unbindService(conn) }

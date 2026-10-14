@@ -86,7 +86,8 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
                 OmniMode.CHAT -> executeChat(
                     runtime = runtime,
                     origin = origin,
-                    history = recentHistory,
+                    // Chat compacts its working prompt; recovery must not cut saved history.
+                    history = allMessages,
                     resumePrompt = resumePrompt,
                     onText = { text -> partial = text; persist("Writing response…") },
                     onEvent = { event ->
@@ -222,7 +223,7 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
             systemPrompt = "You are Omni. Continue the interrupted in-app conversation from its durable checkpoint. " +
                 "Use chat web tools when useful. Never repeat an already-finished external action merely because the process restarted.\n" +
                 runtime.settingsRepository.observeUserPromptContext().first(),
-            maxTokens = minOf(model.maxOutputTokens, 8_192),
+            maxTokens = model.maxOutputTokens,
             enableThinking = runtime.settingsRepository.observeDeepThinking().first() && model.supportsThinking,
             apiKey = runtime.apiKeyRepository.getApiKey(model.provider)
         )
@@ -231,7 +232,8 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
             disabled = settings.disabledToolNames(),
             originMessageId = origin.messageId,
             complete = { next ->
-                streamed = ""
+                streamed = next.responsePrefix
+                if (streamed.isNotEmpty()) onText(streamed)
                 runtime.completionService.stream(next) { delta ->
                     streamed += delta
                     onText(streamed)

@@ -25,6 +25,7 @@ class LocalWakeService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
     @Volatile private var capture: AudioRecord? = null
+    private val interruptions = java.util.concurrent.atomic.AtomicInteger()
     private var failure: String? = null
     private val preferences by lazy { WakePreferences(this) }
     private val main = Handler(Looper.getMainLooper())
@@ -58,7 +59,10 @@ class LocalWakeService : Service() {
             else startForeground(ID, notification("Starting local detector…"))
             check(preferences.enabled && AssistantSettings.isSelected(this)) { "Select Omni as Android's default assistant, then start listening in settings." }
             if (job?.isActive != true) job = scope.launch { listen() }
-        } catch (error: Exception) { fail("Cannot start listening. Check microphone permission and open Hi Omni settings.") }
+        } catch (error: Exception) {
+            com.omnidev.workspace.data.debug.DebugLogManager.appendError("LocalWakeStart", error)
+            fail("Cannot start listening. Check microphone permission and open Hi Omni settings.")
+        }
         return START_NOT_STICKY
     }
     private suspend fun listen() {
@@ -81,6 +85,7 @@ class LocalWakeService : Service() {
                 }
                 var matched = false
                 WakeAudio.mutex.withLock {
+                    val generation = interruptions.get()
                     val recorder = WakeAudio.recorder(this)
                     capture = recorder
                     val cpu = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "OmniDev:LocalWake").apply { setReferenceCounted(false) }
@@ -91,14 +96,14 @@ class LocalWakeService : Service() {
                         cpu.acquire(60_000); renewed = SystemClock.elapsedRealtime()
                         recorder.startRecording(); update("Calibrating background noise…")
                         segmenter = WakeSegmenter(WakeAudio.calibrate(recorder, chunk) {
-                            preferences.allowedNow() && !AssistantRuntime.targetingScreen && !LocalVoiceSessionService.running && audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive
+                            interruptions.get() == generation && preferences.allowedNow() && !AssistantRuntime.targetingScreen && !LocalVoiceSessionService.running && audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive
                         })
                         update("Listening locally · say ${preferences.phrase}")
-                        while (currentCoroutineContext().isActive && preferences.allowedNow() && !AssistantRuntime.targetingScreen && !LocalVoiceSessionService.running &&
+                        while (currentCoroutineContext().isActive && interruptions.get() == generation && preferences.allowedNow() && !AssistantRuntime.targetingScreen && !LocalVoiceSessionService.running &&
                             audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive) {
                             val now = SystemClock.elapsedRealtime()
                             if (!cpu.isHeld || now - renewed >= 30_000) { cpu.acquire(60_000); renewed = now }
-                            WakeAudio.readFrame(recorder, chunk)
+                            WakeAudio.readFrame(recorder, chunk) { interruptions.get() == generation && preferences.allowedNow() }
                             if (!preferences.allowedNow() || AssistantRuntime.targetingScreen || LocalVoiceSessionService.running) break
                             val pcm = segmenter.accept(chunk) ?: continue
                             val match = try { runCatching { model.match(WakeFeatures.extract(pcm), preferences.personalVoice) }.getOrNull() }
@@ -106,7 +111,7 @@ class LocalWakeService : Service() {
                             if (match?.accepted == true) { matched = true; break }
                         }
                     } catch (error: IllegalStateException) {
-                        if (preferences.allowedNow() && !AssistantRuntime.targetingScreen && !LocalVoiceSessionService.running && audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive) throw error
+                        if (interruptions.get() == generation && preferences.allowedNow() && !AssistantRuntime.targetingScreen && !LocalVoiceSessionService.running && audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive) throw error
                     } finally {
                         capture = null; runCatching { recorder.stop() }; recorder.release()
                         if (cpu.isHeld) cpu.release()
@@ -131,9 +136,12 @@ class LocalWakeService : Service() {
                 }
             }
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (error: Exception) { fail("Local listening stopped. Check the microphone or re-enroll the voice profile in settings.") }
+        catch (error: Exception) {
+            com.omnidev.workspace.data.debug.DebugLogManager.appendError("LocalWakeCapture", error)
+            fail("Local listening stopped. Check the microphone or re-enroll the voice profile in settings.")
+        }
     }
-    private fun interruptCapture() { runCatching { capture?.stop() } }
+    private fun interruptCapture() { interruptions.incrementAndGet() }
     private fun fail(message: String) { main.post {
         if (active !== this) return@post
         failure = message; state.value = message; preferences.setEnabled(false); stopSelf()

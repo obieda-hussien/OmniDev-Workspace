@@ -3,14 +3,16 @@ package com.omnidev.workspace.data.debug
 import android.content.Context
 import android.os.Build
 import android.util.Log
-import com.omnidev.workspace.data.background.BackgroundServiceSupervisor
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.Executors
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * A single captured log entry — either a crash report or a manually appended error/warning.
@@ -39,29 +41,33 @@ data class DebugEntry(
  *  - `warn_<timestamp>.log`   — written by [appendWarning] for soft warnings
  */
 object DebugLogManager {
+    private val changes = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    val revision: kotlinx.coroutines.flow.StateFlow<Long> = changes
 
     private const val LOG_DIR = "debug_logs"
     private const val CRASH_REDIRECT_MARKER_FILE = "pending_crash_redirect.flag"
     private const val DATE_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS"
     private const val FILE_DATE_FORMAT = "yyyyMMdd_HHmmss_SSS"
-    // Single-thread executor for async log writes. This executor lives for the entire
-    // process lifetime (same as the Application object) and is intentionally not shut
-    // down — the OS reclaims all threads when the process exits.
-    private val ioExecutor = Executors.newSingleThreadExecutor()
-
+    private val ioExecutor = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+        ArrayBlockingQueue<Runnable>(128), ThreadPoolExecutor.DiscardOldestPolicy())
+    private val sequence = AtomicLong()
+    private val writeLock = Any()
+    private const val MAX_LOGS = 100
+    private const val MAX_DETAIL_CHARS = 64 * 1024
     private lateinit var logDir: File
+    @Volatile private var legacyLogDir: File? = null
 
+    /** Diagnostics must not start services or depend on credential storage. */
     fun init(context: Context) {
-        val app = context.applicationContext
-        logDir = File(app.filesDir, LOG_DIR).apply { mkdirs() }
-
-        // OmniDevApp initializes DebugLogManager on every process creation. Piggybacking the
-        // background bootstrap here gives a force-stopped/OEM-killed install an immediate repair
-        // path as soon as the user explicitly opens the app again. The supervisor itself guards
-        // against secondary processes and duplicate scheduling.
-        runCatching { BackgroundServiceSupervisor.bootstrap(app) }
-            .onFailure { Log.w(TAG, "Background runtime bootstrap failed", it) }
+        val storage = if (Build.VERSION.SDK_INT >= 24) context.createDeviceProtectedStorageContext() else context
+        logDir = File(storage.filesDir, LOG_DIR).apply { mkdirs() }
     }
+
+    fun includeCredentialLogs(context: Context) {
+        legacyLogDir = File(context.filesDir, LOG_DIR).takeIf { it != logDir && it.isDirectory }
+    }
+
+    private fun directories(): List<File> = if (::logDir.isInitialized) listOfNotNull(logDir, legacyLogDir) else emptyList()
 
     // ──────────────────────────────────────────────────────────────────────
     //  Public write API
@@ -70,7 +76,7 @@ object DebugLogManager {
     /** Write a crash log file synchronously (called from crash handler). */
     fun writeCrash(throwable: Throwable) {
         val ts = timestamp()
-        val fileName = "crash_${fileTimestamp()}.log"
+        val fileName = "crash_${fileTimestamp()}_${sequence.incrementAndGet()}.log"
         writeFile(
             name = fileName,
             level = "CRASH",
@@ -100,47 +106,44 @@ object DebugLogManager {
      */
     fun consumePendingCrashRedirect(): Boolean {
         if (!::logDir.isInitialized) return false
-        val marker = File(logDir, CRASH_REDIRECT_MARKER_FILE)
-        if (!marker.exists()) return false
-        if (!marker.delete() && marker.exists()) {
-            Log.w(TAG, "Failed to delete crash redirect marker: ${marker.absolutePath}")
-        }
-        return true
+        val markers = directories().map { File(it, CRASH_REDIRECT_MARKER_FILE) }.filter { it.exists() }
+        markers.forEach { if (!it.delete()) Log.w(TAG, "Failed to delete crash redirect marker") }
+        return markers.isNotEmpty()
     }
 
     /** Append a caught exception as an error log entry (async). */
     fun appendError(tag: String, throwable: Throwable) {
         ioExecutor.execute {
-            writeFile(
-                name = "error_${fileTimestamp()}.log",
+            safelyWrite { writeFile(
+                name = "error_${fileTimestamp()}_${sequence.incrementAndGet()}.log",
                 level = "ERROR",
                 title = "[$tag] ${throwable.javaClass.simpleName}",
                 detail = stackTrace(throwable)
-            )
+            ) }
         }
     }
 
     /** Append a custom warning message (async). */
     fun appendWarning(tag: String, message: String) {
         ioExecutor.execute {
-            writeFile(
-                name = "warn_${fileTimestamp()}.log",
+            safelyWrite { writeFile(
+                name = "warn_${fileTimestamp()}_${sequence.incrementAndGet()}.log",
                 level = "WARNING",
                 title = "[$tag] $message",
                 detail = message
-            )
+            ) }
         }
     }
 
     /** Append a custom info message (async). */
     fun appendInfo(tag: String, message: String) {
         ioExecutor.execute {
-            writeFile(
-                name = "info_${fileTimestamp()}.log",
+            safelyWrite { writeFile(
+                name = "info_${fileTimestamp()}_${sequence.incrementAndGet()}.log",
                 level = "INFO",
                 title = "[$tag] $message",
                 detail = message
-            )
+            ) }
         }
     }
 
@@ -151,16 +154,15 @@ object DebugLogManager {
     /** Read all log entries sorted newest-first. */
     fun readAll(): List<DebugEntry> {
         if (!::logDir.isInitialized) return emptyList()
-        return logDir.listFiles { f -> f.extension == "log" }
-            ?.sortedByDescending { it.lastModified() }
-            ?.mapNotNull { parseFile(it) }
-            ?: emptyList()
+        return directories().flatMap { it.listFiles { f -> f.extension == "log" }.orEmpty().toList() }
+            .sortedByDescending { it.lastModified() }.take(MAX_LOGS).mapNotNull { parseFile(it) }
     }
 
     /** Delete all log files. */
     fun clearAll() {
         if (!::logDir.isInitialized) return
-        logDir.listFiles()?.forEach { it.delete() }
+        directories().forEach { dir -> dir.listFiles()?.forEach { it.delete() } }
+        changes.value += 1
     }
 
     /** Return the full text of all logs concatenated — for share/export. */
@@ -212,14 +214,23 @@ object DebugLogManager {
             appendLine(deviceInfo())
             appendLine()
             appendLine("═══ DETAILS ═══")
-            append(detail)
+            append(detail.take(MAX_DETAIL_CHARS))
         }
-        File(logDir, name).writeText(content, Charsets.UTF_8)
+        synchronized(writeLock) {
+            File(logDir, name).writeText(content, Charsets.UTF_8)
+            logDir.listFiles { f -> f.extension == "log" }.orEmpty()
+                .sortedByDescending { it.lastModified() }.drop(MAX_LOGS).forEach { it.delete() }
+            changes.value += 1
+        }
     }
 
     private fun parseFile(file: File): DebugEntry? {
         return try {
-            val text = file.readText(Charsets.UTF_8)
+            val text = file.reader(Charsets.UTF_8).use { reader ->
+                val buffer = CharArray(MAX_DETAIL_CHARS + 8192)
+                val count = reader.read(buffer)
+                if (count > 0) String(buffer, 0, count) else ""
+            }
             val level = file.name
                 .substringBefore("_")
                 .uppercase()
@@ -249,6 +260,16 @@ object DebugLogManager {
         } catch (_: Exception) {
             null
         }
+    }
+
+    /** Synchronous stable-id record: exit history can deduplicate without disk preferences on Main. */
+    internal fun writeDiagnostic(id: String, level: String, title: String, detail: String) {
+        val file = File(logDir, "${level.lowercase()}_$id.log")
+        if (!file.exists()) writeFile(file.name, level, title, detail)
+    }
+
+    private inline fun safelyWrite(block: () -> Unit) {
+        try { block() } catch (error: Exception) { Log.w(TAG, "Diagnostic write failed", error) }
     }
 
     private fun timestamp(): String =
