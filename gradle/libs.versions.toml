@@ -1,7 +1,7 @@
 [versions]
 owaspDependencyCheck = "13.0.0"
 agp = "8.10.1"
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 # Keep Core on the API-36 / AGP-8 compatible line. Upgrade with the toolchain, not alone.
 coreKtx = "1.17.0"
 junit = "4.13.2"
@@ -18,7 +18,7 @@ datastorePreferences = "1.2.1"
 coroutines = "1.11.0"
 materialIconsExtended = "1.7.8"
 kotlinxSerializationJson = "1.11.0"
-kotlinSerialization = "2.4.20"
+kotlinSerialization = "2.4.21"
 room = "2.8.5"
 ksp = "2.3.10"
 shizuku = "13.1.5"
