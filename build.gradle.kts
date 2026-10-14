@@ -8,8 +8,8 @@ buildscript {
         constraints {
             // AGP/UTP and ODC carry their own dependency graphs. App implementation
             // constraints cannot repair these older build-classpath dependencies.
-            add("classpath", "com.google.protobuf:protobuf-java:3.25.5")
-            add("classpath", "com.google.protobuf:protobuf-kotlin:3.25.5")
+            add("classpath", "com.google.protobuf:protobuf-java:4.36.2")
+            add("classpath", "com.google.protobuf:protobuf-kotlin:4.36.2")
             add("classpath", "org.jdom:jdom2:2.0.6.1")
             add("classpath", "commons-beanutils:commons-beanutils:1.11.0")
             add("classpath", "org.apache.commons:commons-lang3:3.18.0")
