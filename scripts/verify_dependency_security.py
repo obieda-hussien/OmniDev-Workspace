@@ -27,7 +27,7 @@ def version_key(version):
     return tuple(int(part) for part in re.findall(r"\d+", version))
 
 
-def violations(text):
+def violations(text, enforce_core=False):
     failures = []
     modules = [line.strip() for line in text.splitlines() if line.strip()]
     if not modules:
@@ -38,6 +38,8 @@ def violations(text):
             failures.append(f"Invalid module coordinate: {module}")
             continue
         group, name, version = parts
+        if enforce_core and group == "androidx.core" and name in {"core", "core-ktx"} and version != "1.17.0":
+            failures.append(f"Core baseline changed transitively: {module}; expected 1.17.0")
         floor = FLOORS.get(f"{group}:{name}")
         if group == "io.netty" and name.startswith("netty-") and not name.startswith("netty-tcnative"):
             floor = "4.1.137.Final"
@@ -55,13 +57,16 @@ def violations(text):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("inventories", nargs="+", type=Path)
+    parser.add_argument("--runtime", nargs="+", type=Path, default=[], help="APK inventories; also enforce the Core baseline")
     args = parser.parse_args()
     failures = []
     for path in args.inventories:
         failures.extend(f"{path}: {item}" for item in violations(path.read_text()))
+    for path in args.runtime:
+        failures.extend(f"{path}: {item}" for item in violations(path.read_text(), enforce_core=True))
     if failures:
         raise SystemExit("\n".join(failures))
-    print(f"Security floors verified in {len(args.inventories)} resolved dependency inventories")
+    print(f"Security floors verified in {len(args.inventories) + len(args.runtime)} resolved dependency inventories")
 
 
 if __name__ == "__main__":

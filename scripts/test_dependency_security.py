@@ -22,6 +22,10 @@ class DependencySecurityTest(unittest.TestCase):
         self.assertTrue(violations(""))
         self.assertTrue(violations("org.jsoup:jsoup:1.24.0-RC1"))
 
+    def test_runtime_core_cannot_be_upgraded_by_an_unrelated_library(self):
+        self.assertEqual([], violations("androidx.core:core:1.17.0\nandroidx.core:core-ktx:1.17.0", enforce_core=True))
+        self.assertTrue(violations("androidx.core:core:1.18.0", enforce_core=True))
+
 
 if __name__ == "__main__":
     unittest.main()

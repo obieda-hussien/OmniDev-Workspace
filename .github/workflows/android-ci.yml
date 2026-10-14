@@ -111,7 +111,7 @@ jobs:
             --stacktrace
 
       - name: Verify security floors in resolved build and runtime dependencies
-        run: python3 scripts/verify_dependency_security.py build/reports/build-tool-dependencies.txt app/build/reports/runtime-dependencies/*.txt
+        run: python3 scripts/verify_dependency_security.py build/reports/build-tool-dependencies.txt --runtime app/build/reports/runtime-dependencies/*.txt
 
       - name: Verify final Lite manifest permissions
         run: python3 scripts/verify_flavors.py --lite-manifest app/build/intermediates/merged_manifests/liteRelease/processLiteReleaseManifest/AndroidManifest.xml
