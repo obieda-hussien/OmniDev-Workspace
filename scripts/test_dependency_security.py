@@ -18,6 +18,10 @@ class DependencySecurityTest(unittest.TestCase):
     def test_does_not_compare_netty_native_library_to_java_version(self):
         self.assertEqual([], violations("io.netty:netty-tcnative-boringssl-static:2.0.74.Final"))
 
+    def test_jackson_annotations_has_an_independent_version_scheme(self):
+        self.assertEqual([], violations("com.fasterxml.jackson.core:jackson-annotations:2.22\n"
+                                        "com.fasterxml.jackson.core:jackson-databind:2.22.1"))
+
     def test_rejects_empty_inventory_and_prerelease_fix(self):
         self.assertTrue(violations(""))
         self.assertTrue(violations("org.jsoup:jsoup:1.24.0-RC1"))

@@ -16,6 +16,8 @@ buildscript {
             add("classpath", "org.bitbucket.b_c:jose4j:0.9.6")
             add("classpath", "org.bouncycastle:bcpg-jdk18on:1.86")
             add("classpath", "org.jsoup:jsoup:1.23.2")
+            add("classpath", "org.apache.httpcomponents.client5:httpclient5:5.6.3")
+            add("classpath", "org.apache.httpcomponents.client5:httpclient5-cache:5.6.3")
         }
     }
 }

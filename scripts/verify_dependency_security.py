@@ -43,7 +43,7 @@ def violations(text, enforce_core=False):
         floor = FLOORS.get(f"{group}:{name}")
         if group == "io.netty" and name.startswith("netty-") and not name.startswith("netty-tcnative"):
             floor = "4.1.137.Final"
-        elif group == "com.fasterxml.jackson.core":
+        elif group == "com.fasterxml.jackson.core" and name in {"jackson-core", "jackson-databind"}:
             floor = "2.22.1"
         elif group == "org.bouncycastle" and name.endswith("-jdk18on"):
             floor = "1.86"
