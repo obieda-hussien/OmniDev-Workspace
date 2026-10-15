@@ -12,7 +12,17 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import com.omnidev.workspace.data.assistant.AssistantRuntime
-import java.util.concurrent.Executor
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -39,6 +49,10 @@ class OmniAccessibilityService : AccessibilityService() {
 
         /** Duration in milliseconds for a single tap gesture dispatch. */
         private const val TAP_DURATION_MS = 50L
+        private val TEACHING_EVENT_TYPES = setOf(
+            AccessibilityEvent.TYPE_VIEW_CLICKED, AccessibilityEvent.TYPE_VIEW_LONG_CLICKED,
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED, AccessibilityEvent.TYPE_VIEW_SCROLLED
+        )
 
         /**
          * Live reference to the running service instance.
@@ -50,73 +64,140 @@ class OmniAccessibilityService : AccessibilityService() {
             private set
     }
 
+    // Remote accessibility reads can block for Android's full IPC timeout. They must never
+    // run on main, and cancellation must never create a replacement worker per event.
+    private val observationDispatcher = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "Omni-accessibility-observer").apply { isDaemon = true }
+    }.asCoroutineDispatcher()
+    private val observationScope = CoroutineScope(SupervisorJob() + observationDispatcher)
+    private val refreshLoop = ConflatedRefreshLoop(observationScope) { refreshRootNode() }
+    private data class TeachingEvent(val session: Long, val event: AccessibilityEvent)
+    private val teachingOverflow = AtomicLong(-1L)
+    private val teachingEvents = Channel<TeachingEvent>(32, onUndeliveredElement = { it.event.recycle() })
+    private var teachingWorkerStarted = false
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         AccessibilityStateManager.setServiceConnected(true)
-        refreshRootNode()
+        if (!teachingWorkerStarted) observationScope.launch {
+            for ((session, event) in teachingEvents) {
+                try {
+                    val hub = com.omnidev.workspace.data.routines.RoutineLearningHub.get(this@OmniAccessibilityService)
+                    val overflowSession = teachingOverflow.getAndSet(-1L)
+                    if (overflowSession >= 0) {
+                        // Missing actions must not silently become a replayable demonstration.
+                        hub.stopTeachingSession(overflowSession)
+                        Log.w(TAG, "Teaching stopped because the event buffer overflowed")
+                    }
+                    hub.onAccessibilityEvent(event, session)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "Teaching event could not be recorded", e)
+                } finally { event.recycle() }
+            }
+        }
+        teachingWorkerStarted = true
+        refreshLoop.request()
         Log.i(TAG, "OmniAccessibilityService connected")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
-        runCatching { com.omnidev.workspace.data.routines.RoutineLearningHub.get(this).onAccessibilityEvent(event) }
-            .onFailure { Log.w(TAG, "Teaching event could not be recorded") }
-
+        // No event.source, tree IPC, singleton initialization or disk access in this callback.
+        val session = if (event.eventType in TEACHING_EVENT_TYPES)
+            com.omnidev.workspace.data.routines.RoutineLearningHub.activeTeachingSession() else null
+        if (session != null) {
+            val copy = AccessibilityEvent.obtain(event)
+            if (teachingEvents.trySend(TeachingEvent(session, copy)).isFailure) {
+                copy.recycle()
+                teachingOverflow.set(session)
+            }
+        }
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                if (!(AssistantRuntime.targetingScreen && event.packageName?.toString() == packageName)) AccessibilityStateManager.updateActiveWindow(
-                    packageName = event.packageName?.toString(),
-                    activityName = event.className?.toString()
-                )
-                refreshRootNode()
+                // Activities and dialogs within one package also invalidate in-flight scans.
+                // Invalidate even for our overlay; only foreground attribution is filtered.
+                AccessibilityStateManager.updateRootNode(null)
+                SemanticUITool.clearSnapshot()
+                val pkg = event.packageName?.toString()
+                if (!(AssistantRuntime.targetingScreen && pkg == packageName)) {
+                    AccessibilityStateManager.updateActiveWindow(pkg, event.className?.toString())
+                }
+                refreshLoop.request()
+            }
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> {
+                AccessibilityStateManager.updateRootNode(null)
+                SemanticUITool.clearSnapshot()
+                refreshLoop.request()
             }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
-            AccessibilityEvent.TYPE_VIEW_FOCUSED -> {
-                refreshRootNode()
-            }
+            AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,
+            AccessibilityEvent.TYPE_VIEW_FOCUSED -> refreshLoop.request()
         }
     }
 
     override fun onInterrupt() {
+        AccessibilityStateManager.updateRootNode(null)
+        SemanticUITool.clearSnapshot()
         Log.w(TAG, "OmniAccessibilityService interrupted")
     }
 
     override fun onDestroy() {
         instance = null
+        refreshLoop.close()
+        teachingEvents.cancel()
+        observationScope.cancel()
+        // close() does not join a blocked Binder thread on main.
+        observationDispatcher.close()
         AccessibilityStateManager.setServiceConnected(false)
+        SemanticUITool.clearSnapshot()
         Log.i(TAG, "OmniAccessibilityService destroyed")
         super.onDestroy()
     }
 
-    /**
-     * Refreshes the root node snapshot stored in AccessibilityStateManager.
-     * Note: Added a recycle mechanism to prevent memory leaks during heavy UI parsing.
-     */
-    private fun refreshRootNode() {
+    /** Fetch and analyze a privately owned root on the single observer; publish metadata on main. */
+    private suspend fun refreshRootNode() {
+        val generation = AccessibilityStateManager.snapshotGeneration()
+        var root: AccessibilityNodeInfo? = null
         try {
-            val root = assistantTargetRoot()
-            if (root == null) { AccessibilityStateManager.updateRootNode(null); return }
-            if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, root.packageName?.toString()) != null) {
-                root.recycle(); AccessibilityStateManager.updateRootNode(null); SemanticUITool.clearSnapshot(); return
+            root = assistantTargetRoot()
+            val pkg = root?.packageName?.toString()
+            val denied = com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, pkg) != null
+            if (denied) { root?.recycle(); root = null }
+            val analysis = root?.let(AccessibilityScreenAnalyzer::analyze)
+            withContext(Dispatchers.Main) {
+                if (instance !== this@OmniAccessibilityService) return@withContext
+                if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this@OmniAccessibilityService, pkg) != null) {
+                    AccessibilityStateManager.updateRootNode(null)
+                    SemanticUITool.clearSnapshot()
+                } else if (AccessibilityStateManager.publishRootNode(root, analysis, generation)) {
+                    if (root != null && AssistantRuntime.targetingScreen)
+                        AccessibilityStateManager.updateActiveWindow(pkg, null)
+                    root = null // Ownership transferred to AccessibilityStateManager.
+                }
             }
-            // AccessibilityStateManager.updateRootNode() recycles any previously held root node.
-            if (AssistantRuntime.targetingScreen) AccessibilityStateManager.updateActiveWindow(root.packageName?.toString(), null)
-            AccessibilityStateManager.updateRootNode(root)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to refresh root node: ${e.message}")
-        }
+            Log.w(TAG, "Failed to refresh root node", e)
+        } finally { root?.recycle() }
     }
 
     /** Retrieve the application underneath our assistant window, which owns foreground focus. */
     private fun assistantTargetRoot(): AccessibilityNodeInfo? {
         if (!AssistantRuntime.targetingScreen) return rootInActiveWindow
-        for (window in windows.sortedByDescending { it.layer }) {
-            if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
-            val root = window.root ?: continue
-            if (root.packageName?.toString() != packageName || AssistantRuntime.nativeHost) return root
-            root.recycle()
-        }
+        val snapshot = windows
+        try {
+            for (window in snapshot.sortedByDescending { it.layer }) {
+                if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                val root = window.root ?: continue
+                if (root.packageName?.toString() != packageName || AssistantRuntime.nativeHost) return root
+                root.recycle()
+            }
+        } finally { snapshot.forEach { it.recycle() } }
         return rootInActiveWindow?.let { root ->
             if (AssistantRuntime.get(this).state.value.visible && root.packageName?.toString() == packageName) { root.recycle(); null } else root
         }

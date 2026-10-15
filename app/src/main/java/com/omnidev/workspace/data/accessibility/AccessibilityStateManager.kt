@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
-import kotlin.math.abs
+import java.util.concurrent.ConcurrentHashMap
 
 /** AccessibilityStateManager tracks UI change velocity, recent package navigation, screen classification, debounced content changes, session statistics and structured UI events for the agent loop. */
 object AccessibilityStateManager {
@@ -75,7 +75,10 @@ object AccessibilityStateManager {
     private val lastPackageChangeMs = AtomicLong(0L)
 
     /** Detected navigation pattern sequences. */
-    private val detectedNavigationPatterns = mutableMapOf<String, Int>()
+    private val detectedNavigationPatterns = ConcurrentHashMap<String, Int>()
+
+    private val rootGeneration = AtomicLong(0L)
+    internal fun snapshotGeneration(): Long = rootGeneration.get()
 
     /** Last package hash used for debouncing. */
     @Volatile
@@ -83,28 +86,55 @@ object AccessibilityStateManager {
 
     // ── Public API ───────────────────────────────────────────────────────────
 
-    /** Update the root node and analyze screen state. Called by [OmniAccessibilityService] on changes. */
+    /** Constant-time publication only. Never traverse a remote tree in a service callback. */
+    @Synchronized
     fun updateRootNode(node: AccessibilityNodeInfo?) {
-        recycleOldRoot(node)
-        _rootNode.value = node
+        rootGeneration.incrementAndGet()
+        publishRoot(node, null)
+    }
+
+    /** Reject work that finished after consent revocation, window invalidation or disconnect. */
+    @Synchronized
+    internal fun publishRootNode(
+        node: AccessibilityNodeInfo?,
+        analysis: AccessibilityScreenAnalyzer.Analysis?,
+        generation: Long
+    ): Boolean {
+        if (!_isServiceConnected.value || rootGeneration.get() != generation) return false
+        publishRoot(node, analysis)
+        return true
+    }
+
+    private fun publishRoot(node: AccessibilityNodeInfo?, analysis: AccessibilityScreenAnalyzer.Analysis?) {
+        val old = _rootNode.value
+        if (old !== node) {
+            // AccessibilityNodeInfo.equals compares node identity, not snapshot identity. Clear
+            // first so StateFlow cannot retain an equal, recycled older wrapper on Android 11.
+            _rootNode.value = null
+            try { old?.recycle() } catch (_: IllegalStateException) { }
+            _rootNode.value = node
+        }
         val now = System.currentTimeMillis()
         _lastUpdateTime.value = now
         rootUpdatesSincePackageChange.incrementAndGet()
-
-        // Track UI change velocity.
-        trackVelocity(now)
-
-        if (node != null) {
-            val nodeCount = countNodes(node)
-            _lastNodeCount.value = nodeCount
-            val newClass = classifyScreen(node, nodeCount)
-            if (newClass != _screenClass.value) {
-                _screenClass.value = newClass
-                _uiEvents.tryEmit(UIEvent.ScreenClassChanged(newClass, _activePackage.value))
+        if (node == null) {
+            _lastNodeCount.value = 0
+            _screenClass.value = ScreenClass.UNKNOWN
+            _isLoading.value = false
+            _changeVelocity.value = 0f
+            recentChangeTimestamps.clear()
+        } else {
+            trackVelocity(now)
+            val count = analysis?.nodeCount ?: 0
+            val screen = analysis?.screenClass ?: ScreenClass.UNKNOWN
+            _lastNodeCount.value = count
+            if (screen != _screenClass.value) {
+                _screenClass.value = screen
+                _uiEvents.tryEmit(UIEvent.ScreenClassChanged(screen, _activePackage.value))
             }
-            _isLoading.value = detectLoading(nodeCount, _changeVelocity.value, newClass)
+            _isLoading.value = analysis != null && !analysis.truncated &&
+                detectLoading(count, _changeVelocity.value, screen)
         }
-
         _uiEvents.tryEmit(UIEvent.ContentChanged(_activePackage.value, now))
     }
 
@@ -216,13 +246,6 @@ object AccessibilityStateManager {
 
     // ── Private Helpers ───────────────────────────────────────────────────────
 
-    private fun recycleOldRoot(newNode: AccessibilityNodeInfo?) {
-        val oldNode = _rootNode.value
-        if (oldNode != null && oldNode != newNode) {
-            try { oldNode.recycle() } catch (_: IllegalStateException) {}
-        }
-    }
-
     private fun trackVelocity(now: Long) {
         recentChangeTimestamps.addLast(now)
         // Remove timestamps older than five seconds.
@@ -231,59 +254,6 @@ object AccessibilityStateManager {
             recentChangeTimestamps.pollFirst()
         }
         _changeVelocity.value = recentChangeTimestamps.size.toFloat()
-    }
-
-    private fun countNodes(root: AccessibilityNodeInfo): Int {
-        var count = 1
-        for (i in 0 until root.childCount) {
-            val child = root.getChild(i) ?: continue
-            count += countNodes(child)
-            child.recycle()
-        }
-        return count
-    }
-
-    /** Classify the screen using node-tree properties and heuristics. */
-    private fun classifyScreen(root: AccessibilityNodeInfo, nodeCount: Int): ScreenClass {
-        var editableCount = 0
-        var listItemCount = 0
-        var progressCount = 0
-        var dialogSignal = false
-        var errorSignal = false
-
-        fun scan(node: AccessibilityNodeInfo) {
-            val className = node.className?.toString()?.lowercase() ?: ""
-            val text = node.text?.toString()?.lowercase() ?: ""
-            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
-
-            when {
-                node.isEditable -> editableCount++
-                "recyclerview" in className || "listview" in className -> listItemCount++
-                "progressbar" in className || "progress" in text -> progressCount++
-                "dialog" in className || "alertdialog" in className -> dialogSignal = true
-                text.contains("error") || text.contains("failed") ||
-                        desc.contains("error") -> errorSignal = true
-            }
-
-            for (i in 0 until node.childCount) {
-                val child = node.getChild(i) ?: continue
-                scan(child)
-                child.recycle()
-            }
-        }
-
-        scan(root)
-
-        return when {
-            progressCount > 0 && nodeCount < 15 -> ScreenClass.LOADING
-            dialogSignal -> ScreenClass.DIALOG
-            errorSignal -> ScreenClass.ERROR
-            editableCount >= 2 -> ScreenClass.FORM
-            editableCount == 1 -> ScreenClass.SEARCH
-            listItemCount > 0 -> ScreenClass.LIST
-            nodeCount < 5 -> ScreenClass.LOADING
-            else -> ScreenClass.INTERACTIVE
-        }
     }
 
     private fun detectLoading(nodeCount: Int, velocity: Float, screenClass: ScreenClass): Boolean {
