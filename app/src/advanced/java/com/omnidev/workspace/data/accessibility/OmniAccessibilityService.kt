@@ -117,17 +117,21 @@ class OmniAccessibilityService : AccessibilityService() {
         }
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                // Activities and dialogs within one package also invalidate in-flight scans.
+                // Invalidate even for our overlay; only foreground attribution is filtered.
+                AccessibilityStateManager.updateRootNode(null)
+                SemanticUITool.clearSnapshot()
                 val pkg = event.packageName?.toString()
                 if (!(AssistantRuntime.targetingScreen && pkg == packageName)) {
-                    if (pkg != AccessibilityStateManager.activePackage.value) {
-                        AccessibilityStateManager.updateRootNode(null)
-                        SemanticUITool.clearSnapshot()
-                    }
                     AccessibilityStateManager.updateActiveWindow(pkg, event.className?.toString())
                 }
                 refreshLoop.request()
             }
-            AccessibilityEvent.TYPE_WINDOWS_CHANGED,
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> {
+                AccessibilityStateManager.updateRootNode(null)
+                SemanticUITool.clearSnapshot()
+                refreshLoop.request()
+            }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
             AccessibilityEvent.TYPE_VIEW_SCROLLED,
             AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,
