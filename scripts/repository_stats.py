@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections import defaultdict
 import json
+import re
 from pathlib import Path
 import subprocess
 
@@ -13,8 +14,8 @@ LANGUAGES = {'.kt': 'Kotlin', '.kts': 'Kotlin build scripts', '.java': 'Java',
              '.xml': 'XML', '.py': 'Python', '.sh': 'Shell', '.mjs': 'JavaScript',
              '.js': 'JavaScript', '.md': 'Markdown', '.json': 'JSON',
              '.yml': 'YAML', '.yaml': 'YAML', '.cpp': 'C++', '.h': 'C/C++ headers',
-             '.c': 'C', '.toml': 'TOML', '.properties': 'Properties'}
-SOURCE = {'.kt', '.kts', '.java', '.py', '.sh', '.mjs', '.js', '.cpp', '.h', '.c'}
+             '.c': 'C', '.aidl': 'AIDL', '.toml': 'TOML', '.properties': 'Properties'}
+SOURCE = {'.kt', '.kts', '.java', '.py', '.sh', '.mjs', '.js', '.cpp', '.h', '.c', '.aidl'}
 
 
 def git(*args: str, input: bytes | None = None) -> bytes:
@@ -78,7 +79,7 @@ def count(ref: str) -> dict:
         if name.startswith('app/') and suffix == '.kt':
             totals['app_kotlin_files'] += 1
             totals['app_kotlin_lines'] += lines
-        if suffix in SOURCE and any(part in {'test', 'androidTest'} for part in Path(name).parts):
+        if suffix in SOURCE and any(re.fullmatch(r'(?:test|androidTest)(?:[A-Z][A-Za-z0-9]*)?', part) for part in Path(name).parts):
             totals['test_source_files'] += 1
             totals['test_source_lines'] += lines
     if offset != len(raw):
@@ -111,8 +112,8 @@ def markdown(result: dict) -> str:
                   'Symlinks are counted separately and not followed. Git submodule contents are excluded.', '',
                   'Physical lines include comments and blank lines, with a final unterminated line counted. '
                   'Nonblank lines include comments. These are not parser-derived statements or comment-free SLOC. '
-                  'Source/script totals cover Kotlin, Kotlin scripts, Java, Python, shell, JavaScript, C/C++ and headers; '
-                  'XML/resources, data and documentation are reported separately. Test counts overlap source totals.', '',
+                  'Source/script totals cover Kotlin, Kotlin scripts, Java, Python, shell, JavaScript, C/C++, headers and AIDL; '
+                  'XML/resources, data and documentation are reported separately. Test counts overlap source totals and include flavor-specific roots such as testAdvanced, testAgent and testTeam.', '',
                   'This report remains tied to the exact commit above; it is not a live size badge. '
                   'Rerun the command for a newer commit when an updated count is needed.', '',
                   'Reproduce this snapshot:', '', '```sh',
