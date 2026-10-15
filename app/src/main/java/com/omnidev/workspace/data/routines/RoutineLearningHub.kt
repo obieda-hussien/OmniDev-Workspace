@@ -15,6 +15,9 @@ import java.util.UUID
 class RoutineLearningHub private constructor(private val context: Context) {
     companion object {
         @Volatile private var instance: RoutineLearningHub? = null
+        fun activeTeachingSession(): Long? = instance?.let { hub -> synchronized(hub) {
+            hub.teachingSession.takeIf { hub._teaching.value != null }
+        } }
         fun get(context: Context): RoutineLearningHub = instance ?: synchronized(this) {
             instance ?: RoutineLearningHub(context.applicationContext).also { instance = it }
         }
@@ -29,6 +32,7 @@ class RoutineLearningHub private constructor(private val context: Context) {
     private val demo = mutableListOf<RoutineStep>()
     private var pendingTextSelector: UiSelector? = null
     private var demoName = ""
+    private var teachingSession = 0L
     val preferences = context.getSharedPreferences("routine-learning", Context.MODE_PRIVATE)
     val captureEnabled: Boolean get() = preferences.getBoolean("capture", true)
     init {
@@ -54,6 +58,7 @@ class RoutineLearningHub private constructor(private val context: Context) {
         require(com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility) { "Live teaching unavailable in this flavor" }
         check(com.omnidev.workspace.data.accessibility.AccessibilityStateManager.isServiceConnected.value) { "Enable Omni Accessibility before teaching" }
         check(androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()) { "Enable notifications for teaching controls" }
+        teachingSession++
         demoName = name.take(120); demo.clear(); pendingTextSelector = null
         _teaching.value = "Teaching $demoName · 0 steps"
         TeachingNotification.show(context)
@@ -65,25 +70,39 @@ class RoutineLearningHub private constructor(private val context: Context) {
     }
     @Synchronized fun stopTeaching(save: Boolean = true): LearnedRoutine? {
         if (_teaching.value == null) return null
+        teachingSession++
         flushText(); _teaching.value = null; TeachingNotification.hide(context)
         val steps = demo.toList(); demo.clear()
         if (!save || steps.isEmpty()) return null
         val recipe = LearnedRoutine(UUID.randomUUID().toString(), demoName, listOf(demoName), RoutineCompilation.withEntryPoint(steps), source = "demonstration")
         store.save(recipe); changed(); return recipe
     }
-    @Synchronized fun onAccessibilityEvent(event: AccessibilityEvent) {
-        // Delayed SystemUI click events can arrive after unlock; never learn their digits.
+    @Synchronized fun stopTeachingSession(session: Long) {
+        if (teachingSession == session) stopTeaching(save = false)
+    }
+    fun onAccessibilityEvent(event: AccessibilityEvent, expectedSession: Long) {
+        val session = synchronized(this) {
+            if (_teaching.value == null || teachingSession != expectedSession ||
+                event.packageName?.toString() == context.packageName) return
+            teachingSession
+        }
+        // All remote reads happen outside the teaching lock, on the observer worker. The
+        // settings UI must be able to stop recording while another app fails to answer IPC.
         if (event.packageName?.toString() == "com.android.systemui") return
-        // Never learn a credential keypad, consent dialog, or unauthorized settings flow.
         if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked() ||
             com.omnidev.workspace.data.admin.DeviceAccessGuard.check(context, event.packageName?.toString(), mutation = true) != null) return
-        if (_teaching.value == null || event.packageName?.toString() == context.packageName) return
         if (event.eventType !in setOf(AccessibilityEvent.TYPE_VIEW_CLICKED, AccessibilityEvent.TYPE_VIEW_LONG_CLICKED,
                 AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED, AccessibilityEvent.TYPE_VIEW_SCROLLED)) return
         val node = event.source ?: return
+        val protected: Boolean
+        val selector: UiSelector?
         try {
-            if (event.isPassword || node.isPassword) { flushText(); append(RoutineStep(RoutineStepKind.USER, "Protected input: user completes this step")); return }
-            val selector = RoutineUi.selector(node)
+            protected = event.isPassword || node.isPassword
+            selector = if (protected) null else RoutineUi.selector(node)
+        } finally { node.recycle() }
+        synchronized(this) {
+            if (_teaching.value == null || teachingSession != session) return
+            if (protected) { flushText(); append(RoutineStep(RoutineStepKind.USER, "Protected input: user completes this step")); return }
             if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
                 // Never read event.text, beforeText or node.text for an input field.
                 if (selector != pendingTextSelector) flushText()
@@ -98,7 +117,7 @@ class RoutineLearningHub private constructor(private val context: Context) {
                 append(RoutineStep(if (event.eventType == AccessibilityEvent.TYPE_VIEW_LONG_CLICKED) RoutineStepKind.LONG_CLICK else RoutineStepKind.CLICK,
                     "${selector.text.ifBlank { selector.description.ifBlank { selector.viewId } }}", selector))
             }
-        } finally { node.recycle() }
+        }
     }
     private fun flushText() {
         pendingTextSelector?.let {
