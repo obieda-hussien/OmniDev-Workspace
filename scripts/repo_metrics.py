@@ -8,9 +8,10 @@ by LF or a final unterminated sequence; blank lines and comments count as lines.
 from collections import Counter
 from pathlib import Path
 import subprocess
+import re
 
 SOURCE = {'.kt', '.java', '.aidl', '.c', '.cpp', '.h', '.hpp'}
-TEST_PARTS = {'test', 'androidTest'}
+TEST_ROOT = re.compile(r'(?:test|androidTest)(?:[A-Z][A-Za-z0-9]*)?')
 paths = [Path(raw.decode('utf-8', 'surrogateescape')) for raw in
          subprocess.check_output(['git', 'ls-files', '-z']).split(b'\0') if raw]
 counts = Counter()
@@ -21,7 +22,7 @@ for path in paths:
     suffix = path.suffix.lower()
     if suffix in SOURCE:
         lines = len(path.read_bytes().splitlines())
-        role = 'test' if TEST_PARTS.intersection(path.parts) else 'production'
+        role = 'test' if any(TEST_ROOT.fullmatch(part) for part in path.parts) else 'production'
         counts[f'{role}_source_files'] += 1
         counts[f'{role}_source_lines'] += lines
     if suffix == '.kt':

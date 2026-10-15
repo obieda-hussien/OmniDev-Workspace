@@ -17,11 +17,12 @@ The repository contains the Android application, native inference integration, J
 
 **Start here:** [Quick start](#quick-start) · [Choose an edition](#editions-and-capability-policy) · [Build from source](#build-from-source) · [Documentation map](#documentation-map) · [Authorized development](CONTRIBUTING.md) · [Get help](SUPPORT.md) · [Report a vulnerability](SECURITY.md)
 
-> This README describes the implementation reviewed on **9 October 2026**. Current source and completed CI results take precedence over older planning documents. OmniDev Workspace is **proprietary**, with publicly visible source and controlled development. Rights in original project material are reserved; see [LICENSE.md](LICENSE.md) before any reuse or distribution.
+> This README describes the implementation through **15 October 2026**, at source revision [`07328faa`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/07328faa8a066a77727343a45fce5b7e25b545cb). Current source and completed CI results take precedence over older planning documents. OmniDev Workspace is **proprietary**, with publicly visible source and controlled development. Rights in original project material are reserved; see [LICENSE.md](LICENSE.md) before any reuse or distribution.
 
 ## Contents
 
 - [Repository size and source statistics](#repository-size-and-source-statistics)
+- [Recent maintenance](#recent-maintenance)
 - [What OmniDev Workspace does](#what-omnidev-workspace-does)
 - [Quick start](#quick-start)
 - [Editions and capability policy](#editions-and-capability-policy)
@@ -61,21 +62,21 @@ The repository contains the Android application, native inference integration, J
 
 ## Repository size and source statistics
 
-This reproducible snapshot counts committed content at `c2fe7afd1a311d0fca474927b9774f65bdfbcd15` on **9 October 2026**, including profile reference photos, reply personalization, tool/skill mentions, independent selected-skill context budgets, the locally learning virtual companion, English project prose, built-in catalog counts, the five MCP defaults bounded, cached MCP discovery, extended response controls and enforced saved-memory preferences. The following statistics-only update is not included in that fixed snapshot.
+This reproducible snapshot counts committed content at [`07328faa`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/07328faa8a066a77727343a45fce5b7e25b545cb) on **15 October 2026**, after the accessibility ANR repair in PR #192. It includes Lite source isolation, the OEM system broker/contract, continuous Chat, dependency hardening and the bounded background accessibility observer. This documentation/counter maintenance update is excluded from that fixed snapshot. The current counter includes AIDL and flavor-specific test roots (`testAdvanced`, `testAgent`, `testTeam`); older reports omitted those categories.
 
 | Metric | Count |
 | --- | ---: |
-| Tracked files | 808 |
-| UTF-8 text files | 796 |
-| Physical text lines | 132,986 |
-| Nonblank text lines | 119,675 |
-| Source/script files | 670 |
-| Source/script physical lines | 123,954 |
-| App Kotlin files, including tests | 639 |
-| App Kotlin physical lines, including tests | 120,280 |
-| Test source files | 159 |
-| Test source physical lines | 12,884 |
-| Tracked blob bytes | 6,942,581 |
+| Tracked files | 893 |
+| UTF-8 text files | 881 |
+| Physical text lines | 136,140 |
+| Nonblank text lines | 122,672 |
+| Source/script files, including AIDL | 747 |
+| Source/script physical lines | 126,802 |
+| App Kotlin files, including tests | 700 |
+| App Kotlin physical lines, including tests | 122,425 |
+| Test source files, including flavor-specific roots | 173 |
+| Test source physical lines | 13,588 |
+| Tracked blob bytes | 7,153,149 |
 
 Physical lines include comments and blank lines; nonblank lines still include comments. These counts are not comment-free SLOC, a code-quality score or a device performance measurement. Source/script counts exclude XML/resources, data and documentation. Test totals overlap source totals. Untracked/generated files, downloaded models, caches and submodule contents are excluded; tracked binary assets count as files/bytes only.
 
@@ -85,9 +86,21 @@ See the [full format breakdown and counting method](docs/REPOSITORY_STATS.md). T
 python3 scripts/repository_stats.py --ref HEAD --format markdown
 ```
 
-The source catalog contains **150 unique local tool definitions**, or **148 names after excluding two hidden legacy aliases**, and **6 bundled agent skills**. Counts cover all registered optional providers and God Mode definitions; actual session visibility depends on edition and capability settings. Connected MCP tools and runtime discovery/mode helpers are additional. See the [complete catalog and reproducible count](docs/TOOL_AND_SKILL_CATALOG.md).
+The source catalog contains **152 unique local tool definitions**, or **150 names after excluding two hidden legacy aliases**, and **7 bundled agent skills**. Counts cover all registered optional providers and God Mode definitions; actual session visibility depends on edition and capability settings. Connected MCP tools and runtime discovery/mode helpers are additional. See the [complete catalog and reproducible count](docs/TOOL_AND_SKILL_CATALOG.md).
 
 For repository access, installed integrations, Actions controls and public-source limitations, see [Repository security](docs/REPOSITORY_SECURITY.md).
+
+## Recent maintenance
+
+| Area | Current implementation | Details |
+|---|---|---|
+| Accessibility ANR repair | One background observer, one pending refresh, a 500 ms interval after each scan, and one iterative pass bounded to 256 nodes, 255 child requests, 48 levels and 120 ms before starting further requests | [Regression scope and device checks](docs/accessibility-anr-regression.md) |
+| Snapshot and teaching lifecycle | Window transitions invalidate pending observations even inside the same package; teaching uses a bounded session-tagged queue and releases copied events/nodes | [PR #192](https://github.com/obieda-hussien/OmniDev-Workspace/pull/192) |
+| Continuous Chat | No app-imposed Chat token/tool-call/round ceiling; provider truncation continues in the same response and long-history compaction runs off Main | [Runtime stability](docs/RUNTIME_STABILITY.md#long-chat-turns) |
+| Lite isolation and OEM integration | Lite excludes Agent/Team, Accessibility, JGit, Shizuku transports and Linked Accounts; OEM actions use a separate provisioned service and AIDL contract | [Runtime and permissions](docs/RUNTIME_STABILITY.md), [OEM integration](oem/README.md) |
+| Dependency baseline | Core KTX stays at 1.17.0; compatible AndroidX/Compose updates, resolved dependency security floors and build/runtime inventories are enforced in CI | [Version catalog](gradle/libs.versions.toml), [security verifier](scripts/verify_dependency_security.py) |
+
+The accessibility repair addresses the reported `onAccessibilityEvent -> getChild` main-thread wait. A Binder call already in flight can outlast the scan budget, but stays on the observer thread. Added regression tests are distinct from a successful CI run or a sustained Infinix X689 device test; no measured device-wide speedup is claimed.
 
 ## What OmniDev Workspace does
 
@@ -176,7 +189,7 @@ The exact wording of navigation labels may evolve. The linked feature guides exp
 
 ## Editions and capability policy
 
-The Android application has one Gradle module, `:app`, and five product flavors in the `tier` dimension. Shared packages under `core/`, `domain/`, `data/` and `ui/` are application architecture layers, not separate Gradle modules.
+The Gradle project contains three modules: `:app` (the five `tier` product flavors), `:oem-system-contract` (the AIDL library), and `:oem-system` (the separate ROM-provisioned service application). Shared packages under `core/`, `domain/`, `data/` and `ui/` are application architecture layers, not separate Gradle modules.
 
 | Flavor | Display name | Application ID | Intended use |
 |---|---|---|---|
@@ -194,6 +207,8 @@ This table reflects `app/build.gradle.kts` and the `TierPolicy` contract. A **Ye
 
 | Capability | Lite | Standard | Pro | OEM | Admin |
 |---|---|---|---|---|---|
+| Agent execution | No | Yes | Yes | Yes | Yes |
+| Team execution | No | No | Yes | Yes | Yes |
 | Root backend eligibility | No | No | Yes | No | Yes |
 | Shizuku backend eligibility | No | No | Yes | No | Yes |
 | Accessibility eligibility | No | Yes | Yes | No | Yes |
@@ -215,7 +230,7 @@ Shared flavor sources include `liteNorm/`, `proOem/` and `proOemAdmin/`; manifes
 
 ## Conversation and execution modes
 
-The UI can refer to a coordinated team as **Team**; the corresponding internal execution mode is `SWARM`.
+Lite exposes Chat without Agent/Team execution; Standard adds Agent, while Pro/OEM/Admin also enable Team. The UI can refer to a coordinated team as **Team**; the corresponding internal execution mode is `SWARM`.
 
 | Mode | Behavior | Suitable requests |
 |---|---|---|
@@ -257,9 +272,9 @@ See the [October 2026 on-device voice research and experiment plan](docs/VOICE_R
 
 ### Local inference
 
-The application integrates C++/JNI with the `llama.cpp` submodule. Standard disables the native inference build path. Lite, Pro, OEM and Admin enable local SLM eligibility and native ABIs, but still need a valid model and a successfully built native implementation.
+The application integrates C++/JNI with a configured `llama.cpp` source checkout. Standard disables the native inference build path. Lite, Pro, OEM and Admin enable local SLM eligibility and native ABIs, but still need a valid model and a successfully built native implementation.
 
-The Gradle setup attempts to initialize the submodule before a native build. If initialization fails, its fallback may compile a stub. A stub library or enabled flag is not proof that on-device inference is available. Initialize the pinned submodule explicitly for a reproducible native build, and check the produced APK and runtime.
+The Gradle setup attempts to initialize the submodule before a native build. If initialization fails, its fallback may compile a stub. A stub library or enabled flag is not proof that on-device inference is available. This snapshot has a `.gitmodules` declaration but no tracked gitlink at `app/src/main/cpp/llama.cpp`; recursive cloning alone does not establish a pinned native checkout. Provision the required sources for a real native build, and check the produced APK and runtime.
 
 Local inference performance depends on model size, quantization, context length, ABI, CPU and available memory. This repository does not publish verified latency, memory or quality numbers for every model/device combination. Local inference and local voice are independent features: installing a Vosk speech model does not install a chat model.
 
@@ -292,6 +307,10 @@ Use **Edit last message → Save & regenerate** for the latest user turn, or **R
 
 Turn replacement updates the database transactionally. Late media from a superseded turn revision cannot overwrite the replacement, while unrelated earlier media jobs keep their own identity. Regeneration launches a new execution; completed file/device/service side effects do not automatically roll back and can occur again if requested again.
 
+### Continuous Chat and history
+
+All flavors remove application-imposed Chat token, tool-call and round ceilings. Long loaded history is compacted off Main while original saved messages remain available. A provider response stopped by `length`/`max_tokens` can continue in the same answer; Stop and repeated-output protection still apply. Provider quotas, context windows, timeouts and physical device memory remain constraints. Agent and Team retain their own execution policies. See [Long Chat turns](docs/RUNTIME_STABILITY.md#long-chat-turns).
+
 ### Reading long replies
 
 The chat follows the latest content while the user remains at the bottom. Dragging into history pauses automatic following; the jump-to-latest control resumes it. The composer accounts for keyboard insets, and saved console panels can be reopened with historical messages.
@@ -317,6 +336,10 @@ Add a clear front-facing **Face photo** and a **Full-body photo** with your head
 **Use for images of me** starts off. Enable it, select a supported image model in Model Selection, and request your likeness, for example “Create a professional portrait of me using my reference photos” or “Make a full-body image of me in a new outfit.” The media tool includes the selected face/body files only for reference-enabled requests. Gemini receives image parts; OpenAI GPT Image uses image editing with multipart inputs. Ordinary text prompts contain no reference photo bytes or paths. This is appearance conditioning, not face recognition or training a personal model; likeness depends on the provider.
 
 Reference generation currently supports **images with Gemini image and OpenAI GPT Image**. Video, music, xAI and OpenRouter reference requests return a clear unsupported message without silently dropping references or switching providers. Consent and file selection are rechecked before submission: disabling use, removing or replacing a photo blocks queued jobs with the old selection. An upload already sent to a provider cannot be recalled by removing the local photo. See [Profile personalization and reference photos](docs/PROFILE_PERSONALIZATION.md).
+
+### Extended personalization controls
+
+Your profile includes occupation, custom response instructions, quick answers, local suggested prompts, Markdown/plain-text replies, saved-memory use and independent automatic chat-history recall. Behavior controls apply to the shared chat/screen-assistant transcript; profile instructions reach Chat, Agent and Team. Memory opt-out blocks canonical fact tools and legacy vector aliases without deleting saved entries or disabling explicitly selected skills. Memory summary and management provides category counts, preference excerpts and source editing/deletion. See [Profile personalization](docs/PROFILE_PERSONALIZATION.md).
 
 ## Virtual companion
 
@@ -618,7 +641,8 @@ The graph summarizes responsibilities rather than a fixed sequence for every req
 | Local context | `data/repo/`, `data/brain/`, `data/routines/` | Repository retrieval, knowledge and reusable execution |
 | Storage | `data/db/`, `data/repository/` | Room records, settings and credentials |
 | Interoperability | `data/ipc/`, `data/mcp/`, `data/integration/` | Connected applications, external tools and services |
-| Native | `app/src/main/cpp/` | JNI/C++ local inference and pinned llama.cpp integration |
+| Native | `app/src/main/cpp/` | JNI/C++ local inference and configured llama.cpp source integration |
+| OEM system boundary | `oem-system-contract/`, `oem-system/`, `oem/` | Typed AIDL contract, separate service application and ROM provisioning |
 
 ### A typical agent request
 
@@ -956,8 +980,11 @@ The build files and CI define the versions below. Use the checked-in wrapper/cat
 | Java/JVM target | 17 |
 | Gradle wrapper | 8.14.5, with configured distribution SHA-256 |
 | Android Gradle Plugin | 8.10.1 |
-| Kotlin Android/Compose | 2.4.10 |
+| Kotlin Android/Compose | 2.4.20 |
 | Kotlin serialization plugin | 2.4.20 |
+| R8 compiler override | 9.1.29 |
+| AndroidX Core KTX | 1.17.0 |
+| Compose BOM | 2025.11.01 (patched 1.9 line) |
 | Android compile / target / min | 36 / 36 / 24 |
 | CI Android Build Tools | 35.0.0 |
 | CI NDK | 27.0.12077973 |
@@ -1111,7 +1138,7 @@ python3 scripts/repo_metrics.py
 
 The guard checks tracked files, sensitive filenames, high-confidence credential patterns, workflow hardening and optionally Git history. It avoids printing matched secret values. Passing its pattern checks is not a guarantee that no secret or vulnerability exists.
 
-The metrics script counts tracked files and physical source lines, including comments/blanks, while separating test/production sources. It does not count generated build output or untracked files. We deliberately avoid a stale README source-line total: run the script for the checked-out revision, and distinguish repository metrics from a locally indexed project's `repo_stats`.
+The metrics script counts tracked files and physical source lines, including comments/blanks, while separating test/production sources. It does not count generated build output or untracked files. The README and [full report](docs/REPOSITORY_STATS.md) record a fixed commit snapshot. Use `python3 scripts/repository_stats.py --ref HEAD --format markdown` for the checked-out commit, and distinguish repository metrics from a locally indexed project's `repo_stats`. Flavor-specific test roots are included.
 
 ### What a result proves
 
@@ -1127,7 +1154,7 @@ The main [Android CI workflow](.github/workflows/android-ci.yml) runs for config
 
 | Stage | Current purpose |
 |---|---|
-| Run Quality | Signing/delivery/toolchain helper self-checks, OmniLink staging and Lite release Kotlin compile |
+| Run Quality | Signing/delivery/toolchain helper self-checks, OmniLink staging, resolved dependency inventories/security floors, Lite/OEM/broker Kotlin compile and Lite manifest/runtime graph checks |
 | Lint | Debug lint tasks across Lite, Standard, Pro, OEM and Admin |
 | Tests | JVM unit tests across all five flavors |
 | Release APK | Build the four distributable release variants and verify voice native packaging |
@@ -1170,6 +1197,7 @@ A separate [runtime repair verification workflow](.github/workflows/repair-verif
 | Wake enrollment rejects examples | Consistent positive phrase and truly different contrasts | Replace the identified sample; held-out checks are separate from training |
 | Wake listening stopped after reboot | Foreground listening status and assistant role | Start the non-sticky listener explicitly after unlock |
 | Arabic speech is inaccurate/heavy | Selected language, model resource use and offline voice | Test dialect/spelling on-device; English model has a smaller resource footprint |
+| Main-thread stall or OS ANR while accessibility is enabled | Build revision and the blocked stack | Install a build containing PR #192; distinguish old imported exit traces from a new reproduction and follow the [regression checks](docs/accessibility-anr-regression.md) |
 | Assistant appears but cannot tap | Accessibility connection, edition and genuine target window | Protected/ambiguous controls require handoff |
 | Bubble minimization fails | Overlay access and actual attachment acknowledgment | Do not treat service start as a visible restoration surface |
 | Unlock opens the keypad but cannot enter | Lock scopes, supported SystemUI controls and private input prerequisites | Admin/root access is not the credential; unsupported OEM widgets need manual entry |
@@ -1190,7 +1218,8 @@ For a bug report, include the edition, app revision/build, Android version, devi
 |---|---|
 | `app/` | Android source, resources, manifests, AIDL, native code and tests |
 | `gradle/`, `gradlew`, `gradlew.bat` | Pinned wrapper and version catalog |
-| `settings.gradle.kts` | Repository resolution and the current single `:app` module |
+| `settings.gradle.kts` | Repository resolution and `:app`, `:oem-system-contract`, `:oem-system` module declarations |
+| `oem-system-contract/`, `oem-system/`, `oem/` | AIDL library, separate broker application and ROM integration files |
 | `build.gradle.kts`, `app/build.gradle.kts` | Plugins, application variants, native build, signing and dependencies |
 | `.github/workflows/` | Android, repair and public security CI |
 | `.github/scripts/` | Toolchain setup, dependency staging, signing/delivery and verification helpers |
@@ -1204,7 +1233,7 @@ For a bug report, include the edition, app revision/build, Android version, devi
 
 ### Application entry points
 
-The following paths are relative to `app/src/main/java/com/omnidev/workspace/`.
+The following package paths are relative to `app/src/main/java/com/omnidev/workspace/` unless a different source root is named. Other source roots use the same `java/com/omnidev/workspace/` package prefix.
 
 | File/package | Start here for |
 |---|---|
@@ -1216,9 +1245,9 @@ The following paths are relative to `app/src/main/java/com/omnidev/workspace/`.
 | `domain/engine/MentionFocus.kt` | Turn-scoped tool/skill selection and priority hints |
 | `ui/companion/` | Little Omni artwork, motion, moods, learning and checkpoints |
 | `ui/chat/ChatViewModel.kt` | Conversation send/replay, selected mode, tools and approvals |
-| `domain/engine/AgentPipeline.kt` | Agent loop, context, tool proposals and bounded recovery |
-| `domain/engine/SwarmOrchestrator.kt` | Coordinator/worker planning and team evidence |
-| `data/tools/CompositeToolManager.kt` | Tool aggregation and dispatch |
+| `domain/engine/AgentPipeline.kt` in `agent/` | Agent loop, context, tool proposals and bounded recovery; Lite has a separate implementation boundary |
+| `domain/engine/SwarmOrchestrator.kt` in `team/` | Coordinator/worker planning and team evidence; `noTeam/` supplies the disabled boundary |
+| `data/tools/CompositeToolManager.kt` in `advanced/` or `lite/` | Flavor-specific tool aggregation and dispatch |
 | `data/tools/TierToolGate.kt` | Current tier/chat catalog filtering and dispatch denial |
 | `core/policy/TierPolicy.kt` | Edition-level capability contract |
 | `data/db/OmniDevDatabase.kt` | Current schema, entities and migration registration |
@@ -1238,12 +1267,15 @@ The following paths are relative to `app/src/main/java/com/omnidev/workspace/`.
 |---|---|
 | `app/src/main/` | Shared application code/resources/manifests |
 | `app/src/lite/`, `norm/`, `pro/`, `oem/`, `admin/` | Flavor-specific policies and manifest changes |
+| `app/src/advanced/`, `agent/`, `team/` | Advanced tools, Agent and Team implementation groups |
 | `app/src/liteNorm/` | Shared consumer-tier code |
+| `app/src/noOem/`, `noShizuku/`, `noTeam/` | Flavor boundaries without the corresponding backend |
+| `app/src/shizuku/` | Pro/Admin Shizuku implementation |
 | `app/src/proOem/`, `proOemAdmin/` | Shared native/privileged implementation groups |
 | `app/src/main/aidl/` | Binder contracts; package/signature identity determines compatibility |
-| `app/src/main/cpp/` | JNI/native integration and llama.cpp submodule |
+| `app/src/main/cpp/` | JNI/native integration and configured llama.cpp source path |
 | `app/src/main/assets/agent-skills/` | Bundled prompt-skill guidance |
-| `app/src/test/` | JVM policy/runtime/tool/storage tests |
+| `app/src/test/`, `testAdvanced/`, `testAgent/`, `testTeam/` | Common and flavor-specific JVM tests |
 | `app/src/androidTest/` | Android/Compose/device-dependent tests |
 
 A similarly named AIDL file is not automatically a duplicate. Check its package, signature and callers before consolidating protocol code. Flavor source movement should be validated in the affected build variants.
@@ -1279,6 +1311,9 @@ Some historical technical documents are in Arabic. This README and the new contr
 | Connect Omni apps | [OmniLink v3](OMNILINK_V3_INTEGRATION.md), [Link protocol](LINK_PROTOCOL.md) |
 | Integrate launcher handoff/control | [Launcher integration](docs/LAUNCHER_INTEGRATION.md) |
 | Pair Telegram or run WhatsApp locally | [Telegram](TELEGRAM_INTEGRATION.md), [WhatsApp bridge](whatsapp-bridge/README.md) |
+| Diagnose accessibility stalls and ANRs | [Accessibility ANR regression](docs/accessibility-anr-regression.md) |
+| Understand Lite/OEM permissions, continuous Chat and recovery | [Runtime stability](docs/RUNTIME_STABILITY.md), [OEM integration](oem/README.md) |
+| Reproduce repository statistics and tool counts | [Repository statistics](docs/REPOSITORY_STATS.md), [Tool and skill catalog](docs/TOOL_AND_SKILL_CATALOG.md) |
 | Review motion/performance behavior | [UI performance](UI_PERFORMANCE.md), [Chat experience](docs/chat-experience.md) |
 | Understand keyboard/model-selection changes | [Chat keyboard and model selection](docs/chat-keyboard-and-model-selection.md) |
 | Review proposed modularization | [Modularization roadmap](MODULARIZATION_ROADMAP.md) |
@@ -1292,7 +1327,7 @@ Numbered integration prompts (`00_INTEGRATION_ORDER.md`, `01_...` through `08_..
 ### Current boundaries
 
 - The application is actively developed, with feature/device acceptance coverage that varies by subsystem.
-- It is one Gradle module today; package layers do not imply completed multi-module isolation.
+- The three Gradle modules separate the application from the OEM contract/service; application package layers still do not imply complete feature-by-feature module isolation.
 - Tool preflight prevents many interface errors, but cannot prove user-intent correctness or backend availability.
 - Model availability, quotas, prices and capabilities belong to the selected provider/account.
 - Native inference needs the real submodule/native implementation, a compatible model and enough memory.
@@ -1329,8 +1364,3 @@ Original Workspace material is **proprietary, with all rights reserved** by its 
 OmniLinkSDK has its own license/notices. The llama.cpp submodule, Vosk/JNA, Android/Jetpack components, JGit, networking libraries and the WhatsApp bridge dependencies retain their respective licenses. Downloaded model weights may have terms distinct from the inference library. Connected projects such as the Lawnchair/AOSP-derived Omni Launcher and AndroidIDE keep their own authorship and licensing.
 
 Keep original notices and review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) when changing dependencies or redistributing binaries. The dependency guide is a starting inventory, not an assertion that every transitive license obligation has been automatically audited.
-
-
-### Extended personalization controls
-
-Your profile includes occupation, custom response instructions, quick answers, local suggested prompts, Markdown/plain-text replies, saved-memory use and independent automatic chat-history recall. Behavior controls apply to the shared chat/screen-assistant transcript; profile instructions reach Chat, Agent and Team. Memory opt-out blocks canonical fact tools and legacy vector aliases without deleting saved entries or disabling explicitly selected skills. Memory summary and management provides category counts, preference excerpts and source editing/deletion. See [Profile personalization](docs/PROFILE_PERSONALIZATION.md).
