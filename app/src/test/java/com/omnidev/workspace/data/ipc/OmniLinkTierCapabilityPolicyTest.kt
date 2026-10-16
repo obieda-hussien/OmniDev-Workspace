@@ -48,4 +48,19 @@ class OmniLinkTierCapabilityPolicyTest {
         assertFalse(OmniLinkTierCapabilityPolicy.allowed("ADMIN", launcher, "launcher.clear_home"))
         assertFalse(OmniLinkTierCapabilityPolicy.allowed("UNKNOWN", launcher, "launcher.health"))
     }
+
+    @Test
+    fun homeExperiencesRequireKnownCapabilitiesAndAppropriateTiers() {
+        val launcher = "app.lawnchair/app.lawnchair.omni.OmniLauncherService"
+        assertTrue(OmniLinkTierCapabilityPolicy.allowed("NORM", launcher, "launcher.list_scenes"))
+        assertTrue(OmniLinkTierCapabilityPolicy.allowed("NORM", launcher, "launcher.open_action"))
+        assertFalse(OmniLinkTierCapabilityPolicy.allowed("NORM", launcher, "launcher.apply_scene"))
+        assertTrue(OmniLinkTierCapabilityPolicy.allowed("PRO", launcher, "launcher.apply_scene"))
+        assertFalse(OmniLinkTierCapabilityPolicy.allowed("PRO", launcher, "launcher.oem.suspend_app"))
+        assertTrue(OmniLinkTierCapabilityPolicy.allowed("OEM", launcher, "launcher.oem.suspend_app"))
+        assertFalse(OmniLinkTierCapabilityPolicy.allowed("LITE", launcher, "launcher.shelf.publish"))
+        assertFalse(OmniLinkTierCapabilityPolicy.allowed("ADMIN", launcher, "launcher.future_unknown"))
+        assertFalse(OmniLinkTierCapabilityPolicy.allowed("OEM", "evil.app/Service", "launcher.oem.suspend_app"))
+    }
 }
+

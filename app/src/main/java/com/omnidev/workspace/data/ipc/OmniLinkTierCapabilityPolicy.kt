@@ -27,14 +27,24 @@ object OmniLinkTierCapabilityPolicy {
         "app.lawnchair.nightly.debug", "app.lawnchair.play", "app.lawnchair.play.debug"
     )
     private val launcherRead = setOf("launcher.health", "launcher.get_settings", "launcher.list_apps")
+    private val experienceRead = setOf(
+        "launcher.list_actions", "launcher.list_scenes", "launcher.list_folders", "launcher.shelf.list",
+        "launcher.widget_stacks.list", "launcher.oem.status"
+    )
+    private val experienceControl = setOf(
+        "launcher.open_action", "launcher.save_scene", "launcher.apply_scene", "launcher.set_folder_rule",
+        "launcher.set_alias", "launcher.shelf.publish", "launcher.widget_stacks.select"
+    )
+    private val enterpriseControl = setOf("launcher.oem.suspend_app")
     private val launcherControl = setOf("launcher.set_preference", "launcher.open_app", "launcher.open_drawer")
 
     fun allowed(tier: String, extensionId: String, capability: String): Boolean {
         if (capability.startsWith("launcher.")) {
             if (extensionId.substringBefore('/') !in launcherPackages) return false
             return when (tier.uppercase()) {
-                "ADMIN", "PRO", "OEM" -> capability in launcherRead || capability in launcherControl
-                "NORM" -> capability in launcherRead || capability == "launcher.open_app" || capability == "launcher.open_drawer"
+                "ADMIN", "OEM" -> capability in launcherRead || capability in launcherControl || capability in experienceRead || capability in experienceControl || capability in enterpriseControl
+                "PRO" -> capability in launcherRead || capability in launcherControl || capability in experienceRead || capability in experienceControl
+                "NORM" -> capability in launcherRead || capability in experienceRead || capability in setOf("launcher.open_app", "launcher.open_drawer", "launcher.open_action")
                 "LITE" -> capability in launcherRead || capability in launcherControl
                 else -> false
             }
@@ -55,3 +65,4 @@ object OmniLinkTierCapabilityPolicy {
         }
     }
 }
+
