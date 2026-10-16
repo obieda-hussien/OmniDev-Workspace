@@ -21,7 +21,10 @@ A pre-existing composer draft is preserved and appended to; an active agent run 
 
 ## Launcher control via omni_link
 
-Discover launcher.* capabilities, check launcher.health, then read settings or list_apps as needed.
+Discover launcher.* capabilities with query=launcher and refresh=true; pass extension_id to scope
+one provider and follow next_offset until null. Check launcher.health for app/catalog versions,
+then read settings or list_apps as needed. Discovery reports advertised_count and allowed_count
+separately; the six filtered commands alone cannot identify the installed Launcher version.
 Use exact components from list_apps. Mutations use the existing capability approval gate. The
 launcher independently enforces local opt-in, exact Workspace package, and same certificate.
 Enable the toggle locally in Launcher; the agent may never enable it remotely or bypass a refusal.
@@ -33,6 +36,14 @@ Enable the toggle locally in Launcher; the agent may never enable it remotely or
 | launcher.list_apps | Yes | Yes | No |
 | launcher.set_preference | With approval | No | No |
 | launcher.open_app / launcher.open_drawer | With approval | With approval | No |
+| launcher.list_actions / launcher.list_scenes / launcher.list_folders | Yes | Yes | No |
+| launcher.shelf.list / launcher.widget_stacks.list / launcher.oem.status | Yes | Yes | No |
+| launcher.get_layout | Yes | Yes | No |
+| launcher.open_action | With approval | With approval | No |
+| launcher.save_scene / launcher.apply_scene / launcher.set_folder_rule / launcher.set_alias | With approval | No | No |
+| launcher.shelf.publish / launcher.widget_stacks.select | With approval | No | No |
+| launcher.move_items / launcher.set_grid / launcher.create_folder | With approval | No | No |
+| launcher.oem.suspend_app | OEM/ADMIN only, with approval and provisioned owner role | No | No |
 
 Only known Launcher package IDs (including supported debug/nightly/play variants) and known
 capabilities are accepted by OmniLinkTierCapabilityPolicy. The receiving launcher repeats these flavor ceilings. SDK verified identity is still mandatory;
@@ -40,21 +51,37 @@ package name does not authorize anything. Public search needs no signature match
 
 set_preference accepts exactly key/value: search_provider (provider ID), omni_suggestions (boolean),
 or omni_always_suggest (boolean). It cannot clear Home, alter hidden apps, enable root or consent,
-or modify arbitrary settings. Supports dryRun. App opening/drawer actions need resumed Home and
-return foreground_required otherwise. App inventory excludes hidden apps and other profiles and
-is paged at 1–40 entries (default 20). Never claim success after a refusal.
+or modify arbitrary settings. Use omni_link dry_run=true for a supported capability; Workspace
+forwards ActionRequest.dryRun without inserting it into the business payload. App opening/drawer
+actions need resumed Home and return foreground_required otherwise. Missing capability schemas
+fail before execution, including explicit-extension requests; they cannot bypass approval.
+
+The current launcher.list_apps inventory includes visible launchable apps in accessible Android
+profiles, excludes hidden apps, and is paged at 1–40 entries (default 20). Each entry includes
+component, componentKey and profileSerial. Pass the returned profileSerial with component to
+launcher.open_app for a specific profile; omission retains current-profile behavior. Do not
+collapse same-package apps from different profiles. Never claim success after a refusal.
+
+The matching Launcher catalog v2 advertises 24 commands. Home moves use get_layout revisions and
+exact item/screen IDs; conflicts/stale state are rejected atomically. set_grid uses the normal
+launcher migration and may reflow content. create_folder creates a drawer rule folder, not a
+Home icon folder. After reloadScheduled, verify with get_layout. See
+[Home schemas, examples and limits](LAUNCHER_EXPERIENCES.md) for details. Both matching signed
+Launcher and Workspace builds must be installed; refresh cannot add code to an older APK.
 
 ## Validation
 
 OmniSearchIngressTest covers Arabic, empty/malformed/oversized requests, OPEN_OMNI, rejected kinds,
 and ignored authority extras. OmniLinkTierCapabilityPolicyTest covers flavor ceilings, spoofed
 package IDs, unknown tiers and unknown launcher capabilities. Run `:app:testLiteDebugUnitTest`
-and the normal flavor CI builds. Direct Kotlin/JUnit execution passed all 13 shared-logic tests
-(including Launcher policies) using actual SDK protocol sources and serialization compiler support.
-Workspace Gradle wrapper bootstrap failed locally. Launcher configured via Gradle 9.3.0 but
-its build stopped because the installed Java 17 toolchain lacks JAVA_COMPILER. Device checks and
-full Android compilation are still required. Test cold/warm handoff, rotation, rapid search,
-existing draft/active run, signer mismatch, revoked consent, hidden apps and foreground gating.
+and the normal flavor CI builds. The focused discovery/host-policy suite executes 12 tests with
+scripts/test_launcher_link.py locally and on CI. Launcher executes 44 direct JVM regressions and
+its three APK variants pass CI. Workspace quality compilation and all-flavor unit tests passed;
+full Lint, API-30 UI tests and distributable release jobs were still running at the merge check:
+[Workspace CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/38869246104).
+Device interoperability is separately required. Test cold/warm handoff, rotation, rapid search,
+existing draft/active run, signer mismatch, revoked consent, accessible/hidden profiles,
+foreground gating, paged discovery, Home collision checks and stale-revision replanning.
 
 ## Maintainer and original authors
 
