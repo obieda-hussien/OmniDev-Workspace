@@ -28,11 +28,11 @@ object OmniLinkTierCapabilityPolicy {
     )
     private val launcherRead = setOf("launcher.health", "launcher.get_settings", "launcher.list_apps")
     private val experienceRead = setOf(
-        "launcher.list_actions", "launcher.list_scenes", "launcher.list_folders", "launcher.shelf.list",
+        "launcher.get_layout", "launcher.list_actions", "launcher.list_scenes", "launcher.list_folders", "launcher.shelf.list",
         "launcher.widget_stacks.list", "launcher.oem.status"
     )
     private val experienceControl = setOf(
-        "launcher.open_action", "launcher.save_scene", "launcher.apply_scene", "launcher.set_folder_rule",
+        "launcher.move_items", "launcher.set_grid", "launcher.create_folder", "launcher.open_action", "launcher.save_scene", "launcher.apply_scene", "launcher.set_folder_rule",
         "launcher.set_alias", "launcher.shelf.publish", "launcher.widget_stacks.select"
     )
     private val enterpriseControl = setOf("launcher.oem.suspend_app")

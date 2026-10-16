@@ -31,6 +31,8 @@ import com.omnilink.sdk.trusted.ProviderIdentityMode
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +89,9 @@ object ExtensionConnectionManager {
         val id: String get() = packageName + "/" + serviceClassName
     }
 
+    private val catalogRevision = AtomicLong(0)
+    fun capabilityCatalogRevision(): Long = catalogRevision.get()
+
     private val handles = ConcurrentHashMap<String, ExtensionHandle>()
     private val serviceConnections = ConcurrentHashMap<String, ServiceConnection>()
     private val eventQueues = ConcurrentHashMap<String, ConcurrentLinkedDeque<String>>()
@@ -94,7 +99,14 @@ object ExtensionConnectionManager {
     private val packageChangeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent?) {
             Log.i(TAG, "Package change detected: " + intent?.action)
-            refreshDiscoveredExtensions()
+            catalogRevision.incrementAndGet()
+            // Package replacement must discard the old process Binder, even if its component ID
+            // and signing key are unchanged. Queries/binds are not broadcast-main-thread work.
+            val changedPackage = intent?.data?.schemeSpecificPart
+            lifecycleScope.launch {
+                handles.keys.filter { it.substringBefore('/') == changedPackage }.forEach(::unbindById)
+                refreshDiscoveredExtensions()
+            }
         }
     }
 
@@ -110,6 +122,7 @@ object ExtensionConnectionManager {
         if (context != null && receiverRegistered.compareAndSet(true, false)) {
             runCatching { context.unregisterReceiver(packageChangeReceiver) }
         }
+        catalogRevision.incrementAndGet()
         unbindAll()
         eventQueues.clear()
         initialized.set(false)
@@ -194,6 +207,7 @@ object ExtensionConnectionManager {
             invalidateAndReconnect(handle, remote)
             errorJson("Failed to fetch manifest: " + (remote.message ?: "remote process died"))
         } catch (error: Exception) {
+            if (error is CancellationException) throw error
             errorJson("Failed to fetch manifest: " + (error.message ?: "unknown"))
         }
     }
@@ -201,7 +215,8 @@ object ExtensionConnectionManager {
     suspend fun executeAction(
         extensionId: String,
         actionName: String,
-        jsonPayload: String
+        jsonPayload: String,
+        dryRun: Boolean = false
     ): String = withContext(Dispatchers.IO) {
         val handle = handles[extensionId] ?: return@withContext errorJson(
             "Extension not found: " + extensionId
@@ -212,8 +227,8 @@ object ExtensionConnectionManager {
 
         val payload: JsonElement = runCatching {
             json.parseToJsonElement(jsonPayload.ifBlank { "{}" })
-        }.getOrElse { buildJsonObject {} }
-        val requestJson = json.encodeToString(ActionRequest(actionName, payload))
+        }.getOrElse { return@withContext errorJson("Invalid action payload JSON") }
+        val requestJson = json.encodeToString(ActionRequest(actionName, payload, dryRun = dryRun))
         if (requestJson.length > MAX_BINDER_REQUEST_CHARS) {
             return@withContext errorJson(
                 "Action payload is too large for safe Binder transport (" +
@@ -231,6 +246,7 @@ object ExtensionConnectionManager {
             invalidateAndReconnect(handle, remote)
             errorJson("Action execution failed: " + (remote.message ?: "remote process died"))
         } catch (error: Exception) {
+            if (error is CancellationException) throw error
             errorJson("Action execution failed: " + (error.message ?: "unknown"))
         }
     }
@@ -372,6 +388,7 @@ object ExtensionConnectionManager {
                     return
                 }
                 val typed = IExtensionService.Stub.asInterface(service)
+                catalogRevision.incrementAndGet()
                 handle.binder = typed
                 if (typed != null) registerEventStream(handle, typed)
                 Log.i(TAG, "Connected extension: " + handle.id)
@@ -382,6 +399,7 @@ object ExtensionConnectionManager {
                 // The binding itself remains active after a transient service-process death;
                 // Android will reconnect this ServiceConnection when the service comes back.
                 // Starting a second bind here leaks/duplicates connections.
+                catalogRevision.incrementAndGet()
                 handle.binder = null
                 handle.eventCallback = null
                 Log.w(TAG, "Disconnected extension; awaiting system reconnect: " + handle.id)
@@ -466,6 +484,7 @@ object ExtensionConnectionManager {
     }
 
     private fun unbindById(id: String) {
+        catalogRevision.incrementAndGet()
         val context = appContext ?: return
         val handle = handles[id]
         val callback = handle?.eventCallback

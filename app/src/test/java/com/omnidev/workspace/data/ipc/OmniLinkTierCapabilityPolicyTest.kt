@@ -50,6 +50,17 @@ class OmniLinkTierCapabilityPolicyTest {
     }
 
     @Test
+    fun layoutReadAndWritesMatchReceiverCeilings() {
+        val launcher = "app.lawnchair/app.lawnchair.omni.OmniLauncherService"
+        assertTrue(OmniLinkTierCapabilityPolicy.allowed("NORM", launcher, "launcher.get_layout"))
+        listOf("launcher.move_items", "launcher.set_grid", "launcher.create_folder").forEach { action ->
+            listOf("PRO", "OEM", "ADMIN").forEach { assertTrue(OmniLinkTierCapabilityPolicy.allowed(it, launcher, action)) }
+            listOf("LITE", "NORM").forEach { assertFalse(OmniLinkTierCapabilityPolicy.allowed(it, launcher, action)) }
+            assertFalse(OmniLinkTierCapabilityPolicy.allowed("ADMIN", "evil.app/Service", action))
+        }
+    }
+
+    @Test
     fun homeExperiencesRequireKnownCapabilitiesAndAppropriateTiers() {
         val launcher = "app.lawnchair/app.lawnchair.omni.OmniLauncherService"
         assertTrue(OmniLinkTierCapabilityPolicy.allowed("NORM", launcher, "launcher.list_scenes"))
