@@ -115,9 +115,27 @@ Do not use tools. Do not rewrite merely for style.
             // Optional telemetry.
         }
 
+        // Team worker prompts contain the original broad objective after the assigned atomic task.
+        // Route capabilities from the assigned slice only, otherwise every worker gets the whole
+        // project's tool domains and pays for irrelevant schemas.
+        val routingObjective = extractRoutingObjective(userMessage)
+        val recentUserIntent = conversationHistory
+            .asReversed()
+            .asSequence()
+            .filter { it.role == MessageRole.USER }
+            .take(2)
+            .toList()
+            .asReversed()
+            .joinToString("\n") { it.content.take(800) }
+        var routingContext = buildString {
+            if (recentUserIntent.isNotBlank()) append(recentUserIntent).appendLine()
+            append(routingObjective)
+        }.takeLast(2_400)
+
         val learnedTool = (toolManager as? CompositeToolManager)?.learnedRoutineTool
         // This path precedes provider selection, API key reads, memory retrieval and prompt compilation.
-        val localMatch = if (!mentionFocus.active && steering == null && workerPersona == null && toolCallEligibility == null && userAttachments.isEmpty() &&
+        val launcherReplayNeedsEvidence = LauncherExecutionLedger(routingContext).requiresAction
+        val localMatch = if (!launcherReplayNeedsEvidence && !mentionFocus.active && steering == null && workerPersona == null && toolCallEligibility == null && userAttachments.isEmpty() &&
             toolAccessMode != "DISABLED" && "learned_routine" !in disabledToolNames)
             learnedTool?.let { com.omnidev.workspace.data.routines.RoutineMatcher.match(userMessage, it.hub.store.list()) } else null
         if (localMatch != null) {
@@ -144,22 +162,6 @@ Do not use tools. Do not rewrite merely for style.
         val resolvedApiKey = apiKeyRepository?.getApiKey(model.provider)
         val nativeTools = model.supportsFunctionCalling && model.provider != com.omnidev.workspace.data.model.ModelProvider.LOCAL_EDGE
 
-        // Team worker prompts contain the original broad objective after the assigned atomic task.
-        // Route capabilities from the assigned slice only, otherwise every worker gets the whole
-        // project's tool domains and pays for irrelevant schemas.
-        val routingObjective = extractRoutingObjective(userMessage)
-        val recentUserIntent = conversationHistory
-            .asReversed()
-            .asSequence()
-            .filter { it.role == MessageRole.USER }
-            .take(2)
-            .toList()
-            .asReversed()
-            .joinToString("\n") { it.content.take(800) }
-        var routingContext = buildString {
-            if (recentUserIntent.isNotBlank()) append(recentUserIntent).appendLine()
-            append(routingObjective)
-        }.takeLast(2_400)
         var taskSignals = IntentClassifier.analyze(routingObjective)
         val localTools = toolManager.getToolDefinitions()
             .asSequence()
