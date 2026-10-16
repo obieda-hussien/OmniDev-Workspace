@@ -277,7 +277,7 @@ Do not use tools. Do not rewrite merely for style.
             unresolvedToolFailure = null
             invalidBatches = 0
             automaticRouter = AutomaticToolRouter(runCatalog)
-            launcherEvidence = LauncherExecutionLedger(routingContext)
+            launcherEvidence = launcherEvidence.redirected(routingContext)
             githubFailures = GitHubFailureLedger()
             repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
             stagnationDetector = AgentStagnationDetector(windowSize = 8, minIterationsBeforeAbort = 3, abortThreshold = 0.76f)

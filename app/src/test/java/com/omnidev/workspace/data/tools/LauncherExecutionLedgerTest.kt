@@ -59,4 +59,30 @@ class LauncherExecutionLedgerTest {
         assertFalse(OmniLinkActionSemantics.isReadOnly(args("launcher.create_home_folder")))
         assertFalse(OmniLinkActionSemantics.isReadOnly(args("launcher.unknown")))
     }
+
+    @Test fun explanatoryAndProjectGoalsCanCompleteWithoutChangingHome() {
+        for (goal in listOf("How do I organize my launcher?", "Create a launcher app project", "Implement launcher folder organization in the repository", "اشرح ازاي ارتب التطبيقات", "اعمل مشروع لانشر")) {
+            val ledger = LauncherExecutionLedger(goal)
+            assertFalse(goal, ledger.requiresAction)
+            assertNull(ledger.checkTool("write_file", emptyMap()))
+            assertNull(ledger.completionFeedback())
+        }
+        assertTrue(LauncherExecutionLedger("Can you organize my launcher?").requiresAction)
+    }
+    @Test fun explicitHomeFolderWordingRejectsDrawerSubstitution() {
+        val ledger = LauncherExecutionLedger("Create home folders in my launcher")
+        ledger.observe("omni_link", args("launcher.create_folder"), outcome(JSONObject().put("folderId", 5)), false)
+        assertNotNull(ledger.completionFeedback())
+        ledger.observe("omni_link", args("launcher.create_home_folder"), outcome(JSONObject().put("reloadScheduled", true)), false)
+        ledger.observe("omni_link", args("launcher.get_layout"), outcome(JSONObject().put("revision", "new")), false)
+        assertNull(ledger.completionFeedback())
+    }
+    @Test fun steeringPreservesCommittedHomeMutationAndRequiresReadback() {
+        val original = LauncherExecutionLedger("Create home folders in my launcher")
+        original.observe("omni_link", args("launcher.create_home_folder"), outcome(JSONObject().put("reloadScheduled", true)), false)
+        val redirected = original.redirected("Create home folders in my launcher and keep the dock unchanged")
+        assertTrue(redirected.completionFeedback()!!.contains("already succeeded"))
+        redirected.observe("omni_link", args("launcher.get_layout"), outcome(JSONObject().put("revision", "new")), false)
+        assertNull(redirected.completionFeedback())
+    }
 }

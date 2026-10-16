@@ -108,7 +108,7 @@
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/LauncherExecutionLedger.kt": {
-    "sha256": "e58f9ea961bd3697f6bc27f7e997b2a0226f1377d4092b675d8cc1bb6ef0716c",
+    "sha256": "4bf2d95a4387dbd72119f6171e52412d7371f32c4c03dc03ae868c16eb9a6dc2",
     "purpose": "Functional Arabic input matching for Launcher execution intent and negation; never display prose."
   }
 }

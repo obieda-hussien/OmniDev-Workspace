@@ -221,4 +221,28 @@ class AgentPipelineToolContractTest {
         assertEquals(listOf("launcher.move_items", "launcher.get_layout"), executed)
         assertEquals(1, events.filterIsInstance<AgentEvent.FinalAnswer>().size)
     }
+
+    @Test fun `launcher steering verifies acknowledged changes without repeating mutation`() = runTest {
+        var round = 0
+        val executed = mutableListOf<String>()
+        val control = RunSteering()
+        val delegate = launcherTools(executed)
+        val tools = object : ToolManager by delegate {
+            override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
+                val result = delegate.executeTool(name, arguments, scopePath)
+                if (arguments["action_name"] == "launcher.move_items") control.submit("Keep the dock unchanged")
+                return result
+            }
+        }
+        val pipeline = AgentPipeline(tools, completionProvider = {
+            when (++round) {
+                1 -> CompletionResponse("", listOf(ToolCall("move", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.move_items", "json_payload" to "{\"expectedRevision\":\"old\"}"))))
+                2 -> CompletionResponse("", listOf(ToolCall("verify", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.get_layout"))))
+                else -> CompletionResponse("Verified arrangement with dock preserved")
+            }
+        }, config = config)
+        val events = pipeline.execute("Organize launcher home screen", modelId = "gpt-4o-mini", scopePath = "/tmp", steering = control).toList()
+        assertEquals(listOf("launcher.move_items", "launcher.get_layout"), executed)
+        assertEquals(1, events.filterIsInstance<AgentEvent.FinalAnswer>().size)
+    }
 }

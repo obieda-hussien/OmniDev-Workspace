@@ -8,11 +8,17 @@ import org.json.JSONObject
 internal class LauncherExecutionLedger(objective: String) {
     private val normalized = Normalizer.normalize(objective, Normalizer.Form.NFKD)
         .replace(Regex("\\p{M}+"), "").replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا').lowercase(Locale.ROOT)
-    val requiresAction = listOf("launcher", "home screen", "اللانشر", "اللنشر", "التطبيقات", "المجلدات", "الهوم").any(normalized::contains) &&
-        listOf("arrange", "organize", "rearrange", "move", "create", "set grid", "change layout", "رتب", "نظم", "ظبط", "انقل", "اعمل", "انشئ", "غير التخطيط").any(normalized::contains) &&
+    private val words = normalized.split(Regex("[^\\p{L}\\p{N}]+")).toSet()
+    private val explanatory = listOf("how do i", "how to", "how can i", "how would", "how does", "explain", "tell me how", "ازاي", "كيف", "اشرح", "علمني").any(normalized::contains)
+    private val projectWork = listOf("app project", "launcher project", "source code", "repository", "codebase", "pull request", "gradle", "android studio", "implement", "build a launcher", "مشروع", "ريبو", "الكود", "برمجة").any(normalized::contains)
+    private val imperative = words.any { it in setOf("arrange", "organize", "organise", "rearrange", "sort", "move", "group", "create", "set", "change") } ||
+        listOf("رتب", "نظم", "ظبط", "انقل", "اعمل", "انشئ", "غير التخطيط").any(normalized::contains)
+    val requiresAction = !explanatory && !projectWork && imperative &&
+        listOf("launcher", "home screen", "homescreen", "home-screen", "اللانشر", "اللنشر", "التطبيقات", "المجلدات", "الهوم", "الشاشة الرئيسية").any(normalized::contains) &&
         listOf("do not execute", "plan only", "متنفذش", "لا تنفذ", "خطة فقط").none(normalized::contains)
-    private val homeOrganization = listOf("home screen", "الشاشة", "الشاشه", "الهوم").any(normalized::contains)
+    private val homeOrganization = "home" in words || "homescreen" in words || listOf("الشاشة", "الشاشه", "الهوم", "الصفحة الرئيسية").any(normalized::contains)
     private val explicitFileGoal = listOf("export", "save a file", "تصدير", "احفظ ملف").any(normalized::contains)
+    private var successfulAction: String? = null
     private var mutated = false
     private var verified = false
     private var expectedRevision: String? = null
@@ -46,6 +52,7 @@ internal class LauncherExecutionLedger(objective: String) {
         val payload = runCatching { JSONObject(args["json_payload"] ?: "{}") }.getOrNull()
         if (args["dry_run"] == "true" || data.optBoolean("dryRun")) return
         if (action in mutations && (!homeOrganization || action in homeMutations)) {
+            successfulAction = action
             mutated = true
             expectedRevision = payload?.optString("expectedRevision")?.takeIf { it.isNotBlank() }
             verified = !data.optBoolean("reloadScheduled")
@@ -53,10 +60,23 @@ internal class LauncherExecutionLedger(objective: String) {
         }
     }
 
+    /** Carry acknowledged side effects across a correction; read them back instead of replaying. */
+    fun redirected(objective: String): LauncherExecutionLedger = LauncherExecutionLedger(objective).also { next ->
+        val action = successfulAction
+        if (mutated && action != null && (!next.homeOrganization || action in homeMutations)) {
+            next.successfulAction = action
+            next.mutated = true
+            next.expectedRevision = expectedRevision
+            // A changed Home objective must inspect the committed layout again, never repeat the write.
+            next.verified = if (action in homeMutations) false else verified
+            next.failure = failure
+        }
+    }
+
     fun completionFeedback(): String? {
         if (!needsActionGuidance) return null
         recoveries++
-        return if (mutated) "Launcher mutation only scheduled a reload. Read launcher.get_layout again and verify a fresh revision and the requested arrangement before finishing. Do not repeat the mutation blindly."
+        return if (mutated) "A Launcher mutation already succeeded. Read launcher.get_layout again and verify a fresh revision and the requested arrangement before finishing. Do not repeat the mutation blindly."
         else "The user requested Launcher changes, but no real mutation succeeded. Read-only discovery/health/layout/apps is not completion. Discover the actual extension (never guess package IDs), fetch needed pages/schemas, then execute the appropriate approved capability. For Home folders use launcher.create_home_folder, not drawer rules or files. If denied, report the real blocker without claiming success."
     }
     fun failureMessage() = "Launcher changes remain unverified: " + (failure ?: if (mutated) "reload not verified" else "no successful Launcher mutation")
