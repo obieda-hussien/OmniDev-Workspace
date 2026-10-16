@@ -60,6 +60,14 @@ The repository contains the Android application, native inference integration, J
 - [Contributing, support and repository maintenance](#contributing-support-and-repository-maintenance)
 - [Ownership, licensing and acknowledgments](#ownership-licensing-and-acknowledgments)
 
+## Launcher discovery and Home control
+
+The companion Launcher integration now supports scoped capability discovery, catalog/version diagnostics,
+Home layout snapshots, existing-app icon moves, grid migration and drawer rule folders. Install the
+matching Launcher PR #16 and Workspace PR #194 builds with the same signing certificate and enable
+local launcher-control consent. Follow discovery pagination; use `dry_run=true` before an approved
+mutation. [Contracts and troubleshooting](docs/LAUNCHER_EXPERIENCES.md).
+
 ## Repository size and source statistics
 
 This reproducible snapshot counts committed content at [`07328faa`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/07328faa8a066a77727343a45fce5b7e25b545cb) on **15 October 2026**, after the accessibility ANR repair in PR #192. It includes Lite source isolation, the OEM system broker/contract, continuous Chat, dependency hardening and the bounded background accessibility observer. This documentation/counter maintenance update is excluded from that fixed snapshot. The current counter includes AIDL and flavor-specific test roots (`testAdvanced`, `testAgent`, `testTeam`); older reports omitted those categories.

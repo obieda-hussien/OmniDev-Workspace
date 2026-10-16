@@ -55,6 +55,9 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
+      - name: Test OmniLink discovery and launcher capability policies
+        run: python3 scripts/test_launcher_link.py
+
       - name: Self-test private keystore restoration
         run: bash .github/scripts/test-restore-release-keystore.sh
 
