@@ -1,6 +1,6 @@
 # Omni Launcher integration
 
-Workspace now receives the OmniLink v3.0.0 public ASK_OMNI/OPEN_OMNI action through MainActivity.
+Workspace now receives the OmniLink v3.0.0 public ASK_OMNI/OPEN_OMNI action through AssistantActivity.
 The launcher sends an explicit, user-visible intent to an installed Workspace variant. No new
 SDK release or AIDL ABI is required. Existing same-signer extension discovery/control stays separate
 from unprivileged search ingress.
@@ -11,9 +11,9 @@ Choose Omni in Launcher → Search bar → Search provider, or tap Ask Omni in a
 search. The launcher offers the row on a nonblank local miss, with optional always-show and disable
 settings. ASI search, Smartspace, and Google feed are separate surfaces.
 
-MainActivity accepts only the SDK public action, consumes the JSON extra once, and handles both
+AssistantActivity accepts the SDK public action, consumes the JSON extra once, and handles both
 cold launch and singleTop onNewIntent. OmniSearchIngress checks the 32 KiB SDK byte budget,
-parses the typed request, and limits ASK_OMNI to 8,192 nonblank characters. OPEN_OMNI opens chat
+parses the typed request, and limits ASK_OMNI to 8,192 nonblank characters. OPEN_OMNI opens the floating assistant
 without importing a prompt. Malformed or unsupported SHARE_TO_OMNI requests are ignored.
 Public extras are never used as identity, tier, approval, auto-run, tool, session, URL or grant
 instructions. The received text is a draft and nothing executes before the user presses Send.
@@ -42,7 +42,7 @@ Enable the toggle locally in Launcher; the agent may never enable it remotely or
 | launcher.open_action | With approval | With approval | No |
 | launcher.save_scene / launcher.apply_scene / launcher.set_folder_rule / launcher.set_alias | With approval | No | No |
 | launcher.shelf.publish / launcher.widget_stacks.select | With approval | No | No |
-| launcher.move_items / launcher.set_grid / launcher.create_folder | With approval | No | No |
+| launcher.move_items / launcher.set_grid / launcher.create_folder / launcher.create_home_folder | With approval | No | No |
 | launcher.oem.suspend_app | OEM/ADMIN only, with approval and provisioned owner role | No | No |
 
 Only known Launcher package IDs (including supported debug/nightly/play variants) and known
@@ -62,10 +62,10 @@ component, componentKey and profileSerial. Pass the returned profileSerial with 
 launcher.open_app for a specific profile; omission retains current-profile behavior. Do not
 collapse same-package apps from different profiles. Never claim success after a refusal.
 
-The matching Launcher catalog v2 advertises 24 commands. Home moves use get_layout revisions and
+The matching Launcher catalog v3 advertises 25 commands. Home moves use get_layout revisions and
 exact item/screen IDs; conflicts/stale state are rejected atomically. set_grid uses the normal
 launcher migration and may reflow content. create_folder creates a drawer rule folder, not a
-Home icon folder. After reloadScheduled, verify with get_layout. See
+Home icon folder; create_home_folder atomically groups existing visible Home icons. After reloadScheduled, verify with get_layout. See
 [Home schemas, examples and limits](LAUNCHER_EXPERIENCES.md) for details. Both matching signed
 Launcher and Workspace builds must be installed; refresh cannot add code to an older APK.
 

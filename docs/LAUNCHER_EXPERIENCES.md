@@ -25,8 +25,8 @@ revision. Package replacement drops the old Binder; reconnect/unbind invalidates
 Package receiver queries/binds run on the existing bounded IO scope. Explicit refresh discards the
 snapshot; execution always re-resolves a fresh schema and fails if the action is not advertised.
 
-The companion Launcher now advertises 24 commands. Read `launcher.health` for app version and catalog
-version 2. A protocol version is not a catalog version; install both matching signed APKs. Refreshing
+The companion Launcher now advertises 25 commands. Read `launcher.health` for app version and catalog
+version 3. A protocol version is not a catalog version; install both matching signed APKs. Refreshing
 an old installed six-command Launcher does not add commands. PRO/OEM/ADMIN can use the following after
 confirmation and local receiver consent; NORM may read the layout only:
 
@@ -35,6 +35,7 @@ confirmation and local receiver consent; NORM may read the layout only:
 | launcher.get_layout | Page occupancy, rows/columns, actual screen IDs and revision; hidden identities are omitted |
 | launcher.move_items | expectedRevision + 1–40 {id, screenId, cellX, cellY}; only existing visible Home application icons; atomic swaps and collision checks |
 | launcher.set_grid | expectedRevision, rows, columns; standard grid migration, 3–10 (up to 20 only if locally enabled); can reflow content |
+| launcher.create_home_folder | expectedRevision, title, itemIds; atomic grouping of 2–40 existing visible Home application icons at the first member cell |
 | launcher.create_folder | title + nameContains/packagePrefix/category condition; creates a drawer rule folder, not a Home icon folder |
 
 Call find_capability for the full schema, use `dry_run=true` to validate supported actions, then request
