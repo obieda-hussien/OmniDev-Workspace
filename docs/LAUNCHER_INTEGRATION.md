@@ -72,13 +72,20 @@ Launcher and Workspace builds must be installed; refresh cannot add code to an o
 ## Validation
 
 OmniSearchIngressTest covers Arabic, empty/malformed/oversized requests, OPEN_OMNI, rejected kinds,
-and ignored authority extras. OmniLinkTierCapabilityPolicyTest covers flavor ceilings, spoofed
-package IDs, unknown tiers and unknown launcher capabilities. Run `:app:testLiteDebugUnitTest`
-and the normal flavor CI builds. The focused discovery/host-policy suite executes 12 tests with
-scripts/test_launcher_link.py locally and on CI. Launcher executes 44 direct JVM regressions and
-its three APK variants pass CI. Workspace quality compilation and all-flavor unit tests passed;
-full Lint, API-30 UI tests and distributable release jobs were still running at the merge check:
-[Workspace CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/38869246104).
+ignored authority extras and preservation of an existing draft. OmniLinkTierCapabilityPolicyTest
+covers flavor ceilings, spoofed package IDs, unknown tiers and unknown launcher capabilities.
+The focused discovery/host-policy/evidence suite executes 23 tests through
+scripts/test_launcher_link.py, locally and on CI. Launcher executes 46 direct JVM regressions;
+all three APK variants, style/source isolation and final-status passed
+[Launcher CI #67](https://github.com/obieda-hussien/Omni-launcher/actions/runs/38943291188).
+Workspace quality compilation and all-flavor unit tests passed
+[Workspace CI #1057](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/38943624957).
+JUnit XML confirms all three Launcher AgentPipeline regressions executed successfully in
+NORM/PRO/OEM/ADMIN, with ingress/evidence tests also running in Lite. The Android entry regression
+checks public manifest routing, unsent draft delivery and recreation; its API-30 instrumentation
+result has zero failures, errors or skips. The full API-30 UI suite, all-flavor lint, distributable
+release APKs and final pipeline summary also passed in that run. The validated code commit is
+58a14f91a9ab142fd8bd51a7a1f5d7eaeaf87c3a; subsequent changes only update this documentation.
 Device interoperability is separately required. Test cold/warm handoff, rotation, rapid search,
 existing draft/active run, signer mismatch, revoked consent, accessible/hidden profiles,
 foreground gating, paged discovery, Home collision checks and stale-revision replanning.
