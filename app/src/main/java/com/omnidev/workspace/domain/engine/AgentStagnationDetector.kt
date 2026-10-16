@@ -325,6 +325,7 @@ class AgentStagnationDetector(
 
     private fun isReadOnlyCall(call: ToolCall): Boolean {
         val name = call.name.lowercase()
+        if (name == "omni_link") return com.omnidev.workspace.data.tools.OmniLinkActionSemantics.isReadOnly(call.arguments)
         if (name == "semantic_ui") {
             val action = call.arguments["action"]?.lowercase()
             return action == null || action in READ_ONLY_UI_ACTIONS

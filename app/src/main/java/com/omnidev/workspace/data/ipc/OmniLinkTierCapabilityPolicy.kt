@@ -32,11 +32,13 @@ object OmniLinkTierCapabilityPolicy {
         "launcher.widget_stacks.list", "launcher.oem.status"
     )
     private val experienceControl = setOf(
-        "launcher.move_items", "launcher.set_grid", "launcher.create_folder", "launcher.open_action", "launcher.save_scene", "launcher.apply_scene", "launcher.set_folder_rule",
+        "launcher.create_home_folder", "launcher.move_items", "launcher.set_grid", "launcher.create_folder", "launcher.open_action", "launcher.save_scene", "launcher.apply_scene", "launcher.set_folder_rule",
         "launcher.set_alias", "launcher.shelf.publish", "launcher.widget_stacks.select"
     )
     private val enterpriseControl = setOf("launcher.oem.suspend_app")
     private val launcherControl = setOf("launcher.set_preference", "launcher.open_app", "launcher.open_drawer")
+
+    fun isLauncherProvider(extensionId: String): Boolean = extensionId.substringBefore('/') in launcherPackages
 
     fun allowed(tier: String, extensionId: String, capability: String): Boolean {
         if (capability.startsWith("launcher.")) {

@@ -90,3 +90,9 @@ Workspace integration development, updates and maintenance are attributed to
 fork whose original authors retain their credits and licenses. The SDK also retains its separate
 owner notices and license. See [ATTRIBUTION.md](../ATTRIBUTION.md). Existing rights notices and
 historical documents are preserved; this guide describes only the new application contract.
+
+### Floating search handoff update
+
+The public SDK intent filter now resolves to AssistantActivity. ASK_OMNI imports validated text into an unsent assistant draft; OPEN_OMNI opens that assistant. No request executes automatically or enables control. Existing draft text and in-flight work are preserved, and a recreated host does not import the same draft twice. Explicit legacy MainActivity callers still use its existing ingress handling. The matching Launcher fixes its multi-install chooser and bounds optional preferred-target persistence.
+
+Catalog version 3 adds launcher.create_home_folder for actual Home icons; see LAUNCHER_EXPERIENCES.md for the atomic grouping and execution-evidence contract. Update both installed APKs with the existing signing key; discovery cannot add implementation to an old build.

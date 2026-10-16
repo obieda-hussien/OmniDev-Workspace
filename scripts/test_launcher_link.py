@@ -22,6 +22,9 @@ for name, artifact in ARTIFACTS.items():
             target.write_bytes(response.read())
 classpath = os.pathsep.join(str(CACHE / name) for name in ARTIFACTS)
 sources = [
+    'app/src/main/java/com/omnidev/workspace/data/tools/OmniLinkActionSemantics.kt',
+    'app/src/main/java/com/omnidev/workspace/domain/engine/LauncherExecutionLedger.kt',
+    'app/src/test/java/com/omnidev/workspace/data/tools/LauncherExecutionLedgerTest.kt',
     'app/src/main/java/com/omnidev/workspace/data/tools/OmniLinkDiscovery.kt',
     'app/src/main/java/com/omnidev/workspace/data/ipc/OmniLinkTierCapabilityPolicy.kt',
     'app/src/test/java/com/omnidev/workspace/data/tools/OmniLinkDiscoveryTest.kt',
@@ -30,5 +33,6 @@ sources = [
 with tempfile.TemporaryDirectory(prefix='omni-link-tests-') as output:
     subprocess.run(['java', '-cp', classpath, 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler', '-no-stdlib', '-no-reflect', '-classpath', classpath, '-d', output] + sources, cwd=ROOT, check=True)
     subprocess.run(['java', '-cp', output + os.pathsep + classpath, 'org.junit.runner.JUnitCore',
+        'com.omnidev.workspace.data.tools.LauncherExecutionLedgerTest',
         'com.omnidev.workspace.data.tools.OmniLinkDiscoveryTest',
         'com.omnidev.workspace.data.ipc.OmniLinkTierCapabilityPolicyTest'], cwd=ROOT, check=True)

@@ -181,4 +181,44 @@ class AgentPipelineToolContractTest {
             assertEquals(listOf("read_file"), tools.executed)
         } finally { ModelRegistry.setProviderModels(ModelProvider.OPENAI, originalModels) }
     }
+
+    private fun launcherTools(executed: MutableList<String>) = object : ToolManager {
+        override fun getToolDefinitions() = listOf(ToolDefinition("omni_link", "Launcher control", listOf(
+            ToolParameter("action", "string", "Action"), ToolParameter("action_name", "string", "Capability"),
+            ToolParameter("json_payload", "string", "Payload", required = false))))
+        override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
+            val action = arguments.getValue("action_name")
+            executed += action
+            val data = if (action == "launcher.move_items") "{\"reloadScheduled\":true}" else "{\"revision\":\"new\"}"
+            return ToolExecutionResult(org.json.JSONObject().put("ok", true).put("result_json",
+                org.json.JSONObject().put("type", "com.omnilink.sdk.ActionOutcome.Success").put("data", org.json.JSONObject(data)).toString()).toString())
+        }
+    }
+    @Test fun `launcher read only run cannot publish or learn success`() = runTest {
+        var round = 0
+        val executed = mutableListOf<String>()
+        val pipeline = AgentPipeline(launcherTools(executed), completionProvider = {
+            if (++round == 1) CompletionResponse("", listOf(ToolCall("health", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.health"))))
+            else CompletionResponse("Home arranged successfully")
+        }, config = config)
+        val events = pipeline.execute("Organize launcher home screen", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
+        assertTrue(events.none { it is AgentEvent.FinalAnswer })
+        assertTrue(events.filterIsInstance<AgentEvent.Error>().any { it.message.contains("unverified") })
+        assertEquals(listOf("launcher.health"), executed)
+    }
+    @Test fun `launcher scheduled mutation is verified before completion`() = runTest {
+        var round = 0
+        val executed = mutableListOf<String>()
+        val pipeline = AgentPipeline(launcherTools(executed), completionProvider = {
+            when (++round) {
+                1 -> CompletionResponse("", listOf(ToolCall("move", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.move_items", "json_payload" to "{\"expectedRevision\":\"old\"}"))))
+                2 -> CompletionResponse("Arranged")
+                3 -> CompletionResponse("", listOf(ToolCall("verify", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.get_layout"))))
+                else -> CompletionResponse("Verified arrangement")
+            }
+        }, config = config)
+        val events = pipeline.execute("Organize launcher home screen", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
+        assertEquals(listOf("launcher.move_items", "launcher.get_layout"), executed)
+        assertEquals(1, events.filterIsInstance<AgentEvent.FinalAnswer>().size)
+    }
 }

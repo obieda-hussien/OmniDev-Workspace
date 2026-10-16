@@ -13,6 +13,12 @@ object OmniSearchIngress {
 
     data class Navigation(val prompt: String? = null)
 
+    fun mergeDraft(existing: String, incoming: String): String = when {
+        existing.isBlank() -> incoming
+        existing.trim() == incoming -> existing
+        else -> existing + "\n\n" + incoming
+    }
+
     fun parse(json: String): Navigation? {
         if (PublicGatewayPolicy.validate(json) != null) return null
         val request = runCatching { OmniJson.instance.decodeFromString<PublicOmniRequest>(json) }.getOrNull()

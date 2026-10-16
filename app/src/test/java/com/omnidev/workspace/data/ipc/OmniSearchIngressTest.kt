@@ -29,4 +29,9 @@ class OmniSearchIngressTest {
         val result = OmniSearchIngress.parse("""{"kind":"ASK_OMNI","text":"hi","extras":{"autoRun":true,"tier":"ADMIN","remoteControl":true}}""")
         assertEquals(OmniSearchIngress.Navigation("hi"), result)
     }
+    @Test fun preservesExistingDraftAndAvoidsDuplicateInsertion() {
+        assertEquals("query", OmniSearchIngress.mergeDraft("", "query"))
+        assertEquals("query", OmniSearchIngress.mergeDraft("query", "query"))
+        assertEquals("existing\n\nquery", OmniSearchIngress.mergeDraft("existing", "query"))
+    }
 }

@@ -46,3 +46,15 @@ come from the Launcher service; do not invent ids or mirror model cell coordinat
 
 Focused direct-JVM regressions execute with `python3 scripts/test_launcher_link.py` and are also run
 by Android CI. They complement actual flavor compilation, receiver tests and device interoperability.
+
+## Verified execution and floating search entry
+
+The matching Launcher catalog version 3 advertises 25 capabilities. launcher.create_home_folder groups 2–40 existing visible Home icons using expectedRevision, title and itemIds. The first ID anchors the folder. launcher.create_folder remains a drawer rule-folder operation. Existing Home folder contents, widgets, dock and hidden icons cannot be rearranged with this new grouping command.
+
+Launcher execution requests now carry a local evidence ledger: health/discovery/app/layout reads cannot complete an organization task, dry runs do not count as mutations, and reloadScheduled responses require a fresh layout revision before completion. Runtime recovery is bounded; an unresolved task ends with an explicit unverified error and cannot be captured as a successful routine draft. This is a minimum evidence check, not proof that every semantic part of a complex arrangement was satisfied. The model must still inspect the resulting arrangement. Existing enabled local routines retain their own execution/result contract.
+
+Wrong explicit provider IDs return extension_not_found and verified available IDs before tier checks; the runtime never guesses a replacement or grants access. Launcher discovery fetches only verified Launcher manifests for an exact launcher query and includes a compact capability-name index plus normal paged descriptors. Signing, tier, local control consent, approval and dry-run gates remain intact.
+
+PUBLIC_OMNI_REQUEST resolves directly to the existing translucent AssistantActivity. Validated text is an unsent draft; repeated single-top intents and recreation are handled without replacing an existing draft or starting a run. The main Activity retains backward compatibility for explicit callers. No overlay permission is needed to open this Activity; its existing minimize/bubble permission rules remain unchanged.
+
+Validation: 20 focused discovery/policy/evidence JVM tests pass locally. Agent pipeline regressions exercise read-only false completion and mutation→fresh-layout completion; an Android entry test checks manifest routing, draft delivery and recreation. These broader tests require Android CI/device execution. No physical Infinix ANR, frame-time or end-to-end assistant approval result is claimed.
