@@ -115,9 +115,27 @@ Do not use tools. Do not rewrite merely for style.
             // Optional telemetry.
         }
 
+        // Team worker prompts contain the original broad objective after the assigned atomic task.
+        // Route capabilities from the assigned slice only, otherwise every worker gets the whole
+        // project's tool domains and pays for irrelevant schemas.
+        val routingObjective = extractRoutingObjective(userMessage)
+        val recentUserIntent = conversationHistory
+            .asReversed()
+            .asSequence()
+            .filter { it.role == MessageRole.USER }
+            .take(2)
+            .toList()
+            .asReversed()
+            .joinToString("\n") { it.content.take(800) }
+        var routingContext = buildString {
+            if (recentUserIntent.isNotBlank()) append(recentUserIntent).appendLine()
+            append(routingObjective)
+        }.takeLast(2_400)
+
         val learnedTool = (toolManager as? CompositeToolManager)?.learnedRoutineTool
         // This path precedes provider selection, API key reads, memory retrieval and prompt compilation.
-        val localMatch = if (!mentionFocus.active && steering == null && workerPersona == null && toolCallEligibility == null && userAttachments.isEmpty() &&
+        val launcherReplayNeedsEvidence = LauncherExecutionLedger(routingContext).requiresAction
+        val localMatch = if (!launcherReplayNeedsEvidence && !mentionFocus.active && steering == null && workerPersona == null && toolCallEligibility == null && userAttachments.isEmpty() &&
             toolAccessMode != "DISABLED" && "learned_routine" !in disabledToolNames)
             learnedTool?.let { com.omnidev.workspace.data.routines.RoutineMatcher.match(userMessage, it.hub.store.list()) } else null
         if (localMatch != null) {
@@ -144,22 +162,6 @@ Do not use tools. Do not rewrite merely for style.
         val resolvedApiKey = apiKeyRepository?.getApiKey(model.provider)
         val nativeTools = model.supportsFunctionCalling && model.provider != com.omnidev.workspace.data.model.ModelProvider.LOCAL_EDGE
 
-        // Team worker prompts contain the original broad objective after the assigned atomic task.
-        // Route capabilities from the assigned slice only, otherwise every worker gets the whole
-        // project's tool domains and pays for irrelevant schemas.
-        val routingObjective = extractRoutingObjective(userMessage)
-        val recentUserIntent = conversationHistory
-            .asReversed()
-            .asSequence()
-            .filter { it.role == MessageRole.USER }
-            .take(2)
-            .toList()
-            .asReversed()
-            .joinToString("\n") { it.content.take(800) }
-        var routingContext = buildString {
-            if (recentUserIntent.isNotBlank()) append(recentUserIntent).appendLine()
-            append(routingObjective)
-        }.takeLast(2_400)
         var taskSignals = IntentClassifier.analyze(routingObjective)
         val localTools = toolManager.getToolDefinitions()
             .asSequence()
@@ -251,6 +253,7 @@ Do not use tools. Do not rewrite merely for style.
         var totalTokensUsed = 0
         var invalidBatches = 0
         var unresolvedToolFailure: String? = null
+        var launcherEvidence = LauncherExecutionLedger(routingContext)
         var githubFailures = GitHubFailureLedger()
         var repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
         var stagnationDetector = AgentStagnationDetector(
@@ -274,6 +277,7 @@ Do not use tools. Do not rewrite merely for style.
             unresolvedToolFailure = null
             invalidBatches = 0
             automaticRouter = AutomaticToolRouter(runCatalog)
+            launcherEvidence = launcherEvidence.redirected(routingContext)
             githubFailures = GitHubFailureLedger()
             repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
             stagnationDetector = AgentStagnationDetector(windowSize = 8, minIterationsBeforeAbort = 3, abortThreshold = 0.76f)
@@ -461,6 +465,18 @@ Do not use tools. Do not rewrite merely for style.
                     send(AgentEvent.Error("Execution remains unverified after a failed tool batch: " + failure.take(1_200)))
                     return@channelFlow
                 }
+                val launcherFeedback = launcherEvidence.completionFeedback()
+                if (launcherFeedback != null) {
+                    if (launcherEvidence.exhausted) {
+                        brain?.onTaskEnd(EpisodeOutcome.FAILURE, launcherEvidence.failureMessage())
+                        send(AgentEvent.Error(launcherEvidence.failureMessage()))
+                        return@channelFlow
+                    }
+                    messages += ChatMessage(MessageRole.ASSISTANT, response.content)
+                    messages += ChatMessage(MessageRole.USER, launcherFeedback)
+                    phase(AgentExecutionPhase.IMPLEMENT, "Launcher execution still needs verification")
+                    continue
+                }
                 phase(AgentExecutionPhase.VERIFY, "Checking final completeness")
                 messages += ChatMessage(
                     role = MessageRole.ASSISTANT,
@@ -570,10 +586,14 @@ Do not use tools. Do not rewrite merely for style.
                 invocationMessage = if (workerPersona != null || userMessage.contains("## Assigned Team Task"))
                     extractRoutingObjective(steering?.objective(userMessage, revision) ?: userMessage)
                     else steering?.objective(userMessage, revision) ?: userMessage,
+                launcherEvidence = launcherEvidence,
                 requireRoutineReview = workerPersona != null || userMessage.contains("## Assigned Team Task")
             )
 
-            response.toolCalls.zip(rawResults).forEach { (call, result) -> githubFailures.observe(call, result) }
+            response.toolCalls.zip(rawResults).forEach { (call, result) ->
+                githubFailures.observe(call, result)
+                launcherEvidence.observe(call.name, call.arguments, result.output, result.isError)
+            }
             val failedResult = rawResults.firstOrNull { it.isError }
             if (failedResult != null) unresolvedToolFailure = SensitiveObservationRedactor.redact(failedResult.output)
             else if (response.toolCalls.any { it.name != RunToolCatalog.DISCOVER.name }) unresolvedToolFailure = githubFailures.unresolved()
@@ -688,6 +708,8 @@ Do not use tools. Do not rewrite merely for style.
                 if (hasErrors) {
                     append("\n\nOne or more tools failed. Do not claim those operations succeeded; pivot strategy or report the blocker explicitly.")
                     automaticRecoveryFeedback?.let { append("\n\n$it") }
+                } else if (launcherEvidence.needsActionGuidance) {
+                    append("\n\n[Omni runtime guidance] Inspection has not completed the requested Launcher changes. Use approved typed mutation capabilities, then verify the resulting layout. Files and successful read-only probes cannot substitute for Home actions.")
                 } else if (stagnation.noActionStreak >= 2 && stagnation.readOnlyRatio >= 0.75f) {
                     append(
                         "\n\n[Omni runtime guidance] You already have multiple successful read-only " +
@@ -724,7 +746,8 @@ Do not use tools. Do not rewrite merely for style.
         steeringRevision: Long = 0L,
         invocationMessage: String,
         requireRoutineReview: Boolean = false,
-        selectedSkillNames: Set<String> = emptySet()
+        selectedSkillNames: Set<String> = emptySet(),
+        launcherEvidence: LauncherExecutionLedger? = null
     ): List<ToolExecutionResult> {
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
             if (steering?.changed(steeringRevision) == true) return ToolExecutionResult(
@@ -733,6 +756,9 @@ Do not use tools. Do not rewrite merely for style.
             if (call.name != RunToolCatalog.DISCOVER.name && !runCatalog.isPermitted(call.name)) return ToolExecutionResult(
                 "Tool is unavailable under the current access policy.", true, classification = "TOOL_NOT_AVAILABLE")
             if (call.name == RunToolCatalog.DISCOVER.name) return runCatalog.discover(call.arguments.getValue("query"))
+            launcherEvidence?.checkTool(call.name, call.arguments)?.let { reason ->
+                return ToolExecutionResult(reason, true, classification = "LAUNCHER_TYPED_ACTION_REQUIRED", retryable = false)
+            }
             toolCallEligibility?.invoke(call)?.let { reason ->
                 return ToolExecutionResult(reason, true, classification = "TOOL_POLICY_DENIED")
             }

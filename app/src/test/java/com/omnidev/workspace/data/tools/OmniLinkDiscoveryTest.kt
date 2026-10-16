@@ -32,7 +32,10 @@ class OmniLinkDiscoveryTest {
         assertEquals(1, page.getJSONArray("extensions").length())
         assertEquals("app/test", page.getJSONArray("capabilities").getJSONObject(0).getString("extension_id"))
         assertEquals("app.action8", page.getJSONArray("capabilities").getJSONObject(0).getString("name"))
-        assertEquals(0, OmniLinkDiscovery.page(listOf(extension), mapOf("extension_id" to "missing/service")) { _, _ -> true }.getInt("total"))
+        val missing = OmniLinkDiscovery.page(listOf(extension), mapOf("extension_id" to "missing/service")) { _, _ -> true }
+        assertFalse(missing.getBoolean("ok"))
+        assertEquals("extension_not_found", missing.getString("code"))
+        assertEquals("app/test", missing.getJSONArray("available_extensions").getString(0))
     }
     @Test fun `advertised and allowed counts distinguish installed catalog from host policy`() {
         val page = OmniLinkDiscovery.page(listOf(extension), emptyMap()) { _, name -> name == "app.action1" }

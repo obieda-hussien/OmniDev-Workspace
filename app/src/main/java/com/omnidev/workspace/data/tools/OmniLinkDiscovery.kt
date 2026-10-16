@@ -8,6 +8,10 @@ import org.json.JSONObject
 internal object OmniLinkDiscovery {
     fun page(extensions: List<JSONObject>, args: Map<String, String>, allowed: (String, String) -> Boolean): JSONObject {
         val scoped = selectExtensions(extensions, args["extension_id"], "extension_id")
+        if (!args["extension_id"].isNullOrBlank() && scoped.isEmpty()) return JSONObject()
+            .put("ok", false).put("code", "extension_not_found")
+            .put("error", "The selected extension ID is not installed/verified. Use an available ID or omit extension_id for automatic resolution.")
+            .put("available_extensions", JSONArray(extensions.map { it.optString("extension_id") }))
         val query = args["query"].orEmpty().trim().lowercase(Locale.ROOT).take(200)
         val matches = scoped.flatMap { extension ->
             val id = extension.optString("extension_id")
@@ -29,6 +33,8 @@ internal object OmniLinkDiscovery {
         return JSONObject().put("ok", true).put("action", "discover_capabilities")
             .put("total", matches.size).put("offset", offset).put("count", page.size)
             .put("capabilities", JSONArray(page))
+            .put("capability_names", JSONArray(matches.take(64).map { it.optString("name") }))
+            .put("capability_names_truncated", matches.size > 64)
             .put("extensions", JSONArray(scoped.map { extension ->
                 val id = extension.optString("extension_id")
                 val caps = extension.optJSONObject("manifest")?.optJSONArray("capabilities")

@@ -52,7 +52,7 @@ object ToolBatchPolicy {
 
             "git_manager" -> return call.arguments["action"] in setOf("status", "diff", "log", "remote_status")
 
-            "omni_link" -> return call.arguments["action"] in setOf("list_extensions", "find_capability", "get_manifest", "get_events")
+            "omni_link" -> return com.omnidev.workspace.data.tools.OmniLinkActionSemantics.isReadOnly(call.arguments)
 
             "agent_runtime" -> {
                 val action = call.arguments["action"]?.lowercase().orEmpty()

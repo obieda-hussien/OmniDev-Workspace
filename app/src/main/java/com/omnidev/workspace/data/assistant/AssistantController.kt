@@ -98,6 +98,14 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
             finally { if (epoch == generation) mutable.update { it.copy(saving = false) } }
         }
     }
+    private val externalDraftIds = ArrayDeque<String>()
+    fun acceptExternalSearchDraft(prompt: String, requestId: String) {
+        if (requestId in externalDraftIds) return
+        externalDraftIds.addLast(requestId)
+        while (externalDraftIds.size > 8) externalDraftIds.removeFirst()
+        mutable.update { it.copy(input = com.omnidev.workspace.data.ipc.OmniSearchIngress.mergeDraft(it.input, prompt)) }
+    }
+
     fun input(value: String) { mutable.update { it.copy(input = value) } }
     fun message(value: String?) { mutable.update { it.copy(message = value) } }
     fun minimizing(value: Boolean) { mutable.update { it.copy(minimizing = value) } }

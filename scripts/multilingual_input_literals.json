@@ -106,5 +106,9 @@
   "app/src/advanced/java/com/omnidev/workspace/ui/settings/IntegrationsScreen.kt": {
     "sha256": "cf8f375cf898520f9a32368190ecb5629a60a9a6650da9f4401eeccc383f6e3a",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/LauncherExecutionLedger.kt": {
+    "sha256": "4bf2d95a4387dbd72119f6171e52412d7371f32c4c03dc03ae868c16eb9a6dc2",
+    "purpose": "Functional Arabic input matching for Launcher execution intent and negation; never display prose."
   }
 }
