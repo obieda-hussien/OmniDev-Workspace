@@ -101,4 +101,17 @@ class AgentRuntimeRecoveryTest {
         assertTrue(events.none { it is AgentEvent.FinalAnswer })
         assertTrue(events.any { it is AgentEvent.Error })
     }
+    @Test fun `worker limitation report cannot mark unfinished dependency successful`() = runTest {
+        val tools = RuntimeTools()
+        var round = 0
+        val pipeline = AgentPipeline(tools, completionProvider = {
+            if (++round == 1) CompletionResponse("", listOf(shell("first", "pm list packages")))
+            else CompletionResponse("Package inspection requires Shizuku access.")
+        }, config = config)
+        val events = pipeline.execute("Inspect Android packages using runtime", modelId = "gpt-4o-mini", scopePath = "/tmp",
+            preferredToolNames = setOf("agent_runtime"), workerPersona = "Inspect packages").toList()
+        assertTrue(events.none { it is AgentEvent.FinalAnswer })
+        assertTrue(events.filterIsInstance<AgentEvent.Error>().any { it.message.startsWith("RUNTIME_BACKEND_BLOCKED:") })
+    }
+
 }

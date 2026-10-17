@@ -454,6 +454,13 @@ Do not use tools. Do not rewrite merely for style.
                 ?.let { send(AgentEvent.ThinkingBlock(it)) }
 
             if (response.toolCalls.isEmpty()) {
+                if (runtimeBackends.hasBlocks() && (workerPersona != null || userMessage.contains("## Assigned Team Task"))) {
+                    // A useful user-facing limitation report is not successful worker execution.
+                    // Keep coordinator dependency gates closed for an unfinished assigned task.
+                    brain?.onTaskEnd(EpisodeOutcome.BLOCKED, runtimeBackends.reportSummary())
+                    send(AgentEvent.Error("RUNTIME_BACKEND_BLOCKED: " + runtimeBackends.reportSummary() + "\n" + response.content))
+                    return@channelFlow
+                }
                 if (permittedDefinitions.isNotEmpty() && !runtimeBackends.hasBlocks() &&
                     (unresolvedToolFailure != null || automaticRouter.unavailableToolReply(response.content))) {
                     val feedback = automaticRouter.recovery(routingContext, unresolvedToolFailure ?: response.content)
