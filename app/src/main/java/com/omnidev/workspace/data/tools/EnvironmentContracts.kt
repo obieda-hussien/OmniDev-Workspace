@@ -1,5 +1,32 @@
 package com.omnidev.workspace.data.tools
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
+
+/** Recovery evidence must come from a bounded live check, never a previous rish success. */
+internal suspend fun probePrivilegeBackend(
+    refreshRish: suspend () -> Boolean,
+    shizukuReady: () -> Boolean,
+    cachedRootReady: () -> Boolean,
+    rishTimeoutMs: Long = 5_000L
+): String {
+    val rish = try {
+        withTimeoutOrNull(rishTimeoutMs) { refreshRish() } == true
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        false
+    }
+    // Read binder/permission readiness after the functional check, which may observe a loss.
+    val shizuku = shizukuReady()
+    return when {
+        shizuku && rish -> "shizuku-user-service+rish"
+        shizuku -> "shizuku-user-service"
+        cachedRootReady() -> "root"
+        else -> "none"
+    }
+}
+
 enum class SetupPhase { UNINITIALIZED, PROBING, READY, DEGRADED, FAILED }
 
 data class RuntimeStatus(

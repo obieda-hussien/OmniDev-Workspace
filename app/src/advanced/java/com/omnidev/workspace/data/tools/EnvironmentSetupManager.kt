@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.tools
 import android.content.Context
 import android.util.Log
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -131,11 +132,13 @@ object EnvironmentSetupManager {
                 currentState.phase != SetupPhase.UNINITIALIZED
             ) return@withLock currentState
 
-            _stateFlow.value = currentState.copy(phase = SetupPhase.PROBING)
+            val previousState = currentState
+            _stateFlow.value = previousState.copy(phase = SetupPhase.PROBING)
             val started = System.currentTimeMillis()
-            val privileged = detectPrivilegeBackend()
+            var privileged = "none"
 
             try {
+                privileged = detectPrivilegeBackend()
                 val (transportReady, runtimes) = probeTermuxRuntimes()
                 val phase = when {
                     transportReady && (privileged.contains("shizuku-user-service") || privileged == "rish") -> SetupPhase.READY
@@ -155,6 +158,9 @@ object EnvironmentSetupManager {
                 _stateFlow.value = state
                 Log.i(TAG, "Probe: ${state.summaryLine()}")
                 state
+            } catch (cancelled: CancellationException) {
+                _stateFlow.value = previousState
+                throw cancelled
             } catch (t: Throwable) {
                 val state = SetupState(
                     phase = if (privileged != "none") SetupPhase.DEGRADED else SetupPhase.FAILED,
@@ -680,16 +686,13 @@ object EnvironmentSetupManager {
     }
 
     private suspend fun detectPrivilegeBackend(): String = try {
-        val shizuku = PrivilegedExecutionManager.isShizukuReady()
-        val rish = PrivilegedExecutionManager.isRishReady()
-        val root = PrivilegedExecutionManager.isRootAvailable()
-        when {
-            shizuku && rish -> "shizuku-user-service+rish"
-            shizuku -> "shizuku-user-service"
-            root -> "root"
-            rish -> "rish"
-            else -> "none"
-        }
+        probePrivilegeBackend(
+            refreshRish = { PrivilegedExecutionManager.getRishManager()?.refreshHealth()?.ready == true },
+            shizukuReady = { PrivilegedExecutionManager.isShizukuReady() },
+            cachedRootReady = { PrivilegedExecutionManager.isRootAvailable() }
+        )
+    } catch (cancelled: CancellationException) {
+        throw cancelled
     } catch (t: Throwable) {
         Log.w(TAG, "Privilege detection failed: ${t.message}")
         "none"

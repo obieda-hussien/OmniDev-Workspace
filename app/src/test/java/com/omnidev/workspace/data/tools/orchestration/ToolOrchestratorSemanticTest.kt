@@ -11,6 +11,21 @@ import org.junit.Test
 class ToolOrchestratorSemanticTest {
 
     @Test
+    fun `success without backend resets only the empty backend failure bucket`() = runBlocking {
+        val orchestrator = ToolOrchestrator()
+        suspend fun fail(backend: String? = null) = orchestrator.executeTool("example_tool") {
+            ToolExecutionResult("Unavailable", true, classification = "CAPABILITY_UNAVAILABLE",
+                backend = backend, persistentFailure = true)
+        }.getOrThrow()
+        fail()
+        fail("other-backend")
+        orchestrator.executeTool("example_tool") { ToolExecutionResult("Recovered") }.getOrThrow()
+        assertFalse(fail().output.contains("[semantic-circuit]"))
+        assertTrue(fail("other-backend").output.contains("[semantic-circuit] repeated=2"))
+        assertTrue(fail().output.contains("[semantic-circuit] repeated=2"))
+    }
+
+    @Test
     fun `Termux success does not clear Shizuku failure count`() = runBlocking {
         val orchestrator = ToolOrchestrator()
         suspend fun fail() = orchestrator.executeTool("agent_runtime") {

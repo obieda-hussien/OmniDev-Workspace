@@ -201,7 +201,7 @@ class ToolOrchestrator {
                     metrics.successCount++
                     metrics.consecutiveFailures = 0
                     metrics.lastError = null
-                    toolResult?.backend?.let { clearSemanticFailureCounts(toolName, it) }
+                    clearSemanticFailureCounts(toolName, toolResult?.backend.orEmpty())
                 }
 
                 Result.success(output)
