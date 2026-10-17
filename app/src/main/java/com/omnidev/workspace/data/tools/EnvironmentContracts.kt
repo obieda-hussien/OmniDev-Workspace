@@ -20,6 +20,14 @@ data class SetupState(
 ) {
     val isReady: Boolean get() = phase == SetupPhase.READY
     val isDegraded: Boolean get() = phase == SetupPhase.DEGRADED
+    val androidShellReady: Boolean get() =
+        privilegeBackend.contains("shizuku-user-service") || privilegeBackend == "rish"
+
+    /** Machine-readable probe evidence; root readiness never authorizes the automatic shell route. */
+    fun probeEvidence(): String =
+        "android-shell=${if (androidShellReady) "ready" else "unavailable"};" +
+            "termux=${if (termuxPrefix != null) "ready" else "unavailable"};" +
+            "rish=${if (privilegeBackend.contains("rish")) "ready" else "unavailable"}"
 
     fun runtime(name: String): RuntimeStatus =
         runtimes[name] ?: RuntimeStatus(name, available = false)

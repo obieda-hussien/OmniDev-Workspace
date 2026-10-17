@@ -255,6 +255,7 @@ Do not use tools. Do not rewrite merely for style.
         var unresolvedToolFailure: String? = null
         var launcherEvidence = LauncherExecutionLedger(routingContext)
         var githubFailures = GitHubFailureLedger()
+        val runtimeBackends = RuntimeBackendLedger()
         var repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
         var stagnationDetector = AgentStagnationDetector(
             windowSize = 8,
@@ -279,6 +280,7 @@ Do not use tools. Do not rewrite merely for style.
             automaticRouter = AutomaticToolRouter(runCatalog)
             launcherEvidence = launcherEvidence.redirected(routingContext)
             githubFailures = GitHubFailureLedger()
+            runtimeBackends.allowRecovery()
             repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
             stagnationDetector = AgentStagnationDetector(windowSize = 8, minIterationsBeforeAbort = 3, abortThreshold = 0.76f)
             messages += ChatMessage(MessageRole.USER,
@@ -311,8 +313,9 @@ Do not use tools. Do not rewrite merely for style.
             if (iteration > 1) delay(interCallDelayFor(model.tier))
             send(AgentEvent.Thinking(iteration))
 
-            if (permittedDefinitions.isNotEmpty()) {
-                val added = runCatalog.prepare(routingContext, lastToolObservation)
+            if (runtimeBackends.reportOnly) toolDefs = emptyList()
+            if (permittedDefinitions.isNotEmpty() && !runtimeBackends.reportOnly) {
+                val added = runCatalog.prepare(routingContext, lastToolObservation.takeUnless { runtimeBackends.hasBlocks() })
                 toolDefs = runCatalog.definitions()
                 if (added.isNotEmpty()) phase(AgentExecutionPhase.ANALYZE, "Automatically loaded tools: ${added.joinToString()}")
             }
@@ -321,7 +324,8 @@ Do not use tools. Do not rewrite merely for style.
                 taskSignals, model.maxOutputTokens,
                 remainingAtStart?.coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE)
             )
-            val iterationSystemPrompt = systemPrompt +
+            val iterationSystemPrompt = systemPrompt + "\n" + runtimeBackends.guidance() +
+                (if (runtimeBackends.reportOnly) "\nTool execution has ended for this run. Answer now from existing evidence; disclose incomplete work and required recovery. No tool calls." else "") +
                 (if (toolDefs.isEmpty()) "" else "\n" + AutomaticToolRouter.CONTRACT) +
                 (if (nativeTools || toolDefs.isEmpty()) "" else "\n" + ToolTextProtocol.schemas(toolDefs))
             // Tool definitions are already compacted to the exact set sent to the provider.
@@ -366,7 +370,7 @@ Do not use tools. Do not rewrite merely for style.
                 messages = ToolTextProtocol.messages(requestMessages, textCallsOnly = nativeTools),
                 systemPrompt = iterationSystemPrompt,
                 maxTokens = desiredOutputBudget,
-                enableThinking = enableDeepThinking && model.supportsThinking,
+                enableThinking = enableDeepThinking && model.supportsThinking && !runtimeBackends.reportOnly,
                 targetContext = scopePath,
                 apiKey = resolvedApiKey,
                 tools = if (nativeTools) toolDefs else null
@@ -432,7 +436,11 @@ Do not use tools. Do not rewrite merely for style.
                 continue
             } ?: return@channelFlow
 
-            val response = if (toolDefs.isEmpty()) nativeResponse else automaticRouter.adapt(
+            val response = if (runtimeBackends.reportOnly) nativeResponse.copy(
+                toolCalls = emptyList(), content = nativeResponse.content.ifBlank {
+                    "Execution could not finish because a required runtime capability is unavailable. Restore it and retry the remaining operation."
+                }
+            ) else if (toolDefs.isEmpty()) nativeResponse else automaticRouter.adapt(
                 TextToolCallAdapter.adapt(nativeResponse), toolDefs.mapTo(mutableSetOf()) { it.name }
             )
 
@@ -446,7 +454,14 @@ Do not use tools. Do not rewrite merely for style.
                 ?.let { send(AgentEvent.ThinkingBlock(it)) }
 
             if (response.toolCalls.isEmpty()) {
-                if (permittedDefinitions.isNotEmpty() &&
+                if (runtimeBackends.hasBlocks() && (workerPersona != null || userMessage.contains("## Assigned Team Task"))) {
+                    // A useful user-facing limitation report is not successful worker execution.
+                    // Keep coordinator dependency gates closed for an unfinished assigned task.
+                    brain?.onTaskEnd(EpisodeOutcome.BLOCKED, runtimeBackends.reportSummary())
+                    send(AgentEvent.Error("RUNTIME_BACKEND_BLOCKED: " + runtimeBackends.reportSummary() + "\n" + response.content))
+                    return@channelFlow
+                }
+                if (permittedDefinitions.isNotEmpty() && !runtimeBackends.hasBlocks() &&
                     (unresolvedToolFailure != null || automaticRouter.unavailableToolReply(response.content))) {
                     val feedback = automaticRouter.recovery(routingContext, unresolvedToolFailure ?: response.content)
                     if (feedback != null) {
@@ -466,7 +481,7 @@ Do not use tools. Do not rewrite merely for style.
                     return@channelFlow
                 }
                 val launcherFeedback = launcherEvidence.completionFeedback()
-                if (launcherFeedback != null) {
+                if (launcherFeedback != null && !runtimeBackends.hasBlocks()) {
                     if (launcherEvidence.exhausted) {
                         brain?.onTaskEnd(EpisodeOutcome.FAILURE, launcherEvidence.failureMessage())
                         send(AgentEvent.Error(launcherEvidence.failureMessage()))
@@ -477,7 +492,7 @@ Do not use tools. Do not rewrite merely for style.
                     phase(AgentExecutionPhase.IMPLEMENT, "Launcher execution still needs verification")
                     continue
                 }
-                phase(AgentExecutionPhase.VERIFY, "Checking final completeness")
+                phase(AgentExecutionPhase.VERIFY, if (runtimeBackends.hasBlocks()) "Preparing runtime limitation report" else "Checking final completeness")
                 messages += ChatMessage(
                     role = MessageRole.ASSISTANT,
                     content = response.content,
@@ -499,7 +514,8 @@ Do not use tools. Do not rewrite merely for style.
                         },
                         onReflecting = { send(AgentEvent.Reflecting(it)) }
                     )
-                    if (steering == null) critique() else steering.reasoning(revision) { critique() }
+                    if (runtimeBackends.hasBlocks()) response.content + "\n\n" + runtimeBackends.reportSummary()
+                    else if (steering == null) critique() else steering.reasoning(revision) { critique() }
                 } catch (redirected: RunRedirected) {
                     // A draft has no tool side effects; remove it before continuing.
                     messages.removeAt(messages.lastIndex)
@@ -516,12 +532,13 @@ Do not use tools. Do not rewrite merely for style.
                     }
                 }
 
-                capture?.finish()?.let { draft ->
+                if (!runtimeBackends.hasBlocks()) capture?.finish()?.let { draft ->
                     send(AgentEvent.PhaseChanged(AgentExecutionPhase.REPORT,
                         "Learned a draft: ${draft.name}. Review it in Agent Skills to enable local replay."))
                 }
-                phase(AgentExecutionPhase.REPORT, "Publishing verified result")
-                brain?.onTaskEnd(EpisodeOutcome.SUCCESS, finalContent.take(500))
+                if (runtimeBackends.hasBlocks()) messages[messages.lastIndex] = messages.last().copy(content = finalContent)
+                phase(AgentExecutionPhase.REPORT, if (runtimeBackends.hasBlocks()) "Reporting completed work and runtime limitation" else "Publishing verified result")
+                brain?.onTaskEnd(if (runtimeBackends.hasBlocks()) EpisodeOutcome.BLOCKED else EpisodeOutcome.SUCCESS, finalContent.take(500))
                 send(
                     AgentEvent.FinalAnswer(
                         content = finalContent,
@@ -587,6 +604,7 @@ Do not use tools. Do not rewrite merely for style.
                     extractRoutingObjective(steering?.objective(userMessage, revision) ?: userMessage)
                     else steering?.objective(userMessage, revision) ?: userMessage,
                 launcherEvidence = launcherEvidence,
+                runtimeBackends = runtimeBackends,
                 requireRoutineReview = workerPersona != null || userMessage.contains("## Assigned Team Task")
             )
 
@@ -595,7 +613,10 @@ Do not use tools. Do not rewrite merely for style.
                 launcherEvidence.observe(call.name, call.arguments, result.output, result.isError)
             }
             val failedResult = rawResults.firstOrNull { it.isError }
-            if (failedResult != null) unresolvedToolFailure = SensitiveObservationRedactor.redact(failedResult.output)
+            val nonRuntimeFailure = response.toolCalls.zip(rawResults).firstOrNull { (call, result) ->
+                result.isError && !runtimeBackends.handles(call, result)
+            }?.second
+            if (nonRuntimeFailure != null) unresolvedToolFailure = SensitiveObservationRedactor.redact(nonRuntimeFailure.output)
             else if (response.toolCalls.any { it.name != RunToolCatalog.DISCOVER.name }) unresolvedToolFailure = githubFailures.unresolved()
             val preflightFailed = rawResults.any { it.classification in setOf(
                 "TOOL_NOT_EXPOSED", "INVALID_TOOL_ARGUMENTS", "INVALID_TOOL_BATCH", "BATCH_PREFLIGHT_BLOCKED"
@@ -681,7 +702,12 @@ Do not use tools. Do not rewrite merely for style.
             }
 
             val stagnation = stagnationDetector.observe(response.toolCalls, modelSafeResults)
-            if (stagnation.shouldAbort) {
+            if (stagnation.shouldAbort && runtimeBackends.hasBlocks() &&
+                response.toolCalls.zip(modelSafeResults).all { (call, result) -> !result.isError || runtimeBackends.handles(call, result) }) {
+                // Finish with a useful blocker report instead of replacing the answer with an
+                // auto-saved error checkpoint. Other infrastructure failures keep their guards.
+                runtimeBackends.requestReport()
+            } else if (stagnation.shouldAbort) {
                 val outcome = if (stagnation.kind == AgentStagnationDetector.Kind.INFRASTRUCTURE_BLOCK) {
                     EpisodeOutcome.BLOCKED
                 } else EpisodeOutcome.ABANDONED
@@ -700,6 +726,7 @@ Do not use tools. Do not rewrite merely for style.
 
             val hasErrors = toolResults.any { it.isError }
             val toolContent = buildString {
+                if (runtimeBackends.hasBlocks()) appendLine(runtimeBackends.guidance())
                 append(
                     toolResults.joinToString("\n\n") { result ->
                         "[${result.toolName}] ${if (result.isError) "ERROR: " else ""}${result.output}"
@@ -747,7 +774,8 @@ Do not use tools. Do not rewrite merely for style.
         invocationMessage: String,
         requireRoutineReview: Boolean = false,
         selectedSkillNames: Set<String> = emptySet(),
-        launcherEvidence: LauncherExecutionLedger? = null
+        launcherEvidence: LauncherExecutionLedger? = null,
+        runtimeBackends: RuntimeBackendLedger? = null
     ): List<ToolExecutionResult> {
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
             if (steering?.changed(steeringRevision) == true) return ToolExecutionResult(
@@ -805,6 +833,7 @@ Do not use tools. Do not rewrite merely for style.
                 } }.firstOrNull { !runCatalog.isPermitted(it) || toolEligibility?.invoke(it) != null }
                 if (denied != null) return ToolExecutionResult("Learned task requires unavailable tool: $denied", true, retryable = false)
             }
+            runtimeBackends?.before(call)?.let { return it }
             val started = System.nanoTime()
             val retrySafe = ToolBatchPolicy.isReadOnly(call)
             val recordedStep = capture?.before(call, retrySafe)
@@ -883,6 +912,7 @@ Do not use tools. Do not rewrite merely for style.
                     )
                 }
             }
+            runtimeBackends?.observe(call, finalResult)
             capture?.after(recordedStep, finalResult)
             return finalResult
         }
