@@ -102,6 +102,7 @@ For repository access, installed integrations, Actions controls and public-sourc
 
 | Area | Current implementation | Details |
 |---|---|---|
+| Runtime backend recovery | Per-run capability circuits stop repeated unavailable Android/Termux routes; an honest final limitation report replaces backend retry checkpoints while independent tools remain usable | [Runtime recovery contract](docs/TOOL_EXECUTION_CONTRACT.md#runtime-backend-recovery) |
 | Accessibility ANR repair | One background observer, one pending refresh, a 500 ms interval after each scan, and one iterative pass bounded to 256 nodes, 255 child requests, 48 levels and 120 ms before starting further requests | [Regression scope and device checks](docs/accessibility-anr-regression.md) |
 | Snapshot and teaching lifecycle | Window transitions invalidate pending observations even inside the same package; teaching uses a bounded session-tagged queue and releases copied events/nodes | [PR #192](https://github.com/obieda-hussien/OmniDev-Workspace/pull/192) |
 | Continuous Chat | No app-imposed Chat token/tool-call/round ceiling; provider truncation continues in the same response and long-history compaction runs off Main | [Runtime stability](docs/RUNTIME_STABILITY.md#long-chat-turns) |

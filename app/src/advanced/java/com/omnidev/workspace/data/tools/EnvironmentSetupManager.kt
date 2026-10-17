@@ -138,7 +138,8 @@ object EnvironmentSetupManager {
             try {
                 val (transportReady, runtimes) = probeTermuxRuntimes()
                 val phase = when {
-                    transportReady -> SetupPhase.READY
+                    transportReady && (privileged.contains("shizuku-user-service") || privileged == "rish") -> SetupPhase.READY
+                    transportReady -> SetupPhase.DEGRADED
                     privileged != "none" -> SetupPhase.DEGRADED
                     else -> SetupPhase.FAILED
                 }
@@ -498,12 +499,13 @@ object EnvironmentSetupManager {
         val context = appContext
         return ToolExecutionResult(buildString {
             appendLine("╔══ OmniDev Unified Runtime ═════════════════════════════════╗")
-            appendLine("║ Phase        : ${state.phase}")
+            appendLine("║ Phase        : ${state.phase} (capabilities are independent)")
             appendLine("║ Android shell: ${state.privilegeBackend}")
             appendLine("║ Termux       : ${if (state.termuxPrefix != null) "✅ RunCommandService" else "❌ not ready"}")
             appendLine("║ Probe time   : ${state.probeTimeMs}ms")
             appendLine("║")
             if (context != null) {
+                appendLine("║ Current app package: ${context.packageName}")
                 TermuxRunCommandBridge.capabilityReport(context).lineSequence().forEach { appendLine("║ $it") }
                 appendLine("║")
             }
@@ -523,9 +525,14 @@ object EnvironmentSetupManager {
             appendLine()
             appendLine("Execution domains:")
             appendLine("  developer shell/packages -> Termux RunCommandService")
-            appendLine("  Android privileged shell -> Shizuku UserService")
-            appendLine("  ADB-equivalent shell     -> rish")
-        }.trimEnd())
+            appendLine("  Android privileged shell -> ${state.privilegeBackend}")
+            if (!state.androidShellReady) {
+                appendLine("  Android commands are BLOCKED: start Shizuku and grant OmniDev access before retrying.")
+                appendLine("  Termux readiness does not grant Android shell privileges; PATH changes cannot repair this.")
+            }
+            appendLine("  Binary lookup: use tool_which or shell builtin command -v; do not require which.")
+        }.trimEnd(), classification = "CAPABILITY_REPORT",
+            backend = "runtime-probe", verification = state.probeEvidence())
     }
 
     /** AgentRuntimeTool owns the visible terminal surface; keep legacy aliases hidden. */
@@ -694,7 +701,7 @@ object EnvironmentSetupManager {
     ): ToolExecutionResult {
         val output = result.mergedOutput().trim().take(MAX_OUTPUT)
         return if (result.isSuccess) {
-            ToolExecutionResult(output.ifBlank { "(no output)" })
+            ToolExecutionResult(output.ifBlank { "(no output)" }, backend = "termux", exitCode = 0)
         } else {
             val diagnostic = buildString {
                 append("❌ $operation failed")
@@ -706,7 +713,8 @@ object EnvironmentSetupManager {
                     append(termuxSetupHint())
                 }
             }
-            ToolExecutionResult(diagnostic.take(MAX_OUTPUT), isError = true)
+            ToolExecutionResult(diagnostic.take(MAX_OUTPUT), isError = true, backend = "termux",
+                exitCode = result.exitCode.takeIf { it >= 0 })
         }
     }
 

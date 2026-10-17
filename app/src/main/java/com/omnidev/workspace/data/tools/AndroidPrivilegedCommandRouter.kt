@@ -124,6 +124,19 @@ object AndroidPrivilegedCommandRouter {
         prepared: ExecutionDomainGuard.PreparedPrivilegedCommand,
         unavailableMessage: String
     ): ToolExecutionResult {
+        // rish uses the same Shizuku binder and permission. It cannot repair either missing
+        // prerequisite; probing it here used to relabel SHIZUKU_UNAVAILABLE as RISH_UNAVAILABLE.
+        if (!ShizukuCommandTool.isAvailable() || !ShizukuCommandTool.hasPermission()) {
+            return ToolExecutionResult(
+                output = "$unavailableMessage\nAndroid shell is blocked. Start Shizuku and grant OmniDev access, " +
+                    "then run env_probe. rish shares these prerequisites. Termux developer commands remain independent; " +
+                    "changing PATH or installing packages cannot grant shell privileges.",
+                isError = true,
+                classification = if (!ShizukuCommandTool.isAvailable()) "SHIZUKU_UNAVAILABLE" else "SHIZUKU_PERMISSION_REQUIRED",
+                backend = "shizuku-user-service",
+                persistentFailure = true
+            )
+        }
         val rishManager = PrivilegedExecutionManager.getRishManager()
             ?: return ToolExecutionResult(
                 output = buildString {
