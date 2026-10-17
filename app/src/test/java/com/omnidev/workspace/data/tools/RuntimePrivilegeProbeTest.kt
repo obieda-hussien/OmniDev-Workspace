@@ -21,7 +21,7 @@ class RuntimePrivilegeProbeTest {
     @Test fun `functional rish remains available when UserService is not responsive`() = runBlocking {
         val backend = probePrivilegeBackend(
             refreshRish = { true }, shizukuReady = { CompletableDeferred<Boolean>().await() },
-            sharedPrerequisitesReady = { true }, cachedRootReady = { false }, userServiceTimeoutMs = 10L
+            sharedPrerequisitesReady = { true }, cachedRootReady = { true }, userServiceTimeoutMs = 10L
         )
         assertEquals("rish", backend)
         assertTrue(SetupState(privilegeBackend = backend).androidShellReady)

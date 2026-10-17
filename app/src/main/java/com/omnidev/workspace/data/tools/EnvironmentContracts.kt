@@ -26,8 +26,8 @@ internal suspend fun probePrivilegeBackend(
     return when {
         shared && shizuku && rish -> "shizuku-user-service+rish"
         shared && shizuku -> "shizuku-user-service"
-        cachedRootReady() -> "root"
         shared && rish -> "rish"
+        cachedRootReady() -> "root"
         else -> "none"
     }
 }
