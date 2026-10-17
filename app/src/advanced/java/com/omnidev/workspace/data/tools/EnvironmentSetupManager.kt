@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.tools
 import android.content.Context
 import android.util.Log
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -98,6 +100,8 @@ object EnvironmentSetupManager {
     private val probeMutex = Mutex()
     private val packageMutex = Mutex()
     private val lastProbeMs = AtomicLong(0L)
+    private val identityProbe = BoundedRuntimeProbe()
+    private val rishProbe = BoundedRuntimeProbe()
 
     @Volatile private var appContext: Context? = null
 
@@ -131,14 +135,17 @@ object EnvironmentSetupManager {
                 currentState.phase != SetupPhase.UNINITIALIZED
             ) return@withLock currentState
 
-            _stateFlow.value = currentState.copy(phase = SetupPhase.PROBING)
+            val previousState = currentState
+            _stateFlow.value = previousState.copy(phase = SetupPhase.PROBING)
             val started = System.currentTimeMillis()
-            val privileged = detectPrivilegeBackend()
+            var privileged = "none"
 
             try {
+                privileged = detectPrivilegeBackend()
                 val (transportReady, runtimes) = probeTermuxRuntimes()
                 val phase = when {
-                    transportReady -> SetupPhase.READY
+                    transportReady && (privileged.contains("shizuku-user-service") || privileged == "rish") -> SetupPhase.READY
+                    transportReady -> SetupPhase.DEGRADED
                     privileged != "none" -> SetupPhase.DEGRADED
                     else -> SetupPhase.FAILED
                 }
@@ -154,6 +161,9 @@ object EnvironmentSetupManager {
                 _stateFlow.value = state
                 Log.i(TAG, "Probe: ${state.summaryLine()}")
                 state
+            } catch (cancelled: CancellationException) {
+                _stateFlow.value = previousState
+                throw cancelled
             } catch (t: Throwable) {
                 val state = SetupState(
                     phase = if (privileged != "none") SetupPhase.DEGRADED else SetupPhase.FAILED,
@@ -498,12 +508,13 @@ object EnvironmentSetupManager {
         val context = appContext
         return ToolExecutionResult(buildString {
             appendLine("╔══ OmniDev Unified Runtime ═════════════════════════════════╗")
-            appendLine("║ Phase        : ${state.phase}")
+            appendLine("║ Phase        : ${state.phase} (capabilities are independent)")
             appendLine("║ Android shell: ${state.privilegeBackend}")
             appendLine("║ Termux       : ${if (state.termuxPrefix != null) "✅ RunCommandService" else "❌ not ready"}")
             appendLine("║ Probe time   : ${state.probeTimeMs}ms")
             appendLine("║")
             if (context != null) {
+                appendLine("║ Current app package: ${context.packageName}")
                 TermuxRunCommandBridge.capabilityReport(context).lineSequence().forEach { appendLine("║ $it") }
                 appendLine("║")
             }
@@ -523,9 +534,14 @@ object EnvironmentSetupManager {
             appendLine()
             appendLine("Execution domains:")
             appendLine("  developer shell/packages -> Termux RunCommandService")
-            appendLine("  Android privileged shell -> Shizuku UserService")
-            appendLine("  ADB-equivalent shell     -> rish")
-        }.trimEnd())
+            appendLine("  Android privileged shell -> ${state.privilegeBackend}")
+            if (!state.androidShellReady) {
+                appendLine("  Android commands are BLOCKED: start Shizuku and grant OmniDev access before retrying.")
+                appendLine("  Termux readiness does not grant Android shell privileges; PATH changes cannot repair this.")
+            }
+            appendLine("  Binary lookup: use tool_which or shell builtin command -v; do not require which.")
+        }.trimEnd(), classification = "CAPABILITY_REPORT",
+            backend = "runtime-probe", verification = state.probeEvidence())
     }
 
     /** AgentRuntimeTool owns the visible terminal surface; keep legacy aliases hidden. */
@@ -673,16 +689,22 @@ object EnvironmentSetupManager {
     }
 
     private suspend fun detectPrivilegeBackend(): String = try {
-        val shizuku = PrivilegedExecutionManager.isShizukuReady()
-        val rish = PrivilegedExecutionManager.isRishReady()
-        val root = PrivilegedExecutionManager.isRootAvailable()
-        when {
-            shizuku && rish -> "shizuku-user-service+rish"
-            shizuku -> "shizuku-user-service"
-            root -> "root"
-            rish -> "rish"
-            else -> "none"
-        }
+        probePrivilegeBackend(
+            refreshRish = {
+                rishProbe.check {
+                    runBlocking { PrivilegedExecutionManager.getRishManager()?.refreshHealth()?.ready == true }
+                }
+            },
+            shizukuReady = {
+                identityProbe.check {
+                    runBlocking { ShizukuCommandTool.privilegedUidOrNull() in setOf(0, 2000) }
+                }
+            },
+            sharedPrerequisitesReady = { PrivilegedExecutionManager.isShizukuReady() },
+            cachedRootReady = { PrivilegedExecutionManager.isRootAvailable() }
+        )
+    } catch (cancelled: CancellationException) {
+        throw cancelled
     } catch (t: Throwable) {
         Log.w(TAG, "Privilege detection failed: ${t.message}")
         "none"
@@ -694,7 +716,7 @@ object EnvironmentSetupManager {
     ): ToolExecutionResult {
         val output = result.mergedOutput().trim().take(MAX_OUTPUT)
         return if (result.isSuccess) {
-            ToolExecutionResult(output.ifBlank { "(no output)" })
+            ToolExecutionResult(output.ifBlank { "(no output)" }, backend = "termux", exitCode = 0)
         } else {
             val diagnostic = buildString {
                 append("❌ $operation failed")
@@ -706,7 +728,8 @@ object EnvironmentSetupManager {
                     append(termuxSetupHint())
                 }
             }
-            ToolExecutionResult(diagnostic.take(MAX_OUTPUT), isError = true)
+            ToolExecutionResult(diagnostic.take(MAX_OUTPUT), isError = true, backend = "termux",
+                exitCode = result.exitCode.takeIf { it >= 0 })
         }
     }
 

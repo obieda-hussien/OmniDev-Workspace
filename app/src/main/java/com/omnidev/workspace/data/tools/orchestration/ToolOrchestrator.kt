@@ -173,7 +173,7 @@ class ToolOrchestrator {
                     }
 
                     if (toolResult != null && ToolExecutionSemantics.isPersistentFailure(toolResult)) {
-                        val key = "$toolName:${toolResult.classification ?: "PERSISTENT"}"
+                        val key = "$toolName:${toolResult.backend.orEmpty()}:${toolResult.classification ?: "PERSISTENT"}"
                         val repeated = semanticFailureCounts
                             .getOrPut(key) { AtomicInteger(0) }
                             .incrementAndGet()
@@ -201,7 +201,7 @@ class ToolOrchestrator {
                     metrics.successCount++
                     metrics.consecutiveFailures = 0
                     metrics.lastError = null
-                    clearSemanticFailureCounts(toolName)
+                    clearSemanticFailureCounts(toolName, toolResult?.backend.orEmpty())
                 }
 
                 Result.success(output)
@@ -266,8 +266,8 @@ class ToolOrchestrator {
         else output.substring(0, newline + 1) + message + "\n" + output.substring(newline + 1)
     }
 
-    private fun clearSemanticFailureCounts(toolName: String) {
-        val prefix = "$toolName:"
+    private fun clearSemanticFailureCounts(toolName: String, backend: String? = null) {
+        val prefix = if (backend == null) "$toolName:" else "$toolName:$backend:"
         semanticFailureCounts.keys.removeAll { it.startsWith(prefix) }
     }
 

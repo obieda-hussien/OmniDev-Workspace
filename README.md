@@ -70,21 +70,21 @@ mutation. [Contracts and troubleshooting](docs/LAUNCHER_EXPERIENCES.md).
 
 ## Repository size and source statistics
 
-This reproducible snapshot counts committed content at [`07328faa`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/07328faa8a066a77727343a45fce5b7e25b545cb) on **15 October 2026**, after the accessibility ANR repair in PR #192. It includes Lite source isolation, the OEM system broker/contract, continuous Chat, dependency hardening and the bounded background accessibility observer. This documentation/counter maintenance update is excluded from that fixed snapshot. The current counter includes AIDL and flavor-specific test roots (`testAdvanced`, `testAgent`, `testTeam`); older reports omitted those categories.
+This reproducible snapshot counts committed content at [`928b7ed2`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/928b7ed285cf91036787ab5f94eda663681fb1bf) on **17 October 2026**, including runtime capability recovery, Launcher execution/handoff repairs and the previous accessibility ANR fixes. This subsequent documentation/counter update is excluded from that fixed snapshot. The counter includes AIDL and flavor-specific test roots (`testAdvanced`, `testAgent`, `testTeam`).
 
 | Metric | Count |
 | --- | ---: |
-| Tracked files | 893 |
-| UTF-8 text files | 881 |
-| Physical text lines | 136,140 |
-| Nonblank text lines | 122,672 |
-| Source/script files, including AIDL | 747 |
-| Source/script physical lines | 126,802 |
-| App Kotlin files, including tests | 700 |
-| App Kotlin physical lines, including tests | 122,425 |
-| Test source files, including flavor-specific roots | 173 |
-| Test source physical lines | 13,588 |
-| Tracked blob bytes | 7,153,149 |
+| Tracked files | 902 |
+| UTF-8 text files | 890 |
+| Physical text lines | 137,266 |
+| Nonblank text lines | 123,701 |
+| Source/script files, including AIDL | 755 |
+| Source/script physical lines | 127,769 |
+| App Kotlin files, including tests | 707 |
+| App Kotlin physical lines, including tests | 123,352 |
+| Test source files, including flavor-specific roots | 177 |
+| Test source physical lines | 14,075 |
+| Tracked blob bytes | 7,238,770 |
 
 Physical lines include comments and blank lines; nonblank lines still include comments. These counts are not comment-free SLOC, a code-quality score or a device performance measurement. Source/script counts exclude XML/resources, data and documentation. Test totals overlap source totals. Untracked/generated files, downloaded models, caches and submodule contents are excluded; tracked binary assets count as files/bytes only.
 
@@ -102,6 +102,7 @@ For repository access, installed integrations, Actions controls and public-sourc
 
 | Area | Current implementation | Details |
 |---|---|---|
+| Runtime backend recovery | Per-run capability circuits stop repeated unavailable Android/Termux routes; an honest final limitation report replaces backend retry checkpoints while independent tools remain usable | [Runtime recovery contract](docs/TOOL_EXECUTION_CONTRACT.md#runtime-backend-recovery) |
 | Accessibility ANR repair | One background observer, one pending refresh, a 500 ms interval after each scan, and one iterative pass bounded to 256 nodes, 255 child requests, 48 levels and 120 ms before starting further requests | [Regression scope and device checks](docs/accessibility-anr-regression.md) |
 | Snapshot and teaching lifecycle | Window transitions invalidate pending observations even inside the same package; teaching uses a bounded session-tagged queue and releases copied events/nodes | [PR #192](https://github.com/obieda-hussien/OmniDev-Workspace/pull/192) |
 | Continuous Chat | No app-imposed Chat token/tool-call/round ceiling; provider truncation continues in the same response and long-history compaction runs off Main | [Runtime stability](docs/RUNTIME_STABILITY.md#long-chat-turns) |

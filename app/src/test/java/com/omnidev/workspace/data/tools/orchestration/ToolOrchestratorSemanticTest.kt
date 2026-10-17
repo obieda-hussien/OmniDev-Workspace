@@ -11,6 +11,36 @@ import org.junit.Test
 class ToolOrchestratorSemanticTest {
 
     @Test
+    fun `success without backend resets only the empty backend failure bucket`() = runBlocking {
+        val orchestrator = ToolOrchestrator()
+        suspend fun fail(backend: String? = null) = orchestrator.executeTool("example_tool") {
+            ToolExecutionResult("Unavailable", true, classification = "CAPABILITY_UNAVAILABLE",
+                backend = backend, persistentFailure = true)
+        }.getOrThrow()
+        fail()
+        fail("other-backend")
+        orchestrator.executeTool("example_tool") { ToolExecutionResult("Recovered") }.getOrThrow()
+        assertFalse(fail().output.contains("[semantic-circuit]"))
+        assertTrue(fail("other-backend").output.contains("[semantic-circuit] repeated=2"))
+        assertTrue(fail().output.contains("[semantic-circuit] repeated=2"))
+    }
+
+    @Test
+    fun `Termux success does not clear Shizuku failure count`() = runBlocking {
+        val orchestrator = ToolOrchestrator()
+        suspend fun fail() = orchestrator.executeTool("agent_runtime") {
+            ToolExecutionResult("Shizuku unavailable", true, classification = "SHIZUKU_UNAVAILABLE",
+                backend = "shizuku-user-service", persistentFailure = true)
+        }.getOrThrow()
+        fail()
+        orchestrator.executeTool("agent_runtime") { ToolExecutionResult("paths", backend = "termux") }
+        orchestrator.executeTool("agent_runtime") { ToolExecutionResult("probe", backend = "runtime-probe") }
+        assertTrue(fail().output.contains("[semantic-circuit] repeated=2"))
+        orchestrator.executeTool("agent_runtime") { ToolExecutionResult("Android command completed", backend = "shizuku-user-service") }
+        assertFalse(fail().output.contains("[semantic-circuit]"))
+    }
+
+    @Test
     fun `persistent semantic failures do not disable whole multipurpose tool`() = runBlocking {
         val orchestrator = ToolOrchestrator()
 

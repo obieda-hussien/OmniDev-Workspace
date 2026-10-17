@@ -376,7 +376,8 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
 
             "env_probe" -> {
                 val state = EnvironmentSetupManager.probe(force = true)
-                ToolExecutionResult("Probe complete: ${state.summaryLine()}")
+                ToolExecutionResult("Probe complete: ${state.summaryLine()}", backend = "runtime-probe",
+                    verification = state.probeEvidence())
             }
 
             "bootstrap" -> runBootstrap(args)

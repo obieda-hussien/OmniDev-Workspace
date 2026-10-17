@@ -1,5 +1,37 @@
 package com.omnidev.workspace.data.tools
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
+
+/** Recovery evidence requires bounded functional checks and current shared prerequisites. */
+internal suspend fun probePrivilegeBackend(
+    refreshRish: suspend () -> Boolean,
+    shizukuReady: suspend () -> Boolean,
+    sharedPrerequisitesReady: () -> Boolean,
+    cachedRootReady: () -> Boolean,
+    rishTimeoutMs: Long = 5_000L,
+    userServiceTimeoutMs: Long = 3_000L
+): String {
+    suspend fun check(timeoutMs: Long, operation: suspend () -> Boolean): Boolean = try {
+        withTimeoutOrNull(timeoutMs) { operation() } == true
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        false
+    }
+    val rish = check(rishTimeoutMs, refreshRish)
+    val shizuku = check(userServiceTimeoutMs, shizukuReady)
+    // Binder/permission loss during either check invalidates both execution routes.
+    val shared = sharedPrerequisitesReady()
+    return when {
+        shared && shizuku && rish -> "shizuku-user-service+rish"
+        shared && shizuku -> "shizuku-user-service"
+        shared && rish -> "rish"
+        cachedRootReady() -> "root"
+        else -> "none"
+    }
+}
+
 enum class SetupPhase { UNINITIALIZED, PROBING, READY, DEGRADED, FAILED }
 
 data class RuntimeStatus(
@@ -20,6 +52,14 @@ data class SetupState(
 ) {
     val isReady: Boolean get() = phase == SetupPhase.READY
     val isDegraded: Boolean get() = phase == SetupPhase.DEGRADED
+    val androidShellReady: Boolean get() =
+        privilegeBackend.contains("shizuku-user-service") || privilegeBackend == "rish"
+
+    /** Machine-readable probe evidence; root readiness never authorizes the automatic shell route. */
+    fun probeEvidence(): String =
+        "android-shell=${if (androidShellReady) "ready" else "unavailable"};" +
+            "termux=${if (termuxPrefix != null) "ready" else "unavailable"};" +
+            "rish=${if (privilegeBackend.contains("rish")) "ready" else "unavailable"}"
 
     fun runtime(name: String): RuntimeStatus =
         runtimes[name] ?: RuntimeStatus(name, available = false)
