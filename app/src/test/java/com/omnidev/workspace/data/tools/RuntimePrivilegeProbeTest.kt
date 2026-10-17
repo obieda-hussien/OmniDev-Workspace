@@ -9,9 +9,27 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimePrivilegeProbeTest {
+    @Test fun `live binder with failed UserService and rish cannot advertise recovery`() = runBlocking {
+        val backend = probePrivilegeBackend(
+            refreshRish = { false }, shizukuReady = { false },
+            sharedPrerequisitesReady = { true }, cachedRootReady = { false }
+        )
+        assertEquals("none", backend)
+        assertFalse(SetupState(privilegeBackend = backend).androidShellReady)
+    }
+
+    @Test fun `functional rish remains available when UserService is not responsive`() = runBlocking {
+        val backend = probePrivilegeBackend(
+            refreshRish = { true }, shizukuReady = { CompletableDeferred<Boolean>().await() },
+            sharedPrerequisitesReady = { true }, cachedRootReady = { false }, userServiceTimeoutMs = 10L
+        )
+        assertEquals("rish", backend)
+        assertTrue(SetupState(privilegeBackend = backend).androidShellReady)
+    }
+
     @Test fun `binder lost after a successful rish check cannot publish ready evidence`() = runBlocking {
         val backend = probePrivilegeBackend(
-            refreshRish = { true }, shizukuReady = { false }, cachedRootReady = { false }
+            refreshRish = { true }, shizukuReady = { true }, sharedPrerequisitesReady = { false }, cachedRootReady = { false }
         )
         assertEquals("none", backend)
         assertFalse(SetupState(privilegeBackend = backend).androidShellReady)
@@ -21,7 +39,7 @@ class RuntimePrivilegeProbeTest {
         var live = true
         var probes = 0
         suspend fun snapshot() = SetupState(privilegeBackend = probePrivilegeBackend(
-            refreshRish = { probes++; live }, shizukuReady = { live }, cachedRootReady = { false }
+            refreshRish = { probes++; live }, shizukuReady = { live }, sharedPrerequisitesReady = { live }, cachedRootReady = { false }
         ))
         assertTrue(snapshot().androidShellReady)
         val ledger = RuntimeBackendLedger()
@@ -39,7 +57,7 @@ class RuntimePrivilegeProbeTest {
     @Test fun `slow rish probe cannot hide an available UserService or advertise rish recovery`() = runBlocking {
         val backend = probePrivilegeBackend(
             refreshRish = { CompletableDeferred<Boolean>().await() },
-            shizukuReady = { true }, cachedRootReady = { false }, rishTimeoutMs = 10L
+            shizukuReady = { true }, sharedPrerequisitesReady = { true }, cachedRootReady = { false }, rishTimeoutMs = 10L
         )
         assertEquals("shizuku-user-service", backend)
         assertFalse(SetupState(privilegeBackend = backend).probeEvidence().contains("rish=ready"))
@@ -48,7 +66,7 @@ class RuntimePrivilegeProbeTest {
     @Test fun `failed live rish check never falls back to stale ready evidence`() = runBlocking {
         val backend = probePrivilegeBackend(
             refreshRish = { throw IllegalStateException("Transport failed") },
-            shizukuReady = { false }, cachedRootReady = { true }
+            shizukuReady = { false }, sharedPrerequisitesReady = { true }, cachedRootReady = { true }
         )
         assertEquals("root", backend)
         assertFalse(SetupState(privilegeBackend = backend).androidShellReady)
@@ -58,7 +76,7 @@ class RuntimePrivilegeProbeTest {
         try {
             probePrivilegeBackend(
                 refreshRish = { throw CancellationException("Cancelled") },
-                shizukuReady = { true }, cachedRootReady = { true }
+                shizukuReady = { true }, sharedPrerequisitesReady = { true }, cachedRootReady = { true }
             )
             fail("Cancellation was swallowed")
         } catch (_: CancellationException) {

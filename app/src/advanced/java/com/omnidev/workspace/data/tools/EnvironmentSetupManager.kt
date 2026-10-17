@@ -688,7 +688,8 @@ object EnvironmentSetupManager {
     private suspend fun detectPrivilegeBackend(): String = try {
         probePrivilegeBackend(
             refreshRish = { PrivilegedExecutionManager.getRishManager()?.refreshHealth()?.ready == true },
-            shizukuReady = { PrivilegedExecutionManager.isShizukuReady() },
+            shizukuReady = { ShizukuCommandTool.privilegedUidOrNull() in setOf(0, 2000) },
+            sharedPrerequisitesReady = { PrivilegedExecutionManager.isShizukuReady() },
             cachedRootReady = { PrivilegedExecutionManager.isRootAvailable() }
         )
     } catch (cancelled: CancellationException) {

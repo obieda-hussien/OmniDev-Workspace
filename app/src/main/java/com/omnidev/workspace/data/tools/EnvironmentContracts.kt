@@ -3,26 +3,31 @@ package com.omnidev.workspace.data.tools
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Recovery evidence must come from a bounded live check, never a previous rish success. */
+/** Recovery evidence requires bounded functional checks and current shared prerequisites. */
 internal suspend fun probePrivilegeBackend(
     refreshRish: suspend () -> Boolean,
-    shizukuReady: () -> Boolean,
+    shizukuReady: suspend () -> Boolean,
+    sharedPrerequisitesReady: () -> Boolean,
     cachedRootReady: () -> Boolean,
-    rishTimeoutMs: Long = 5_000L
+    rishTimeoutMs: Long = 5_000L,
+    userServiceTimeoutMs: Long = 3_000L
 ): String {
-    val rish = try {
-        withTimeoutOrNull(rishTimeoutMs) { refreshRish() } == true
+    suspend fun check(timeoutMs: Long, operation: suspend () -> Boolean): Boolean = try {
+        withTimeoutOrNull(timeoutMs) { operation() } == true
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
         false
     }
-    // Read binder/permission readiness after the functional check, which may observe a loss.
-    val shizuku = shizukuReady()
+    val rish = check(rishTimeoutMs, refreshRish)
+    val shizuku = check(userServiceTimeoutMs, shizukuReady)
+    // Binder/permission loss during either check invalidates both execution routes.
+    val shared = sharedPrerequisitesReady()
     return when {
-        shizuku && rish -> "shizuku-user-service+rish"
-        shizuku -> "shizuku-user-service"
+        shared && shizuku && rish -> "shizuku-user-service+rish"
+        shared && shizuku -> "shizuku-user-service"
         cachedRootReady() -> "root"
+        shared && rish -> "rish"
         else -> "none"
     }
 }
