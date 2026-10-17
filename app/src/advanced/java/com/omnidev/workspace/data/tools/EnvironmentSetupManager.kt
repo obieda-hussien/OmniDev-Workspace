@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -99,6 +100,8 @@ object EnvironmentSetupManager {
     private val probeMutex = Mutex()
     private val packageMutex = Mutex()
     private val lastProbeMs = AtomicLong(0L)
+    private val identityProbe = BoundedRuntimeProbe()
+    private val rishProbe = BoundedRuntimeProbe()
 
     @Volatile private var appContext: Context? = null
 
@@ -687,8 +690,16 @@ object EnvironmentSetupManager {
 
     private suspend fun detectPrivilegeBackend(): String = try {
         probePrivilegeBackend(
-            refreshRish = { PrivilegedExecutionManager.getRishManager()?.refreshHealth()?.ready == true },
-            shizukuReady = { ShizukuCommandTool.privilegedUidOrNull() in setOf(0, 2000) },
+            refreshRish = {
+                rishProbe.check {
+                    runBlocking { PrivilegedExecutionManager.getRishManager()?.refreshHealth()?.ready == true }
+                }
+            },
+            shizukuReady = {
+                identityProbe.check {
+                    runBlocking { ShizukuCommandTool.privilegedUidOrNull() in setOf(0, 2000) }
+                }
+            },
             sharedPrerequisitesReady = { PrivilegedExecutionManager.isShizukuReady() },
             cachedRootReady = { PrivilegedExecutionManager.isRootAvailable() }
         )
