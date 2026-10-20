@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.model.ModelRole
+import com.omnidev.workspace.data.routing.AutoModelRouter
 import com.omnidev.workspace.ui.components.OmniSearchField
 import com.omnidev.workspace.ui.components.SettingsEmptyState
 import com.omnidev.workspace.ui.motion.OmniIconButton
@@ -124,9 +125,13 @@ private fun ModelAssignmentRow(role: ModelRole, model: AIModel?, id: String, con
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(roleTitle(role), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(model?.displayName ?: id.ifBlank { "Choose a model" }, style = MaterialTheme.typography.bodyLarge,
+                Text(when (id) {
+                    AutoModelRouter.FREE_ONLY -> "Auto · Free only"
+                    AutoModelRouter.FREE_FIRST_WITH_PAID -> "Auto · Free first (paid fallback)"
+                    else -> model?.displayName ?: id.ifBlank { "Choose a model" }
+                }, style = MaterialTheme.typography.bodyLarge,
                     maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(if (model != null && connected) model.provider.displayName else "Connect a provider or set up a local model",
+                Text(if (AutoModelRouter.isAuto(id)) "Automatically chooses a suitable connected model" else if (model != null && connected) model.provider.displayName else "Connect a provider or set up a local model",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Change ${roleTitle(role)} model",
@@ -179,6 +184,38 @@ internal fun ModelPickerSheet(role: ModelRole, selectedId: String, available: Ma
                     TextButton(onClick = onLocalModels, modifier = Modifier.fillMaxWidth()) { Text("Set up a local model") }
                 } else if (query.isNotBlank() && visible.values.all { it.isEmpty() }) item(key = "no-matches") {
                     SettingsEmptyState("No matching models", "Try another name or change the provider filter.")
+                }
+                if (query.isBlank() && available.values.any { it.isNotEmpty() }) {
+                    item(key = "auto-free") {
+                        Surface(
+                            onClick = { onSelect(AutoModelRouter.FREE_ONLY) },
+                            enabled = !saving,
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (selectedId == AutoModelRouter.FREE_ONLY) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerLow
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                Text("Auto · Free only", fontWeight = FontWeight.SemiBold)
+                                Text("Use eligible free models first. Never silently switch to paid or unpriced models.",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    item(key = "auto-paid") {
+                        Surface(
+                            onClick = { onSelect(AutoModelRouter.FREE_FIRST_WITH_PAID) },
+                            enabled = !saving,
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (selectedId == AutoModelRouter.FREE_FIRST_WITH_PAID) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerLow
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                Text("Auto · Free first, paid fallback", fontWeight = FontWeight.SemiBold)
+                                Text("May use paid providers and share the request with another connected provider. Failover can be slower.",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                 }
                 visible.forEach { (provider, models) ->
                     if (query.isBlank() || models.isNotEmpty()) {
