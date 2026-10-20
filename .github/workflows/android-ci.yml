@@ -419,15 +419,16 @@ jobs:
 
   admin-release-telegram:
     name: Private Admin Release (Telegram)
-    # Never use environment secrets on PR or on a non-main manual dispatch.
-    if: github.repository == 'obieda-hussien/OmniDev-Workspace' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # Secrets are never exposed to PRs or automatic pushes from other branches.
+    # A maintainer may explicitly dispatch a trusted repository branch for private testing.
+    if: github.repository == 'obieda-hussien/OmniDev-Workspace' && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')))
     needs: [run-quality, lint, tests, release-apk]
     environment: copilot
     runs-on: ubuntu-24.04
     timeout-minutes: 120
 
     steps:
-      - name: Checkout trusted main
+      - name: Checkout trusted repository ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
@@ -599,7 +600,7 @@ jobs:
             --output "$response" \
             --form-string "chat_id=$TELEGRAM_CHAT_ID" \
             --form "document=@${ADMIN_DELIVERY_FILE};filename=${ADMIN_DELIVERY_FILENAME};type=${ADMIN_DELIVERY_MIME}" \
-            --form-string "caption=OmniDev Admin • $ADMIN_DELIVERY_NOTE • $ADMIN_DELIVERY_FORMAT • run #${GITHUB_RUN_NUMBER} • ${sha_short} • APK SHA-256: ${ADMIN_APK_SHA256} • Document SHA-256: ${ADMIN_DELIVERY_SHA256}" \
+            --form-string "caption=OmniDev Admin • branch ${GITHUB_REF_NAME} • $ADMIN_DELIVERY_NOTE • $ADMIN_DELIVERY_FORMAT • run #${GITHUB_RUN_NUMBER} • ${sha_short} • APK SHA-256: ${ADMIN_APK_SHA256} • Document SHA-256: ${ADMIN_DELIVERY_SHA256}" \
             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"; then
             echo "::error::Telegram document upload failed; Admin APK was not published as a GitHub artifact."
             exit 1
