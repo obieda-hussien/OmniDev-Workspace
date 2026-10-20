@@ -8,6 +8,15 @@ the existing model picker for Chat, Agent, Team Coordinator and Team Worker.
 - Auto is opt-in for each role. Existing explicit model selections are unchanged.
 - Free-only accepts **explicitly zero-priced** catalog entries or OpenRouter
   \`:free\` models. Missing price metadata does **not** prove a free allowance.
+- Gemini API Free Tier is a **per-project billing designation**, not a model price.
+  Free-only includes an allowlist of publicly documented Gemini free-tier models
+  only after the user explicitly confirms their Gemini project is **unbilled**.
+  The /models endpoint cannot verify that declaration: users should review
+  Google AI Studio billing status and free limits before enabling the checkbox.
+  If billing changes, switch it off.
+- Gemini API model listings do not specify Function Calling capability; Auto
+  uses conservative known-good Gemini text models. Antigravity preview isn't
+  agent-eligible even if an old cached catalog incorrectly labels it as such.
 - The paid fallback choice is an explicit opt-in and can charge the account or
   send conversation content to a different **already configured** provider.
 - There are no background "test prompts" or provider-wide API probes.
@@ -33,12 +42,15 @@ the existing model picker for Chat, Agent, Team Coordinator and Team Worker.
 5. Connect two distinct eligible providers and simulate a recoverable
    failure before first streamed text. Verify the next provider is used,
    with no more than three requests.
-6. Test a message involving tool calls and verify already-executed tool
+6. Ensure `antigravity-preview-05-2026` is not selected by Agent Auto.
+   Function Calling HTTP 400 must not be retried six times or mislabeled
+   as a network failure. If a compatible candidate is connected, try it.
+7. Test a message involving tool calls and verify already-executed tool
    actions are not repeated on provider errors.
-7. Repeat the selection in Agent, Team Coordinator, and Team Worker on a
+8. Repeat the selection in Agent, Team Coordinator, and Team Worker on a
    flavor supporting those modes.
-8. Without a loaded user-added GGUF, verify Local Edge is never selected.
-9. Verify existing explicit model selections and Lite builds remain intact.
+9. Without a loaded user-added GGUF, verify Local Edge is never selected.
+10. Verify existing explicit model selections and Lite builds remain intact.
 
 ## Scope and follow-ups
 
