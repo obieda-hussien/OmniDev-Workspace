@@ -924,7 +924,14 @@ class ChatViewModel(
 
         suspend fun checkpoint(force: Boolean = false) {
             val now = System.currentTimeMillis()
-            if (!force && now - lastCheckpoint < 750) return
+            // Full, uncapped execution traces can be large. Persist them less
+            // often as they grow while retaining every event at final checkpoint.
+            val checkpointInterval = when {
+                runEntries.size > 2_000 -> 5_000L
+                runEntries.size > 500 -> 2_000L
+                else -> 750L
+            }
+            if (!force && now - lastCheckpoint < checkpointInterval) return
             lastCheckpoint = now
             chatRepository?.updateRun(
                 rowId,
