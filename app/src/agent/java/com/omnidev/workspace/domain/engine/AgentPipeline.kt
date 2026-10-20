@@ -1131,7 +1131,7 @@ Do not use tools. Do not rewrite merely for style.
 
     private fun isPermanentRequestError(message: String): Boolean = containsAny(
         message.lowercase(),
-        "api error 400", "api key is invalid", "no api key", "unauthorized", "forbidden",
+        "function calling is not enabled", "does not support function calling", "api error 400", "api key is invalid", "no api key", "unauthorized", "forbidden",
         "model not found", "invalid request format", "insufficient quota"
     )
 
