@@ -196,7 +196,8 @@ fun AISettingsScreen(
                     viewModel::selectModelForRole, { providersViewModel?.refreshModels(it) },
                     onNavigateToProviders, if (com.omnidev.workspace.BuildConfig.TIER == "LITE") onNavigateToProviders else onNavigateToIntegrations, onNavigateToLocalModels,
                     modifier = Modifier.padding(padding).consumeWindowInsets(padding), onMediaSave = viewModel::saveMediaConfig,
-                    onGeminiFreeProjectChange = viewModel::setGeminiAutoFreeProject)
+                    onGeminiFreeProjectChange = viewModel::setGeminiAutoFreeProject,
+                    onAutoProviderScopeChange = viewModel::selectAutoProviderScope)
             } else {
                 key(page) {
                     Column(
