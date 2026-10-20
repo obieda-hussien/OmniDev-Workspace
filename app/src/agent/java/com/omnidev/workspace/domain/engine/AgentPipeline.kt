@@ -1069,7 +1069,8 @@ Do not use tools. Do not rewrite merely for style.
                 if (rateLimited || permanent || normalAttempt >= normalMaxAttempts - 1) {
                     val message = when {
                         rateLimited -> "Rate limit reached after all retry attempts (iteration $iteration)."
-                        isNetworkException(error) -> "Network failure after $normalMaxAttempts attempt(s) (iteration $iteration): ${error.message}"
+                        permanent -> "Provider rejected this model (iteration $iteration): ${error.message}"
+                        isNetworkException(error) -> "Network failure after ${normalAttempt + 1} attempt(s) (iteration $iteration): ${error.message}"
                         else -> "API call failed after $normalMaxAttempts attempt(s) (iteration $iteration): ${error.message}"
                     }
                     onFatalError(message)
@@ -1131,7 +1132,7 @@ Do not use tools. Do not rewrite merely for style.
 
     private fun isPermanentRequestError(message: String): Boolean = containsAny(
         message.lowercase(),
-        "function calling is not enabled", "does not support function calling", "api error 400", "api key is invalid", "no api key", "unauthorized", "forbidden",
+        "function calling is not enabled", "does not support function calling", "auto found no eligible", "auto has no connected compatible", "no available auto model", "api error 400", "api key is invalid", "no api key", "unauthorized", "forbidden",
         "model not found", "invalid request format", "insufficient quota"
     )
 
