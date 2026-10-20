@@ -102,6 +102,8 @@ Synthesize specialist evidence into the answer to the original request.
         userMessage: String,
         orchestratorModelId: String,
         workerModelId: String,
+        coordinatorAuto: Boolean = false,
+        workerAuto: Boolean = false,
         scopePath: String,
         enableDeepThinking: Boolean = false,
         godModeEnabled: Boolean = false,
@@ -133,7 +135,7 @@ Synthesize specialist evidence into the answer to the original request.
             if (revision > 0) send(SwarmEvent.SteeringApplied(revision))
             try {
                 executeAttempt(objective + evidence.context(), orchestratorModelId, workerModelId,
-                    scopePath, enableDeepThinking, godModeEnabled, steering, revision,
+                    coordinatorAuto, workerAuto, scopePath, enableDeepThinking, godModeEnabled, steering, revision,
                     teamStartedAt, observedTeamTokens, mentionFocus, disabledToolNames, toolAccessMode,
                     focusContext, userContext.take(5000)).collect { event ->
                     evidence.record(event)
@@ -152,6 +154,8 @@ Synthesize specialist evidence into the answer to the original request.
         userMessage: String,
         orchestratorModelId: String,
         workerModelId: String,
+        coordinatorAuto: Boolean,
+        workerAuto: Boolean,
         scopePath: String,
         enableDeepThinking: Boolean,
         godModeEnabled: Boolean,
@@ -193,7 +197,8 @@ Synthesize specialist evidence into the answer to the original request.
             maxTokens = minOf(orchestratorModel.maxOutputTokens, PLANNER_MAX_OUTPUT_TOKENS),
             enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
             targetContext = scopePath,
-            apiKey = orchestratorApiKey
+            apiKey = orchestratorApiKey,
+            autoRouteRole = if (coordinatorAuto) com.omnidev.workspace.data.model.ModelRole.SWARM_ORCHESTRATOR else null
         )
 
         val planInput = TokenAccounting.estimateInputTokens(planPrototype)
@@ -330,6 +335,7 @@ Synthesize specialist evidence into the answer to the original request.
                 workerPipeline.execute(
                     userMessage = workerPrompt,
                     modelId = workerModelId,
+                    autoRouteRole = if (workerAuto) com.omnidev.workspace.data.model.ModelRole.SWARM_WORKER else null,
                     scopePath = scopePath,
                     enableDeepThinking = enableDeepThinking,
                     workerPersona = task.requiredPersona.takeIf(String::isNotBlank),
@@ -485,6 +491,7 @@ Synthesize specialist evidence into the answer to the original request.
                 failed = failed,
                 skipped = skipped,
                 orchestratorModelId = orchestratorModelId,
+                coordinatorAuto = coordinatorAuto,
                 orchestratorApiKey = orchestratorApiKey,
                 modelMaxOutput = orchestratorModel.maxOutputTokens,
                 scopePath = scopePath,
@@ -612,6 +619,7 @@ Synthesize specialist evidence into the answer to the original request.
         failed: Map<String, String>,
         skipped: Map<String, String>,
         orchestratorModelId: String,
+        coordinatorAuto: Boolean,
         orchestratorApiKey: String?,
         modelMaxOutput: Int,
         scopePath: String,
@@ -633,7 +641,8 @@ Synthesize specialist evidence into the answer to the original request.
             maxTokens = minOf(modelMaxOutput, SYNTHESIS_MAX_OUTPUT_TOKENS),
             enableThinking = enableThinking,
             targetContext = scopePath,
-            apiKey = orchestratorApiKey
+            apiKey = orchestratorApiKey,
+            autoRouteRole = if (coordinatorAuto) com.omnidev.workspace.data.model.ModelRole.SWARM_ORCHESTRATOR else null
         )
         val remaining = (TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTokens.get()).coerceAtLeast(0)
         val estimatedInput = TokenAccounting.estimateInputTokens(provisional)
