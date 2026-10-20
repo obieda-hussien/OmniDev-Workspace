@@ -17,11 +17,13 @@ object AutoModelRouter {
     fun isAuto(selection: String): Boolean =
         selection == FREE_ONLY || selection == FREE_FIRST_WITH_PAID
 
-    fun isExplicitlyFree(model: AIModel): Boolean =
+    fun isExplicitlyFree(model: AIModel, geminiFreeTierConfirmed: Boolean = false): Boolean =
         (model.costPer1MInputTokens == 0.0 && model.costPer1MOutputTokens == 0.0) ||
             (model.provider == ModelProvider.OPEN_ROUTER &&
                 model.id.substringAfter("::").endsWith(":free", ignoreCase = true)) ||
-            model.provider == ModelProvider.LOCAL_EDGE
+            model.provider == ModelProvider.LOCAL_EDGE ||
+            (geminiFreeTierConfirmed && model.provider == ModelProvider.GEMINI &&
+                GeminiAutoPolicy.hasPublishedFreeTier(model.id))
 
     fun candidates(
         models: List<AIModel>,
@@ -29,11 +31,13 @@ object AutoModelRouter {
         role: ModelRole,
         selection: String,
         localReady: Boolean,
-        requiresVision: Boolean = false
+        requiresVision: Boolean = false,
+        geminiFreeTierConfirmed: Boolean = false
     ): List<AIModel> {
         if (!isAuto(selection)) return emptyList()
         return models.asSequence()
             .filter { it.contextWindow > 0 && it.maxOutputTokens > 0 }
+            .filter { it.provider != ModelProvider.GEMINI || GeminiAutoPolicy.supportsTools(it.id) }
             .filter { it.provider != ModelProvider.GITHUB_MODELS } // Retired service.
             .filter { model ->
                 if (model.provider == ModelProvider.LOCAL_EDGE) localReady
@@ -41,11 +45,11 @@ object AutoModelRouter {
             }
             .filter { it.supportsFunctionCalling || (role == ModelRole.CHAT && it.provider == ModelProvider.LOCAL_EDGE) }
             .filter { !requiresVision || it.supportsVision }
-            .filter { selection == FREE_FIRST_WITH_PAID || isExplicitlyFree(it) }
+            .filter { selection == FREE_FIRST_WITH_PAID || isExplicitlyFree(it, geminiFreeTierConfirmed) }
             // The completion service looks up models by ID, so avoid ambiguous identities.
             .distinctBy { it.id }
             .sortedWith(compareBy<AIModel>(
-                { if (isExplicitlyFree(it)) 0 else 1 },
+                { if (isExplicitlyFree(it, geminiFreeTierConfirmed)) 0 else 1 },
                 { tierPenalty(role, it.tier) },
                 { if (it.isLatest) 0 else 1 },
                 { if (it.costPer1MInputTokens != null && it.costPer1MOutputTokens != null)
