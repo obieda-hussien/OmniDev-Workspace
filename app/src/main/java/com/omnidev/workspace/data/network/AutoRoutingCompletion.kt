@@ -117,7 +117,7 @@ class AutoRoutingCompletion(
 
     companion object {
         internal fun recoverable(error: IOException): Boolean =
-            error is RateLimitException || listOf(
+            error is RateLimitException || error is ModelCapabilityException || listOf(
                 "rate limit", "too many requests", "503", "502", "500", "504",
                 "server encountered", "service unavailable", "temporarily unavailable",
                 "timed out", "model not found", "not have permission", "insufficient quota",
