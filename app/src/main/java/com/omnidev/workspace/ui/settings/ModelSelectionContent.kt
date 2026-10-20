@@ -196,7 +196,7 @@ internal fun ModelPickerSheet(role: ModelRole, selectedId: String, available: Ma
                         ) {
                             Column(Modifier.fillMaxWidth().padding(16.dp)) {
                                 Text("Auto · Free only", fontWeight = FontWeight.SemiBold)
-                                Text("Use eligible free models first. Never silently switch to paid or unpriced models.",
+                                Text("Use eligible free models only. May switch between connected providers and respond more slowly; never silently use paid or unpriced models.",
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
