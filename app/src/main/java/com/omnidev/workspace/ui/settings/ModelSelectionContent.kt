@@ -211,11 +211,13 @@ internal fun ModelPickerSheet(role: ModelRole, selectedId: String, available: Ma
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 FilterChip(selected = autoProviderScope == null,
                                     onClick = { onAutoProviderScopeChange(null) },
-                                    enabled = !saving, label = { Text("All providers") })
+                                    enabled = !saving, modifier = Modifier.testTag("auto-scope-all"),
+                                    label = { Text("All providers") })
                                 available.keys.filter { it != ModelProvider.GITHUB_MODELS }.forEach { provider ->
                                     FilterChip(selected = autoProviderScope == provider,
                                         onClick = { onAutoProviderScopeChange(provider) },
-                                        enabled = !saving, label = { Text(provider.displayName) })
+                                        enabled = !saving, modifier = Modifier.testTag("auto-scope-${provider.name}"),
+                                        label = { Text(provider.displayName) })
                                 }
                             }
                             if (autoProviderScope != null && autoProviderScope !in available.keys) {
