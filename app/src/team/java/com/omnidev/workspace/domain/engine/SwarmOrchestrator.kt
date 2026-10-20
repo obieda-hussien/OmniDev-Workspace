@@ -102,8 +102,6 @@ Synthesize specialist evidence into the answer to the original request.
         userMessage: String,
         orchestratorModelId: String,
         workerModelId: String,
-        coordinatorAuto: Boolean = false,
-        workerAuto: Boolean = false,
         scopePath: String,
         enableDeepThinking: Boolean = false,
         godModeEnabled: Boolean = false,
@@ -111,7 +109,9 @@ Synthesize specialist evidence into the answer to the original request.
         mentionFocus: MentionFocus = MentionFocus.parse(userMessage),
         disabledToolNames: Set<String> = emptySet(),
         toolAccessMode: String = "ON_DEMAND",
-        userContext: String = ""
+        userContext: String = "",
+        coordinatorAuto: Boolean = false,
+        workerAuto: Boolean = false
     ): Flow<SwarmEvent> = channelFlow {
         val focusContext = try {
             if (mentionFocus.tools.isNotEmpty()) {
