@@ -49,8 +49,12 @@ class ModelSelectionTest {
             ModelPickerSheet(ModelRole.AGENT, models[0].id, mapOf(ModelProvider.OPENAI to models), emptyMap(), saving.value,
                 error.value, {}, { attempts++; error.value = "Could not save this model. Please try again." }, {}, {}, {}, {})
         } }
+        // Auto choices and provider headers can push rows off-screen in a LazyColumn.
+        // Scroll to the stable target instead of assuming the row is already composed.
+        compose.onNodeWithTag("model-options").performScrollToNode(hasText("Second model"))
         model("Second model").assertIsNotEnabled()
         compose.runOnIdle { saving.value = false }
+        compose.onNodeWithTag("model-options").performScrollToNode(hasText("Second model"))
         model("Second model").performClick()
         compose.onNodeWithText("Could not save this model. Please try again.").assertIsDisplayed()
         model("First model").assertIsSelected()
