@@ -75,16 +75,17 @@ class AutoRoutingCompletion(
         val attempts = (listOf(first) + choices.filterNot { it.id == first.id })
             .distinctBy { it.id }
             .filter { (unavailableUntil[it.id] ?: 0L) <= System.currentTimeMillis() }
-            .take(maxAttempts)
             .ifEmpty { listOf(first) }
         var lastError: IOException? = null
-        var previousProvider: ModelProvider? = null
-        for ((index, model) in attempts.withIndex()) {
-            if (index > 0 && (!mayFailover() || hasExecutedToolHistory)) break
-            // One bad credential/quota should not consume attempts on more models at that provider.
-            if (index > 0 && previousProvider == model.provider) continue
+        val exhaustedProviders = mutableSetOf<ModelProvider>()
+        var attempted = 0
+        for (model in attempts) {
+            if (attempted >= maxAttempts) break
+            if (model.provider in exhaustedProviders) continue
+            if (attempted > 0 && (!mayFailover() || hasExecutedToolHistory)) break
             val key = if (model.provider == ModelProvider.LOCAL_EDGE) null
                 else keys.getApiKey(model.provider) ?: continue
+            attempted++
             val candidate = request.copy(
                 modelId = model.id,
                 apiKey = key,
@@ -99,7 +100,11 @@ class AutoRoutingCompletion(
             } catch (failure: IOException) {
                 if (!recoverable(failure) || !mayFailover()) throw failure
                 lastError = failure
-                previousProvider = model.provider
+                if (failure is RateLimitException ||
+                    listOf("insufficient quota", "billing issue", "API key is invalid", "expired")
+                        .any { failure.message.orEmpty().contains(it, ignoreCase = true) }) {
+                    exhaustedProviders += model.provider
+                }
                 unavailableUntil[model.id] = System.currentTimeMillis() +
                     ((failure as? RateLimitException)?.retryAfterMs ?: 30_000L)
                         .coerceAtLeast(15_000L).coerceAtMost(15 * 60_000L)
@@ -114,7 +119,7 @@ class AutoRoutingCompletion(
                 "rate limit", "too many requests", "503", "502", "500", "504",
                 "server encountered", "service unavailable", "temporarily unavailable",
                 "timed out", "model not found", "not have permission", "insufficient quota",
-                "billing issue"
+                "billing issue", "API key is invalid", "expired"
             ).any { error.message.orEmpty().contains(it, ignoreCase = true) }
     }
 }
