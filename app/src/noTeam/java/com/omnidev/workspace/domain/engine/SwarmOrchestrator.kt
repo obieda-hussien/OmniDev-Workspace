@@ -38,6 +38,8 @@ class SwarmOrchestrator(
         userMessage: String,
         orchestratorModelId: String,
         workerModelId: String,
+        coordinatorAuto: Boolean = false,
+        workerAuto: Boolean = false,
         scopePath: String,
         enableDeepThinking: Boolean = false,
         godModeEnabled: Boolean = false,
