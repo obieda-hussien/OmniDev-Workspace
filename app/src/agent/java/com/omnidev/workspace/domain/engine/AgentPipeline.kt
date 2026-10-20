@@ -68,6 +68,7 @@ Do not use tools. Do not rewrite merely for style.
         userMessage: String,
         conversationHistory: List<ChatMessage> = emptyList(),
         modelId: String,
+        autoRouteRole: com.omnidev.workspace.data.model.ModelRole? = null,
         scopePath: String,
         enableDeepThinking: Boolean = false,
         userAttachments: List<AttachmentMeta> = emptyList(),
@@ -373,7 +374,8 @@ Do not use tools. Do not rewrite merely for style.
                 enableThinking = enableDeepThinking && model.supportsThinking && !runtimeBackends.reportOnly,
                 targetContext = scopePath,
                 apiKey = resolvedApiKey,
-                tools = if (nativeTools) toolDefs else null
+                tools = if (nativeTools) toolDefs else null,
+                autoRouteRole = autoRouteRole
             )
             val estimatedRequestInput = TokenAccounting.estimateInputTokens(requestPrototype)
             val remainingAfterCompaction = config.tokenBudget?.minus(totalTokensUsed)
