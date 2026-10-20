@@ -53,7 +53,8 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
     onRefresh: (ModelProvider) -> Unit, onProviders: () -> Unit, onConnections: () -> Unit,
     onLocalModels: () -> Unit, modifier: Modifier = Modifier,
     onMediaSave: (MediaKind, MediaConfig) -> Unit = { _, _ -> },
-    onGeminiFreeProjectChange: (Boolean) -> Unit = {}) {
+    onGeminiFreeProjectChange: (Boolean) -> Unit = {},
+    onAutoProviderScopeChange: (ModelRole, ModelProvider?) -> Unit = { _, _ -> }) {
     var mediaPicker by rememberSaveable { mutableStateOf<MediaKind?>(null) }
     val available = remember(configured, catalogs, registry, state.localModelConfigured) {
         availableModelCatalogs(configured, catalogs, registry, state.localModelConfigured)
@@ -66,7 +67,7 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("A model for each way you work.", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-            Text("Choose from your connected providers and configured local model.", Modifier.padding(top = 8.dp),
+            Text("Choose from your connected providers. User-added local models are optional.", Modifier.padding(top = 8.dp),
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item { ModelSectionTitle("Conversations") }
@@ -95,8 +96,10 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
                     TextButton(onClick = onProviders, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                         Icon(Icons.Default.Key, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Manage providers")
                     }
-                    TextButton(onClick = onLocalModels, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                        Icon(Icons.Default.Memory, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Set up a local model")
+                    if (state.localModelConfigured) {
+                        TextButton(onClick = onLocalModels, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            Icon(Icons.Default.Memory, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Manage local model")
+                        }
                     }
                 }
             }
@@ -111,7 +114,9 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
         ModelPickerSheet(role, state.modelAssignments[role].orEmpty(), available, catalogs, state.isSaving,
             state.modelSaveError, onDismiss, { onSelect(role, it) }, onRefresh, onProviders, onConnections, onLocalModels,
             geminiAutoFreeProject = state.geminiAutoFreeProject,
-            onGeminiFreeProjectChange = onGeminiFreeProjectChange)
+            onGeminiFreeProjectChange = onGeminiFreeProjectChange,
+            autoProviderScope = state.autoProviderScopes[role],
+            onAutoProviderScopeChange = { provider -> onAutoProviderScopeChange(role, provider) })
     }
 }
 
@@ -150,7 +155,9 @@ internal fun ModelPickerSheet(role: ModelRole, selectedId: String, available: Ma
     onSelect: (String) -> Unit, onRefresh: (ModelProvider) -> Unit, onProviders: () -> Unit,
     onConnections: () -> Unit, onLocalModels: () -> Unit,
     geminiAutoFreeProject: Boolean = false,
-    onGeminiFreeProjectChange: (Boolean) -> Unit = {}) {
+    onGeminiFreeProjectChange: (Boolean) -> Unit = {},
+    autoProviderScope: ModelProvider? = null,
+    onAutoProviderScopeChange: (ModelProvider?) -> Unit = {}) {
     var query by rememberSaveable(role) { mutableStateOf("") }
     var filter by rememberSaveable(role) { mutableStateOf<ModelProvider?>(null) }
     var detail by remember { mutableStateOf<AIModel?>(null) }
@@ -184,11 +191,40 @@ internal fun ModelPickerSheet(role: ModelRole, selectedId: String, available: Ma
             LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("model-options"), contentPadding = PaddingValues(20.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (available.isEmpty()) item(key = "no-providers") {
-                    SettingsEmptyState("Connect your first provider", "Add an AI connection or configure a local model to get started.")
+                    SettingsEmptyState("Connect your first provider", "Add an AI connection to get started.")
                     TextButton(onClick = onProviders, modifier = Modifier.fillMaxWidth()) { Text("Connect a provider") }
-                    TextButton(onClick = onLocalModels, modifier = Modifier.fillMaxWidth()) { Text("Set up a local model") }
+                    if (ModelProvider.LOCAL_EDGE in available) {
+                        TextButton(onClick = onLocalModels, modifier = Modifier.fillMaxWidth()) { Text("Manage local model") }
+                    }
                 } else if (query.isNotBlank() && visible.values.all { it.isEmpty() }) item(key = "no-matches") {
                     SettingsEmptyState("No matching models", "Try another name or change the provider filter.")
+                }
+                if (query.isBlank() && available.isNotEmpty()) {
+                    item(key = "auto-provider-scope") {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Auto provider scope", style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold)
+                            Text("All connected providers can be considered, or restrict Auto to one provider. Applies only to ${roleTitle(role)}.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(selected = autoProviderScope == null,
+                                    onClick = { onAutoProviderScopeChange(null) },
+                                    enabled = !saving, label = { Text("All providers") })
+                                available.keys.filter { it != ModelProvider.GITHUB_MODELS }.forEach { provider ->
+                                    FilterChip(selected = autoProviderScope == provider,
+                                        onClick = { onAutoProviderScopeChange(provider) },
+                                        enabled = !saving, label = { Text(provider.displayName) })
+                                }
+                            }
+                            if (autoProviderScope != null && autoProviderScope !in available.keys) {
+                                Text("Chosen provider isn't connected. Select All providers or reconnect it.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
                 }
                 if (query.isBlank() && ModelProvider.GEMINI in available.keys) {
                     item(key = "gemini-free-tier-confirmation") {
