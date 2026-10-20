@@ -32,18 +32,21 @@ object AutoModelRouter {
         selection: String,
         localReady: Boolean,
         requiresVision: Boolean = false,
-        geminiFreeTierConfirmed: Boolean = false
+        geminiFreeTierConfirmed: Boolean = false,
+        preferredProvider: ModelProvider? = null,
+        requiresTools: Boolean = role != ModelRole.CHAT
     ): List<AIModel> {
         if (!isAuto(selection)) return emptyList()
         return models.asSequence()
             .filter { it.contextWindow > 0 && it.maxOutputTokens > 0 }
             .filter { it.provider != ModelProvider.GEMINI || GeminiAutoPolicy.supportsTools(it.id) }
             .filter { it.provider != ModelProvider.GITHUB_MODELS } // Retired service.
+            .filter { preferredProvider == null || it.provider == preferredProvider }
             .filter { model ->
                 if (model.provider == ModelProvider.LOCAL_EDGE) localReady
                 else model.provider in connected
             }
-            .filter { it.supportsFunctionCalling || (role == ModelRole.CHAT && it.provider == ModelProvider.LOCAL_EDGE) }
+            .filter { !requiresTools || it.supportsFunctionCalling }
             .filter { !requiresVision || it.supportsVision }
             .filter { selection == FREE_FIRST_WITH_PAID || isExplicitlyFree(it, geminiFreeTierConfirmed) }
             // The completion service looks up models by ID, so avoid ambiguous identities.
