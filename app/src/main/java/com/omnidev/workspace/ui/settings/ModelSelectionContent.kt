@@ -67,7 +67,8 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("A model for each way you work.", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-            Text("Choose from your connected providers. User-added local models are optional.", Modifier.padding(top = 8.dp),
+            Text(if (state.localModelConfigured) "Choose from your connected providers and your configured local model."
+                else "Choose from your connected providers.", Modifier.padding(top = 8.dp),
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item { ModelSectionTitle("Conversations") }
