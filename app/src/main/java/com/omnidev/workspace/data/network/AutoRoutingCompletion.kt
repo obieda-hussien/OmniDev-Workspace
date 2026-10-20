@@ -84,7 +84,8 @@ class AutoRoutingCompletion(
             if (model.provider in exhaustedProviders) continue
             if (attempted > 0 && (!mayFailover() || hasExecutedToolHistory)) break
             val key = if (model.provider == ModelProvider.LOCAL_EDGE) null
-                else keys.getApiKey(model.provider) ?: continue
+                else keys.getApiKey(model.provider)
+            if (model.provider != ModelProvider.LOCAL_EDGE && key.isNullOrBlank()) continue
             attempted++
             val candidate = request.copy(
                 modelId = model.id,
