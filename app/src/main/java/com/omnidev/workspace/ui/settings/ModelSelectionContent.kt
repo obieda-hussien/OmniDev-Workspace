@@ -52,7 +52,8 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
     onOpen: (ModelRole) -> Unit, onDismiss: () -> Unit, onSelect: (ModelRole, String) -> Unit,
     onRefresh: (ModelProvider) -> Unit, onProviders: () -> Unit, onConnections: () -> Unit,
     onLocalModels: () -> Unit, modifier: Modifier = Modifier,
-    onMediaSave: (MediaKind, MediaConfig) -> Unit = { _, _ -> }) {
+    onMediaSave: (MediaKind, MediaConfig) -> Unit = { _, _ -> },
+    onGeminiFreeProjectChange: (Boolean) -> Unit = {}) {
     var mediaPicker by rememberSaveable { mutableStateOf<MediaKind?>(null) }
     val available = remember(configured, catalogs, registry, state.localModelConfigured) {
         availableModelCatalogs(configured, catalogs, registry, state.localModelConfigured)
@@ -108,7 +109,9 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
     }
     state.expandedDropdownRole?.let { role ->
         ModelPickerSheet(role, state.modelAssignments[role].orEmpty(), available, catalogs, state.isSaving,
-            state.modelSaveError, onDismiss, { onSelect(role, it) }, onRefresh, onProviders, onConnections, onLocalModels)
+            state.modelSaveError, onDismiss, { onSelect(role, it) }, onRefresh, onProviders, onConnections, onLocalModels,
+            geminiAutoFreeProject = state.geminiAutoFreeProject,
+            onGeminiFreeProjectChange = onGeminiFreeProjectChange)
     }
 }
 
@@ -145,7 +148,9 @@ private fun ModelAssignmentRow(role: ModelRole, model: AIModel?, id: String, con
 internal fun ModelPickerSheet(role: ModelRole, selectedId: String, available: Map<ModelProvider, List<AIModel>>,
     catalogs: Map<ModelProvider, ProviderModelCatalog>, saving: Boolean, error: String?, onDismiss: () -> Unit,
     onSelect: (String) -> Unit, onRefresh: (ModelProvider) -> Unit, onProviders: () -> Unit,
-    onConnections: () -> Unit, onLocalModels: () -> Unit) {
+    onConnections: () -> Unit, onLocalModels: () -> Unit,
+    geminiAutoFreeProject: Boolean = false,
+    onGeminiFreeProjectChange: (Boolean) -> Unit = {}) {
     var query by rememberSaveable(role) { mutableStateOf("") }
     var filter by rememberSaveable(role) { mutableStateOf<ModelProvider?>(null) }
     var detail by remember { mutableStateOf<AIModel?>(null) }
@@ -184,6 +189,23 @@ internal fun ModelPickerSheet(role: ModelRole, selectedId: String, available: Ma
                     TextButton(onClick = onLocalModels, modifier = Modifier.fillMaxWidth()) { Text("Set up a local model") }
                 } else if (query.isNotBlank() && visible.values.all { it.isEmpty() }) item(key = "no-matches") {
                     SettingsEmptyState("No matching models", "Try another name or change the provider filter.")
+                }
+                if (query.isBlank() && ModelProvider.GEMINI in available.keys) {
+                    item(key = "gemini-free-tier-confirmation") {
+                        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                            Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(checked = geminiAutoFreeProject, enabled = !saving,
+                                        onCheckedChange = onGeminiFreeProjectChange)
+                                    Text("My Gemini API project is on the unbilled Free Tier",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f))
+                                }
+                                Text("Check Google AI Studio billing first. A Gemini API key can belong to a paid project. This only allows published free-tier models in Free Only; it does not prevent billing on a paid project.",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                 }
                 if (query.isBlank() && available.values.any { it.isNotEmpty() }) {
                     item(key = "auto-free") {
