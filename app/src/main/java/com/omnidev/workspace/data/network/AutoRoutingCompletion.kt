@@ -55,15 +55,16 @@ class AutoRoutingCompletion(
         val connected = keys.observeConfiguredProviders().first()
         val localReady = !settings.observeLocalModelUri().first().isNullOrBlank() &&
             LocalEngineHolder.engine.isLoaded
+        val geminiFreeTierConfirmed = settings.observeGeminiAutoFreeProject().first()
         val needsVision = request.messages.any { message ->
             message.attachments.any { it.mediaType == AttachmentMediaType.IMAGE }
         }
         val choices = AutoModelRouter.candidates(
-            ModelRegistry.allModels, connected, role, policy, localReady, needsVision
+            ModelRegistry.allModels, connected, role, policy, localReady, needsVision, geminiFreeTierConfirmed
         )
         if (choices.isEmpty()) throw IOException(
             if (policy == AutoModelRouter.FREE_ONLY)
-                "Auto has no verified free model with the required capabilities. Connect a free model or explicitly choose paid fallback."
+                "Auto found no eligible free model. If Gemini API is your only provider, confirm your project is on the unbilled Free Tier under Model Selection, then refresh Gemini models."
             else "Auto has no connected compatible model. Connect a provider in Settings."
         )
 
