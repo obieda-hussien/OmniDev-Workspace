@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.ModelProvider
+import com.omnidev.workspace.data.routing.AutoModelRouter
+import com.omnidev.workspace.data.localllm.LocalEngineHolder
+import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
@@ -152,9 +155,21 @@ class SettingsRepository(private val context: Context) {
     fun observeModelIdForRole(role: ModelRole): Flow<String> {
         val key = keyForRole(role)
         val defaultId = ModelRegistry.getDefaultModelForRole(role).id
-        return context.settingsDataStore.data.map { preferences ->
+        return combine(
+            context.settingsDataStore.data,
+            ApiKeyRepository(context).observeConfiguredProviders()
+        ) { preferences, connected ->
             restoreModelCatalogs(preferences)
-            preferences[key] ?: defaultId
+            val selected = preferences[key] ?: defaultId
+            if (!AutoModelRouter.isAuto(selected)) selected
+            else AutoModelRouter.candidates(
+                models = ModelRegistry.allModels,
+                connected = connected,
+                role = role,
+                selection = selected,
+                localReady = !preferences[Keys.LOCAL_MODEL_URI].isNullOrBlank() &&
+                    LocalEngineHolder.engine.isLoaded
+            ).firstOrNull()?.id ?: selected // No phantom provider: caller displays a setup error.
         }
     }
 
@@ -183,7 +198,7 @@ class SettingsRepository(private val context: Context) {
      */
     suspend fun setModelForRole(role: ModelRole, modelId: String) {
         // Validate that the model exists in the registry
-        ModelRegistry.getModelById(modelId)
+        if (!AutoModelRouter.isAuto(modelId)) ModelRegistry.getModelById(modelId)
         val key = keyForRole(role)
         context.settingsDataStore.edit { preferences ->
             preferences[key] = modelId
