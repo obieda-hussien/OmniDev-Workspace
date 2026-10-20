@@ -29,6 +29,7 @@ data class AISettingsUiState(
         ModelRegistry.getDefaultModelForRole(it).id
     },
     val localModelConfigured: Boolean = false,
+    val geminiAutoFreeProject: Boolean = false,
     val mediaPreferences: MediaPreferences = MediaPreferences(),
     /** Whether Deep Thinking mode is enabled globally. */
     val deepThinkingEnabled: Boolean = false,
@@ -60,6 +61,11 @@ class AISettingsViewModel(
 
     init {
         loadSettings()
+        viewModelScope.launch {
+            settingsRepository.observeGeminiAutoFreeProject().collect { confirmed ->
+                _uiState.update { it.copy(geminiAutoFreeProject = confirmed) }
+            }
+        }
         viewModelScope.launch {
             settingsRepository.observeMediaPreferences().collect { media ->
                 _uiState.update { it.copy(mediaPreferences = media) }
@@ -115,6 +121,13 @@ class AISettingsViewModel(
                         modelSaveError = "Could not save this model. Please try again.")
                 }
             } finally { _uiState.update { it.copy(isSaving = false) } }
+        }
+    }
+
+    fun setGeminiAutoFreeProject(confirmed: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setGeminiAutoFreeProject(confirmed)
+            _uiState.update { it.copy(geminiAutoFreeProject = confirmed) }
         }
     }
 
