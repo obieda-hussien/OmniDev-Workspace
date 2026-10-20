@@ -69,6 +69,31 @@ class AutoModelRouterTest {
         ).single().id)
     }
 
+    @Test fun geminiFreeTierRequiresExplicitProjectConsent() {
+        val gemini = model("GEMINI::gemini-2.5-flash", ModelProvider.GEMINI)
+        assertTrue(AutoModelRouter.candidates(
+            listOf(gemini), setOf(ModelProvider.GEMINI),
+            ModelRole.AGENT, AutoModelRouter.FREE_ONLY, false
+        ).isEmpty())
+        assertEquals(listOf(gemini.id), AutoModelRouter.candidates(
+            listOf(gemini), setOf(ModelProvider.GEMINI),
+            ModelRole.AGENT, AutoModelRouter.FREE_ONLY, false,
+            geminiFreeTierConfirmed = true
+        ).map { it.id })
+    }
+
+    @Test fun antigravityPreviewIsNeverAllowedIntoAgentAutoEvenWithBadCachedMetadata() {
+        val advertisedAsToolCapable = model(
+            "GEMINI::antigravity-preview-05-2026",
+            ModelProvider.GEMINI, input = 0.0, output = 0.0,
+            tools = true
+        )
+        assertTrue(AutoModelRouter.candidates(
+            listOf(advertisedAsToolCapable), setOf(ModelProvider.GEMINI),
+            ModelRole.AGENT, AutoModelRouter.FREE_FIRST_WITH_PAID, false
+        ).isEmpty())
+    }
+
     @Test fun discontinuedProviderIsExcluded() {
         val retired = model("GITHUB_MODELS::free", ModelProvider.GITHUB_MODELS, 0.0, 0.0)
         assertTrue(AutoModelRouter.candidates(
