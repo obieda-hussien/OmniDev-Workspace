@@ -185,7 +185,6 @@ def trusted_admin_telegram_secrets_only(rel: str, text: str) -> bool:
         return False
     header = job_text.split("\n    steps:", 1)[0]
     expected_header_lines = (
-        "    if: github.repository == 'obieda-hussien/OmniDev-Workspace' && "
         "    if: ${{ always() && github.repository == 'obieda-hussien/OmniDev-Workspace' && "
         "((github.event_name == 'push' && (github.ref == 'refs/heads/main' || "
         "github.ref == 'refs/heads/feat/auto-free-first-model-routing')) || "
