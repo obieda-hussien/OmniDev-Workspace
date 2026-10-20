@@ -65,6 +65,7 @@ class SettingsRepository(private val context: Context) {
     // ──────────────────────────────────────────────
 
     private object Keys {
+        val GEMINI_AUTO_FREE_PROJECT = booleanPreferencesKey("gemini_auto_free_project")
         val CHAT_MODEL_ID = stringPreferencesKey("chat_model_id")
         val AGENT_MODEL_ID = stringPreferencesKey("agent_model_id")
         val SWARM_ORCHESTRATOR_MODEL_ID = stringPreferencesKey("swarm_orchestrator_model_id")
@@ -144,6 +145,17 @@ class SettingsRepository(private val context: Context) {
         val CUSTOM_OPENAI_DISPLAY_NAME = stringPreferencesKey("custom_openai_display_name")
     }
 
+    /**
+     * User attests that their Gemini API key belongs to an unbilled Free Tier project.
+     * The public model list alone cannot tell whether the account is billed.
+     */
+    fun observeGeminiAutoFreeProject(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.GEMINI_AUTO_FREE_PROJECT] ?: false }
+
+    suspend fun setGeminiAutoFreeProject(confirmed: Boolean) {
+        context.settingsDataStore.edit { it[Keys.GEMINI_AUTO_FREE_PROJECT] = confirmed }
+    }
+
     // ──────────────────────────────────────────────
     //  Model Routing — Read
     // ──────────────────────────────────────────────
@@ -168,7 +180,8 @@ class SettingsRepository(private val context: Context) {
                 role = role,
                 selection = selected,
                 localReady = !preferences[Keys.LOCAL_MODEL_URI].isNullOrBlank() &&
-                    LocalEngineHolder.engine.isLoaded
+                    LocalEngineHolder.engine.isLoaded,
+                geminiFreeTierConfirmed = preferences[Keys.GEMINI_AUTO_FREE_PROJECT] == true
             ).firstOrNull()?.id ?: selected // No phantom provider: caller displays a setup error.
         }
     }
