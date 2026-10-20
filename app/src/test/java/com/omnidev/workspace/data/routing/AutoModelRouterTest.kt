@@ -94,6 +94,51 @@ class AutoModelRouterTest {
         ).isEmpty())
     }
 
+    @Test fun aSingleProviderScopeNeverFallsAcrossAccounts() {
+        val freeGroq = model("GROQ::open-model", ModelProvider.GROQ, 0.0, 0.0)
+        val freeRouter = model("OPEN_ROUTER::example:free")
+        val list = listOf(freeGroq, freeRouter)
+        val scoped = AutoModelRouter.candidates(
+            models = list,
+            connected = setOf(ModelProvider.GROQ, ModelProvider.OPEN_ROUTER),
+            role = ModelRole.AGENT,
+            selection = AutoModelRouter.FREE_ONLY,
+            localReady = false,
+            preferredProvider = ModelProvider.GROQ
+        )
+        assertEquals(listOf(freeGroq.id), scoped.map { it.id })
+        assertEquals(2, AutoModelRouter.candidates(
+            list, setOf(ModelProvider.GROQ, ModelProvider.OPEN_ROUTER),
+            ModelRole.AGENT, AutoModelRouter.FREE_ONLY, false
+        ).size)
+    }
+
+    @Test fun plainChatCanUseModelsWithoutFunctionCallingButAgentCannot() {
+        val textOnly = model("OPEN_ROUTER::text:free", tools = false)
+        assertEquals(1, AutoModelRouter.candidates(
+            listOf(textOnly), setOf(ModelProvider.OPEN_ROUTER),
+            ModelRole.CHAT, AutoModelRouter.FREE_ONLY, false
+        ).size)
+        assertTrue(AutoModelRouter.candidates(
+            listOf(textOnly), setOf(ModelProvider.OPEN_ROUTER),
+            ModelRole.CHAT, AutoModelRouter.FREE_ONLY, false,
+            requiresTools = true
+        ).isEmpty())
+        assertTrue(AutoModelRouter.candidates(
+            listOf(textOnly), setOf(ModelProvider.OPEN_ROUTER),
+            ModelRole.AGENT, AutoModelRouter.FREE_ONLY, false
+        ).isEmpty())
+    }
+
+    @Test fun unconnectedPreferredProviderYieldsNoCandidatesWithoutSurpriseFallback() {
+        val free = model("OPEN_ROUTER::another:free")
+        assertTrue(AutoModelRouter.candidates(
+            listOf(free), setOf(ModelProvider.OPEN_ROUTER),
+            ModelRole.CHAT, AutoModelRouter.FREE_ONLY, false,
+            preferredProvider = ModelProvider.GEMINI
+        ).isEmpty())
+    }
+
     @Test fun discontinuedProviderIsExcluded() {
         val retired = model("GITHUB_MODELS::free", ModelProvider.GITHUB_MODELS, 0.0, 0.0)
         assertTrue(AutoModelRouter.candidates(
