@@ -59,12 +59,24 @@ class AutoRoutingCompletion(
         val needsVision = request.messages.any { message ->
             message.attachments.any { it.mediaType == AttachmentMediaType.IMAGE }
         }
+        val selectedProvider = settings.observeAutoProviderScopes().first()[role]
         val choices = AutoModelRouter.candidates(
-            ModelRegistry.allModels, connected, role, policy, localReady, needsVision, geminiFreeTierConfirmed
+            models = ModelRegistry.allModels,
+            connected = connected,
+            role = role,
+            selection = policy,
+            localReady = localReady,
+            requiresVision = needsVision,
+            geminiFreeTierConfirmed = geminiFreeTierConfirmed,
+            preferredProvider = selectedProvider,
+            requiresTools = role != com.omnidev.workspace.data.model.ModelRole.CHAT ||
+                !request.tools.isNullOrEmpty()
         )
         if (choices.isEmpty()) throw IOException(
             if (policy == AutoModelRouter.FREE_ONLY)
                 "Auto found no eligible free model. If Gemini API is your only provider, confirm your project is on the unbilled Free Tier under Model Selection, then refresh Gemini models."
+            else if (selectedProvider != null)
+                "Auto found no compatible model for ${selectedProvider.displayName}. Choose All providers or connect/refresh this provider."
             else "Auto has no connected compatible model. Connect a provider in Settings."
         )
 
