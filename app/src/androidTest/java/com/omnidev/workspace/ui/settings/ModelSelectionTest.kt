@@ -62,6 +62,33 @@ class ModelSelectionTest {
         compose.runOnIdle { assertEquals(1, attempts) }
     }
 
+    @Test fun autoProviderScopeCanBeLimitedToOneConnectedProvider() {
+        val models = mapOf(
+            ModelProvider.GEMINI to listOf(AIModel("GEMINI::gemini-2.5-flash", "Gemini Flash",
+                ModelProvider.GEMINI, contextWindow = 128_000)),
+            ModelProvider.OPEN_ROUTER to listOf(AIModel("OPEN_ROUTER::free:free", "OpenRouter Free",
+                ModelProvider.OPEN_ROUTER, contextWindow = 128_000))
+        )
+        var chosen: ModelProvider? = null
+        var changes = 0
+        compose.setContent { MaterialTheme {
+            ModelPickerSheet(ModelRole.AGENT, "AUTO_FREE_ONLY", models, emptyMap(), false,
+                null, {}, {}, {}, {}, {}, {},
+                onAutoProviderScopeChange = { chosen = it; changes++ })
+        } }
+        compose.onNodeWithTag("model-options").performScrollToNode(hasTestTag("auto-scope-GEMINI"))
+        compose.onNodeWithTag("auto-scope-GEMINI").performClick()
+        compose.runOnIdle {
+            assertEquals(ModelProvider.GEMINI, chosen)
+            assertEquals(1, changes)
+        }
+        compose.onNodeWithTag("auto-scope-all").performClick()
+        compose.runOnIdle {
+            assertEquals(null, chosen)
+            assertEquals(2, changes)
+        }
+    }
+
     @Test fun emptyAvailabilityOffersSetupInsteadOfPhantomModels() {
         var connections = 0
         compose.setContent { MaterialTheme {
@@ -72,5 +99,6 @@ class ModelSelectionTest {
         compose.onNodeWithText("Connect a provider").performClick()
         compose.runOnIdle { assertEquals(1, connections) }
         compose.onNodeWithText("GitHub Copilot").assertDoesNotExist()
+        compose.onNodeWithText("Set up a local model").assertDoesNotExist()
     }
 }
