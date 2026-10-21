@@ -39,7 +39,7 @@ object AutoModelRouter {
         if (!isAuto(selection)) return emptyList()
         return models.asSequence()
             .filter { it.contextWindow > 0 && it.maxOutputTokens > 0 }
-            .filter { it.provider != ModelProvider.GEMINI || GeminiAutoPolicy.supportsTools(it.id) }
+            .filter { !requiresTools || it.provider != ModelProvider.GEMINI || GeminiAutoPolicy.supportsTools(it.id) }
             .filter { it.provider != ModelProvider.GITHUB_MODELS } // Retired service.
             .filter { preferredProvider == null || it.provider == preferredProvider }
             .filter { model ->
