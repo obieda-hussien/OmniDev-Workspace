@@ -42,6 +42,7 @@ class AgentPipeline(
         userMessage: String,
         conversationHistory: List<ChatMessage> = emptyList(),
         modelId: String,
+        autoRouteRole: com.omnidev.workspace.data.model.ModelRole? = null,
         scopePath: String,
         enableDeepThinking: Boolean = false,
         userAttachments: List<AttachmentMeta> = emptyList(),

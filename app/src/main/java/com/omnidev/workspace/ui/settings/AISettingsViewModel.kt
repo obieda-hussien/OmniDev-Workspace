@@ -29,6 +29,8 @@ data class AISettingsUiState(
         ModelRegistry.getDefaultModelForRole(it).id
     },
     val localModelConfigured: Boolean = false,
+    val geminiAutoFreeProject: Boolean = false,
+    val autoProviderScopes: Map<ModelRole, ModelProvider?> = emptyMap(),
     val mediaPreferences: MediaPreferences = MediaPreferences(),
     /** Whether Deep Thinking mode is enabled globally. */
     val deepThinkingEnabled: Boolean = false,
@@ -60,6 +62,16 @@ class AISettingsViewModel(
 
     init {
         loadSettings()
+        viewModelScope.launch {
+            settingsRepository.observeAutoProviderScopes().collect { scopes ->
+                _uiState.update { it.copy(autoProviderScopes = scopes) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.observeGeminiAutoFreeProject().collect { confirmed ->
+                _uiState.update { it.copy(geminiAutoFreeProject = confirmed) }
+            }
+        }
         viewModelScope.launch {
             settingsRepository.observeMediaPreferences().collect { media ->
                 _uiState.update { it.copy(mediaPreferences = media) }
@@ -115,6 +127,26 @@ class AISettingsViewModel(
                         modelSaveError = "Could not save this model. Please try again.")
                 }
             } finally { _uiState.update { it.copy(isSaving = false) } }
+        }
+    }
+
+    fun selectAutoProviderScope(role: ModelRole, provider: ModelProvider?) {
+        viewModelScope.launch {
+            try {
+                settingsRepository.setAutoProviderScope(role, provider)
+                _uiState.update {
+                    it.copy(autoProviderScopes = it.autoProviderScopes + (role to provider))
+                }
+            } catch (error: IllegalArgumentException) {
+                _uiState.update { it.copy(modelSaveError = error.message ?: "Invalid provider.") }
+            }
+        }
+    }
+
+    fun setGeminiAutoFreeProject(confirmed: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setGeminiAutoFreeProject(confirmed)
+            _uiState.update { it.copy(geminiAutoFreeProject = confirmed) }
         }
     }
 

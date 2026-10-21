@@ -1,6 +1,7 @@
 package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.db.OmniDevDatabase
+import com.omnidev.workspace.data.network.AutoRoutingCompletion
 import com.omnidev.workspace.data.network.CompletionService
 import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.ApiKeyRepository
@@ -79,15 +80,16 @@ class AgentRuntime(context: Context) {
 
         // Real HTTP completion provider
     val completionService = CompletionService(settingsRepository)
+        val autoCompletion = AutoRoutingCompletion(completionService, settingsRepository, apiKeyRepository)
     val completionProvider: suspend (com.omnidev.workspace.data.model.CompletionRequest) -> com.omnidev.workspace.data.model.CompletionResponse =
-            completionService::invoke
+            autoCompletion::invoke
 
     val agentPipeline = AgentPipeline(
             toolManager = toolManager,
             mcpRegistry = com.omnidev.workspace.OmniDevApp.instance.mcpRegistry,
             completionProvider = completionProvider,
             streamingCompletionProvider = { request, onChunk ->
-                completionService.stream(request, onChunk)
+                autoCompletion.stream(request, onChunk)
             },
             config = AgentConfig.THOROUGH,
             apiKeyRepository = apiKeyRepository,
@@ -104,7 +106,7 @@ class AgentRuntime(context: Context) {
             memoryManager = memoryManager,
             smartLearningBridge = app.smartLearningBridge,
             streamingCompletionProvider = { request, onChunk ->
-                completionService.stream(request, onChunk)
+                autoCompletion.stream(request, onChunk)
             },
             analyticsRepository = analyticsRepository
         )

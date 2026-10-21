@@ -757,6 +757,7 @@ class CompletionService(
         if (responseCode !in 200..299) {
             val errorBody = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
             conn.disconnect()
+            if (ModelCapabilityException.fromHttp(responseCode, errorBody)) throw ModelCapabilityException()
             val friendlyMessage = when (responseCode) {
                 401 -> "API key is invalid or expired. Update it in Settings → API Keys."
                 402 -> "Insufficient quota or billing issue. Check your account on the provider's dashboard."
@@ -892,6 +893,7 @@ class CompletionService(
         if (responseCode !in 200..299) {
             val errorBody = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
             conn.disconnect()
+            if (ModelCapabilityException.fromHttp(responseCode, errorBody)) throw ModelCapabilityException()
             val friendlyMessage = when (responseCode) {
                 401 -> "API key is invalid or expired. Update it in Settings → API Keys."
                 402 -> "Insufficient quota or billing issue. Check your account on the provider's dashboard."
@@ -1029,6 +1031,7 @@ class CompletionService(
 
         val errorBody = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
         conn.disconnect()
+        if (ModelCapabilityException.fromHttp(responseCode, errorBody)) throw ModelCapabilityException()
 
         // Map common HTTP error codes to actionable user-facing messages.
         val friendlyMessage = when (responseCode) {

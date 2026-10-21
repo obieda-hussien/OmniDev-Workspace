@@ -101,7 +101,10 @@ data class CompletionRequest(
     val retryManagedByCaller: Boolean = false,
     /** UI prefix for automatic output continuation; never serialized to the provider. */
     @kotlinx.serialization.Transient
-    val responsePrefix: String = ""
+    val responsePrefix: String = "",
+    /** Set only for user-selected Auto roles. Never sent to provider endpoints. */
+    @kotlinx.serialization.Transient
+    val autoRouteRole: ModelRole? = null
 ) {
     init {
         messages = AgentPromptSanitizer.sanitizeMessages(messages)

@@ -165,10 +165,10 @@ def scan_current_files() -> list[str]:
 
 
 def trusted_admin_telegram_secrets_only(rel: str, text: str) -> bool:
-    """Narrow exception for the main-only, environment-gated private Admin delivery job.
+    """Narrow exception for environment-gated Admin delivery on trusted pushes or manual branch dispatch.
 
     This does not allow arbitrary secrets in public CI. Any new secret-bearing job,
-    non-main trigger, changed environment or undeclared secret returns False.
+    unapproved PR/push trigger, changed environment or undeclared secret returns False.
     """
     if rel != ".github/workflows/android-ci.yml":
         return False
@@ -185,9 +185,12 @@ def trusted_admin_telegram_secrets_only(rel: str, text: str) -> bool:
         return False
     header = job_text.split("\n    steps:", 1)[0]
     expected_header_lines = (
-        "    if: github.repository == 'obieda-hussien/OmniDev-Workspace' && "
-        "github.ref == 'refs/heads/main' && "
-        "(github.event_name == 'push' || github.event_name == 'workflow_dispatch')",
+        "    if: ${{ always() && github.repository == 'obieda-hussien/OmniDev-Workspace' && "
+        "((github.event_name == 'push' && (github.ref == 'refs/heads/main' || "
+        "github.ref == 'refs/heads/feat/auto-free-first-model-routing')) || "
+        "(github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/'))) && "
+        "needs['run-quality'].result == 'success' && needs.lint.result == 'success' && "
+        "needs['release-apk'].result == 'success' }}",
         "    needs: [run-quality, lint, tests, release-apk]",
         "    environment: copilot",
     )

@@ -45,6 +45,8 @@ class SwarmOrchestrator(
         mentionFocus: MentionFocus = MentionFocus.parse(userMessage),
         disabledToolNames: Set<String> = emptySet(),
         toolAccessMode: String = "ON_DEMAND",
-        userContext: String = ""
+        userContext: String = "",
+        coordinatorAuto: Boolean = false,
+        workerAuto: Boolean = false
     ): Flow<SwarmEvent> = kotlinx.coroutines.flow.flowOf(SwarmEvent.Error("Team mode is not included in this build."))
 }

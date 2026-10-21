@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.network
 import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.model.ModelTier
+import com.omnidev.workspace.data.routing.GeminiAutoPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -310,7 +311,7 @@ class ProviderModelFetcher {
                     contextWindow = m.inputTokenLimit ?: 1_000_000,
                     maxOutputTokens = m.outputTokenLimit ?: 8_192,
                     supportsVision = true,
-                    supportsFunctionCalling = true
+                    supportsFunctionCalling = GeminiAutoPolicy.supportsTools(id)
                 )
             }
     }
