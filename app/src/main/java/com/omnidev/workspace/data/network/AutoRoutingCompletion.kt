@@ -26,6 +26,21 @@ class AutoRoutingCompletion(
     private val unavailableUntil = ConcurrentHashMap<String, Long>()
     private val maxAttempts = 3
 
+    /** Tool-call id -> model that produced it, so tool history is never replayed through another model. */
+    private val pinnedByToolCall = ConcurrentHashMap<String, String>()
+
+    private fun pinToolCalls(response: CompletionResponse, modelId: String) {
+        if (response.toolCalls.isEmpty()) return
+        if (pinnedByToolCall.size > MAX_PINS) pinnedByToolCall.clear()
+        response.toolCalls.forEach { pinnedByToolCall[it.id] = modelId }
+    }
+
+    private fun pinnedModelFor(request: CompletionRequest): String? =
+        request.messages.asReversed()
+            .firstNotNullOfOrNull { message ->
+                message.toolCalls.firstNotNullOfOrNull { pinnedByToolCall[it.id] }
+            }
+
     suspend operator fun invoke(request: CompletionRequest): CompletionResponse =
         execute(request) { service(it) }
 
@@ -84,8 +99,16 @@ class AutoRoutingCompletion(
         val hasExecutedToolHistory = request.messages.any {
             it.toolCalls.isNotEmpty() || it.toolResults.isNotEmpty()
         }
-        val first = choices.firstOrNull { it.id == request.modelId } ?: choices.first()
-        val attempts = (listOf(first) + choices.filterNot { it.id == first.id })
+        val pinned = if (hasExecutedToolHistory) {
+            pinnedModelFor(request)?.let { id -> choices.firstOrNull { it.id == id } }
+        } else null
+        val first = pinned
+            ?: choices.firstOrNull { it.id == request.modelId }
+            ?: choices.first()
+        // With executed tool history the model is fixed: no failover, and no cooldown filtering
+        // that could silently swap in a different model.
+        val attempts = if (hasExecutedToolHistory) listOf(first)
+        else (listOf(first) + choices.filterNot { it.id == first.id })
             .distinctBy { it.id }
             .filter { (unavailableUntil[it.id] ?: 0L) <= System.currentTimeMillis() }
             .ifEmpty { listOf(first) }
@@ -108,7 +131,9 @@ class AutoRoutingCompletion(
                 retryManagedByCaller = true
             )
             try {
-                return call(candidate)
+                val response = call(candidate)
+                pinToolCalls(response, model.id)
+                return response.copy(routedModelId = model.id)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: IOException) {
@@ -124,10 +149,15 @@ class AutoRoutingCompletion(
                         .coerceAtLeast(15_000L).coerceAtMost(15 * 60_000L)
             }
         }
-        throw lastError ?: IOException("No available Auto model. Retry later or select a model manually.")
+        // Terminal: the 3-attempt budget is spent here, so outer retry loops must not start it over.
+        val last = lastError
+        if (last != null) throw AutoRoutingExhaustedException(last)
+        throw IOException("No available Auto model. Retry later or select a model manually.")
     }
 
     companion object {
+        private const val MAX_PINS = 2_048
+
         internal fun recoverable(error: IOException): Boolean =
             error is RateLimitException || error is ModelCapabilityException || listOf(
                 "rate limit", "too many requests", "503", "502", "500", "504",
@@ -137,3 +167,10 @@ class AutoRoutingCompletion(
             ).any { error.message.orEmpty().contains(it, ignoreCase = true) }
     }
 }
+
+/**
+ * Auto already tried its bounded set of candidate models. Outer retry layers must treat this as
+ * final instead of re-running the whole candidate list (which would multiply the attempt budget).
+ */
+class AutoRoutingExhaustedException(cause: IOException) :
+    IOException("Auto routing exhausted its candidate models: ${cause.message.orEmpty()}", cause)

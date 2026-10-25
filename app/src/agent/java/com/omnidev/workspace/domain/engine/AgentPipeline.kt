@@ -1042,6 +1042,10 @@ Do not use tools. Do not rewrite merely for style.
                     onFatalError("Response interrupted after partial output: ${error.message}")
                     return null
                 }
+                if (error is com.omnidev.workspace.data.network.AutoRoutingExhaustedException) {
+                    onFatalError("${error.message} (iteration $iteration)")
+                    return null
+                }
 
                 val rateLimit = error as? com.omnidev.workspace.data.network.RateLimitException
                 val rateLimited = rateLimit != null || containsAny(
@@ -1092,17 +1096,18 @@ Do not use tools. Do not rewrite merely for style.
     ) {
         val repository = analyticsRepository ?: return
         try {
-            val model = ModelRegistry.findModelById(request.modelId)
+            val effectiveModelId = response?.routedModelId ?: request.modelId
+            val model = ModelRegistry.findModelById(effectiveModelId)
             val usage = response?.let { TokenAccounting.usage(request, it) }
             val inputTokens = usage?.inputTokens ?: 0
             val outputTokens = usage?.outputTokens ?: 0
             repository.recordTokenUsage(
-                modelId = request.modelId,
+                modelId = effectiveModelId,
                 provider = model?.provider,
                 inputTokens = inputTokens,
                 outputTokens = outputTokens,
                 costUsd = com.omnidev.workspace.data.repository.DynamicPricingManager()
-                    .calculateCost(request.modelId, inputTokens, outputTokens),
+                    .calculateCost(effectiveModelId, inputTokens, outputTokens),
                 latencyMs = (System.currentTimeMillis() - callStartMs).coerceAtLeast(0L),
                 isError = isError
             )
