@@ -358,6 +358,7 @@ class CompletionService(
      */
     suspend operator fun invoke(request: CompletionRequest): CompletionResponse =
         withContext(Dispatchers.IO) {
+            requireConcreteModel(request.modelId)
             val model = ModelRegistry.findModelById(request.modelId)
                 ?: ModelRegistry.getModelById(request.modelId)
 
@@ -661,6 +662,7 @@ class CompletionService(
         request: CompletionRequest,
         onChunk: suspend (String) -> Unit
     ): CompletionResponse = withContext(Dispatchers.IO) {
+        requireConcreteModel(request.modelId)
         val model = ModelRegistry.findModelById(request.modelId)
                 ?: ModelRegistry.getModelById(request.modelId)
 
@@ -1105,4 +1107,17 @@ class CompletionService(
         ))
     }
 
+}
+
+/**
+ * Auto selections are policies, not models. If one reaches the provider boundary (for example from a
+ * background service that found no eligible candidate) fail with an accurate setup error instead of
+ * letting the registry treat the policy id as an unknown or local model.
+ */
+internal fun requireConcreteModel(modelId: String) {
+    if (com.omnidev.workspace.data.routing.AutoModelRouter.isAuto(modelId)) {
+        throw java.io.IOException(
+            "Auto has no eligible connected model. Connect a provider or choose a model in Settings."
+        )
+    }
 }
