@@ -10,6 +10,7 @@ internal object CompletionRetry {
         for (attempt in 0..2) {
             try { return block() }
             catch (cancelled: CancellationException) { throw cancelled }
+            catch (exhausted: com.omnidev.workspace.data.network.AutoRoutingExhaustedException) { throw exhausted }
             catch (error: IOException) {
                 val message = error.message.orEmpty()
                 val transient = Regex("\\b(500|502|503|504)\\b").containsMatchIn(message) ||

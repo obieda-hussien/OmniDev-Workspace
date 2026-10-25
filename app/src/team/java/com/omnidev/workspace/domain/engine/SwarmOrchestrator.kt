@@ -791,6 +791,7 @@ Synthesize specialist evidence into the answer to the original request.
                 throw cancelled
             } catch (error: Exception) {
                 recordOrchestratorAnalytics(request, null, started, true)
+                if (error is com.omnidev.workspace.data.network.AutoRoutingExhaustedException) throw error
                 val rateLimit = isRateLimit(error.message.orEmpty())
                 if (!rateLimit || attempt >= maxRetries) throw error
                 attempt++
@@ -807,17 +808,18 @@ Synthesize specialist evidence into the answer to the original request.
     ) {
         val repository = analyticsRepository ?: return
         try {
-            val model = ModelRegistry.findModelById(request.modelId)
+            val effectiveModelId = response?.routedModelId ?: request.modelId
+            val model = ModelRegistry.findModelById(effectiveModelId)
             val usage = response?.let { TokenAccounting.usage(request, it) }
             val input = usage?.inputTokens ?: 0
             val output = usage?.outputTokens ?: 0
             repository.recordTokenUsage(
-                modelId = request.modelId,
+                modelId = effectiveModelId,
                 provider = model?.provider,
                 inputTokens = input,
                 outputTokens = output,
                 costUsd = com.omnidev.workspace.data.repository.DynamicPricingManager()
-                    .calculateCost(request.modelId, input, output),
+                    .calculateCost(effectiveModelId, input, output),
                 latencyMs = (System.currentTimeMillis() - startedAtMs).coerceAtLeast(0L),
                 isError = isError
             )

@@ -126,7 +126,9 @@ data class CompletionResponse(
     val toolCalls: List<ToolCall> = emptyList(),
     var thinkingContent: String? = null,
     val finishReason: String? = null,
-    val tokensUsed: TokenUsage? = null
+    val tokensUsed: TokenUsage? = null,
+    /** Model that actually served this response when Auto routing chose it; null otherwise. */
+    val routedModelId: String? = null
 ) {
     init {
         thinkingContent = null
