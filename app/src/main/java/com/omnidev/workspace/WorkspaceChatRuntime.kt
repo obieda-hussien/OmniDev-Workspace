@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.omnidev.workspace.data.db.OmniDevDatabase
+import com.omnidev.workspace.data.network.AutoRoutingCompletion
 import com.omnidev.workspace.data.network.CompletionService
 import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.ApiKeyRepository
@@ -91,15 +92,16 @@ object WorkspaceChatRuntime {
         )
 
         val completionService = CompletionService(settingsRepository)
+        val autoCompletion = AutoRoutingCompletion(completionService, settingsRepository, apiKeyRepository)
         val completionProvider: suspend (com.omnidev.workspace.data.model.CompletionRequest) -> com.omnidev.workspace.data.model.CompletionResponse =
-            completionService::invoke
+            autoCompletion::invoke
 
         val agentPipeline = AgentPipeline(
             toolManager = toolManager,
             mcpRegistry = app.mcpRegistry,
             completionProvider = completionProvider,
             streamingCompletionProvider = { request, onChunk ->
-                completionService.stream(request, onChunk)
+                autoCompletion.stream(request, onChunk)
             },
             config = if (assistant) AgentConfig(maxIterations = 24, maxRetries = 2,
                 enableParallelToolExecution = false, enableSelfReflection = false, toolExecutionTimeoutMs = 120_000L) else AgentConfig.THOROUGH,
@@ -117,7 +119,7 @@ object WorkspaceChatRuntime {
             memoryManager = memoryManager,
             smartLearningBridge = app.smartLearningBridge,
             streamingCompletionProvider = { request, onChunk ->
-                completionService.stream(request, onChunk)
+                autoCompletion.stream(request, onChunk)
             },
             analyticsRepository = analyticsRepository
         )
@@ -139,7 +141,7 @@ object WorkspaceChatRuntime {
                     attachmentProcessor = attachmentProcessor,
                     completionProvider = completionProvider,
                     streamingCompletionProvider = { request, onChunk ->
-                        completionService.stream(request, onChunk)
+                        autoCompletion.stream(request, onChunk)
                     },
                     swarmOrchestrator = swarmOrchestrator,
                     apiKeyRepository = apiKeyRepository,

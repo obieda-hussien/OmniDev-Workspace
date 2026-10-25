@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.ModelProvider
+import com.omnidev.workspace.data.routing.AutoModelRouter
+import com.omnidev.workspace.data.localllm.LocalEngineHolder
+import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
@@ -62,6 +65,12 @@ class SettingsRepository(private val context: Context) {
     // ──────────────────────────────────────────────
 
     private object Keys {
+        val GEMINI_AUTO_FREE_PROJECT = booleanPreferencesKey("gemini_auto_free_project")
+        // Null (ALL) or a single connected provider. Scoped per execution role.
+        val AUTO_SCOPE_CHAT = stringPreferencesKey("auto_scope_chat")
+        val AUTO_SCOPE_AGENT = stringPreferencesKey("auto_scope_agent")
+        val AUTO_SCOPE_COORDINATOR = stringPreferencesKey("auto_scope_coordinator")
+        val AUTO_SCOPE_WORKER = stringPreferencesKey("auto_scope_worker")
         val CHAT_MODEL_ID = stringPreferencesKey("chat_model_id")
         val AGENT_MODEL_ID = stringPreferencesKey("agent_model_id")
         val SWARM_ORCHESTRATOR_MODEL_ID = stringPreferencesKey("swarm_orchestrator_model_id")
@@ -141,6 +150,43 @@ class SettingsRepository(private val context: Context) {
         val CUSTOM_OPENAI_DISPLAY_NAME = stringPreferencesKey("custom_openai_display_name")
     }
 
+    /**
+     * User attests that their Gemini API key belongs to an unbilled Free Tier project.
+     * The public model list alone cannot tell whether the account is billed.
+     */
+    fun observeGeminiAutoFreeProject(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.GEMINI_AUTO_FREE_PROJECT] ?: false }
+
+    suspend fun setGeminiAutoFreeProject(confirmed: Boolean) {
+        context.settingsDataStore.edit { it[Keys.GEMINI_AUTO_FREE_PROJECT] = confirmed }
+    }
+
+    private fun autoProviderKey(role: ModelRole) = when (role) {
+        ModelRole.CHAT -> Keys.AUTO_SCOPE_CHAT
+        ModelRole.AGENT -> Keys.AUTO_SCOPE_AGENT
+        ModelRole.SWARM_ORCHESTRATOR -> Keys.AUTO_SCOPE_COORDINATOR
+        ModelRole.SWARM_WORKER -> Keys.AUTO_SCOPE_WORKER
+    }
+
+    private fun autoProviderFromRaw(value: String?): ModelProvider? =
+        value?.takeIf { it != "ALL" }?.let { raw ->
+            ModelProvider.entries.firstOrNull { it.name == raw }
+        }?.takeIf { it != ModelProvider.GITHUB_MODELS }
+
+    fun observeAutoProviderScopes(): Flow<Map<ModelRole, ModelProvider?>> =
+        context.settingsDataStore.data.map { preferences ->
+            ModelRole.entries.associateWith { role ->
+                autoProviderFromRaw(preferences[autoProviderKey(role)])
+            }
+        }
+
+    suspend fun setAutoProviderScope(role: ModelRole, provider: ModelProvider?) {
+        require(provider != ModelProvider.GITHUB_MODELS) { "GitHub Models is discontinued." }
+        context.settingsDataStore.edit { preferences ->
+            preferences[autoProviderKey(role)] = provider?.name ?: "ALL"
+        }
+    }
+
     // ──────────────────────────────────────────────
     //  Model Routing — Read
     // ──────────────────────────────────────────────
@@ -152,9 +198,23 @@ class SettingsRepository(private val context: Context) {
     fun observeModelIdForRole(role: ModelRole): Flow<String> {
         val key = keyForRole(role)
         val defaultId = ModelRegistry.getDefaultModelForRole(role).id
-        return context.settingsDataStore.data.map { preferences ->
+        return combine(
+            context.settingsDataStore.data,
+            ApiKeyRepository(context).observeConfiguredProviders()
+        ) { preferences, connected ->
             restoreModelCatalogs(preferences)
-            preferences[key] ?: defaultId
+            val selected = preferences[key] ?: defaultId
+            if (!AutoModelRouter.isAuto(selected)) selected
+            else AutoModelRouter.candidates(
+                models = ModelRegistry.allModels,
+                connected = connected,
+                role = role,
+                selection = selected,
+                localReady = !preferences[Keys.LOCAL_MODEL_URI].isNullOrBlank() &&
+                    LocalEngineHolder.engine.isLoaded,
+                geminiFreeTierConfirmed = preferences[Keys.GEMINI_AUTO_FREE_PROJECT] == true,
+                preferredProvider = autoProviderFromRaw(preferences[autoProviderKey(role)])
+            ).firstOrNull()?.id ?: selected // No phantom provider: caller displays a setup error.
         }
     }
 
@@ -183,7 +243,7 @@ class SettingsRepository(private val context: Context) {
      */
     suspend fun setModelForRole(role: ModelRole, modelId: String) {
         // Validate that the model exists in the registry
-        ModelRegistry.getModelById(modelId)
+        if (!AutoModelRouter.isAuto(modelId)) ModelRegistry.getModelById(modelId)
         val key = keyForRole(role)
         context.settingsDataStore.edit { preferences ->
             preferences[key] = modelId

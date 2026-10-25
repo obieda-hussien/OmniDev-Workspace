@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.model.ModelRole
+import com.omnidev.workspace.data.routing.AutoModelRouter
 import com.omnidev.workspace.ui.components.OmniSearchField
 import com.omnidev.workspace.ui.components.SettingsEmptyState
 import com.omnidev.workspace.ui.motion.OmniIconButton
@@ -51,7 +52,9 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
     onOpen: (ModelRole) -> Unit, onDismiss: () -> Unit, onSelect: (ModelRole, String) -> Unit,
     onRefresh: (ModelProvider) -> Unit, onProviders: () -> Unit, onConnections: () -> Unit,
     onLocalModels: () -> Unit, modifier: Modifier = Modifier,
-    onMediaSave: (MediaKind, MediaConfig) -> Unit = { _, _ -> }) {
+    onMediaSave: (MediaKind, MediaConfig) -> Unit = { _, _ -> },
+    onGeminiFreeProjectChange: (Boolean) -> Unit = {},
+    onAutoProviderScopeChange: (ModelRole, ModelProvider?) -> Unit = { _, _ -> }) {
     var mediaPicker by rememberSaveable { mutableStateOf<MediaKind?>(null) }
     val available = remember(configured, catalogs, registry, state.localModelConfigured) {
         availableModelCatalogs(configured, catalogs, registry, state.localModelConfigured)
@@ -64,7 +67,8 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("A model for each way you work.", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-            Text("Choose from your connected providers and configured local model.", Modifier.padding(top = 8.dp),
+            Text(if (state.localModelConfigured) "Choose from your connected providers and your configured local model."
+                else "Choose from your connected providers.", Modifier.padding(top = 8.dp),
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item { ModelSectionTitle("Conversations") }
@@ -93,8 +97,10 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
                     TextButton(onClick = onProviders, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                         Icon(Icons.Default.Key, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Manage providers")
                     }
-                    TextButton(onClick = onLocalModels, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                        Icon(Icons.Default.Memory, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Set up a local model")
+                    if (state.localModelConfigured) {
+                        TextButton(onClick = onLocalModels, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            Icon(Icons.Default.Memory, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Manage local model")
+                        }
                     }
                 }
             }
@@ -107,7 +113,11 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
     }
     state.expandedDropdownRole?.let { role ->
         ModelPickerSheet(role, state.modelAssignments[role].orEmpty(), available, catalogs, state.isSaving,
-            state.modelSaveError, onDismiss, { onSelect(role, it) }, onRefresh, onProviders, onConnections, onLocalModels)
+            state.modelSaveError, onDismiss, { onSelect(role, it) }, onRefresh, onProviders, onConnections, onLocalModels,
+            geminiAutoFreeProject = state.geminiAutoFreeProject,
+            onGeminiFreeProjectChange = onGeminiFreeProjectChange,
+            autoProviderScope = state.autoProviderScopes[role],
+            onAutoProviderScopeChange = { provider -> onAutoProviderScopeChange(role, provider) })
     }
 }
 
@@ -124,9 +134,13 @@ private fun ModelAssignmentRow(role: ModelRole, model: AIModel?, id: String, con
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(roleTitle(role), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(model?.displayName ?: id.ifBlank { "Choose a model" }, style = MaterialTheme.typography.bodyLarge,
+                Text(when (id) {
+                    AutoModelRouter.FREE_ONLY -> "Auto · Free only"
+                    AutoModelRouter.FREE_FIRST_WITH_PAID -> "Auto · Free first (paid fallback)"
+                    else -> model?.displayName ?: id.ifBlank { "Choose a model" }
+                }, style = MaterialTheme.typography.bodyLarge,
                     maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(if (model != null && connected) model.provider.displayName else "Connect a provider or set up a local model",
+                Text(if (AutoModelRouter.isAuto(id)) "Automatically chooses a suitable connected model" else if (model != null && connected) model.provider.displayName else "Connect a provider or set up a local model",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Change ${roleTitle(role)} model",
@@ -140,7 +154,11 @@ private fun ModelAssignmentRow(role: ModelRole, model: AIModel?, id: String, con
 internal fun ModelPickerSheet(role: ModelRole, selectedId: String, available: Map<ModelProvider, List<AIModel>>,
     catalogs: Map<ModelProvider, ProviderModelCatalog>, saving: Boolean, error: String?, onDismiss: () -> Unit,
     onSelect: (String) -> Unit, onRefresh: (ModelProvider) -> Unit, onProviders: () -> Unit,
-    onConnections: () -> Unit, onLocalModels: () -> Unit) {
+    onConnections: () -> Unit, onLocalModels: () -> Unit,
+    geminiAutoFreeProject: Boolean = false,
+    onGeminiFreeProjectChange: (Boolean) -> Unit = {},
+    autoProviderScope: ModelProvider? = null,
+    onAutoProviderScopeChange: (ModelProvider?) -> Unit = {}) {
     var query by rememberSaveable(role) { mutableStateOf("") }
     var filter by rememberSaveable(role) { mutableStateOf<ModelProvider?>(null) }
     var detail by remember { mutableStateOf<AIModel?>(null) }
@@ -174,11 +192,91 @@ internal fun ModelPickerSheet(role: ModelRole, selectedId: String, available: Ma
             LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("model-options"), contentPadding = PaddingValues(20.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (available.isEmpty()) item(key = "no-providers") {
-                    SettingsEmptyState("Connect your first provider", "Add an AI connection or configure a local model to get started.")
+                    SettingsEmptyState("Connect your first provider", "Add an AI connection to get started.")
                     TextButton(onClick = onProviders, modifier = Modifier.fillMaxWidth()) { Text("Connect a provider") }
-                    TextButton(onClick = onLocalModels, modifier = Modifier.fillMaxWidth()) { Text("Set up a local model") }
+                    if (ModelProvider.LOCAL_EDGE in available) {
+                        TextButton(onClick = onLocalModels, modifier = Modifier.fillMaxWidth()) { Text("Manage local model") }
+                    }
                 } else if (query.isNotBlank() && visible.values.all { it.isEmpty() }) item(key = "no-matches") {
                     SettingsEmptyState("No matching models", "Try another name or change the provider filter.")
+                }
+                if (query.isBlank() && available.isNotEmpty()) {
+                    item(key = "auto-provider-scope") {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Auto provider scope", style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold)
+                            Text("All connected providers can be considered, or restrict Auto to one provider. Applies only to ${roleTitle(role)}.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(selected = autoProviderScope == null,
+                                    onClick = { onAutoProviderScopeChange(null) },
+                                    enabled = !saving, modifier = Modifier.testTag("auto-scope-all"),
+                                    label = { Text("All providers") })
+                                available.keys.filter { it != ModelProvider.GITHUB_MODELS }.forEach { provider ->
+                                    FilterChip(selected = autoProviderScope == provider,
+                                        onClick = { onAutoProviderScopeChange(provider) },
+                                        enabled = !saving, modifier = Modifier.testTag("auto-scope-${provider.name}"),
+                                        label = { Text(provider.displayName) })
+                                }
+                            }
+                            if (autoProviderScope != null && autoProviderScope !in available.keys) {
+                                Text("Chosen provider isn't connected. Select All providers or reconnect it.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+                if (query.isBlank() && ModelProvider.GEMINI in available.keys) {
+                    item(key = "gemini-free-tier-confirmation") {
+                        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                            Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(checked = geminiAutoFreeProject, enabled = !saving,
+                                        onCheckedChange = onGeminiFreeProjectChange)
+                                    Text("My Gemini API project is on the unbilled Free Tier",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f))
+                                }
+                                Text("Check Google AI Studio billing first. A Gemini API key can belong to a paid project. This only allows published free-tier models in Free Only; it does not prevent billing on a paid project.",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+                if (query.isBlank() && available.values.any { it.isNotEmpty() }) {
+                    item(key = "auto-free") {
+                        Surface(
+                            onClick = { onSelect(AutoModelRouter.FREE_ONLY) },
+                            enabled = !saving,
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (selectedId == AutoModelRouter.FREE_ONLY) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerLow
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                Text("Auto · Free only", fontWeight = FontWeight.SemiBold)
+                                Text("Use eligible free models only. May switch between connected providers and respond more slowly; never silently use paid or unpriced models.",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    item(key = "auto-paid") {
+                        Surface(
+                            onClick = { onSelect(AutoModelRouter.FREE_FIRST_WITH_PAID) },
+                            enabled = !saving,
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (selectedId == AutoModelRouter.FREE_FIRST_WITH_PAID) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerLow
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                Text("Auto · Free first, paid fallback", fontWeight = FontWeight.SemiBold)
+                                Text("May use paid providers and share the request with another connected provider. Failover can be slower.",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                 }
                 visible.forEach { (provider, models) ->
                     if (query.isBlank() || models.isNotEmpty()) {

@@ -68,6 +68,7 @@ Do not use tools. Do not rewrite merely for style.
         userMessage: String,
         conversationHistory: List<ChatMessage> = emptyList(),
         modelId: String,
+        autoRouteRole: com.omnidev.workspace.data.model.ModelRole? = null,
         scopePath: String,
         enableDeepThinking: Boolean = false,
         userAttachments: List<AttachmentMeta> = emptyList(),
@@ -373,7 +374,8 @@ Do not use tools. Do not rewrite merely for style.
                 enableThinking = enableDeepThinking && model.supportsThinking && !runtimeBackends.reportOnly,
                 targetContext = scopePath,
                 apiKey = resolvedApiKey,
-                tools = if (nativeTools) toolDefs else null
+                tools = if (nativeTools) toolDefs else null,
+                autoRouteRole = autoRouteRole
             )
             val estimatedRequestInput = TokenAccounting.estimateInputTokens(requestPrototype)
             val remainingAfterCompaction = config.tokenBudget?.minus(totalTokensUsed)
@@ -1040,6 +1042,10 @@ Do not use tools. Do not rewrite merely for style.
                     onFatalError("Response interrupted after partial output: ${error.message}")
                     return null
                 }
+                if (error is com.omnidev.workspace.data.network.AutoRoutingExhaustedException) {
+                    onFatalError("${error.message} (iteration $iteration)")
+                    return null
+                }
 
                 val rateLimit = error as? com.omnidev.workspace.data.network.RateLimitException
                 val rateLimited = rateLimit != null || containsAny(
@@ -1067,7 +1073,8 @@ Do not use tools. Do not rewrite merely for style.
                 if (rateLimited || permanent || normalAttempt >= normalMaxAttempts - 1) {
                     val message = when {
                         rateLimited -> "Rate limit reached after all retry attempts (iteration $iteration)."
-                        isNetworkException(error) -> "Network failure after $normalMaxAttempts attempt(s) (iteration $iteration): ${error.message}"
+                        permanent -> "Provider rejected this model (iteration $iteration): ${error.message}"
+                        isNetworkException(error) -> "Network failure after ${normalAttempt + 1} attempt(s) (iteration $iteration): ${error.message}"
                         else -> "API call failed after $normalMaxAttempts attempt(s) (iteration $iteration): ${error.message}"
                     }
                     onFatalError(message)
@@ -1089,17 +1096,18 @@ Do not use tools. Do not rewrite merely for style.
     ) {
         val repository = analyticsRepository ?: return
         try {
-            val model = ModelRegistry.findModelById(request.modelId)
+            val effectiveModelId = response?.routedModelId ?: request.modelId
+            val model = ModelRegistry.findModelById(effectiveModelId)
             val usage = response?.let { TokenAccounting.usage(request, it) }
             val inputTokens = usage?.inputTokens ?: 0
             val outputTokens = usage?.outputTokens ?: 0
             repository.recordTokenUsage(
-                modelId = request.modelId,
+                modelId = effectiveModelId,
                 provider = model?.provider,
                 inputTokens = inputTokens,
                 outputTokens = outputTokens,
                 costUsd = com.omnidev.workspace.data.repository.DynamicPricingManager()
-                    .calculateCost(request.modelId, inputTokens, outputTokens),
+                    .calculateCost(effectiveModelId, inputTokens, outputTokens),
                 latencyMs = (System.currentTimeMillis() - callStartMs).coerceAtLeast(0L),
                 isError = isError
             )
@@ -1129,7 +1137,7 @@ Do not use tools. Do not rewrite merely for style.
 
     private fun isPermanentRequestError(message: String): Boolean = containsAny(
         message.lowercase(),
-        "api error 400", "api key is invalid", "no api key", "unauthorized", "forbidden",
+        "function calling is not enabled", "does not support function calling", "auto found no eligible", "auto has no connected compatible", "no available auto model", "api error 400", "api key is invalid", "no api key", "unauthorized", "forbidden",
         "model not found", "invalid request format", "insufficient quota"
     )
 

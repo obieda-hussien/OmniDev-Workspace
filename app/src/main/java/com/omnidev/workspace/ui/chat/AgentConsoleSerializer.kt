@@ -12,12 +12,19 @@ import org.json.JSONObject
 object AgentConsoleSerializer {
 
     /**
-     * Keeps persisted/live console data bounded and removes repeated progress noise.
-     * Token updates replace their predecessor; identical adjacent events are ignored.
+     * Preserves the *entire* execution trace for display and persistence.
+     * LazyColumn renders just visible rows; it is not a storage limit.
+     * Only consecutive token updates and duplicate iteration/phase notifications
+     * are coalesced. Every invocation/result must remain observable, even if
+     * the same tool was called multiple times with identical parameters.
+     *
+     * maxEntries is retained for optional explicit bounded consumers only:
+     * Chat, Agent Console, assistant, and the repository use the full history.
      */
-    fun compact(entries: List<AgentConsoleEntry>, maxEntries: Int = 120): List<AgentConsoleEntry> {
+    fun compact(entries: List<AgentConsoleEntry>, maxEntries: Int = Int.MAX_VALUE): List<AgentConsoleEntry> {
+        require(maxEntries > 0) { "maxEntries must be positive" }
         if (entries.isEmpty()) return emptyList()
-        val result = ArrayList<AgentConsoleEntry>(minOf(entries.size, maxEntries))
+        val result = ArrayList<AgentConsoleEntry>(entries.size)
         entries.forEach { entry ->
             val previous = result.lastOrNull()
             when {
@@ -27,14 +34,12 @@ object AgentConsoleSerializer {
                 else -> result += entry
             }
         }
-        return result.takeLast(maxEntries)
+        return if (result.size > maxEntries) result.takeLast(maxEntries) else result
     }
 
     private fun isDuplicate(a: AgentConsoleEntry, b: AgentConsoleEntry): Boolean = when {
         a is AgentConsoleEntry.ThinkingEntry && b is AgentConsoleEntry.ThinkingEntry -> a.iteration == b.iteration
         a is AgentConsoleEntry.DeepThinkingEntry && b is AgentConsoleEntry.DeepThinkingEntry -> a.snippet == b.snippet
-        a is AgentConsoleEntry.ToolEntry && b is AgentConsoleEntry.ToolEntry -> a.toolName == b.toolName && a.params == b.params && a.iteration == b.iteration
-        a is AgentConsoleEntry.ResultEntry && b is AgentConsoleEntry.ResultEntry -> a.toolName == b.toolName && a.snippet == b.snippet && a.isError == b.isError
         a is AgentConsoleEntry.PhaseEntry && b is AgentConsoleEntry.PhaseEntry -> a.phase == b.phase && a.detail == b.detail
         a is AgentConsoleEntry.ContextSummaryEntry && b is AgentConsoleEntry.ContextSummaryEntry -> a.summary == b.summary
         a is AgentConsoleEntry.ErrorEntry && b is AgentConsoleEntry.ErrorEntry -> a.message == b.message

@@ -43,4 +43,48 @@ class AgentConsoleSerializerTest {
         assertEquals("Report", phase.phase)
         assertTrue(phase.detail == null)
     }
+    @Test
+    fun `all events and statistics survive past the old 120 event limit`() {
+        val entries = buildList {
+            for (i in 1..240) {
+                add(AgentConsoleEntry.ThinkingEntry(iteration = i, timestamp = i.toLong() * 10, id = (i * 3 - 2).toLong()))
+                add(AgentConsoleEntry.ToolEntry("tool", "{\"iteration\":$i}", i,
+                    timestamp = i.toLong() * 10 + 1, id = (i * 3 - 1).toLong()))
+                add(AgentConsoleEntry.ResultEntry("tool", "ok", false,
+                    timestamp = i.toLong() * 10 + 2, id = (i * 3).toLong()))
+            }
+        }
+        val compacted = AgentConsoleSerializer.compact(entries)
+        assertEquals(720, compacted.size)
+        assertEquals(240, compacted.filterIsInstance<AgentConsoleEntry.ThinkingEntry>().size)
+        assertEquals(240, compacted.filterIsInstance<AgentConsoleEntry.ToolEntry>().size)
+        assertEquals(entries.first().id, compacted.first().id)
+        val restored = AgentConsoleSerializer.deserialize(AgentConsoleSerializer.serialize(entries))
+        assertEquals(720, restored.size)
+        assertEquals(entries.first().id, restored.first().id)
+        assertEquals(entries.last().id, restored.last().id)
+        assertEquals(240, restored.filterIsInstance<AgentConsoleEntry.ToolEntry>().size)
+    }
+
+    @Test
+    fun `repeated identical tool calls and results remain distinct events`() {
+        val entries = listOf(
+            AgentConsoleEntry.ToolEntry("read_file", "{}", 3, id = 1L),
+            AgentConsoleEntry.ToolEntry("read_file", "{}", 3, id = 2L),
+            AgentConsoleEntry.ResultEntry("read_file", "ok", false, id = 3L),
+            AgentConsoleEntry.ResultEntry("read_file", "ok", false, id = 4L)
+        )
+        assertEquals(entries, AgentConsoleSerializer.compact(entries))
+        assertEquals(4, AgentConsoleSerializer.deserialize(AgentConsoleSerializer.serialize(entries)).size)
+    }
+
+    @Test
+    fun `explicit truncation is possible without changing the default complete history`() {
+        val entries = (1..180).map {
+            AgentConsoleEntry.ThinkingEntry(iteration = it, id = it.toLong())
+        }
+        assertEquals(180, AgentConsoleSerializer.compact(entries).size)
+        assertEquals(30, AgentConsoleSerializer.compact(entries, maxEntries = 30).size)
+    }
+
 }

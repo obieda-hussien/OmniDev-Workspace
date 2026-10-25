@@ -149,13 +149,13 @@ object CopilotSessionManager {
                 // Persist the IDs so they can be read synchronously on next launch.
                 val ids = models.joinToString(",") { it.id }
                 prefs().edit().putString(KEY_MODEL_IDS, ids).apply()
-                Log.d(TAG, "Fetched ${models.size} Copilot models: ${models.take(5).map { it.id }}")
+                Log.d(TAG, "Fetched ${models.size} Copilot models")
                 models
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (e: Exception) {
                 if (propagateErrors) throw e
-                Log.w(TAG, "Failed to fetch Copilot models: ${e.message}")
+                Log.w(TAG, "Failed to fetch Copilot models (${e.javaClass.simpleName})")
                 emptyList()
             }
         }
@@ -389,7 +389,7 @@ object CopilotSessionManager {
                 )
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to parse models response: ${e.message}")
+            Log.w(TAG, "Failed to parse models response (${e.javaClass.simpleName})")
             emptyList()
         }
     }
@@ -409,7 +409,7 @@ object CopilotSessionManager {
                 null
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not parse expires_at '$expiresAt': ${e.message}")
+            Log.w(TAG, "Could not parse Copilot token expiry (${e.javaClass.simpleName})")
             null
         }
     }

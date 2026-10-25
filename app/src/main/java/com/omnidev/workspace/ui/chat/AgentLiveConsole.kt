@@ -109,15 +109,16 @@ fun AgentLiveConsole(
     val listState   = rememberLazyListState()
     val clipboard   = LocalClipboardManager.current
 
-    // Derived stats
+    // Count over the complete trace. Cache reductions rather than allocating
+    // filtered lists each time the animated live-console header recomposes.
     val startTs    = entries.firstOrNull()?.timestamp ?: System.currentTimeMillis()
-    val iterations = entries.filterIsInstance<AgentConsoleEntry.ThinkingEntry>().size
-    val toolCalls  = entries.filterIsInstance<AgentConsoleEntry.ToolEntry>().size
-    val tokenEntry = entries.filterIsInstance<AgentConsoleEntry.TokenEntry>().lastOrNull()
-    val errorCount = entries.filterIsInstance<AgentConsoleEntry.ResultEntry>().count { it.isError }
+    val iterations = remember(entries) { entries.count { it is AgentConsoleEntry.ThinkingEntry } }
+    val toolCalls  = remember(entries) { entries.count { it is AgentConsoleEntry.ToolEntry } }
+    val tokenEntry = remember(entries) { entries.lastOrNull { it is AgentConsoleEntry.TokenEntry } as? AgentConsoleEntry.TokenEntry }
+    val errorCount = remember(entries) { entries.count { it is AgentConsoleEntry.ResultEntry && it.isError } }
     val elapsedMs  = (entries.lastOrNull()?.timestamp ?: startTs) - startTs
-    val hasBrowserEntries = entries.any {
-        it is AgentConsoleEntry.ToolEntry && it.toolName == "headless_browser"
+    val hasBrowserEntries = remember(entries) {
+        entries.any { it is AgentConsoleEntry.ToolEntry && it.toolName == "headless_browser" }
     }
 
     rememberTailFollowState(

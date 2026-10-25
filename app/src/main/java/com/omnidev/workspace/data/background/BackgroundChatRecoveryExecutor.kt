@@ -70,13 +70,20 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
 
         suspend fun persist(status: String, force: Boolean = false) {
             val now = System.currentTimeMillis()
-            if (!force && now - lastPersistMs < 700L) return
+            // Keep the entire trace. Throttle large JSON snapshots to avoid
+            // repeated heavy DB writes and ANRs during long background runs.
+            val persistIntervalMs = when {
+                entries.size > 2_000 -> 5_000L
+                entries.size > 500 -> 2_000L
+                else -> 700L
+            }
+            if (!force && now - lastPersistMs < persistIntervalMs) return
             lastPersistMs = now
             val display = partial.trim().ifBlank { status }
             runtime.chatRepository.updateRun(
                 rowId,
                 assistant.copy(content = display.take(100_000)),
-                entries.takeLast(500)
+                entries
             )
             onProgress(Progress(status = status, partialText = partial.takeLast(1_500), toolsUsed = toolsUsed))
         }

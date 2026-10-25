@@ -4,7 +4,8 @@ on:
   pull_request:
     branches: [main, 'feature/omnilink-v1.2-live-history']
   push:
-    branches: [main]
+    # Only the maintainer's designated test branch can auto-deliver Admin to Telegram.
+    branches: [main, 'feat/auto-free-first-model-routing']
   workflow_dispatch:
 
 concurrency:
@@ -419,15 +420,21 @@ jobs:
 
   admin-release-telegram:
     name: Private Admin Release (Telegram)
-    # Never use environment secrets on PR or on a non-main manual dispatch.
-    if: github.repository == 'obieda-hussien/OmniDev-Workspace' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # Secrets are never exposed to PRs or unlisted branch pushes.
+    # A maintainer may explicitly dispatch a trusted repository branch for private testing.
+    # A test failure must not silently skip a PRIVATE Admin test APK.
+    # Require successful code quality, lint and distributable release build;
+    # keep the unit test result for a clear unverified-build warning.
+    if: ${{ always() && github.repository == 'obieda-hussien/OmniDev-Workspace' && ((github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/auto-free-first-model-routing')) || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/'))) && needs['run-quality'].result == 'success' && needs.lint.result == 'success' && needs['release-apk'].result == 'success' }}
     needs: [run-quality, lint, tests, release-apk]
     environment: copilot
+    env:
+      OMNI_TESTS_RESULT: ${{ needs.tests.result }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
 
     steps:
-      - name: Checkout trusted main
+      - name: Checkout trusted repository ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
@@ -590,6 +597,9 @@ jobs:
           sha_short="${GITHUB_SHA:0:12}"
           local_size="$(stat -c '%s' "$ADMIN_DELIVERY_FILE")"
 
+          if [[ "${OMNI_TESTS_RESULT}" != "success" ]]; then
+            echo "::warning::The Admin APK is a TEST-ONLY build: unit tests finished with ${OMNI_TESTS_RESULT}."
+          fi
           echo "Uploading Admin document: $ADMIN_DELIVERY_FILENAME"
           echo "Local size: $local_size bytes"
           echo "APK SHA-256: $ADMIN_APK_SHA256"
@@ -599,7 +609,7 @@ jobs:
             --output "$response" \
             --form-string "chat_id=$TELEGRAM_CHAT_ID" \
             --form "document=@${ADMIN_DELIVERY_FILE};filename=${ADMIN_DELIVERY_FILENAME};type=${ADMIN_DELIVERY_MIME}" \
-            --form-string "caption=OmniDev Admin • $ADMIN_DELIVERY_NOTE • $ADMIN_DELIVERY_FORMAT • run #${GITHUB_RUN_NUMBER} • ${sha_short} • APK SHA-256: ${ADMIN_APK_SHA256} • Document SHA-256: ${ADMIN_DELIVERY_SHA256}" \
+            --form-string "caption=OmniDev Admin • branch ${GITHUB_REF_NAME} • tests: ${OMNI_TESTS_RESULT} • $ADMIN_DELIVERY_NOTE • $ADMIN_DELIVERY_FORMAT • run #${GITHUB_RUN_NUMBER} • ${sha_short} • APK SHA-256: ${ADMIN_APK_SHA256} • Document SHA-256: ${ADMIN_DELIVERY_SHA256}" \
             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"; then
             echo "::error::Telegram document upload failed; Admin APK was not published as a GitHub artifact."
             exit 1

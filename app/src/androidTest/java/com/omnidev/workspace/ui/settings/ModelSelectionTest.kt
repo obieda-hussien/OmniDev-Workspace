@@ -49,13 +49,44 @@ class ModelSelectionTest {
             ModelPickerSheet(ModelRole.AGENT, models[0].id, mapOf(ModelProvider.OPENAI to models), emptyMap(), saving.value,
                 error.value, {}, { attempts++; error.value = "Could not save this model. Please try again." }, {}, {}, {}, {})
         } }
+        // Auto choices and provider headers can push rows off-screen in a LazyColumn.
+        // Scroll to the stable target instead of assuming the row is already composed.
+        compose.onNodeWithTag("model-options").performScrollToNode(hasText("Second model"))
         model("Second model").assertIsNotEnabled()
         compose.runOnIdle { saving.value = false }
+        compose.onNodeWithTag("model-options").performScrollToNode(hasText("Second model"))
         model("Second model").performClick()
         compose.onNodeWithText("Could not save this model. Please try again.").assertIsDisplayed()
         model("First model").assertIsSelected()
         model("Second model").assertIsNotSelected()
         compose.runOnIdle { assertEquals(1, attempts) }
+    }
+
+    @Test fun autoProviderScopeCanBeLimitedToOneConnectedProvider() {
+        val models = mapOf(
+            ModelProvider.GEMINI to listOf(AIModel("GEMINI::gemini-2.5-flash", "Gemini Flash",
+                ModelProvider.GEMINI, contextWindow = 128_000)),
+            ModelProvider.OPEN_ROUTER to listOf(AIModel("OPEN_ROUTER::free:free", "OpenRouter Free",
+                ModelProvider.OPEN_ROUTER, contextWindow = 128_000))
+        )
+        var chosen: ModelProvider? = null
+        var changes = 0
+        compose.setContent { MaterialTheme {
+            ModelPickerSheet(ModelRole.AGENT, "AUTO_FREE_ONLY", models, emptyMap(), false,
+                null, {}, {}, {}, {}, {}, {},
+                onAutoProviderScopeChange = { chosen = it; changes++ })
+        } }
+        compose.onNodeWithTag("model-options").performScrollToNode(hasTestTag("auto-scope-GEMINI"))
+        compose.onNodeWithTag("auto-scope-GEMINI").performClick()
+        compose.runOnIdle {
+            assertEquals(ModelProvider.GEMINI, chosen)
+            assertEquals(1, changes)
+        }
+        compose.onNodeWithTag("auto-scope-all").performClick()
+        compose.runOnIdle {
+            assertEquals(null, chosen)
+            assertEquals(2, changes)
+        }
     }
 
     @Test fun emptyAvailabilityOffersSetupInsteadOfPhantomModels() {
@@ -68,5 +99,6 @@ class ModelSelectionTest {
         compose.onNodeWithText("Connect a provider").performClick()
         compose.runOnIdle { assertEquals(1, connections) }
         compose.onNodeWithText("GitHub Copilot").assertDoesNotExist()
+        compose.onNodeWithText("Set up a local model").assertDoesNotExist()
     }
 }
