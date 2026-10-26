@@ -23,7 +23,7 @@ internal object TierToolGate {
     internal val PRO_ONLY_TOOLS: Set<String> = setOf(
         "shizuku_command", "advanced_security_analyzer", "vuln_research_toolchain",
         "android_security_research", "android_vuln_research", "god_eye_profiler",
-        "advanced_root_shell", "ui_replica_pipeline", "vpn_control"
+        "advanced_root_shell", "ui_replica_pipeline", "vpn_control", "desktop_link"
     )
 
     internal val SHIZUKU_DEPENDENT_TOOLS: Set<String> = setOf("shizuku_command")

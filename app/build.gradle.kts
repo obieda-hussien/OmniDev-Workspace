@@ -419,6 +419,8 @@ dependencies {
     // OmniLink typed IPC + embedded-agent gateway.
     // Stable tagged OmniLink protocol shared by Workspace and connected apps.
     implementation("com.github.obieda-hussien.OmniLinkSDK:omni-link-sdk:v3.0.0")
+    // Authenticated encrypted desktop/device transport (desktop_link tool). CI already stages this module.
+    implementation("com.github.obieda-hussien.OmniLinkSDK:omni-link-transport:v3.0.0")
 
     implementation("androidx.webkit:webkit:1.17.0")
     listOf("norm", "pro", "oem", "admin").forEach { add("${it}Implementation", "org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r") }
