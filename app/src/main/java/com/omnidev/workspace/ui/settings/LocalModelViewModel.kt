@@ -9,6 +9,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.omnidev.workspace.data.localllm.LocalEngineHolder
+import com.omnidev.workspace.data.localllm.LocalDecisionMaker
+import com.omnidev.workspace.data.localllm.LocalDecisionProbeResult
 import com.omnidev.workspace.data.repository.SettingsRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -17,7 +19,9 @@ data class LocalModelUiState(
     val initializing: Boolean = true, val busy: Boolean = false,
     val selectedUri: String? = null, val selectedName: String? = null, val loadedName: String? = null,
     val contextText: String = "", val threadsText: String = "", val temperature: Float = 0.7f,
-    val availableRamMb: Long = 0, val message: String? = null, val error: String? = null
+    val availableRamMb: Long = 0, val message: String? = null, val error: String? = null,
+    val decisionRequest: String = "Fix the Kotlin compile error and run the focused tests.",
+    val decisionProbe: LocalDecisionProbeResult? = null
 )
 
 internal fun validateLocalSettings(context: String, threads: String, cores: Int): String? = when {
@@ -53,6 +57,14 @@ class LocalModelViewModel(private val context: Context, private val settings: Se
     fun editContext(value: String) { if (!state.value.busy) mutableState.update { it.copy(contextText = value, error = null) } }
     fun editThreads(value: String) { if (!state.value.busy) mutableState.update { it.copy(threadsText = value, error = null) } }
     fun editTemperature(value: Float) { if (!state.value.busy) mutableState.update { it.copy(temperature = value) } }
+    fun editDecisionRequest(value: String) {
+        if (!state.value.busy) mutableState.update { it.copy(decisionRequest = value, decisionProbe = null) }
+    }
+    fun probeDecision() = operation {
+        val request = state.value.decisionRequest
+        val result = LocalDecisionMaker(context, engine).evaluate(request)
+        mutableState.update { it.copy(decisionProbe = result, message = "Decision probe finished; the result is advisory only.") }
+    }
     fun select(uri: Uri) = operation {
         val name = withContext(Dispatchers.IO) {
             val displayName = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
@@ -84,11 +96,11 @@ class LocalModelViewModel(private val context: Context, private val settings: Se
         saveSettings()
         val snapshot = state.value
         engine.loadModel(context, Uri.parse(uri), snapshot.contextText.toIntOrNull(), snapshot.threadsText.toIntOrNull()).getOrThrow()
-        mutableState.update { it.copy(message = "Model ready for local chat.") }
+        mutableState.update { it.copy(message = "Model ready for local chat.", decisionProbe = null) }
     }
     fun unload() = operation {
         withContext(Dispatchers.IO) { engine.unloadModel() }
-        mutableState.update { it.copy(message = "Model unloaded. The selected file is kept for next time.") }
+        mutableState.update { it.copy(message = "Model unloaded. The selected file is kept for next time.", decisionProbe = null) }
     }
     private fun operation(block: suspend () -> Unit) {
         if (state.value.busy) return
