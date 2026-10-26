@@ -35,7 +35,8 @@ class AssistantWindowPrivacy(context: Context, private val window: Window) : Aut
         if (!closed) {
             closed = true
             com.omnidev.workspace.data.admin.LockScreenAwake.detach(window)
-            app.unregisterReceiver(receiver)
+            // Already-unregistered receivers must not crash session teardown.
+            runCatching { app.unregisterReceiver(receiver) }
         }
     }
 }

@@ -146,7 +146,7 @@ class AssistantBubbleService : Service() {
         updateLockVisibility()
     }
     override fun onDestroy() {
-        unregisterReceiver(privacyReceiver)
+        runCatching { unregisterReceiver(privacyReceiver) }
         consentPrefs.unregisterOnSharedPreferenceChangeListener(consentListener)
         signal(false)
         removeBubble()

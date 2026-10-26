@@ -27,10 +27,18 @@ fun rememberDeviceLocked(): Boolean {
                 locked = intent.action == Intent.ACTION_SCREEN_OFF || DeviceConsentStore(context).locked()
             }
         }
-        ContextCompat.registerReceiver(context, receiver, IntentFilter().apply {
-            addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_USER_PRESENT)
-        }, ContextCompat.RECEIVER_NOT_EXPORTED)
-        onDispose { context.unregisterReceiver(receiver) }
+        // Register on the application context: a VoiceInteractionSession/Compose host context can be
+        // torn down before this effect is disposed, which made unregisterReceiver throw
+        // "Receiver not registered" during session onDestroy.
+        val app = context.applicationContext
+        var registered = false
+        runCatching {
+            ContextCompat.registerReceiver(app, receiver, IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_USER_PRESENT)
+            }, ContextCompat.RECEIVER_NOT_EXPORTED)
+            registered = true
+        }
+        onDispose { if (registered) runCatching { app.unregisterReceiver(receiver) } }
     }
     LaunchedEffect(context) {
         while (true) { locked = DeviceConsentStore(context).locked(); delay(250) }

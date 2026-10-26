@@ -49,6 +49,8 @@ class OmniSyncService : Service() {
         private const val TASK_EVENTS_CHANNEL_ID = "omni_scheduled_tasks_channel"
         private const val TASK_COMPLETE_CHANNEL_ID = "omni_task_complete_channel"
         private const val NOTIFICATION_ID = 4002
+        /** Promotion later than this after process start risks the 5s startForegroundService() limit. */
+        private const val SLOW_PROMOTION_MS = 3_500L
         private const val TASK_EVENT_NOTIFICATION_BASE = 4100
         private const val TASK_COMPLETE_NOTIFICATION_BASE = 5000
         private const val TASK_EVENT_NOTIFICATION_RANGE = 500
@@ -203,12 +205,24 @@ class OmniSyncService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    @Volatile private var foregroundPromoted = false
+
     override fun onCreate() {
         super.onCreate()
+        val sinceProcessStartMs = android.os.SystemClock.elapsedRealtime() -
+            android.os.Process.getStartElapsedRealtime()
         createNotificationChannels()
         // Android requires promotion immediately after startForegroundService(). Do this before
         // database/agent initialization so a slow cold start cannot trigger the 5-second kill.
         startForegroundSafe(buildNotification("Background runtime starting…"))
+        if (sinceProcessStartMs > SLOW_PROMOTION_MS) {
+            // The 5s startForegroundService() window includes Application.onCreate on a cold start.
+            // Leave a breadcrumb so a future "did not call startForeground" crash can be attributed.
+            BackgroundServiceSupervisor.recordFailure(
+                applicationContext,
+                "Slow foreground promotion: ${sinceProcessStartMs}ms after process start"
+            )
+        }
         BackgroundServiceSupervisor.onServiceHealthy(applicationContext)
         Log.i(TAG, "OmniSyncService foreground runtime started")
 
@@ -224,6 +238,9 @@ class OmniSyncService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Every startForegroundService() must be answered by startForeground(); re-promote if this
+        // instance is not currently promoted (e.g. a start delivered to a restarted instance).
+        if (!foregroundPromoted) startForegroundSafe(buildNotification("Background runtime starting…"))
         val recoveryReason = intent?.getStringExtra(EXTRA_RECOVERY_REASON)
         BackgroundServiceSupervisor.onServiceHealthy(applicationContext)
         if (recoveryReason != null) {
@@ -245,6 +262,7 @@ class OmniSyncService : Service() {
     }
 
     override fun onDestroy() {
+        foregroundPromoted = false
         val shouldRecover = BackgroundServiceSupervisor.hasDurableWork(applicationContext)
         Log.w(TAG, "OmniSyncService destroyed; shouldRecover=$shouldRecover")
         syncJob?.cancel()
@@ -276,6 +294,11 @@ class OmniSyncService : Service() {
     }
 
     private fun startForegroundSafe(notification: Notification) {
+        startForegroundTyped(notification)
+        foregroundPromoted = true
+    }
+
+    private fun startForegroundTyped(notification: Notification) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             try {
                 startForeground(
