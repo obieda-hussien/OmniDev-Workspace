@@ -16,7 +16,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.onAwait
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -71,6 +70,9 @@ data class LocalDecisionProbeResult(
         INVALID_JSON,
         MODEL_ERROR
     }
+
+    val modelAccepted: Boolean
+        get() = outcome == Outcome.VALIDATED_MODEL
 }
 
 /**
@@ -458,7 +460,7 @@ internal object LocalDecisionJsonParser {
 
     private fun unwrapFence(raw: String): String? {
         val value = raw.trim()
-        val fence = String(charArrayOf(96, 96, 96))
+        val fence = String(charArrayOf(96.toChar(), 96.toChar(), 96.toChar()))
         if (!value.startsWith(fence)) return value
         val lineBreak = value.indexOf('\n')
         val closing = value.lastIndexOf(fence)
