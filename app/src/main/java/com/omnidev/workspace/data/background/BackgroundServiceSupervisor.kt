@@ -207,8 +207,8 @@ object BackgroundServiceSupervisor {
      * Normal heartbeats intentionally clear KEY_LAST_FAILURE, so using that key here would erase
      * the evidence as soon as the service reports itself healthy.
      */
-    fun recordSlowForegroundPromotion(context: Context, elapsedSinceProcessStartMs: Long) {
-        val detail = "Slow foreground promotion: ${elapsedSinceProcessStartMs}ms after process start"
+    fun recordSlowForegroundPromotion(context: Context, elapsedSinceOnCreateMs: Long) {
+        val detail = "Slow foreground promotion: ${elapsedSinceOnCreateMs}ms inside service onCreate before promotion"
         prefs(context).edit()
             .putString(KEY_LAST_SLOW_PROMOTION, detail.take(1_000))
             .apply()
