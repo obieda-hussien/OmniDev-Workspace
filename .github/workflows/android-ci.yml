@@ -53,7 +53,7 @@ jobs:
         run: python3 scripts/test_ci_failure_annotations.py
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -177,7 +177,7 @@ jobs:
           path: ci-m2
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -244,7 +244,7 @@ jobs:
           path: ci-m2
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -314,7 +314,7 @@ jobs:
           path: ci-m2
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -388,7 +388,7 @@ jobs:
           name: omnilink-maven-${{ github.run_id }}
           path: ci-m2
       - name: Set up JDK
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -451,7 +451,7 @@ jobs:
           path: ci-m2
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
