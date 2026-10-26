@@ -40,7 +40,7 @@ The current probe rejects before inference if:
 - Current process PSS is already at or above 400 MiB.
 
 
-The probe reads the active native context size from the engine. It reserves 320 tokens for fixed instructions and chooses an output budget between 48 and 96 tokens, capped by the context size. Remaining context is converted conservatively into a character limit, also capped at 2,048 characters. This is an admission heuristic—not an exact tokenizer measurement—so overflow still results in a rejected candidate, never a routing decision.
+The probe reads the active native context size from the engine. It reserves 320 tokens for fixed instructions and chooses an output budget between 48 and 96 tokens, capped by the context size. A context-derived character ceiling is used as an early preflight. Before inference, the exact prompt is also passed through the model's native llama.cpp tokenizer with the same special-token flags as generation; if the tokenizer is unavailable or prompt tokens plus the reserved output budget exceed the context, inference is skipped and the request is rejected. This relies on the same tokenizer as generation rather than treating character count as a token-count guarantee.
 
 During inference it asks for at most 96 new tokens, times out the collection after 15 seconds, and samples process PSS every 100 ms. If a sample reaches 400 MiB, cancellation is requested and the candidate is discarded.
 
