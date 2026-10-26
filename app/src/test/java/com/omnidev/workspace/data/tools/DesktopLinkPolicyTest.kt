@@ -73,6 +73,11 @@ class DesktopLinkPolicyTest {
         assertEquals(120_000L, DesktopLinkPolicy.clampTimeout("999999999"))
     }
 
+    @Test fun `desktop frame cap bounds response allocation beyond request size`() {
+        assertTrue(DesktopLinkPolicy.MAX_REQUEST_BYTES < DesktopLinkPolicy.MAX_ENCRYPTED_FRAME_BYTES)
+        assertTrue(DesktopLinkPolicy.MAX_ENCRYPTED_FRAME_BYTES <= 128 * 1024)
+    }
+
     @Test fun `request and response sizes are capped`() {
         assertTrue(DesktopLinkPolicy.withinRequestLimit("x".repeat(DesktopLinkPolicy.MAX_REQUEST_BYTES)))
         assertFalse(DesktopLinkPolicy.withinRequestLimit("x".repeat(DesktopLinkPolicy.MAX_REQUEST_BYTES + 1)))
