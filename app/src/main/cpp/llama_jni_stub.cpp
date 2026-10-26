@@ -29,6 +29,13 @@ Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeIsStub(
     return JNI_TRUE; // stub build — real llama.cpp not compiled in
 }
 
+JNIEXPORT jint JNICALL
+Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeCountPromptTokens(
+        JNIEnv*, jobject, jlong, jstring)
+{
+    return -1; // No tokenizer is available in the stub build.
+}
+
 JNIEXPORT jlong JNICALL
 Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeLoadModel(
         JNIEnv*, jobject, jstring, jint, jint, jint, jboolean)
