@@ -32,11 +32,15 @@ Stringified booleans/numbers, unknown keys, duplicate object keys, nested object
 ## Safety and resource limits
 
 The current probe rejects before inference if:
-- The input exceeds 2,048 characters.
-- No model is loaded, or the active model's file size is unknown.
+- The input exceeds 2,048 characters or the stricter context-derived character budget.
+- The active GGUF context size or model file size is unknown.
+- The active context cannot fit the reserved fixed prompt, the minimum 48-token output budget, and at least one input character.
 - The selected model file exceeds 400 MiB.
 - Available system RAM is below 384 MiB.
 - Current process PSS is already at or above 400 MiB.
+
+
+The probe reads the active native context size from the engine. It reserves 320 tokens for fixed instructions and chooses an output budget between 48 and 96 tokens, capped by the context size. Remaining context is converted conservatively into a character limit, also capped at 2,048 characters. This is an admission heuristic—not an exact tokenizer measurement—so overflow still results in a rejected candidate, never a routing decision.
 
 During inference it asks for at most 96 new tokens, times out the collection after 15 seconds, and samples process PSS every 100 ms. If a sample reaches 400 MiB, cancellation is requested and the candidate is discarded.
 
