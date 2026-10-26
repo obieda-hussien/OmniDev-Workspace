@@ -330,6 +330,7 @@ internal object LocalDecisionJsonParser {
         val text = unwrapFence(raw) ?: return null
         if (!text.startsWith("{") || !text.endsWith("}")) return null
 
+        if (hasDuplicateObjectKeys(text)) return null
         val root = json.parseToJsonElement(text).jsonObject
         if (root.keys != allowedKeys) return null
         val version = root["schema_version"]?.jsonPrimitive ?: return null
@@ -360,6 +361,57 @@ internal object LocalDecisionJsonParser {
         if (reason.isEmpty() || reason.length > 160) return null
 
         return LocalDecisionCandidate(mode, needsCode, needsDevice, needsResearch, parallelizable, reason)
+    }
+
+    /** Reject duplicate keys instead of relying on parser-specific duplicate-key behavior. */
+    private fun hasDuplicateObjectKeys(text: String): Boolean {
+        val objectKeys = mutableListOf<MutableSet<String>?>()
+        var index = 0
+        while (index < text.length) {
+            when (text[index]) {
+                '"' -> {
+                    val start = index
+                    index++
+                    var escaped = false
+                    while (index < text.length) {
+                        val ch = text[index]
+                        if (escaped) {
+                            escaped = false
+                        } else if (ch == '\\\\') {
+                            escaped = true
+                        } else if (ch == '"') {
+                            break
+                        }
+                        index++
+                    }
+                    if (index >= text.length) return false // The JSON parser will reject malformed strings.
+                    val token = text.substring(start, index + 1)
+                    var lookAhead = index + 1
+                    while (lookAhead < text.length && text[lookAhead].isWhitespace()) lookAhead++
+                    val currentObject = objectKeys.lastOrNull()
+                    if (lookAhead < text.length && text[lookAhead] == ':' && currentObject != null) {
+                        val key = runCatching { json.parseToJsonElement(token).jsonPrimitive.content }.getOrNull()
+                            ?: return true
+                        if (!currentObject.add(key)) return true
+                    }
+                    index++
+                }
+                '{' -> {
+                    objectKeys.add(mutableSetOf())
+                    index++
+                }
+                '[' -> {
+                    objectKeys.add(null)
+                    index++
+                }
+                '}', ']' -> {
+                    if (objectKeys.isNotEmpty()) objectKeys.removeAt(objectKeys.lastIndex)
+                    index++
+                }
+                else -> index++
+            }
+        }
+        return false
     }
 
     private fun unwrapFence(raw: String): String? {
