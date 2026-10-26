@@ -323,11 +323,14 @@ internal object LocalDecisionJsonParser {
         "schema_version", "mode", "needs_code", "needs_device", "needs_research", "parallelizable", "reason"
     )
 
-    fun parse(raw: String): LocalDecisionCandidate? {
+    fun parse(raw: String): LocalDecisionCandidate? =
+        runCatching { parseStrict(raw) }.getOrNull()
+
+    private fun parseStrict(raw: String): LocalDecisionCandidate? {
         val text = unwrapFence(raw) ?: return null
         if (!text.startsWith("{") || !text.endsWith("}")) return null
 
-        val root = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
+        val root = json.parseToJsonElement(text).jsonObject
         if (root.keys != allowedKeys) return null
         val version = root["schema_version"]?.jsonPrimitive ?: return null
         if (version.isString || version.intOrNull != 1) return null
