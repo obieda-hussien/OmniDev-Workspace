@@ -73,6 +73,11 @@ class DesktopLinkPolicyTest {
         assertEquals(120_000L, DesktopLinkPolicy.clampTimeout("999999999"))
     }
 
+    @Test fun `confirmation requires the complete desktop payload to be visible`() {
+        assertTrue(DesktopLinkPolicy.payloadCanBeFullyReviewed("x".repeat(4_000)))
+        assertFalse(DesktopLinkPolicy.payloadCanBeFullyReviewed("x".repeat(4_001)))
+    }
+
     @Test fun `desktop frame cap bounds response allocation beyond request size`() {
         assertTrue(DesktopLinkPolicy.MAX_REQUEST_BYTES < DesktopLinkPolicy.MAX_ENCRYPTED_FRAME_BYTES)
         assertTrue(DesktopLinkPolicy.MAX_ENCRYPTED_FRAME_BYTES <= 128 * 1024)
