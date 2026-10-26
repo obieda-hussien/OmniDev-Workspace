@@ -37,6 +37,7 @@ class DesktopLinkPolicyTest {
 
     @Test fun `numeric host validation is deterministic and refuses public addresses`() {
         assertEquals("10.0.0.5", DesktopLinkPolicy.resolvePrivateHost("10.0.0.5"))
+        assertEquals("10.0.0.5", DesktopLinkPolicy.resolvePrivateHost("010.000.000.005"))
         assertEquals("127.0.0.1", DesktopLinkPolicy.resolvePrivateHost("localhost"))
         assertNull(DesktopLinkPolicy.resolvePrivateHost("8.8.8.8"))
         assertNull(DesktopLinkPolicy.resolvePrivateHost("example.com"))
