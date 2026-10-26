@@ -208,7 +208,7 @@ object BackgroundServiceSupervisor {
      * the evidence as soon as the service reports itself healthy.
      */
     fun recordSlowForegroundPromotion(context: Context, elapsedSinceStartRequestMs: Long) {
-        val detail = "Slow foreground promotion: ${elapsedSinceStartRequestMs}ms from start request to onStartCommand (after promotion)"
+        val detail = "Slow foreground promotion: ${elapsedSinceStartRequestMs}ms from start request to foreground promotion"
         prefs(context).edit()
             .putString(KEY_LAST_SLOW_PROMOTION, detail.take(1_000))
             .apply()
