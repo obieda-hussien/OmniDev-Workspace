@@ -58,7 +58,7 @@ class LocalDecisionJsonParserTest {
             .replace("\"reason\": \"One executable code task.\"", "\"reason\": \"One executable code task.\",")
         val duplicateMode = validJson().replace("\"mode\": \"AGENT\",", "\"mode\": \"CHAT\", \"mode\": \"AGENT\",")
         assertNull(LocalDecisionJsonParser.parse(trailingComma))
-        // The parser may normalize duplicate object keys; duplicate-key rejection is enforced before parsing.
+        // Duplicate object keys must be rejected before parser normalization.
         assertNull(LocalDecisionJsonParser.parse(duplicateMode))
     }
 
