@@ -367,12 +367,16 @@ val initLlamaCppSubmodule by tasks.registering {
                 workingDir = rootProject.rootDir
                 commandLine("git", "submodule", "update", "--init", "--recursive", "--depth", "1")
             }
-            logger.lifecycle("llama.cpp submodule initialised — real native inference will be compiled.")
         } catch (e: Exception) {
-            logger.warn(
-                "Could not auto-init llama.cpp submodule (${e.message}). " +
-                "The stub library will be compiled — on-device inference will not be available."
-            )
+            logger.warn("Could not initialise the llama.cpp submodule (${e.message}).")
+        }
+        if (marker.exists()) {
+            logger.lifecycle("llama.cpp source tree present — CMake will use it (no download).")
+        } else {
+            // .gitmodules declares the submodule but this snapshot tracks no gitlink, so the update
+            // above is a no-op. There is no stub: CMake downloads the pinned llama.cpp tag and the
+            // build fails if that is impossible (see src/main/cpp/CMakeLists.txt).
+            logger.lifecycle("llama.cpp submodule not populated — CMake will download the pinned release (network required).")
         }
     }
 }

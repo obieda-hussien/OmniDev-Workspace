@@ -31,7 +31,7 @@ chmod +x gradlew
 git submodule update --init --recursive --depth 1
 ```
 
-The pinned llama.cpp submodule is required for real native inference in eligible editions. Gradle's initialization fallback can create a stub if checkout fails; a native library alone does not prove real inference works.
+Real native inference in eligible editions needs llama.cpp source at build time: either a populated `app/src/main/cpp/llama.cpp` tree or, when it is absent, the pinned release (tag `b8233`) that CMake downloads. There is no stub fallback; a build that cannot obtain the source fails. A native library alone still does not prove real inference works on a device.
 
 Install required Android SDK components:
 
