@@ -212,7 +212,7 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
         if (!DesktopLinkPolicy.payloadCanBeFullyReviewed(payload)) {
             return fail(
                 "PAYLOAD_REQUIRES_REVIEW",
-                "json_payload exceeds ${DesktopLinkPolicy.MAX_CONFIRMATION_PAYLOAD_CHARS} characters. Split the operation into smaller requests so the complete payload can be reviewed before sending."
+                "json_payload exceeds the full-confirmation preview limit (${DesktopLinkPolicy.MAX_CONFIRMATION_PAYLOAD_CHARS} characters or ${DesktopLinkPolicy.MAX_CONFIRMATION_PAYLOAD_LINE_BREAKS} line breaks). Split the operation into smaller requests so the entire payload remains visible before sending."
             )
         }
         val target = resolveTarget(store, args) ?: return fail("NOT_PAIRED", "Unknown or expired peer_id. Pair the desktop first.")
