@@ -64,10 +64,10 @@ internal object DesktopLinkPolicy {
         else text.take(MAX_RESPONSE_CHARS) to true
 
     /**
-     * Desktops must be on a private network: loopback, RFC1918, link-local, CGNAT (Tailscale
-     * style 100.64/10), IPv6 ULA/link-local, or a `.local`/`.lan`/`.home.arpa` name. No DNS is
-     * performed here, so a hostname can never be silently resolved to a public address by policy
-     * code; the transport still authenticates the pinned key regardless.
+     * Syntax-only host policy: numeric private endpoints and reserved local host suffixes are
+     * accepted here. Call resolvePrivateHost() before every connection so local names are resolved
+     * once, all answers are checked, and the socket receives a verified numeric address. The
+     * transport must still authenticate the pinned peer key.
      */
     fun isPrivateHost(rawHost: String?): Boolean {
         val host = rawHost.orEmpty().trim().lowercase().removePrefix("[").removeSuffix("]")
@@ -114,7 +114,11 @@ internal object DesktopLinkPolicy {
 
         // Preserve explicit numeric endpoints (including scoped IPv6 literals); normalize localhost.
         if (host == "localhost") return "127.0.0.1"
-        if (IPV4.matches(host) || IPV6_LITERAL.matches(host)) return host
+        IPV4.matchEntire(host)?.let { match ->
+            // Normalize leading zeros so the socket sees the same dotted-decimal address as policy.
+            return match.groupValues.drop(1).joinToString(".") { it.toInt().toString() }
+        }
+        if (IPV6_LITERAL.matches(host)) return host
 
         val addresses = runCatching { resolver(host) }.getOrNull() ?: return null
         if (addresses.isEmpty() || addresses.any { !isPrivateResolvedAddress(it) }) return null
