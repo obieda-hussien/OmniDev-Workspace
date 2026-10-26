@@ -24,6 +24,7 @@ flowchart TD
 | `ModeSwitchPermissionStore.kt` | User-controlled switch permissions and limits | Does not infer outcome quality |
 | `ModeOutcomeLearner.kt` | Aggregate outcomes by task shape and mode, with token/time costs when available | Does not store raw request text in the decision log or send weights to a server |
 | `ModeDecisionModel.kt` | Incremental local success estimates from bounded numerical signals | Not a language model or embedding model; small samples are unreliable |
+| `LocalDecisionMaker.kt` | Optional comparison of an already-loaded GGUF model against the heuristic mode | Experimental only; strict JSON validation is not semantic validation and the candidate never controls routing |
 | `AgentDecisionPolicy.kt` | Step priorities and tool-result size limits | Does not alter Android permission policies |
 
 ## Mode selection and switching
@@ -60,3 +61,10 @@ These limits may reduce context costs when the relevant code is retrieved. Savin
 | Tests | `app/src/test/java/com/omnidev/workspace/domain/engine/`, `app/src/test/java/com/omnidev/workspace/data/repo/` |
 
 Abbreviated `domain/` and `data/` paths start at `app/src/main/java/com/omnidev/workspace/`.
+
+## Model-assisted local decision experiment
+
+The optional [local structured decision probe](docs/LOCAL_STRUCTURED_DECISION_PROBE.md) compares the deterministic heuristic with an already-loaded user-selected GGUF model. It is not part of AUTO and does not authorize actions or mode changes. It enforces a closed JSON contract, rejects malformed/ambiguous outputs, and reports file size, available RAM, process PSS, and latency. The runtime memory guard is sampled rather than a hard allocator limit, so only device benchmarks can establish whether a model fits the target memory budget.
+
+Do not add a second inference runtime or bundle model weights by default. First evaluate accuracy, Arabic/English coverage, latency and PSS on held-out requests; keep existing permission gates and user-controlled mode-switch policy authoritative.
+
