@@ -24,7 +24,7 @@ internal object DesktopLinkPolicy {
     private val FINGERPRINT = Regex("^[0-9a-f]{64}$")
     private val PEER_ID = Regex("^[A-Za-z0-9_.:@-]{1,64}$")
     private val IPV4 = Regex("^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$")
-    private val IPV6_LITERAL = Regex("^[0-9a-f:]{2,45}$")
+    private val IPV6_LITERAL = Regex("^[0-9a-f:]{2,45}(?:%[a-z0-9_.-]{1,32})?$")
     private val HOSTNAME = Regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$")
     private val LOCAL_SUFFIXES = listOf(".local", ".lan", ".home.arpa")
 
@@ -97,5 +97,48 @@ internal object DesktopLinkPolicy {
 
         if (!HOSTNAME.matches(host)) return false
         return LOCAL_SUFFIXES.any { host.endsWith(it) }
+    }
+
+    /**
+     * Resolves an allowed host once, rejects mixed/private+public DNS answers, and returns the
+     * private numeric address the caller must actually connect to. This avoids validating a
+     * .local/.lan name and then handing the unresolved hostname to a socket that may resolve it
+     * differently. The injectable resolver keeps DNS policy deterministic in unit tests.
+     */
+    fun resolvePrivateHost(
+        rawHost: String?,
+        resolver: (String) -> Array<InetAddress> = { InetAddress.getAllByName(it) }
+    ): String? {
+        val host = rawHost.orEmpty().trim().lowercase().removePrefix("[").removeSuffix("]")
+        if (!isPrivateHost(host)) return null
+
+        // Preserve explicit numeric endpoints (including scoped IPv6 literals); normalize localhost.
+        if (host == "localhost") return "127.0.0.1"
+        if (IPV4.matches(host) || IPV6_LITERAL.matches(host)) return host
+
+        val addresses = runCatching { resolver(host) }.getOrNull() ?: return null
+        if (addresses.isEmpty() || addresses.any { !isPrivateResolvedAddress(it) }) return null
+        // Prefer IPv4 for broad Android/JVM socket compatibility; otherwise use a verified IPv6.
+        return addresses.firstOrNull { it.address.size == 4 }?.hostAddress
+            ?: addresses.firstOrNull()?.hostAddress
+    }
+
+    private fun isPrivateResolvedAddress(address: InetAddress): Boolean {
+        val bytes = address.address
+        if (bytes.size == 4) {
+            val a = bytes[0].toInt() and 0xFF
+            val b = bytes[1].toInt() and 0xFF
+            return when {
+                a == 10 -> true
+                a == 192 && b == 168 -> true
+                a == 172 && b in 16..31 -> true
+                a == 169 && b == 254 -> true
+                a == 100 && b in 64..127 -> true
+                else -> false // Do not allow a hostname to redirect to loopback or a public IPv4.
+            }
+        }
+        if (bytes.size != 16) return false
+        val first = bytes[0].toInt() and 0xFF
+        return address.isLinkLocalAddress || (first and 0xFE) == 0xFC
     }
 }
