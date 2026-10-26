@@ -283,7 +283,7 @@ See the [October 2026 on-device voice research and experiment plan](docs/VOICE_R
 
 The application integrates C++/JNI with a configured `llama.cpp` source checkout. Standard disables the native inference build path. Lite, Pro, OEM and Admin enable local SLM eligibility and native ABIs, but still need a valid model and a successfully built native implementation.
 
-The Gradle setup attempts to initialize the submodule before a native build. If initialization fails, its fallback may compile a stub. A stub library or enabled flag is not proof that on-device inference is available. This snapshot has a `.gitmodules` declaration but no tracked gitlink at `app/src/main/cpp/llama.cpp`; recursive cloning alone does not establish a pinned native checkout. Provision the required sources for a real native build, and check the produced APK and runtime.
+The Gradle setup attempts to initialize the submodule before a native build. When the source tree is not populated, CMake downloads the pinned llama.cpp release (tag `b8233`) instead and the build fails if that is impossible; there is no stub fallback. A loaded native library or an enabled flag is still not proof that on-device inference works on a given device. This snapshot has a `.gitmodules` declaration but no tracked gitlink at `app/src/main/cpp/llama.cpp`; recursive cloning alone does not establish a pinned native checkout. Provision the required sources for a real native build, and check the produced APK and runtime.
 
 Local inference performance depends on model size, quantization, context length, ABI, CPU and available memory. This repository does not publish verified latency, memory or quality numbers for every model/device combination. Local inference and local voice are independent features: installing a Vosk speech model does not install a chat model.
 
@@ -1215,7 +1215,7 @@ A separate [runtime repair verification workflow](.github/workflows/repair-verif
 | A connected app is discovered but denied | Real signer, receiver consent and exact accepted capability | Manifest discovery does not authorize control |
 | WhatsApp bridge cannot connect | Same-phone loopback server, key and own number | LAN/other-recipient requests are deliberately outside this bridge |
 | CI fails downloading OmniLink/CMake/NDK | Artifact/toolchain download stage and retry diagnostics | Distinguish infrastructure resolution from a source compiler error |
-| Local inference library loads but inference is absent | Submodule, native build and model | A fallback stub is not real inference |
+| Local inference library loads but inference is absent | Native build, model file and device memory | Loading the library is not proof that inference works; there is no stub fallback to blame |
 
 For a bug report, include the edition, app revision/build, Android version, device, selected mode, relevant provider/model and a redacted reproduction. For UI issues also include phone language, orientation, keyboard state and motion settings. Never post a PIN, provider key, bot token or full private repository content. Use [Support](SUPPORT.md) and the repository's structured issue forms.
 
