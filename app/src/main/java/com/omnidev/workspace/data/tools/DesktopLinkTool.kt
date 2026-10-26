@@ -42,7 +42,7 @@ object DesktopLinkTool {
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
-            name = DesktopLinkPolicy.TOOL_NAME,
+            name = "desktop_link",
             description = """
 Talk to a paired desktop computer over the authenticated, encrypted OmniLink transport.
 
