@@ -56,6 +56,23 @@ exit 17
         self.assertEqual((17, 1), self.run_case(
             "Plugin Repositories (could not resolve plugin artifact 'misspelled.plugin:plugin:1')")[0:2])
 
+    def test_final_failure_is_republished_as_annotation_without_changing_status(self):
+        code, count, _ = self.run_case(
+            "e: file:///home/runner/work/r/r/app/src/test/java/A.kt:37:46 Argument type mismatch\n"
+            "FooTest > bar FAILED")
+        self.assertEqual((17, 1), (code, count))  # not retryable, original exit status preserved
+
+    def test_annotation_script_output_reaches_stdout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake = root / "gradle.sh"
+            fake.write_text("#!/bin/bash\necho 'e: file:///w/app/src/A.kt:3:4 boom'\nexit 9\n")
+            env = dict(os.environ, OMNI_GRADLE_EXECUTABLE=str(fake), GITHUB_WORKSPACE="/w")
+            result = subprocess.run(["bash", str(Path(__file__).with_name("gradle-with-retry.sh")), ":x"],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(9, result.returncode)
+            self.assertIn("::error file=app/src/A.kt,line=3,col=4,title=Kotlin compile error::boom", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

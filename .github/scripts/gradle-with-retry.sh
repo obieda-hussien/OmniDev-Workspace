@@ -18,6 +18,11 @@ for attempt in 1 2 3; do
     retryable=true
   fi
   if [[ "$attempt" == 3 ]] || [[ "$retryable" != true ]]; then
+    # Republish the first compile errors / failing tests as check annotations and a step summary.
+    # Job logs live in blob storage that API clients and sandboxed reviewers often cannot reach.
+    # Informational only: it never changes the exit status.
+    annotations="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../scripts/ci_failure_annotations.py"
+    if [[ -f "$annotations" ]]; then python3 "$annotations" "$log" || true; fi
     exit "$status"
   fi
   # Refresh cached negative artifact lookups on the next attempt. No cache deletion,
