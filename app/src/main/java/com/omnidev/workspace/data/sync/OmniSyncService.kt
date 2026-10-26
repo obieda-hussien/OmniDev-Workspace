@@ -210,6 +210,7 @@ class OmniSyncService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     @Volatile private var foregroundPromoted = false
+    private var foregroundPromotionElapsedRealtimeMs = 0L
     private var startupTimingEvaluated = false
 
     override fun onCreate() {
@@ -240,11 +241,16 @@ class OmniSyncService : Service() {
             startupTimingEvaluated = true
             val requestedAtMs = intent?.getLongExtra(EXTRA_START_REQUEST_ELAPSED_MS, 0L) ?: 0L
             if (requestedAtMs > 0L) {
-                val requestToPostPromotionMs = android.os.SystemClock.elapsedRealtime() - requestedAtMs
-                if (requestToPostPromotionMs > SLOW_PROMOTION_MS) {
+                val promotedAtMs = foregroundPromotionElapsedRealtimeMs
+                val requestToPromotionMs = if (promotedAtMs > 0L) {
+                    promotedAtMs - requestedAtMs
+                } else {
+                    android.os.SystemClock.elapsedRealtime() - requestedAtMs
+                }
+                if (requestToPromotionMs > SLOW_PROMOTION_MS) {
                     BackgroundServiceSupervisor.recordSlowForegroundPromotion(
                         applicationContext,
-                        requestToPostPromotionMs
+                        requestToPromotionMs
                     )
                 }
             }
@@ -304,6 +310,9 @@ class OmniSyncService : Service() {
     private fun startForegroundSafe(notification: Notification) {
         startForegroundTyped(notification)
         foregroundPromoted = true
+        if (foregroundPromotionElapsedRealtimeMs == 0L) {
+            foregroundPromotionElapsedRealtimeMs = android.os.SystemClock.elapsedRealtime()
+        }
     }
 
     private fun startForegroundTyped(notification: Notification) {
