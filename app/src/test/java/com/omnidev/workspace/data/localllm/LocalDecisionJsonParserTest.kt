@@ -30,6 +30,7 @@ class LocalDecisionJsonParserTest {
         assertNull(LocalDecisionJsonParser.parse("{not-json}"))
         assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"needs_code\":true", "\"needs_code\":\"true\"")))
         assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"schema_version\":1", "\"schema_version\":2")))
+        assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"schema_version\":1", "\"schema_version\":\"1\"")))
         assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"mode\":\"AGENT\"", "\"mode\":\"AUTO\"")))
         assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"reason\":\"One executable code task.\"",
             "\"reason\":\"" + "x".repeat(161) + "\"")))
@@ -43,6 +44,22 @@ class LocalDecisionJsonParserTest {
     @Test fun parserDoesNotConfuseModeSuggestionsWithAuthorization() {
         val text = validJson().replace("\"reason\":", "\"permission_granted\":true,\"reason\":")
         assertNull(LocalDecisionJsonParser.parse(text))
+    }
+
+    @Test fun rejectsNestedObjectsWhereScalarFieldsAreRequired() {
+        val nestedMode = validJson().replace("\"mode\":\"AGENT\"", "\"mode\":{\"value\":\"AGENT\"}")
+        val nestedReason = validJson().replace("\"reason\":\"One executable code task.\"", "\"reason\":{\"text\":\"okay\"}")
+        assertNull(LocalDecisionJsonParser.parse(nestedMode))
+        assertNull(LocalDecisionJsonParser.parse(nestedReason))
+    }
+
+    @Test fun rejectsTrailingCommaAndDuplicateKeys() {
+        val trailingComma = validJson().replace("\"parallelizable\": false,", "\"parallelizable\": false,")
+            .replace("\"reason\": \"One executable code task.\"", "\"reason\": \"One executable code task.\",")
+        val duplicateMode = validJson().replace("\"mode\": \"AGENT\",", "\"mode\": \"CHAT\", \"mode\": \"AGENT\",")
+        assertNull(LocalDecisionJsonParser.parse(trailingComma))
+        // The parser may normalize duplicate object keys; duplicate-key rejection is enforced before parsing.
+        assertNull(LocalDecisionJsonParser.parse(duplicateMode))
     }
 
     private fun validJson(mode: String = "AGENT"): String = """
