@@ -8,6 +8,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LocalDecisionJsonParserTest {
+    @Test fun contextBudgetShrinksForSmallNativeContexts() {
+        assertEquals(144, LocalDecisionMaker.maxInputCharsForContext(512))
+        assertEquals(640, LocalDecisionMaker.maxInputCharsForContext(1_024))
+        assertEquals(2_048, LocalDecisionMaker.maxInputCharsForContext(4_096))
+        assertEquals(0, LocalDecisionMaker.maxInputCharsForContext(-1))
+        assertEquals(48, LocalDecisionMaker.outputTokensForContext(512))
+        assertEquals(64, LocalDecisionMaker.outputTokensForContext(1_024))
+        assertEquals(96, LocalDecisionMaker.outputTokensForContext(4_096))
+        assertEquals(0, LocalDecisionMaker.outputTokensForContext(0))
+    }
+
     @Test fun acceptsOnlyTheVersionedClosedSchema() {
         val parsed = LocalDecisionJsonParser.parse(validJson())
         assertEquals(OmniMode.AGENT, parsed?.mode)
