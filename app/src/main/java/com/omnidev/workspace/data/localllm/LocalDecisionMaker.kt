@@ -329,22 +329,31 @@ internal object LocalDecisionJsonParser {
 
         val root = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
         if (root.keys != allowedKeys) return null
-        if (root["schema_version"]?.jsonPrimitive?.intOrNull != 1) return null
+        val version = root["schema_version"]?.jsonPrimitive ?: return null
+        if (version.isString || version.intOrNull != 1) return null
 
-        val modeText = root["mode"]?.jsonPrimitive?.contentOrNull ?: return null
+        val modePrimitive = root["mode"]?.jsonPrimitive ?: return null
+        if (!modePrimitive.isString) return null
+        val modeText = modePrimitive.contentOrNull ?: return null
         val mode = when (modeText) {
             "CHAT" -> OmniMode.CHAT
             "AGENT" -> OmniMode.AGENT
             "SWARM" -> OmniMode.SWARM
             else -> return null
         }
-        fun boolean(key: String): Boolean? = root[key]?.jsonPrimitive?.booleanOrNull
+        fun boolean(key: String): Boolean? {
+            val value = root[key]?.jsonPrimitive ?: return null
+            if (value.isString) return null
+            return value.booleanOrNull
+        }
 
         val needsCode = boolean("needs_code") ?: return null
         val needsDevice = boolean("needs_device") ?: return null
         val needsResearch = boolean("needs_research") ?: return null
         val parallelizable = boolean("parallelizable") ?: return null
-        val reason = root["reason"]?.jsonPrimitive?.contentOrNull?.trim() ?: return null
+        val reasonPrimitive = root["reason"]?.jsonPrimitive ?: return null
+        if (!reasonPrimitive.isString) return null
+        val reason = reasonPrimitive.contentOrNull?.trim() ?: return null
         if (reason.isEmpty() || reason.length > 160) return null
 
         return LocalDecisionCandidate(mode, needsCode, needsDevice, needsResearch, parallelizable, reason)
