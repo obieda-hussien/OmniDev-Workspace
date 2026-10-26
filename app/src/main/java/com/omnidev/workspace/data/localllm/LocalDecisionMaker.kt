@@ -292,16 +292,6 @@ class LocalDecisionMaker(
         )
     }
 
-    internal fun maxInputCharsForContext(contextTokens: Int): Int =
-        if (contextTokens <= 0) 0
-        else (contextTokens - PROMPT_RESERVED_TOKENS - outputTokensForContext(contextTokens))
-            .coerceAtLeast(0)
-            .coerceAtMost(MAX_INPUT_CHARS)
-
-    internal fun outputTokensForContext(contextTokens: Int): Int =
-        if (contextTokens <= 0) 0
-        else minOf(MAX_NEW_TOKENS, maxOf(MIN_NEW_TOKENS, contextTokens / 16))
-
     private fun availableRamMb(): Long = runCatching {
         val info = ActivityManager.MemoryInfo()
         (appContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
@@ -339,6 +329,15 @@ class LocalDecisionMaker(
     companion object {
         const val MAX_INPUT_CHARS = 2_048
         const val PROMPT_RESERVED_TOKENS = 320
+        internal fun maxInputCharsForContext(contextTokens: Int): Int =
+            if (contextTokens <= 0) 0
+            else (contextTokens - PROMPT_RESERVED_TOKENS - outputTokensForContext(contextTokens))
+                .coerceAtLeast(0)
+                .coerceAtMost(MAX_INPUT_CHARS)
+
+        internal fun outputTokensForContext(contextTokens: Int): Int =
+            if (contextTokens <= 0) 0
+            else minOf(MAX_NEW_TOKENS, maxOf(MIN_NEW_TOKENS, contextTokens / 16))
         const val MIN_NEW_TOKENS = 48
         const val MAX_MODEL_FILE_BYTES = 400L * 1_024L * 1_024L
         const val MAX_PROCESS_PSS_MB = 400L
