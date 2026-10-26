@@ -34,7 +34,8 @@ class LocalDecisionJsonParserTest {
     }
 
     @Test fun acceptsOneFencedJsonObjectButNothingAroundIt() {
-        val fence = String(charArrayOf(96, 96, 96))
+        // Kotlin does not convert Int literals to Char; U+0060 written as an escape keeps the source free of fences.
+        val fence = "\u0060\u0060\u0060"
         assertEquals(OmniMode.AGENT, LocalDecisionJsonParser.parse(fence + "json\n" + validJson() + "\n" + fence)?.mode)
         assertNull(LocalDecisionJsonParser.parse("Here is the result:\n" + validJson()))
         assertNull(LocalDecisionJsonParser.parse(validJson() + "\nDone."))
