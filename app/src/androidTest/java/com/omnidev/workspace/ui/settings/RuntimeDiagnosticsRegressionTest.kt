@@ -52,7 +52,7 @@ class RuntimeDiagnosticsRegressionTest {
             BackgroundServiceSupervisor.recordSlowForegroundPromotion(context, 4_200L)
             BackgroundServiceSupervisor.recordHeartbeat(context)
             val summary = BackgroundServiceSupervisor.diagnosticSummary(context)
-            assertTrue(summary.contains("lastSlowForegroundPromotion=Slow foreground promotion: 4200ms inside service onCreate"))
+            assertTrue(summary.contains("lastSlowForegroundPromotion=Slow foreground promotion: 4200ms from start request to onStartCommand"))
             assertFalse(summary.contains("lastFailure=transient test failure"))
         } finally {
             val editor = preferences.edit()
