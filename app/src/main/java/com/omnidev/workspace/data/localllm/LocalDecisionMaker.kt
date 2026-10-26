@@ -53,13 +53,16 @@ data class LocalDecisionProbeResult(
     val availableRamBeforeMb: Long = -1L,
     val processPssBeforeMb: Long = -1L,
     val processPssPeakMb: Long = -1L,
-    val processPssPeakDeltaMb: Long = -1L
+    val processPssPeakDeltaMb: Long = -1L,
+    val activeContextTokens: Int = -1
 ) {
     enum class Outcome {
         VALIDATED_MODEL,
         EMPTY_REQUEST,
         INPUT_TOO_LONG,
         MODEL_NOT_LOADED,
+        MODEL_CONTEXT_UNKNOWN,
+        INPUT_EXCEEDS_CONTEXT,
         MODEL_SIZE_UNKNOWN,
         MODEL_FILE_TOO_LARGE,
         INSUFFICIENT_FREE_RAM,
@@ -107,6 +110,25 @@ class LocalDecisionMaker(
                 message = "No GGUF model is loaded. Load a model first; Omni's normal heuristic remains available."
             )
         }
+
+        val activeContextTokens = engine.loadedModelContextSizeTokens
+        if (activeContextTokens <= 0) {
+            return@withContext LocalDecisionProbeResult(
+                heuristicMode = heuristic,
+                outcome = LocalDecisionProbeResult.Outcome.MODEL_CONTEXT_UNKNOWN,
+                message = "The active GGUF context size is unknown, so a safe input/output budget cannot be calculated."
+            )
+        }
+        val contextInputLimit = maxInputCharsForContext(activeContextTokens)
+        if (input.length > contextInputLimit) {
+            return@withContext LocalDecisionProbeResult(
+                heuristicMode = heuristic,
+                outcome = LocalDecisionProbeResult.Outcome.INPUT_EXCEEDS_CONTEXT,
+                message = "This model is loaded with a " + activeContextTokens + "-token context. The probe accepts at most " +
+                    contextInputLimit + " characters at this context size; shorten the request or reload with a larger context."
+            )
+        }
+        val outputTokenBudget = outputTokensForContext(activeContextTokens)
 
         val modelBytes = engine.loadedModelFileSizeBytes
         if (modelBytes <= 0L) {
@@ -163,7 +185,7 @@ class LocalDecisionMaker(
                             engine.generateResponse(
                                 buildPrompt(input),
                                 InferenceConfig(
-                                    maxNewTokens = MAX_NEW_TOKENS,
+                                    maxNewTokens = outputTokenBudget,
                                     temperature = 0f,
                                     topP = 1f,
                                     topK = 1,
@@ -265,9 +287,20 @@ class LocalDecisionMaker(
             availableRamBeforeMb = availableRamMb,
             processPssBeforeMb = beforePssMb,
             processPssPeakMb = peakMb,
-            processPssPeakDeltaMb = deltaMb
+            processPssPeakDeltaMb = deltaMb,
+            activeContextTokens = activeContextTokens
         )
     }
+
+    internal fun maxInputCharsForContext(contextTokens: Int): Int =
+        if (contextTokens <= 0) 0
+        else (contextTokens - PROMPT_RESERVED_TOKENS - outputTokensForContext(contextTokens))
+            .coerceAtLeast(0)
+            .coerceAtMost(MAX_INPUT_CHARS)
+
+    internal fun outputTokensForContext(contextTokens: Int): Int =
+        if (contextTokens <= 0) 0
+        else minOf(MAX_NEW_TOKENS, maxOf(MIN_NEW_TOKENS, contextTokens / 16))
 
     private fun availableRamMb(): Long = runCatching {
         val info = ActivityManager.MemoryInfo()
@@ -305,6 +338,8 @@ class LocalDecisionMaker(
 
     companion object {
         const val MAX_INPUT_CHARS = 2_048
+        const val PROMPT_RESERVED_TOKENS = 320
+        const val MIN_NEW_TOKENS = 48
         const val MAX_MODEL_FILE_BYTES = 400L * 1_024L * 1_024L
         const val MAX_PROCESS_PSS_MB = 400L
         const val MAX_PROCESS_PSS_KB = MAX_PROCESS_PSS_MB * 1_024L
