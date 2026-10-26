@@ -12,6 +12,8 @@ internal object DesktopLinkPolicy {
     /** Lower than the transport library's 4 MiB default to bound received response allocation. */
     const val MAX_ENCRYPTED_FRAME_BYTES = 128 * 1024
     const val MAX_CONFIRMATION_PAYLOAD_CHARS = 4_000
+    /** Keep the confirmation body's combined preview below its 1,000-line UI truncation guard. */
+    const val MAX_CONFIRMATION_PAYLOAD_LINE_BREAKS = 990
     const val MAX_RESPONSE_CHARS = 16_000
     const val DEFAULT_TIMEOUT_MS = 30_000L
     const val MAX_TIMEOUT_MS = 120_000L
@@ -63,7 +65,8 @@ internal object DesktopLinkPolicy {
         payload.toByteArray(Charsets.UTF_8).size <= MAX_REQUEST_BYTES
 
     fun payloadCanBeFullyReviewed(payload: String): Boolean =
-        payload.length <= MAX_CONFIRMATION_PAYLOAD_CHARS
+        payload.length <= MAX_CONFIRMATION_PAYLOAD_CHARS &&
+            payload.count { it == '\n' || it == '\r' } <= MAX_CONFIRMATION_PAYLOAD_LINE_BREAKS
 
     fun truncateResponse(text: String): Pair<String, Boolean> =
         if (text.length <= MAX_RESPONSE_CHARS) text to false
