@@ -79,6 +79,41 @@ Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeIsStub(
     return JNI_FALSE;
 }
 
+/* Counts using the exact vocabulary/tokenization flags used by nativeStartGenerationV2. */
+JNIEXPORT jint JNICALL
+Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeCountPromptTokens(
+        JNIEnv* env, jobject /* thiz */, jlong ctxPtr, jstring jPrompt)
+{
+    LlamaCtx* llamaCtx = to_ctx(ctxPtr);
+    if (!llamaCtx || !llamaCtx->ctx || !llamaCtx->model) return -1;
+
+    const std::string prompt = jstring_to_str(env, jPrompt);
+    const llama_vocab* vocab = llama_model_get_vocab(llamaCtx->model);
+    int capacity = static_cast<int>(prompt.size()) + 8;
+    if (capacity < 32) capacity = 32;
+
+    std::vector<llama_token> tokens(static_cast<size_t>(capacity));
+    int nTokens = llama_tokenize(
+            vocab,
+            prompt.c_str(), static_cast<int32_t>(prompt.size()),
+            tokens.data(), static_cast<int32_t>(tokens.size()),
+            /* add_special= */ true,
+            /* parse_special= */ true);
+
+    if (nTokens < 0) {
+        const int required = -nTokens;
+        if (required <= 0 || required > 1'000'000) return -1;
+        tokens.resize(static_cast<size_t>(required));
+        nTokens = llama_tokenize(
+                vocab,
+                prompt.c_str(), static_cast<int32_t>(prompt.size()),
+                tokens.data(), static_cast<int32_t>(tokens.size()),
+                /* add_special= */ true,
+                /* parse_special= */ true);
+    }
+    return nTokens >= 0 ? static_cast<jint>(nTokens) : -1;
+}
+
 // ─── nativeLoadModel ────────────────────────────────────────────────────────
 JNIEXPORT jlong JNICALL
 Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeLoadModel(
