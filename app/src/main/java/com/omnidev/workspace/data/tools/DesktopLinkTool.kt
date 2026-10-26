@@ -122,9 +122,8 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
         providedGate: ConfirmationGate?
     ): ToolExecutionResult {
         val host = args["host"].orEmpty().trim()
-        if (!DesktopLinkPolicy.isPrivateHost(host)) {
-            return fail("HOST_NOT_ALLOWED", "Only private-network desktops are supported.")
-        }
+        val connectHost = DesktopLinkPolicy.resolvePrivateHost(host)
+            ?: return fail("HOST_NOT_ALLOWED", "Host must resolve only to private-network addresses.")
         val port = DesktopLinkPolicy.parsePort(args["port"], OmniTransportConstants.DEFAULT_PORT)
             ?: return fail("BAD_PORT", "port must be between 1024 and 65535.")
         val fingerprint = DesktopLinkPolicy.normalizeFingerprint(args["public_key_sha256"])
@@ -135,6 +134,7 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
         val preview = buildString {
             appendLine("Pair a desktop with this phone")
             appendLine("Address: $host:$port")
+            if (connectHost != host) appendLine("Verified connection address: $connectHost")
             appendLine("Desktop key fingerprint (must match what the desktop shows):")
             appendLine(fingerprint)
             appendLine("Capabilities the agent may call on it:")
@@ -158,7 +158,7 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
             }
         }
         val session = OmniTcpClient.connect(
-            host = host,
+            host = connectHost,
             port = port,
             identity = store.identity(),
             trustStore = store.trust,
@@ -167,7 +167,7 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
         session.use {
             val record = pinned ?: return fail("NOT_PAIRED", "The desktop did not present the expected key.")
             store.trust.put(record)
-            store.saveEndpoint(record.peerId, host, port)
+            store.saveEndpoint(record.peerId, connectHost, port)
             return ok(
                 JSONObject()
                     .put("paired", true)
@@ -181,15 +181,16 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
     private suspend fun ping(store: Store, args: Map<String, String>): ToolExecutionResult {
         val target = resolveTarget(store, args) ?: return fail("NOT_PAIRED", "Unknown or expired peer_id. Pair the desktop first.")
         val (record, host, port) = target
-        if (!DesktopLinkPolicy.isPrivateHost(host)) return fail("HOST_NOT_ALLOWED", "Only private-network desktops are supported.")
-        val session = OmniTcpClient.connect(host, port, store.identity(), store.trust)
+        val connectHost = DesktopLinkPolicy.resolvePrivateHost(host)
+            ?: return fail("HOST_NOT_ALLOWED", "Host must resolve only to private-network addresses.")
+        val session = OmniTcpClient.connect(connectHost, port, store.identity(), store.trust)
         if (session.remotePeerId != record.peerId) {
             session.close()
             return fail("PEER_MISMATCH", "The host answered as a different peer.")
         }
         OmniMultiplexedConnection(session).use { connection ->
             val roundTripMs = connection.ping()
-            store.saveEndpoint(record.peerId, host, port)
+            store.saveEndpoint(record.peerId, connectHost, port)
             return ok(JSONObject().put("reachable", true).put("peer_id", record.peerId).put("round_trip_ms", roundTripMs))
         }
     }
@@ -205,7 +206,8 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
         if (!DesktopLinkPolicy.withinRequestLimit(payload)) return fail("PAYLOAD_TOO_LARGE", "json_payload exceeds ${DesktopLinkPolicy.MAX_REQUEST_BYTES} bytes.")
         val target = resolveTarget(store, args) ?: return fail("NOT_PAIRED", "Unknown or expired peer_id. Pair the desktop first.")
         val (record, host, port) = target
-        if (!DesktopLinkPolicy.isPrivateHost(host)) return fail("HOST_NOT_ALLOWED", "Only private-network desktops are supported.")
+        val connectHost = DesktopLinkPolicy.resolvePrivateHost(host)
+            ?: return fail("HOST_NOT_ALLOWED", "Host must resolve only to private-network addresses.")
         if (!record.permitsOutbound(capability)) {
             return fail("CAPABILITY_NOT_GRANTED", "'$capability' was not granted to ${record.peerId} at pairing time.")
         }
@@ -213,6 +215,7 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
 
         val preview = buildString {
             appendLine("Desktop: ${record.peerId} ($host:$port)")
+            if (connectHost != host) appendLine("Verified connection address: $connectHost")
             appendLine("Capability: $capability")
             append("Payload: ")
             append(payload.take(4_000))
@@ -220,7 +223,7 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
         }
         if (!approve(providedGate, preview)) return fail("DENIED", "The user did not approve this desktop request.")
 
-        val session = OmniTcpClient.connect(host, port, store.identity(), store.trust)
+        val session = OmniTcpClient.connect(connectHost, port, store.identity(), store.trust)
         if (session.remotePeerId != record.peerId) {
             session.close()
             return fail("PEER_MISMATCH", "The host answered as a different peer.")
@@ -232,7 +235,7 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
                 timeoutMillis = timeout
             )
             val (text, truncated) = DesktopLinkPolicy.truncateResponse(String(response.payload, Charsets.UTF_8))
-            store.saveEndpoint(record.peerId, host, port)
+            store.saveEndpoint(record.peerId, connectHost, port)
             return ok(
                 JSONObject()
                     .put("peer_id", record.peerId)
