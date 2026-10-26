@@ -53,7 +53,8 @@ data class LocalDecisionProbeResult(
     val processPssBeforeMb: Long = -1L,
     val processPssPeakMb: Long = -1L,
     val processPssPeakDeltaMb: Long = -1L,
-    val activeContextTokens: Int = -1
+    val activeContextTokens: Int = -1,
+    val promptTokenCount: Int = -1
 ) {
     enum class Outcome {
         VALIDATED_MODEL,
@@ -61,6 +62,7 @@ data class LocalDecisionProbeResult(
         INPUT_TOO_LONG,
         MODEL_NOT_LOADED,
         MODEL_CONTEXT_UNKNOWN,
+        TOKEN_COUNT_UNAVAILABLE,
         INPUT_EXCEEDS_CONTEXT,
         MODEL_SIZE_UNKNOWN,
         MODEL_FILE_TOO_LARGE,
@@ -180,6 +182,38 @@ class LocalDecisionMaker(
             )
         }
 
+        val prompt = buildPrompt(input)
+        val promptTokenCount = engine.countPromptTokens(prompt)
+        if (promptTokenCount < 0) {
+            return@withContext LocalDecisionProbeResult(
+                heuristicMode = heuristic,
+                outcome = LocalDecisionProbeResult.Outcome.TOKEN_COUNT_UNAVAILABLE,
+                message = "The native tokenizer could not measure this exact prompt, so inference was skipped to avoid context overflow.",
+                modelFileBytes = modelBytes,
+                availableRamBeforeMb = availableRamMb,
+                processPssBeforeMb = beforePssMb,
+                processPssPeakMb = beforePssMb,
+                processPssPeakDeltaMb = 0L,
+                activeContextTokens = activeContextTokens
+            )
+        }
+        if (!fitsContext(promptTokenCount, outputTokenBudget, activeContextTokens)) {
+            return@withContext LocalDecisionProbeResult(
+                heuristicMode = heuristic,
+                outcome = LocalDecisionProbeResult.Outcome.INPUT_EXCEEDS_CONTEXT,
+                message = "The exact native tokenizer counts " + promptTokenCount + " prompt tokens plus " +
+                    outputTokenBudget + " reserved output tokens, exceeding the active " + activeContextTokens +
+                    "-token context. Shorten the request or reload with a larger context.",
+                modelFileBytes = modelBytes,
+                availableRamBeforeMb = availableRamMb,
+                processPssBeforeMb = beforePssMb,
+                processPssPeakMb = beforePssMb,
+                processPssPeakDeltaMb = 0L,
+                activeContextTokens = activeContextTokens,
+                promptTokenCount = promptTokenCount
+            )
+        }
+
         val startedAt = android.os.SystemClock.elapsedRealtime()
         val peakPssKb = AtomicLong(beforePssKb.coerceAtLeast(0L))
         val overBudget = CompletableDeferred<Unit>()
@@ -193,7 +227,7 @@ class LocalDecisionMaker(
                     try {
                         val output = withTimeout(MODEL_TIMEOUT_MS) {
                             engine.generateResponse(
-                                buildPrompt(input),
+                                prompt,
                                 InferenceConfig(
                                     maxNewTokens = outputTokenBudget,
                                     temperature = 0f,
@@ -298,7 +332,8 @@ class LocalDecisionMaker(
             processPssBeforeMb = beforePssMb,
             processPssPeakMb = peakMb,
             processPssPeakDeltaMb = deltaMb,
-            activeContextTokens = activeContextTokens
+            activeContextTokens = activeContextTokens,
+            promptTokenCount = promptTokenCount
         )
     }
 
@@ -348,6 +383,10 @@ class LocalDecisionMaker(
         internal fun outputTokensForContext(contextTokens: Int): Int =
             if (contextTokens <= 0) 0
             else minOf(MAX_NEW_TOKENS, maxOf(MIN_NEW_TOKENS, contextTokens / 16))
+
+        internal fun fitsContext(promptTokens: Int, outputTokens: Int, contextTokens: Int): Boolean =
+            promptTokens > 0 && outputTokens > 0 && contextTokens > 0 &&
+                promptTokens.toLong() + outputTokens.toLong() <= contextTokens.toLong()
         const val MIN_NEW_TOKENS = 48
         const val MAX_MODEL_FILE_BYTES = 400L * 1_024L * 1_024L
         const val MAX_PROCESS_PSS_MB = 400L
