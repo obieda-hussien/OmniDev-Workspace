@@ -112,6 +112,18 @@ fun LocalModelManagerScreen(settingsRepository: SettingsRepository, onNavigateBa
                             Text("Run local decision probe")
                         }
                         state.decisionProbe?.let { probe ->
+                            val modelFileSummary = if (probe.modelFileBytes >= 0L) {
+                                "${probe.modelFileBytes / 1_048_576L} MiB"
+                            } else "not measured"
+                            val freeRamSummary = if (probe.availableRamBeforeMb >= 0L) {
+                                "${probe.availableRamBeforeMb} MiB"
+                            } else "not measured"
+                            val processPssSummary = if (probe.processPssBeforeMb >= 0L) {
+                                "${probe.processPssBeforeMb} / ${probe.processPssPeakMb} / ${probe.processPssPeakDeltaMb} MiB"
+                            } else "not measured"
+                            val contextSummary = if (probe.activeContextTokens >= 0) {
+                                "${probe.activeContextTokens} tokens"
+                            } else "unknown"
                             Text("Status: " + probe.outcome.name.replace('_', ' '), style = MaterialTheme.typography.labelLarge)
                             Text("Omni heuristic: " + probe.heuristicMode.name)
                             Text("Local model candidate: " + (probe.candidate?.mode?.name ?: "not accepted"))
@@ -125,33 +137,10 @@ fun LocalModelManagerScreen(settingsRepository: SettingsRepository, onNavigateBa
                                 )
                                 Text("Model reason: " + candidate.reason, style = MaterialTheme.typography.bodySmall)
                             }
-                            Text(
-                                "Model file: " + if (probe.modelFileBytes >= 0L) {
-                                    (probe.modelFileBytes / 1_048_576L).toString() + " MiB"
-                                } else "not measured",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            Text(
-                                "Free RAM before: " + if (probe.availableRamBeforeMb >= 0L) {
-                                    probe.availableRamBeforeMb.toString() + " MiB"
-                                } else "not measured",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            Text(
-                                "Process PSS before / peak / extra: " +
-                                    if (probe.processPssBeforeMb >= 0L) {
-                                        probe.processPssBeforeMb + " / " +
-                                            probe.processPssPeakMb + " / " +
-                                            probe.processPssPeakDeltaMb + " MiB"
-                                    } else "not measured",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            Text(
-                                "Active model context: " + if (probe.activeContextTokens >= 0) {
-                                    probe.activeContextTokens.toString() + " tokens"
-                                } else "unknown",
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            Text("Model file: " + modelFileSummary, style = MaterialTheme.typography.bodySmall)
+                            Text("Free RAM before: " + freeRamSummary, style = MaterialTheme.typography.bodySmall)
+                            Text("Process PSS before / peak / extra: " + processPssSummary, style = MaterialTheme.typography.bodySmall)
+                            Text("Active model context: " + contextSummary, style = MaterialTheme.typography.bodySmall)
                             Text("Elapsed: " + probe.elapsedMs + " ms", style = MaterialTheme.typography.bodySmall)
                             Text(
                                 probe.message,
