@@ -218,9 +218,9 @@ class OmniSyncService : Service() {
         if (sinceProcessStartMs > SLOW_PROMOTION_MS) {
             // The 5s startForegroundService() window includes Application.onCreate on a cold start.
             // Leave a breadcrumb so a future "did not call startForeground" crash can be attributed.
-            BackgroundServiceSupervisor.recordFailure(
+            BackgroundServiceSupervisor.recordSlowForegroundPromotion(
                 applicationContext,
-                "Slow foreground promotion: ${sinceProcessStartMs}ms after process start"
+                sinceProcessStartMs
             )
         }
         BackgroundServiceSupervisor.onServiceHealthy(applicationContext)
