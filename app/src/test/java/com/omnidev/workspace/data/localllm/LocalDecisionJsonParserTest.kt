@@ -17,6 +17,10 @@ class LocalDecisionJsonParserTest {
         assertEquals(64, LocalDecisionMaker.outputTokensForContext(1_024))
         assertEquals(96, LocalDecisionMaker.outputTokensForContext(4_096))
         assertEquals(0, LocalDecisionMaker.outputTokensForContext(0))
+        assertTrue(LocalDecisionMaker.fitsContext(320, 48, 512))
+        assertFalse(LocalDecisionMaker.fitsContext(465, 48, 512))
+        assertFalse(LocalDecisionMaker.fitsContext(0, 48, 512))
+        assertFalse(LocalDecisionMaker.fitsContext(320, 0, 512))
     }
 
     @Test fun acceptsOnlyTheVersionedClosedSchema() {
