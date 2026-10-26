@@ -71,7 +71,8 @@ extern "C" {
 
 // ─── nativeIsStub ───────────────────────────────────────────────────────────
 // Returns JNI_FALSE — this is the REAL llama.cpp library, not the stub.
-// The stub counterpart in llama_jni_stub.cpp returns JNI_TRUE.
+// Always false in this library. Kotlin still checks it so a mismatched or legacy .so is never
+// treated as a working engine.
 JNIEXPORT jboolean JNICALL
 Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeIsStub(
         JNIEnv*, jclass)
