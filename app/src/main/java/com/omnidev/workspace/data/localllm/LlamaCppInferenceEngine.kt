@@ -24,6 +24,8 @@ import kotlin.math.*
 interface LocalInferenceEngine {
     val isLoaded: Boolean
     val loadedModelName: String?
+    /** Exact model file size in bytes, or -1 when the active model size is unknown. */
+    val loadedModelFileSizeBytes: Long get() = -1L
     val currentSession: InferenceSession?
 
     suspend fun loadModel(context: Context, modelUri: Uri): Result<String>
@@ -405,6 +407,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
 
     @Volatile private var nativeCtxPtr:    Long   = 0L
     @Volatile private var _loadedModelName: String? = null
+    @Volatile private var _loadedModelFileSizeBytes: Long = -1L
     @Volatile private var _modelFamily:    ModelFamily = ModelFamily.UNKNOWN
     @Volatile private var tempModelFile:   File?  = null
     @Volatile private var activePfd:       ParcelFileDescriptor? = null
@@ -429,6 +432,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
 
     override val isLoaded:        Boolean          get() = nativeCtxPtr != 0L
     override val loadedModelName: String?          get() = _loadedModelName
+    override val loadedModelFileSizeBytes: Long    get() = _loadedModelFileSizeBytes
     override val currentSession:  InferenceSession? get() = _currentSession
 
     // ── Public API ─────────────────────────────────────────────────────────
@@ -486,7 +490,8 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 Log.i(TAG, "Detected model family: $family for \"$modelName\"")
 
                 // ── Memory pre-check ─────────────────────────────────────
-                val fileSizeMB = try { pfd.statSize / 1_048_576L } catch (_: Exception) { -1L }
+                val fileSizeBytes = try { pfd.statSize } catch (_: Exception) { -1L }
+                val fileSizeMB = if (fileSizeBytes > 0L) fileSizeBytes / 1_048_576L else -1L
                 val freeRamMB  = getAvailableRamMB(context)
                 checkMemoryHeadroom(fileSizeMB, freeRamMB)
 
@@ -559,6 +564,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
 
                 nativeCtxPtr     = ctx
                 _loadedModelName = modelName
+                _loadedModelFileSizeBytes = fileSizeBytes
                 _modelName.value = modelName
                 tempModelFile    = newTempFile
                 currentCoroutineContext().ensureActive()
@@ -932,6 +938,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         try { activePfd?.close() } catch (_: Exception) {}
         activePfd           = null
         _loadedModelName    = null
+        _loadedModelFileSizeBytes = -1L
         _modelFamily        = ModelFamily.UNKNOWN
         turboRotationMatrix = null
         tempModelFile?.delete()
