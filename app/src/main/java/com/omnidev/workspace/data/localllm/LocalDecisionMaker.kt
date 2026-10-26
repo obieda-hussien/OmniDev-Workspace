@@ -125,7 +125,8 @@ class LocalDecisionMaker(
                 heuristicMode = heuristic,
                 outcome = LocalDecisionProbeResult.Outcome.INPUT_EXCEEDS_CONTEXT,
                 message = "This model is loaded with a " + activeContextTokens + "-token context. The probe accepts at most " +
-                    contextInputLimit + " characters at this context size; shorten the request or reload with a larger context."
+                    contextInputLimit + " characters at this context size; shorten the request or reload with a larger context.",
+                activeContextTokens = activeContextTokens
             )
         }
         val outputTokenBudget = outputTokensForContext(activeContextTokens)
@@ -135,14 +136,17 @@ class LocalDecisionMaker(
             return@withContext LocalDecisionProbeResult(
                 heuristicMode = heuristic,
                 outcome = LocalDecisionProbeResult.Outcome.MODEL_SIZE_UNKNOWN,
-                message = "The loaded model's file size is unknown, so the 400 MiB probe guard cannot be verified."
+                message = "The loaded model's file size is unknown, so the 400 MiB probe guard cannot be verified.",
+                activeContextTokens = activeContextTokens
             )
         }
         if (modelBytes > MAX_MODEL_FILE_BYTES) {
             return@withContext LocalDecisionProbeResult(
                 heuristicMode = heuristic,
                 outcome = LocalDecisionProbeResult.Outcome.MODEL_FILE_TOO_LARGE,
-                message = "Model file is " + (modelBytes / MIB) + " MiB; the decision probe accepts files up to 400 MiB."
+                message = "Model file is " + (modelBytes / MIB) + " MiB; the decision probe accepts files up to 400 MiB.",
+                modelFileBytes = modelBytes,
+                activeContextTokens = activeContextTokens
             )
         }
 
@@ -151,7 +155,10 @@ class LocalDecisionMaker(
             return@withContext LocalDecisionProbeResult(
                 heuristicMode = heuristic,
                 outcome = LocalDecisionProbeResult.Outcome.INSUFFICIENT_FREE_RAM,
-                message = "Only " + availableRamMb + " MiB of system RAM is currently available; probe needs at least " + MIN_AVAILABLE_RAM_MB + " MiB."
+                message = "Only " + availableRamMb + " MiB of system RAM is currently available; probe needs at least " + MIN_AVAILABLE_RAM_MB + " MiB.",
+                modelFileBytes = modelBytes,
+                availableRamBeforeMb = availableRamMb,
+                activeContextTokens = activeContextTokens
             )
         }
 
@@ -166,7 +173,8 @@ class LocalDecisionMaker(
                 availableRamBeforeMb = availableRamMb,
                 processPssBeforeMb = beforePssMb,
                 processPssPeakMb = beforePssMb,
-                processPssPeakDeltaMb = 0L
+                processPssPeakDeltaMb = 0L,
+                activeContextTokens = activeContextTokens
             )
         }
 
