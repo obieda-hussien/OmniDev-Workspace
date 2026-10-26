@@ -32,6 +32,24 @@ class RuntimeDiagnosticsRegressionTest {
         }
     }
 
+    @Test fun slowForegroundPromotionDiagnosticSurvivesHeartbeat() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val preferences = context.getSharedPreferences("omnidev_background_supervisor", Context.MODE_PRIVATE)
+        val key = "last_slow_foreground_promotion"
+        val previous = preferences.getString(key, null)
+        try {
+            BackgroundServiceSupervisor.recordSlowForegroundPromotion(context, 4_200L)
+            BackgroundServiceSupervisor.recordHeartbeat(context)
+            assertTrue(
+                BackgroundServiceSupervisor.diagnosticSummary(context)
+                    .contains("lastSlowForegroundPromotion=Slow foreground promotion: 4200ms")
+            )
+        } finally {
+            if (previous == null) preferences.edit().remove(key).commit()
+            else preferences.edit().putString(key, previous).commit()
+        }
+    }
+
     @Test fun liteDoesNotResurrectRemovedSyncOrIntegrationServices() = runBlocking {
         if (BuildConfig.ALLOW_AGENT) return@runBlocking
         val context = ApplicationProvider.getApplicationContext<Context>()
