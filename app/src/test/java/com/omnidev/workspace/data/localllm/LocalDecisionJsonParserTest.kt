@@ -28,12 +28,12 @@ class LocalDecisionJsonParserTest {
 
     @Test fun rejectsMalformedOrWrongTypedFields() {
         assertNull(LocalDecisionJsonParser.parse("{not-json}"))
-        assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"needs_code\":true", "\"needs_code\":\"true\"")))
-        assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"schema_version\":1", "\"schema_version\":2")))
-        assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"schema_version\":1", "\"schema_version\":\"1\"")))
-        assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"mode\":\"AGENT\"", "\"mode\":\"AUTO\"")))
-        assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"reason\":\"One executable code task.\"",
-            "\"reason\":\"" + "x".repeat(161) + "\"")))
+        assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"needs_code\": true", "\"needs_code\": \"true\"")))
+        assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"schema_version\": 1", "\"schema_version\": 2")))
+        assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"schema_version\": 1", "\"schema_version\": \"1\"")))
+        assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"mode\": \"AGENT\"", "\"mode\": \"AUTO\"")))
+        assertNull(LocalDecisionJsonParser.parse(validJson().replace("\"reason\": \"One executable code task.\"",
+            "\"reason\": \"" + "x".repeat(161) + "\"")))
     }
 
     @Test fun rejectsUnknownKeysEvenWhenTheRestIsValid() {
@@ -47,8 +47,8 @@ class LocalDecisionJsonParserTest {
     }
 
     @Test fun rejectsNestedObjectsWhereScalarFieldsAreRequired() {
-        val nestedMode = validJson().replace("\"mode\":\"AGENT\"", "\"mode\":{\"value\":\"AGENT\"}")
-        val nestedReason = validJson().replace("\"reason\":\"One executable code task.\"", "\"reason\":{\"text\":\"okay\"}")
+        val nestedMode = validJson().replace("\"mode\": \"AGENT\"", "\"mode\": {\"value\":\"AGENT\"}")
+        val nestedReason = validJson().replace("\"reason\": \"One executable code task.\"", "\"reason\": {\"text\":\"okay\"}")
         assertNull(LocalDecisionJsonParser.parse(nestedMode))
         assertNull(LocalDecisionJsonParser.parse(nestedReason))
     }
