@@ -141,6 +141,12 @@ fun LocalModelManagerScreen(settingsRepository: SettingsRepository, onNavigateBa
                             Text("Free RAM before: " + freeRamSummary, style = MaterialTheme.typography.bodySmall)
                             Text("Process PSS before / peak / extra: " + processPssSummary, style = MaterialTheme.typography.bodySmall)
                             Text("Active model context: " + contextSummary, style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                "Prompt tokens / active context: " +
+                                    (if (probe.promptTokenCount >= 0) probe.promptTokenCount.toString() else "not measured") +
+                                    " / " + contextSummary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
                             Text("Elapsed: " + probe.elapsedMs + " ms", style = MaterialTheme.typography.bodySmall)
                             Text(
                                 probe.message,
