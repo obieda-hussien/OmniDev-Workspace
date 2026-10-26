@@ -35,18 +35,32 @@ class RuntimeDiagnosticsRegressionTest {
     @Test fun slowForegroundPromotionDiagnosticSurvivesHeartbeat() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val preferences = context.getSharedPreferences("omnidev_background_supervisor", Context.MODE_PRIVATE)
-        val key = "last_slow_foreground_promotion"
-        val previous = preferences.getString(key, null)
+        val slowPromotionKey = "last_slow_foreground_promotion"
+        val heartbeatKey = "sync_last_heartbeat"
+        val restartStreakKey = "restart_streak"
+        val failureKey = "last_failure"
+        val hadSlowPromotion = preferences.contains(slowPromotionKey)
+        val previousSlowPromotion = preferences.getString(slowPromotionKey, null)
+        val hadHeartbeat = preferences.contains(heartbeatKey)
+        val previousHeartbeat = preferences.getLong(heartbeatKey, 0L)
+        val hadRestartStreak = preferences.contains(restartStreakKey)
+        val previousRestartStreak = preferences.getInt(restartStreakKey, 0)
+        val hadFailure = preferences.contains(failureKey)
+        val previousFailure = preferences.getString(failureKey, null)
         try {
+            preferences.edit().putString(failureKey, "transient test failure").commit()
             BackgroundServiceSupervisor.recordSlowForegroundPromotion(context, 4_200L)
             BackgroundServiceSupervisor.recordHeartbeat(context)
-            assertTrue(
-                BackgroundServiceSupervisor.diagnosticSummary(context)
-                    .contains("lastSlowForegroundPromotion=Slow foreground promotion: 4200ms")
-            )
+            val summary = BackgroundServiceSupervisor.diagnosticSummary(context)
+            assertTrue(summary.contains("lastSlowForegroundPromotion=Slow foreground promotion: 4200ms"))
+            assertFalse(summary.contains("lastFailure=transient test failure"))
         } finally {
-            if (previous == null) preferences.edit().remove(key).commit()
-            else preferences.edit().putString(key, previous).commit()
+            val editor = preferences.edit()
+            if (hadSlowPromotion) editor.putString(slowPromotionKey, previousSlowPromotion) else editor.remove(slowPromotionKey)
+            if (hadHeartbeat) editor.putLong(heartbeatKey, previousHeartbeat) else editor.remove(heartbeatKey)
+            if (hadRestartStreak) editor.putInt(restartStreakKey, previousRestartStreak) else editor.remove(restartStreakKey)
+            if (hadFailure) editor.putString(failureKey, previousFailure) else editor.remove(failureKey)
+            editor.commit()
         }
     }
 
