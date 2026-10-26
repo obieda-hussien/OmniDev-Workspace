@@ -46,6 +46,7 @@ object BackgroundServiceSupervisor {
     private const val KEY_LAST_RECOVERY = "last_recovery"
     private const val KEY_RESTART_STREAK = "restart_streak"
     private const val KEY_LAST_FAILURE = "last_failure"
+    private const val KEY_LAST_SLOW_PROMOTION = "last_slow_foreground_promotion"
 
     private const val RECOVERY_WORK = "omni_background_recovery"
     private const val RECOVERY_REQUEST_CODE = 9402
@@ -201,6 +202,19 @@ object BackgroundServiceSupervisor {
         Log.w(TAG, detail)
     }
 
+    /**
+     * Persists slow foreground-service promotion separately from transient failures.
+     * Normal heartbeats intentionally clear KEY_LAST_FAILURE, so using that key here would erase
+     * the evidence as soon as the service reports itself healthy.
+     */
+    fun recordSlowForegroundPromotion(context: Context, elapsedSinceProcessStartMs: Long) {
+        val detail = "Slow foreground promotion: ${elapsedSinceProcessStartMs}ms after process start"
+        prefs(context).edit()
+            .putString(KEY_LAST_SLOW_PROMOTION, detail.take(1_000))
+            .apply()
+        Log.w(TAG, detail)
+    }
+
     fun diagnosticSummary(context: Context): String {
         val p = prefs(context)
         val age = heartbeatAgeMs(context)
@@ -211,6 +225,9 @@ object BackgroundServiceSupervisor {
             append(" restartStreak=").append(p.getInt(KEY_RESTART_STREAK, 0))
             append(" activeChatRuns=").append(BackgroundChatTaskStore.active(context).size)
             p.getString(KEY_LAST_FAILURE, null)?.let { append(" lastFailure=").append(it.take(300)) }
+            p.getString(KEY_LAST_SLOW_PROMOTION, null)?.let {
+                append(" lastSlowForegroundPromotion=").append(it.take(300))
+            }
         }
     }
 
