@@ -126,18 +126,24 @@ fun LocalModelManagerScreen(settingsRepository: SettingsRepository, onNavigateBa
                                 Text("Model reason: " + candidate.reason, style = MaterialTheme.typography.bodySmall)
                             }
                             Text(
-                                "Model file: " + (probe.modelFileBytes / 1_048_576L) + " MiB",
+                                "Model file: " + if (probe.modelFileBytes >= 0L) {
+                                    (probe.modelFileBytes / 1_048_576L).toString() + " MiB"
+                                } else "not measured",
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                "Free RAM before: " + probe.availableRamBeforeMb + " MiB",
+                                "Free RAM before: " + if (probe.availableRamBeforeMb >= 0L) {
+                                    probe.availableRamBeforeMb.toString() + " MiB"
+                                } else "not measured",
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
                                 "Process PSS before / peak / extra: " +
-                                    probe.processPssBeforeMb + " / " +
-                                    probe.processPssPeakMb + " / " +
-                                    probe.processPssPeakDeltaMb + " MiB",
+                                    if (probe.processPssBeforeMb >= 0L) {
+                                        probe.processPssBeforeMb + " / " +
+                                            probe.processPssPeakMb + " / " +
+                                            probe.processPssPeakDeltaMb + " MiB"
+                                    } else "not measured",
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text("Elapsed: " + probe.elapsedMs + " ms", style = MaterialTheme.typography.bodySmall)
@@ -148,7 +154,7 @@ fun LocalModelManagerScreen(settingsRepository: SettingsRepository, onNavigateBa
                             )
                         }
                         Text(
-                            "Guardrails: model file up to 400 MiB, at least 384 MiB free RAM, 15-second timeout, and sampled process PSS capped at 400 MiB. A model output that fails strict JSON validation is rejected.",
+                            "Safeguards (not hard guarantees): model file up to 400 MiB, at least 384 MiB free RAM, a 15-second inference timeout, and PSS sampled every 100 ms. A memory spike can occur between samples, and native cancellation may take time. Invalid JSON is rejected.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
