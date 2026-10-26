@@ -28,6 +28,8 @@ interface LocalInferenceEngine {
     val loadedModelFileSizeBytes: Long get() = -1L
     /** Active native context window in tokens, or -1 when unknown. */
     val loadedModelContextSizeTokens: Int get() = -1
+    /** Exact token count for a prompt using the same native tokenizer/config, or -1 if unavailable. */
+    fun countPromptTokens(prompt: String): Int = -1
     val currentSession: InferenceSession?
 
     suspend fun loadModel(context: Context, modelUri: Uri): Result<String>
@@ -438,6 +440,12 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
     override val loadedModelFileSizeBytes: Long    get() = _loadedModelFileSizeBytes
     override val loadedModelContextSizeTokens: Int get() = _loadedModelContextSizeTokens
     override val currentSession:  InferenceSession? get() = _currentSession
+
+    override fun countPromptTokens(prompt: String): Int {
+        val ctx = nativeCtxPtr
+        if (ctx == 0L) return -1
+        return runCatching { nativeCountPromptTokens(ctx, prompt) }.getOrDefault(-1)
+    }
 
     // ── Public API ─────────────────────────────────────────────────────────
 
@@ -1006,6 +1014,9 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
     /**
      * Extended generation call with expanded sampling parameters.
      */
+    /** Counts prompt tokens with the loaded model's exact vocabulary, including special tokens. */
+    private external fun nativeCountPromptTokens(ctx: Long, prompt: String): Int
+
     private external fun nativeStartGenerationV2(
         ctx:           Long,
         prompt:        String,
