@@ -49,7 +49,7 @@ class OmniSyncService : Service() {
         private const val TASK_EVENTS_CHANNEL_ID = "omni_scheduled_tasks_channel"
         private const val TASK_COMPLETE_CHANNEL_ID = "omni_task_complete_channel"
         private const val NOTIFICATION_ID = 4002
-        /** Promotion later than this after process start risks the 5s startForegroundService() limit. */
+        /** Log when our service's own pre-promotion work consumes most of the 5s startup window. */
         private const val SLOW_PROMOTION_MS = 3_500L
         private const val TASK_EVENT_NOTIFICATION_BASE = 4100
         private const val TASK_COMPLETE_NOTIFICATION_BASE = 5000
@@ -209,18 +209,19 @@ class OmniSyncService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        val sinceProcessStartMs = android.os.SystemClock.elapsedRealtime() -
-            android.os.Process.getStartElapsedRealtime()
+        val promotionStartedAtMs = android.os.SystemClock.elapsedRealtime()
         createNotificationChannels()
         // Android requires promotion immediately after startForegroundService(). Do this before
-        // database/agent initialization so a slow cold start cannot trigger the 5-second kill.
+        // database/agent initialization so a slow service startup preamble cannot consume the
+        // foreground-start deadline.
         startForegroundSafe(buildNotification("Background runtime starting…"))
-        if (sinceProcessStartMs > SLOW_PROMOTION_MS) {
-            // The 5s startForegroundService() window includes Application.onCreate on a cold start.
-            // Leave a breadcrumb so a future "did not call startForeground" crash can be attributed.
+        val promotionElapsedMs = android.os.SystemClock.elapsedRealtime() - promotionStartedAtMs
+        if (promotionElapsedMs > SLOW_PROMOTION_MS) {
+            // This measures only our onCreate pre-promotion work, not total process age; the latter
+            // can be large when an already-running app starts the service and would be misleading.
             BackgroundServiceSupervisor.recordSlowForegroundPromotion(
                 applicationContext,
-                sinceProcessStartMs
+                promotionElapsedMs
             )
         }
         BackgroundServiceSupervisor.onServiceHealthy(applicationContext)
