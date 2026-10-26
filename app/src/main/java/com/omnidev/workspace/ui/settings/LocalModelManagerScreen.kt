@@ -146,6 +146,12 @@ fun LocalModelManagerScreen(settingsRepository: SettingsRepository, onNavigateBa
                                     } else "not measured",
                                 style = MaterialTheme.typography.bodySmall
                             )
+                            Text(
+                                "Active model context: " + if (probe.activeContextTokens >= 0) {
+                                    probe.activeContextTokens.toString() + " tokens"
+                                } else "unknown",
+                                style = MaterialTheme.typography.bodySmall
+                            )
                             Text("Elapsed: " + probe.elapsedMs + " ms", style = MaterialTheme.typography.bodySmall)
                             Text(
                                 probe.message,
@@ -154,7 +160,7 @@ fun LocalModelManagerScreen(settingsRepository: SettingsRepository, onNavigateBa
                             )
                         }
                         Text(
-                            "Safeguards (not hard guarantees): model file up to 400 MiB, at least 384 MiB free RAM, a 15-second inference timeout, and PSS sampled every 100 ms. A memory spike can occur between samples, and native cancellation may take time. Invalid JSON is rejected.",
+                            "Context-aware input/output budgets reserve room for the fixed prompt and generated JSON. Other safeguards (not hard guarantees): model file up to 400 MiB, at least 384 MiB free RAM, a 15-second inference timeout, and PSS sampled every 100 ms. A memory spike can occur between samples, and native cancellation may take time. Invalid JSON is rejected.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
