@@ -76,8 +76,8 @@ class DesktopLinkPolicyTest {
     @Test fun `confirmation requires the complete desktop payload to be visible`() {
         assertTrue(DesktopLinkPolicy.payloadCanBeFullyReviewed("x".repeat(4_000)))
         assertFalse(DesktopLinkPolicy.payloadCanBeFullyReviewed("x".repeat(4_001)))
-        assertTrue(DesktopLinkPolicy.payloadCanBeFullyReviewed("x\\n".repeat(989) + "x"))
-        assertFalse(DesktopLinkPolicy.payloadCanBeFullyReviewed("x\\n".repeat(991)))
+        assertTrue(DesktopLinkPolicy.payloadCanBeFullyReviewed("x\n".repeat(989) + "x"))
+        assertFalse(DesktopLinkPolicy.payloadCanBeFullyReviewed("x\n".repeat(991)))
     }
 
     @Test fun `desktop frame cap bounds response allocation beyond request size`() {
