@@ -16,6 +16,7 @@ import com.omnilink.transport.PeerAdmissionHandler
 import com.omnilink.transport.PeerRole
 import com.omnilink.transport.PeerTrustRecord
 import com.omnilink.transport.PeerTrustProfiles
+import com.omnilink.transport.TransportConfig
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -162,7 +163,8 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
             port = port,
             identity = store.identity(),
             trustStore = store.trust,
-            admissionHandler = admission
+            admissionHandler = admission,
+            config = transportConfig()
         )
         session.use {
             val record = pinned ?: return fail("NOT_PAIRED", "The desktop did not present the expected key.")
@@ -183,7 +185,10 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
         val (record, host, port) = target
         val connectHost = DesktopLinkPolicy.resolvePrivateHost(host)
             ?: return fail("HOST_NOT_ALLOWED", "Host must resolve only to private-network addresses.")
-        val session = OmniTcpClient.connect(connectHost, port, store.identity(), store.trust)
+        val session = OmniTcpClient.connect(
+            connectHost, port, store.identity(), store.trust,
+            config = transportConfig()
+        )
         if (session.remotePeerId != record.peerId) {
             session.close()
             return fail("PEER_MISMATCH", "The host answered as a different peer.")
@@ -223,7 +228,10 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
         }
         if (!approve(providedGate, preview)) return fail("DENIED", "The user did not approve this desktop request.")
 
-        val session = OmniTcpClient.connect(connectHost, port, store.identity(), store.trust)
+        val session = OmniTcpClient.connect(
+            connectHost, port, store.identity(), store.trust,
+            config = transportConfig()
+        )
         if (session.remotePeerId != record.peerId) {
             session.close()
             return fail("PEER_MISMATCH", "The host answered as a different peer.")
@@ -278,6 +286,10 @@ Only private-network hosts (LAN, loopback, Tailscale-style 100.64/10, .local/.la
         val port = DesktopLinkPolicy.parsePort(args["port"], remembered?.second ?: OmniTransportConstants.DEFAULT_PORT) ?: return null
         return Target(record, host, port)
     }
+
+    private fun transportConfig() = TransportConfig(
+        maxEncryptedFrameBytes = DesktopLinkPolicy.MAX_ENCRYPTED_FRAME_BYTES
+    )
 
     private suspend fun approve(providedGate: ConfirmationGate?, preview: String): Boolean {
         val failClosedUiGate = ConfirmationGate { _, _, _ -> false }
