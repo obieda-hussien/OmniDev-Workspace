@@ -377,7 +377,7 @@ internal object LocalDecisionJsonParser {
                         val ch = text[index]
                         if (escaped) {
                             escaped = false
-                        } else if (ch == '\\\\') {
+                        } else if (ch == '\\') {
                             escaped = true
                         } else if (ch == '"') {
                             break
