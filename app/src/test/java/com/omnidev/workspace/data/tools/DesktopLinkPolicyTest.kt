@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.InetAddress
 
 class DesktopLinkPolicyTest {
     @Test fun `private hosts are accepted`() {
@@ -21,6 +22,24 @@ class DesktopLinkPolicyTest {
             "999.1.1.1", "10.0.0", "", "  ", "host name.local", "a@b.local", "http://10.0.0.1")) {
             assertFalse("$host should be rejected", DesktopLinkPolicy.isPrivateHost(host))
         }
+    }
+
+    @Test fun `hostname resolution rejects public or mixed address answers`() {
+        val privateAddress = InetAddress.getByName("192.168.1.20")
+        val publicAddress = InetAddress.getByName("8.8.8.8")
+        assertEquals(
+            "192.168.1.20",
+            DesktopLinkPolicy.resolvePrivateHost("desk.local") { arrayOf(privateAddress) }
+        )
+        assertNull(DesktopLinkPolicy.resolvePrivateHost("desk.local") { arrayOf(publicAddress) })
+        assertNull(DesktopLinkPolicy.resolvePrivateHost("desk.local") { arrayOf(privateAddress, publicAddress) })
+    }
+
+    @Test fun `numeric host validation is deterministic and refuses public addresses`() {
+        assertEquals("10.0.0.5", DesktopLinkPolicy.resolvePrivateHost("10.0.0.5"))
+        assertEquals("127.0.0.1", DesktopLinkPolicy.resolvePrivateHost("localhost"))
+        assertNull(DesktopLinkPolicy.resolvePrivateHost("8.8.8.8"))
+        assertNull(DesktopLinkPolicy.resolvePrivateHost("example.com"))
     }
 
     @Test fun `fingerprints are normalized to lowercase hex`() {
