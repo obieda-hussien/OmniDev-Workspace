@@ -26,6 +26,8 @@ interface LocalInferenceEngine {
     val loadedModelName: String?
     /** Exact model file size in bytes, or -1 when the active model size is unknown. */
     val loadedModelFileSizeBytes: Long get() = -1L
+    /** Active native context window in tokens, or -1 when unknown. */
+    val loadedModelContextSizeTokens: Int get() = -1
     val currentSession: InferenceSession?
 
     suspend fun loadModel(context: Context, modelUri: Uri): Result<String>
@@ -408,6 +410,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
     @Volatile private var nativeCtxPtr:    Long   = 0L
     @Volatile private var _loadedModelName: String? = null
     @Volatile private var _loadedModelFileSizeBytes: Long = -1L
+    @Volatile private var _loadedModelContextSizeTokens: Int = -1
     @Volatile private var _modelFamily:    ModelFamily = ModelFamily.UNKNOWN
     @Volatile private var tempModelFile:   File?  = null
     @Volatile private var activePfd:       ParcelFileDescriptor? = null
@@ -433,6 +436,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
     override val isLoaded:        Boolean          get() = nativeCtxPtr != 0L
     override val loadedModelName: String?          get() = _loadedModelName
     override val loadedModelFileSizeBytes: Long    get() = _loadedModelFileSizeBytes
+    override val loadedModelContextSizeTokens: Int get() = _loadedModelContextSizeTokens
     override val currentSession:  InferenceSession? get() = _currentSession
 
     // ── Public API ─────────────────────────────────────────────────────────
@@ -565,6 +569,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 nativeCtxPtr     = ctx
                 _loadedModelName = modelName
                 _loadedModelFileSizeBytes = fileSizeBytes
+                _loadedModelContextSizeTokens = adaptedContext
                 _modelName.value = modelName
                 tempModelFile    = newTempFile
                 currentCoroutineContext().ensureActive()
@@ -939,6 +944,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         activePfd           = null
         _loadedModelName    = null
         _loadedModelFileSizeBytes = -1L
+        _loadedModelContextSizeTokens = -1
         _modelFamily        = ModelFamily.UNKNOWN
         turboRotationMatrix = null
         tempModelFile?.delete()
