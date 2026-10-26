@@ -2,8 +2,8 @@
 
 | Metric | Count |
 | --- | ---: |
-| Unique declared local tool names | 152 |
-| Catalog names excluding hidden legacy aliases | 150 |
+| Unique declared local tool names | 153 |
+| Catalog names excluding hidden legacy aliases | 151 |
 | Bundled skills | 7 |
 
 ## Count scope
@@ -69,6 +69,7 @@ The inventory is the union of shipped flavor asset packages; each APK includes o
 | `delete_lines` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
 | `delete_memory` | `app/src/main/java/com/omnidev/workspace/data/tools/MemoryManager.kt` |
 | `delete_text` | `app/src/advanced/java/com/omnidev/workspace/data/tools/FileToolManager.kt` |
+| `desktop_link` | `app/src/main/java/com/omnidev/workspace/data/tools/DesktopLinkTool.kt` |
 | `device_admin` | `app/src/main/java/com/omnidev/workspace/data/tools/DeviceAdminTool.kt` |
 | `diff_files` | `app/src/main/java/com/omnidev/workspace/data/tools/AdvancedFileTools.kt` |
 | `direct_terminal` | `app/src/main/java/com/omnidev/workspace/data/tools/DirectTerminalTool.kt` |

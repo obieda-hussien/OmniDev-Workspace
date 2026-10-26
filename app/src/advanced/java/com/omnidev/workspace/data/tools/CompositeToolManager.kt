@@ -273,6 +273,7 @@ class CompositeToolManager(
                 addAll(AutofillAssistTool.getToolDefinitions())
             }
             addAll(OmniLinkTool.getToolDefinitions())
+            addAll(DesktopLinkTool.getToolDefinitions())
         }
         if (headlessBrowserManager != null) {
             addAll(headlessBrowserManager.getToolDefinitions())
@@ -1044,6 +1045,16 @@ class CompositeToolManager(
                     settingsRepository = settings,
                     action = action,
                     args = arguments
+                )
+            }
+            "desktop_link" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                val ctx = context ?: return missingContext()
+                DesktopLinkTool.execute(
+                    context = ctx,
+                    action = action,
+                    args = arguments,
+                    confirmationGate = confirmationGate
                 )
             }
             "omni_link" -> {
