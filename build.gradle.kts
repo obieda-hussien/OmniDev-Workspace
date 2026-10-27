@@ -3,6 +3,10 @@ buildscript {
     dependencies {
         // Build/test tooling only. Align Netty modules without packaging them in any APK.
         classpath(platform("io.netty:netty-bom:4.1.137.Final"))
+        // Jackson 2.22.0-2.22.2 carry high-severity advisories (GHSA-7hhh-6rmp-j9qf, GHSA-p6pp-m3f8-5c89,
+        // GHSA-cxp5-3px4-pw24, GHSA-wv8q-qhhj-9h54, GHSA-q4xh-88c3-wmh7); 2.22.3 is the first fixed line.
+        // AGP/ODC bring Jackson transitively, so align the whole family on a patched release.
+        classpath(platform("com.fasterxml.jackson:jackson-bom:2.22.4"))
         classpath("org.bouncycastle:bcprov-jdk18on:1.86")
         classpath("org.bouncycastle:bcpkix-jdk18on:1.86")
         constraints {

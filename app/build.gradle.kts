@@ -418,6 +418,9 @@ dependencies {
         // DataStore/AndroidX can retain an older Lite protobuf runtime. This is a
         // minimum on an existing transitive module, not another bundled SDK.
         implementation("com.google.protobuf:protobuf-javalite:3.25.5")
+        // Minimums only: constraints never add Jackson to an APK that does not already contain it.
+        implementation("com.fasterxml.jackson.core:jackson-core:2.22.4")
+        implementation("com.fasterxml.jackson.core:jackson-databind:2.22.4")
     }
     add("oemImplementation", project(":oem-system-contract"))
     // OmniLink typed IPC + embedded-agent gateway.

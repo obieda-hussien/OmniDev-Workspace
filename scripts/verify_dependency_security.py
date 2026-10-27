@@ -44,7 +44,8 @@ def violations(text, enforce_core=False):
         if group == "io.netty" and name.startswith("netty-") and not name.startswith("netty-tcnative"):
             floor = "4.1.137.Final"
         elif group == "com.fasterxml.jackson.core" and name in {"jackson-core", "jackson-databind"}:
-            floor = "2.22.1"
+            # 2.22.0-2.22.2 are vulnerable (high severity); 2.22.3 is the first fixed release.
+            floor = "2.22.3"
         elif group == "org.bouncycastle" and name.endswith("-jdk18on"):
             floor = "1.86"
         if floor and version_key(version) < version_key(floor):
