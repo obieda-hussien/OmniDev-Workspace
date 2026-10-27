@@ -14,6 +14,7 @@ FLOORS = {
     "commons-beanutils:commons-beanutils": "1.11.0",
     "org.apache.commons:commons-lang3": "3.18.0",
     "org.bitbucket.b_c:jose4j": "0.9.6",
+    "com.google.guava:guava": "33.7.2",  # GHSA-xxph-c9ww-hj94 affects <= 33.7.1
     "org.jsoup:jsoup": "1.23.2",
     "org.eclipse.jgit:org.eclipse.jgit": "6.10.1.202505221210-r",
     "org.apache.httpcomponents.client5:httpclient5": "5.6.3",
