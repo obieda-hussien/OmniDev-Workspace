@@ -20,7 +20,17 @@ class DependencySecurityTest(unittest.TestCase):
 
     def test_jackson_annotations_has_an_independent_version_scheme(self):
         self.assertEqual([], violations("com.fasterxml.jackson.core:jackson-annotations:2.22\n"
-                                        "com.fasterxml.jackson.core:jackson-databind:2.22.1"))
+                                        "com.fasterxml.jackson.core:jackson-databind:2.22.3"))
+
+    def test_vulnerable_jackson_2_22_releases_are_rejected(self):
+        for version in ("2.22.0", "2.22.1", "2.22.2"):
+            for artifact in ("jackson-core", "jackson-databind"):
+                self.assertEqual(1, len(violations(f"com.fasterxml.jackson.core:{artifact}:{version}")), f"{artifact}:{version}")
+
+    def test_patched_jackson_releases_are_accepted(self):
+        self.assertEqual([], violations("com.fasterxml.jackson.core:jackson-core:2.22.3\n"
+                                        "com.fasterxml.jackson.core:jackson-databind:2.22.4\n"
+                                        "com.fasterxml.jackson.core:jackson-databind:2.23.0"))
 
     def test_rejects_empty_inventory_and_prerelease_fix(self):
         self.assertTrue(violations(""))
