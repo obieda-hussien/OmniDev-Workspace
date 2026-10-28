@@ -73,6 +73,10 @@ allprojects {
                     name in setOf("protobuf-java", "protobuf-kotlin", "protobuf-javalite", "protobuf-java-util") -> "3.25.5"
                 group == "com.google.guava" && name == "guava" && requestedVersion.endsWith("-jre") -> "33.7.2-jre"
                 group == "com.google.guava" && name == "guava" && requestedVersion.endsWith("-android") -> "33.7.2-android"
+                // Guava <= 20.x had a single, suffixless artifact. The -android flavor is the universal
+                // replacement: it needs no Java 8 APIs and runs on both Android and a plain JVM.
+                group == "com.google.guava" && name == "guava" &&
+                    Regex("\\d+(\\.\\d+)*").matches(requestedVersion) -> "33.7.2-android"
                 else -> null
             }
             if (minimum != null && isOlderThan(requestedVersion, minimum)) {

@@ -35,6 +35,7 @@ class DependencySecurityTest(unittest.TestCase):
     def test_guava_deserialization_advisory_floor(self):
         self.assertEqual(2, len(violations("com.google.guava:guava:33.7.1-jre\ncom.google.guava:guava:33.6.0-jre")))
         self.assertEqual(1, len(violations("com.google.guava:guava:33.7.1-android")))
+        self.assertEqual(1, len(violations("com.google.guava:guava:18.0")))  # suffixless releases
         self.assertEqual([], violations("com.google.guava:guava:33.7.2-jre\n"
                                         "com.google.guava:guava:33.7.2-android\n"
                                         "com.google.guava:guava:33.8.0-jre"))
