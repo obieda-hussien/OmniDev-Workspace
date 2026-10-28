@@ -32,6 +32,19 @@ class DependencySecurityTest(unittest.TestCase):
                                         "com.fasterxml.jackson.core:jackson-databind:2.22.4\n"
                                         "com.fasterxml.jackson.core:jackson-databind:2.23.0"))
 
+    def test_guava_deserialization_advisory_floor(self):
+        self.assertEqual(2, len(violations("com.google.guava:guava:33.7.1-jre\ncom.google.guava:guava:33.6.0-jre")))
+        self.assertEqual(1, len(violations("com.google.guava:guava:33.7.1-android")))
+        self.assertEqual(1, len(violations("com.google.guava:guava:18.0")))  # suffixless releases
+        self.assertEqual([], violations("com.google.guava:guava:33.7.2-jre\n"
+                                        "com.google.guava:guava:33.7.2-android\n"
+                                        "com.google.guava:guava:33.8.0-jre"))
+
+    def test_old_netty_and_protobuf_from_internal_configurations_are_rejected(self):
+        self.assertEqual(3, len(violations("io.netty:netty-handler:4.1.93.Final\n"
+                                           "io.netty:netty-codec-http2:4.1.110.Final\n"
+                                           "com.google.protobuf:protobuf-java:3.24.4")))
+
     def test_rejects_empty_inventory_and_prerelease_fix(self):
         self.assertTrue(violations(""))
         self.assertTrue(violations("org.jsoup:jsoup:1.24.0-RC1"))
