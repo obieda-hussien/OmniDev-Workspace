@@ -126,15 +126,19 @@ class AgentPipelineToolContractTest {
         assertEquals(listOf("read_file"), tools.executed)
         assertEquals("Verified", events.filterIsInstance<AgentEvent.FinalAnswer>().single().content)
     }
-    @Test fun `three invalid batches stop without executor calls`() = runTest {
+    @Test fun `invalid batches get guided recoveries with the exact tool list before the run stops`() = runTest {
         val tools = FakeTools()
         var calls = 0
-        val pipeline = AgentPipeline(tools, completionProvider = {
+        var sawExactToolList = false
+        val pipeline = AgentPipeline(tools, completionProvider = { request ->
+            if (request.messages.last().content.contains("read_file(path*)")) sawExactToolList = true
             CompletionResponse("", listOf(ToolCall("bad-${++calls}", "imaginary", emptyMap())))
-        }, config = config)
+        }, config = AgentConfig(maxIterations = 12, enableRetry = false, enableMemoryTrimming = false))
         val events = pipeline.execute("Read a file", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
         assertTrue(tools.executed.isEmpty())
-        assertEquals(3, calls)
+        // 3 invalid batches, then two guided recoveries of 3 more each before giving up.
+        assertEquals(9, calls)
+        assertTrue(sawExactToolList)
         assertTrue(events.filterIsInstance<AgentEvent.Error>().any { it.message.contains("three corrections") })
     }
     @Test fun `unsupported success claim after failed batch is not published as completion`() = runTest {

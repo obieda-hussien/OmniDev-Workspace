@@ -216,6 +216,12 @@ object ToolExecutionSemantics {
                 lower.contains("runcommandservice is already known unavailable") ->
                 Match("TERMUX_RUN_COMMAND_UNAVAILABLE", persistent = true)
 
+            // A plain wait timeout also carries the generic setup hint that mentions allow-external-apps.
+            // A slow or frozen Termux is transient and must never be recorded as a persistent
+            // "external apps disabled" block, which would stop every later call of the run.
+            lower.contains("timed out waiting for termux result") ->
+                Match("TERMUX_RESULT_TIMEOUT", retryable = true)
+
             lower.contains("allow-external-apps") &&
                 (lower.contains("runcommandservice") || lower.contains("termux")) ->
                 Match("TERMUX_EXTERNAL_APPS_DISABLED", persistent = true)
