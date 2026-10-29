@@ -50,17 +50,17 @@ class SwarmOrchestrator(
         private const val MAX_OVERFLOW_DESCRIPTION_CHARS = 5_500
 
         /** Planner + workers + synthesis all fit under this logical run ceiling. */
-        private const val TEAM_TOTAL_TOKEN_HARD_LIMIT = 320_000
-        private const val TEAM_WORKER_POOL_CEILING = 280_000
-        private const val SYNTHESIS_TOKEN_RESERVE = 9_000
+        private const val TEAM_TOTAL_TOKEN_HARD_LIMIT = 2_000_000
+        private const val TEAM_WORKER_POOL_CEILING = 1_850_000
+        private const val SYNTHESIS_TOKEN_RESERVE = 40_000
         private const val PLANNER_MAX_OUTPUT_TOKENS = 2_048
         private const val SYNTHESIS_MAX_OUTPUT_TOKENS = 4_096
         private const val MIN_SYNTHESIS_OUTPUT_TOKENS = 512
 
         private val TEAM_WORKER_CONFIG = AgentConfig(
-            maxIterations = 10,
-            tokenBudget = 48_000,
-            maxRepeatedToolCalls = 3,
+            maxIterations = 20,
+            tokenBudget = 200_000,
+            maxRepeatedToolCalls = 4,
             enableParallelToolExecution = true,
             enableSelfReflection = false,
             recentMessagesWindow = 10,
@@ -292,9 +292,9 @@ Synthesize specialist evidence into the answer to the original request.
             val redirected: Boolean = false
         )
 
-        suspend fun runWorker(task: SwarmTask): TaskOutcome {
+        suspend fun runWorkerAttempt(task: SwarmTask, attempt: Int, recoveryNote: String?): TaskOutcome {
             if (steering?.changed(revision) == true) return TaskOutcome(task, "", redirected = true)
-            send(SwarmEvent.TaskStarted(task))
+            if (attempt == 1) send(SwarmEvent.TaskStarted(task))
             val budget = allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)
             val dependencyContext = compactDependencyContext(task, completed)
             val workerPrompt = buildWorkerPrompt(
@@ -305,7 +305,7 @@ Synthesize specialist evidence into the answer to the original request.
                 scopePath = scopePath,
                 budget = budget,
                 godModeEnabled = godModeEnabled
-            )
+            ) + recoveryNote?.let { "\n\n$it" }.orEmpty()
 
             val workerPipeline = AgentPipeline(
                 toolManager = toolManager,
@@ -394,6 +394,25 @@ Synthesize specialist evidence into the answer to the original request.
                 requiresSerialReplan = task.parallelSafe && error.startsWith("READ_ONLY_WORKER:") &&
                     TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f
             )
+        }
+
+        // A failed worker is retried with a different approach before its dependents are skipped. Each
+        // retry draws from the same team token pool, so the run ceiling still applies.
+        suspend fun runWorker(task: SwarmTask): TaskOutcome {
+            var attempt = 1
+            var outcome = runWorkerAttempt(task, attempt, null)
+            while (attempt < WorkerRecoveryPlanner.MAX_ATTEMPTS &&
+                WorkerRecoveryPlanner.shouldRetry(outcome.error, outcome.redirected, outcome.requiresSerialReplan) &&
+                observedTeamTokens.get() < TEAM_WORKER_POOL_CEILING
+            ) {
+                attempt += 1
+                send(SwarmEvent.WorkerPhaseChanged(task, "RECOVER",
+                    "Attempt ${attempt - 1} failed; retrying with a different approach ($attempt/${WorkerRecoveryPlanner.MAX_ATTEMPTS})"))
+                delay(WorkerRecoveryPlanner.waitMs(attempt, outcome.infrastructureBlocked))
+                val note = WorkerRecoveryPlanner.note(attempt, outcome.error.orEmpty(), outcome.result)
+                outcome = runWorkerAttempt(task, attempt, note)
+            }
+            return outcome
         }
 
         val serialReplans = mutableListOf<SwarmTask>()

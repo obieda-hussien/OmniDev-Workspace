@@ -32,10 +32,10 @@ object TeamExecutionPolicy {
         val droppedTaskIds: Set<String>
     )
 
-    private const val MIN_WORKER_TOKENS = 22_000
-    private const val MAX_WORKER_TOKENS = 82_000
-    private const val MIN_ITERATIONS = 6
-    private const val MAX_ITERATIONS = 15
+    private const val MIN_WORKER_TOKENS = 120_000
+    private const val MAX_WORKER_TOKENS = 450_000
+    private const val MIN_ITERATIONS = 10
+    private const val MAX_ITERATIONS = 40
     private const val HARD_MUTATION_THRESHOLD = 0.42f
     private const val BORDERLINE_MUTATION_THRESHOLD = 0.15f
     private const val DUPLICATE_SIMILARITY = 0.84f
@@ -58,9 +58,9 @@ object TeamExecutionPolicy {
             (MIN_ITERATIONS + (MAX_ITERATIONS - MIN_ITERATIONS) * complexity).toDouble()
         ).toInt().coerceIn(MIN_ITERATIONS, MAX_ITERATIONS)
         val repeatedToolLimit = when {
-            complexity < 0.30f -> 2
-            complexity < 0.65f -> 3
-            else -> 4
+            complexity < 0.30f -> 3
+            complexity < 0.65f -> 4
+            else -> 5
         }
         val reason = when {
             complexity < 0.30f -> "small atomic worker"
