@@ -37,7 +37,7 @@ object ExecutionDomainGuard {
         pattern = "(?i)(?:^|[;&|]\\s*|\\$\\(\\s*|`\\s*|\\bthen\\s+|\\bdo\\s+)(?:" +
             "(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s;]+\\s+)*" +
             "(adb\\s+shell|rish|su\\s+-c|content|settings\\s+(?:get|put|delete|list)|" +
-            "dumpsys|getprop|setprop|pm|am|cmd|wm|svc|input|appops|device_config|ime|monkey)" +
+            "dumpsys|getprop|setprop|pm|am|cmd|wm|svc|input|appops|device_config|ime|monkey|media\\s+volume)" +
             "(?=\\s|$|[;)`]))"
     )
 
