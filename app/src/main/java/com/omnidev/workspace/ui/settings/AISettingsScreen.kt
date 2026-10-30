@@ -241,6 +241,39 @@ fun AISettingsScreen(
 }
 
 @Composable
+private fun ExecutionModeCard(state: AISettingsUiState, viewModel: AISettingsViewModel) {
+    val modes = com.omnidev.workspace.domain.engine.OmniMode.available()
+        .filter { it != com.omnidev.workspace.domain.engine.OmniMode.AUTO }
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Default execution mode", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            modes.forEach { mode ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { viewModel.setPreferredExecutionMode(mode) }.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = state.preferredExecutionMode == mode, onClick = { viewModel.setPreferredExecutionMode(mode) })
+                    Text(mode.label, modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            Text("Automatic mode switching", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            com.omnidev.workspace.domain.engine.ModeSwitchPermissionStore.SwitchPolicy.entries.forEach { policy ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { viewModel.setExecutionModeSwitchPolicy(policy) }.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = state.executionModeSwitchPolicy == policy, onClick = { viewModel.setExecutionModeSwitchPolicy(policy) })
+                    Column(Modifier.padding(start = 8.dp)) {
+                        Text(policy.title, style = MaterialTheme.typography.bodyMedium)
+                        Text(policy.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun DeepThinkingCard(enabled: Boolean, onToggle: (Boolean) -> Unit) {
     SettingsToggleCard(
         icon = Icons.Filled.AutoAwesome,
