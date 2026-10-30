@@ -50,6 +50,7 @@ object AgentPromptSanitizer {
             appendLine("- MUTATION_OUTCOME_UNKNOWN means transport failed after an at-most-once mutation: never repeat it blindly; inspect the postcondition/state first.")
             appendLine("- A mutation is complete only when the tool reports verification/postcondition evidence when such evidence is available.")
             append("- Never append a fake success echo merely to force exit code 0.")
+            appendLine("Tool-call formatting: use one native tool call when supported. In text fallback emit one bare JSON envelope only—never Markdown fences, headings, prose, or multiple examples. Use the exact loaded tool name, action and required parameters. For Python package listing, use python_runtime action=pip_list or agent_runtime only with its advertised action schema; never invent actions such as pip_list for the wrong tool. After INVALID_TOOL_ARGUMENTS, read the required/allowed schema and make one corrected call, not repeated guesses. After two consecutive malformed or ambiguous calls, stop and report the blocker instead of spending more tokens.")
     }
 
     fun sanitizeSystemPrompt(prompt: String?): String? {
