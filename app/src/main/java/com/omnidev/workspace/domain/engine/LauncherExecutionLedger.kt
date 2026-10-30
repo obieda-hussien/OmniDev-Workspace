@@ -53,6 +53,9 @@ internal class LauncherExecutionLedger(objective: String) {
             if (expectedOffset != null && requestedOffset != expectedOffset) {
                 return "Launcher layout pagination expected offset=$expectedOffset, but the request used offset=$requestedOffset. Follow nextOffset exactly before planning a mutation."
             }
+            if (expectedOffset == null && layoutPageRevision != null && requestedOffset != 0) {
+                return "Launcher layout pagination is already complete. Do not request an unadvertised page; restart at offset=0 if a new snapshot is needed."
+            }
             if (expectedOffset == null && layoutPageRevision == null && requestedOffset != 0) {
                 return "Start launcher.get_layout at offset=0 before requesting later pages."
             }
