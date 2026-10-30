@@ -53,11 +53,11 @@ object AndroidPrivilegedCommandRouter {
                 classification = "SUCCESS",
                 exitCode = 0,
                 backend = "shizuku-user-service",
-                verification = "auto-routed ${violation.commandFamily} to Android shell"
+                verification = if (adapted.note != null) adapted.note else "auto-routed ${violation.commandFamily} to Android shell"
             )
 
             is ShizukuResult.PartialSuccess -> ToolExecutionResult(
-                output = ExecutionDomainGuard.applyOutputCompatibility(shizuku.output, prepared),
+                output = note(ExecutionDomainGuard.applyOutputCompatibility(shizuku.output, prepared)),
                 isError = true,
                 classification = ToolExecutionSemantics.classifyText(shizuku.output)
                     ?: "NON_ZERO_EXIT",
