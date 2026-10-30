@@ -329,21 +329,7 @@ object GodModeFileRouter {
     //  Internal — shell escalation helpers
     // ──────────────────────────────────────────────
 
-    @Volatile
-    private var appOpsGranted = false
-
-    private suspend fun ensureAppOpsGranted() {
-        if (!appOpsGranted) {
-            appOpsGranted = true
-            PrivilegedExecutionManager.executeCommand("appops set com.android.shell MANAGE_EXTERNAL_STORAGE allow")
-            PrivilegedExecutionManager.executeCommand("appops set com.android.shell READ_EXTERNAL_STORAGE allow")
-            PrivilegedExecutionManager.executeCommand("appops set com.android.shell WRITE_EXTERNAL_STORAGE allow")
-        }
-    }
-
-
     private suspend fun readViaShell(canonical: String): GodModeResult {
-        ensureAppOpsGranted()
         // Use `cat` to read the raw bytes and print them to stdout.
         // For binary files this may produce garbled output — callers dealing with
         // binary content should use `base64 <path>` directly via root_shell_tool.
@@ -375,7 +361,6 @@ object GodModeFileRouter {
         content: String,
         append: Boolean
     ): GodModeResult {
-        ensureAppOpsGranted()
         // Encode the content as base64 to safely pass arbitrary bytes / special chars
         // through a one-liner shell command without breaking quoting.
         val b64 = android.util.Base64.encodeToString(
@@ -409,7 +394,6 @@ object GodModeFileRouter {
     }
 
     private suspend fun deleteViaShell(canonical: String, recursive: Boolean): GodModeResult {
-        ensureAppOpsGranted()
         val flags = if (recursive) "-rf" else "-f"
         return executeShell("rm $flags ${shellQuote(canonical)} && echo 'DELETE_OK'",
             successMsg = "Deleted $canonical via shell")
@@ -417,8 +401,7 @@ object GodModeFileRouter {
 
     private suspend fun executeShell(cmd: String, successMsg: String): GodModeResult =
         withContext(Dispatchers.IO) {
-            ensureAppOpsGranted()
-            PrivilegedExecutionManager.executeCommand(cmd).fold(
+                PrivilegedExecutionManager.executeCommand(cmd).fold(
                 onSuccess = { output ->
                     GodModeResult.Success(
                         content = output.ifBlank { successMsg },
