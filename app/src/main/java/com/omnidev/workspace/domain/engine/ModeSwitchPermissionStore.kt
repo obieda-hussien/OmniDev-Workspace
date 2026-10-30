@@ -1,6 +1,7 @@
 package com.omnidev.workspace.domain.engine
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.omnidev.workspace.data.brain.UserFeedbackLearningStore
 import java.util.concurrent.ConcurrentHashMap
 
@@ -33,6 +34,18 @@ class ModeSwitchPermissionStore(context: Context) {
         if (mode != OmniMode.AUTO && OmniMode.permitted(mode)) {
             prefs.edit().putString(KEY_PREFERRED_MODE, mode.name).apply()
         }
+    }
+
+    fun registerPreferredModeListener(onChanged: (OmniMode) -> Unit): SharedPreferences.OnSharedPreferenceChangeListener {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_PREFERRED_MODE) onChanged(preferredMode())
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        return listener
+    }
+
+    fun unregisterPreferredModeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.unregisterOnSharedPreferenceChangeListener(listener)
     }
 
     fun switchPolicy(): SwitchPolicy =
