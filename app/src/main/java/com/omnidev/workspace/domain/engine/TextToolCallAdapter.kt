@@ -10,9 +10,7 @@ object TextToolCallAdapter {
 
     fun adapt(response: CompletionResponse): CompletionResponse {
         if (response.toolCalls.isNotEmpty()) return response
-        val raw = response.content.trim().let {
-            if (it.startsWith("```json\n") && it.endsWith("```")) it.removePrefix("```json\n").removeSuffix("```").trim() else it
-        }
+        val raw = WholeResponseEnvelope.normalize(response.content)
         fun malformed(): CompletionResponse = response.copy(content = "", toolCalls = listOf(ToolCall(
             "text_${UUID.randomUUID()}", "discover_tools", emptyMap(),
             argumentError = "Malformed text tool envelope. Return one valid JSON object with omni_tool_call, name and arguments.",
