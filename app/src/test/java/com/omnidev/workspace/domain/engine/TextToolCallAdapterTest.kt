@@ -14,9 +14,9 @@ class TextToolCallAdapterTest {
     }
     @Test fun `whole response markdown fences with json label and whitespace are normalized`() {
         for (raw in listOf(
-            "```json\\n$envelope\\n```",
-            "```JSON\\r\\n$envelope\\r\\n```",
-            "  ``` \\n$envelope\\n```  "
+            "```json\n$envelope\n```",
+            "```JSON\r\n$envelope\r\n```",
+            "  ``` \n$envelope\n```  "
         )) {
             val call = TextToolCallAdapter.adapt(CompletionResponse(raw)).toolCalls.single()
             assertEquals("read_file", call.name)
