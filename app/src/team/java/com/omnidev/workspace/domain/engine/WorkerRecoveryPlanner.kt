@@ -9,6 +9,9 @@ package com.omnidev.workspace.domain.engine
 internal object WorkerRecoveryPlanner {
     const val MAX_ATTEMPTS = 3
 
+    /** Marks a worker result the agent loop published as "announced work, never performed" (see PipelineRecovery). */
+    const val INCOMPLETE_PREFIX = "[Incomplete]"
+
     fun shouldRetry(error: String?, redirected: Boolean, requiresSerialReplan: Boolean): Boolean {
         if (error == null || redirected || requiresSerialReplan) return false
         // Running out of tokens is not fixed by trying again from scratch.

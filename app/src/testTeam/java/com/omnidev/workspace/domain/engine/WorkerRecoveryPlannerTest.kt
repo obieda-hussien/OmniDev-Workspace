@@ -43,4 +43,8 @@ class WorkerRecoveryPlannerTest {
     @Test fun `the note omits the evidence section when there is none`() {
         assertFalse(WorkerRecoveryPlanner.note(2, "x", "[FAILED] x").contains("Evidence the previous attempt"))
     }
+
+    @Test fun `the incomplete marker matches the agent loop`() {
+        assertEquals("[Incomplete]", WorkerRecoveryPlanner.INCOMPLETE_PREFIX)
+    }
 }

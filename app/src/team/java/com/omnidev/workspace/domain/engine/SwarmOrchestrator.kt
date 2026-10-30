@@ -292,7 +292,7 @@ Synthesize specialist evidence into the answer to the original request.
             val redirected: Boolean = false
         )
 
-        suspend fun runWorkerAttempt(task: SwarmTask, attempt: Int, recoveryNote: String?): TaskOutcome {
+        suspend fun runWorkerAttempt(task: SwarmTask, attempt: Int, recoveryNote: String?, tokenCap: Int = Int.MAX_VALUE): TaskOutcome {
             if (steering?.changed(revision) == true) return TaskOutcome(task, "", redirected = true)
             if (attempt == 1) send(SwarmEvent.TaskStarted(task))
             val budget = allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)
@@ -316,7 +316,7 @@ Synthesize specialist evidence into the answer to the original request.
                 streamingCompletionProvider = streamingCompletionProvider,
                 config = TEAM_WORKER_CONFIG.copy(
                     maxIterations = budget.maxIterations,
-                    tokenBudget = minOf(budget.tokenBudget, (TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE).coerceAtLeast(1)),
+                    tokenBudget = minOf(budget.tokenBudget, tokenCap, (TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE).coerceAtLeast(1)),
                     maxRepeatedToolCalls = budget.repeatedToolLimit
                 ),
                 apiKeyRepository = apiKeyRepository,
@@ -380,6 +380,10 @@ Synthesize specialist evidence into the answer to the original request.
             if (taskError == null && taskResult.isBlank()) {
                 taskError = "Worker ended without a final response."
             }
+            // A worker that only announced work (the agent loop marks this explicitly) did not do its task.
+            if (taskError == null && taskResult.startsWith(WorkerRecoveryPlanner.INCOMPLETE_PREFIX)) {
+                taskError = "Worker announced work without performing it."
+            }
             if (taskError == null) return TaskOutcome(task, taskResult)
 
             val error = taskError.orEmpty()
@@ -398,19 +402,28 @@ Synthesize specialist evidence into the answer to the original request.
 
         // A failed worker is retried with a different approach before its dependents are skipped. Each
         // retry draws from the same team token pool, so the run ceiling still applies.
+        // Parallel workers can fail in the same wave, each seeing the same remaining pool. A retry therefore
+        // reserves its tokens from a shared ledger before it starts, so retries can never overspend together.
+        val retryLedger = RetryTokenLedger(TEAM_WORKER_POOL_CEILING)
         suspend fun runWorker(task: SwarmTask): TaskOutcome {
             var attempt = 1
             var outcome = runWorkerAttempt(task, attempt, null)
             while (attempt < WorkerRecoveryPlanner.MAX_ATTEMPTS &&
-                WorkerRecoveryPlanner.shouldRetry(outcome.error, outcome.redirected, outcome.requiresSerialReplan) &&
-                observedTeamTokens.get() < TEAM_WORKER_POOL_CEILING
+                WorkerRecoveryPlanner.shouldRetry(outcome.error, outcome.redirected, outcome.requiresSerialReplan)
             ) {
+                val wanted = (allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)).tokenBudget
+                val granted = retryLedger.reserve(wanted, observedTeamTokens.get())
+                if (granted == 0) break
                 attempt += 1
-                send(SwarmEvent.WorkerPhaseChanged(task, "RECOVER",
-                    "Attempt ${attempt - 1} failed; retrying with a different approach ($attempt/${WorkerRecoveryPlanner.MAX_ATTEMPTS})"))
-                delay(WorkerRecoveryPlanner.waitMs(attempt, outcome.infrastructureBlocked))
-                val note = WorkerRecoveryPlanner.note(attempt, outcome.error.orEmpty(), outcome.result)
-                outcome = runWorkerAttempt(task, attempt, note)
+                try {
+                    send(SwarmEvent.WorkerPhaseChanged(task, "RECOVER",
+                        "Attempt ${attempt - 1} failed; retrying with a different approach ($attempt/${WorkerRecoveryPlanner.MAX_ATTEMPTS})"))
+                    delay(WorkerRecoveryPlanner.waitMs(attempt, outcome.infrastructureBlocked))
+                    val note = WorkerRecoveryPlanner.note(attempt, outcome.error.orEmpty(), outcome.result)
+                    outcome = runWorkerAttempt(task, attempt, note, tokenCap = granted)
+                } finally {
+                    retryLedger.release(granted)
+                }
             }
             return outcome
         }
