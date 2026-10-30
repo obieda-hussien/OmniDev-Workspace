@@ -4,6 +4,7 @@ import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.data.routing.AutoModelRouter
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.lifecycle.ViewModel
@@ -141,9 +142,18 @@ class ChatViewModel(
     private val modePermissionStore: ModeSwitchPermissionStore by lazy {
         ModeSwitchPermissionStore(com.omnidev.workspace.OmniDevApp.instance.applicationContext)
     }
+    private var preferredModeListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+    @Volatile private var pendingPreferredMode: OmniMode? = null
 
     init {
         _uiState.update { it.copy(activeMode = modePermissionStore.preferredMode()) }
+        preferredModeListener = modePermissionStore.registerPreferredModeListener { preferred ->
+            if (_uiState.value.isProcessing) {
+                pendingPreferredMode = preferred
+            } else {
+                _uiState.update { it.copy(activeMode = preferred) }
+            }
+        }
         viewModelScope.launch {
             settingsRepository.observeProfilePersonalization().collect { preferences ->
                 _uiState.update { it.copy(personalization = preferences) }
@@ -155,6 +165,12 @@ class ChatViewModel(
         observeGodMode()
         observeChatSettings()
         wireFileConfirmationGate()
+    }
+
+    override fun onCleared() {
+        preferredModeListener?.let(modePermissionStore::unregisterPreferredModeListener)
+        preferredModeListener = null
+        super.onCleared()
     }
 
     private fun loadTargetContext() {
@@ -626,6 +642,14 @@ class ChatViewModel(
     }
 
     private fun startMessage(replacing: LastChatTurn? = null, replacementText: String? = null) {
+        val deferredPreference = pendingPreferredMode
+        if (deferredPreference != null && !_uiState.value.isProcessing) {
+            pendingPreferredMode = null
+            _uiState.update { it.copy(activeMode = deferredPreference) }
+        } else if (!_uiState.value.isProcessing && _uiState.value.activeMode != OmniMode.AUTO) {
+            val preferred = modePermissionStore.preferredMode()
+            if (_uiState.value.activeMode != preferred) _uiState.update { it.copy(activeMode = preferred) }
+        }
         val state = _uiState.value
         if (state.isImportingAttachments) { _uiState.update { it.copy(errorMessage = "Wait for the selected files to finish importing.") }; return }
         val attachments = replacing?.user?.attachments?.map { PendingAttachment(Uri.parse(it.uri), it.fileName) }
