@@ -37,6 +37,7 @@ object GodModeFileRouter {
         "/data/user_de/",
         "/data/system/",
         "/data/misc/",
+        "/data/media/",
         "/data/local/",
         "/data/app/",
         "/data/dalvik-cache/",
