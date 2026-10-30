@@ -104,6 +104,15 @@ internal class LauncherExecutionLedger(objective: String) {
                 data.optInt("nextOffset").takeIf { it >= 0 }
             } else null
 
+            if (next != null && next <= requestedOffset) {
+                layoutRestartRequired = true
+                pendingLayoutOffset = 0
+                latestLayoutRevision = null
+                layoutPagesComplete = false
+                failure = "layout_pagination_did_not_advance"
+                return
+            }
+
             if (requestedOffset == 0) {
                 layoutPageRevision = revision.takeIf { it.isNotBlank() }
                 latestLayoutRevision = revision.takeIf { it.isNotBlank() }
