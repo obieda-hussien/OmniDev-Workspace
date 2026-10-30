@@ -63,6 +63,11 @@ class FileToolManager(
      */
     @Volatile var confirmationGate: (suspend (preview: String, diffContent: String?) -> Boolean)? = null
 
+    @Volatile var privilegedFileConfirmationGate: (suspend (
+        kind: com.omnidev.workspace.core.policy.ConfirmationKind,
+        preview: String
+    ) -> Boolean)? = null
+
     companion object {
         /** Maximum lines returned from a single read to guard context window usage. */
         private const val MAX_READ_LINES = 500
