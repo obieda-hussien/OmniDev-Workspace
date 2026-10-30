@@ -268,6 +268,9 @@ class ChatViewModel(
             else com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
             effectiveGate.request(kind, preview, diffContent)
         }
+        ftm?.privilegedFileConfirmationGate = { kind, preview ->
+            effectiveGate.request(kind, preview, null)
+        }
         compositeToolManager?.confirmationGate = effectiveGate
         val routineReview = kotlinx.coroutines.sync.Mutex()
         compositeToolManager?.learnedRoutineConfirmationGate = com.omnidev.workspace.core.policy.ConfirmationGate { kind, preview, diff ->
