@@ -13,7 +13,7 @@ internal object AndroidShellCommandCompatibility {
         val note: String? = null
     )
 
-    private val legacyMediaVolume = Regex("""(^|[;&|][ \\t]*)media[ \\t]+volume(?=[ \\t]|$)""")
+    private val legacyMediaVolume = Regex("""(^|[;&|][ \t]*)media[ \t]+volume(?=[ \t]|$)""")
 
     fun adapt(command: String, apiLevel: Int): AdaptedCommand {
         if (apiLevel < ANDROID_11_API || command.isBlank()) return AdaptedCommand(command)
