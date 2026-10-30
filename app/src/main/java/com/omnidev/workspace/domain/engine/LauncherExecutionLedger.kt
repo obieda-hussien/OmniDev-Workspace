@@ -140,7 +140,7 @@ internal class LauncherExecutionLedger(objective: String) {
                 layoutPagesComplete = next == null
             }
 
-            if (mutated && !verified && revision.isNotBlank() && revision != expectedRevision) verified = true
+            if (mutated && !verified && layoutPagesComplete && revision.isNotBlank() && revision != expectedRevision) verified = true
             failure = null
             return
         }
