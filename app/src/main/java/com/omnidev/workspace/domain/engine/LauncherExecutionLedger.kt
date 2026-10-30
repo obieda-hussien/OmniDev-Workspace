@@ -84,18 +84,19 @@ internal class LauncherExecutionLedger(objective: String) {
         val envelope = runCatching { JSONObject(output.substring(output.indexOf('{'))) }.getOrNull()
         if (isError || envelope?.optBoolean("ok") != true) {
             failure = envelope?.optString("code") ?: "tool_failure"
-            if (action in homeMutations) {
-                latestLayoutRevision = null
-                layoutPagesComplete = false
-                pendingLayoutOffset = null
-                layoutPageRevision = null
-                layoutRestartRequired = false
-            }
+            if (action in homeMutations || action == "launcher.get_layout") invalidateLayoutSnapshot()
             return
         }
-        val outcome = runCatching { JSONObject(envelope.getString("result_json")) }.getOrNull() ?: return
-        if (!outcome.optString("type").endsWith("ActionOutcome.Success")) return
-        val data = outcome.optJSONObject("data") ?: return
+        val outcome = runCatching { JSONObject(envelope.getString("result_json")) }.getOrNull()
+        if (outcome == null || !outcome.optString("type").endsWith("ActionOutcome.Success")) {
+            if (action == "launcher.get_layout") invalidateLayoutSnapshot()
+            return
+        }
+        val data = outcome.optJSONObject("data")
+        if (data == null) {
+            if (action == "launcher.get_layout") invalidateLayoutSnapshot()
+            return
+        }
         if (action == "launcher.get_layout") {
             val revision = data.optString("revision")
             val payload = runCatching { JSONObject(args["json_payload"] ?: "{}") }.getOrNull() ?: JSONObject()
@@ -146,14 +147,18 @@ internal class LauncherExecutionLedger(objective: String) {
             successfulAction = action
             mutated = true
             expectedRevision = payload?.optString("expectedRevision")?.takeIf { it.isNotBlank() }
-            latestLayoutRevision = null
-            layoutPagesComplete = false
-            pendingLayoutOffset = null
-            layoutPageRevision = null
-            layoutRestartRequired = false
+            invalidateLayoutSnapshot()
             verified = action !in homeMutations && !data.optBoolean("reloadScheduled")
             failure = null
         }
+    }
+
+    private fun invalidateLayoutSnapshot() {
+        latestLayoutRevision = null
+        layoutPagesComplete = false
+        pendingLayoutOffset = null
+        layoutPageRevision = null
+        layoutRestartRequired = false
     }
 
     /** Carry acknowledged side effects across a correction; read them back instead of replaying. */
