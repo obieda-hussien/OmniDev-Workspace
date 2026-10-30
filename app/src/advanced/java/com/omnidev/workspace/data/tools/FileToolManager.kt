@@ -1454,6 +1454,25 @@ class FileToolManager(
     //  Path Normalization & Scope Validation
     // ──────────────────────────────────────────────
 
+    private suspend fun requestPrivilegedMutationApproval(
+        kind: com.omnidev.workspace.core.policy.ConfirmationKind,
+        preview: String
+    ): ToolExecutionResult? {
+        if (!godModeEnabled) return null
+        val gate = privilegedFileConfirmationGate ?: return ToolExecutionResult(
+            output = "USER_ACTION_REQUIRED: privileged file mutation is blocked because no approval UI is connected.",
+            isError = true,
+            classification = "USER_ACTION_REQUIRED",
+            retryable = false
+        )
+        return if (gate(kind, preview)) null else ToolExecutionResult(
+            output = "User denied this privileged file mutation. No file change was dispatched.",
+            isError = true,
+            classification = "USER_ACTION_DENIED",
+            retryable = false
+        )
+    }
+
     private fun normalizePath(filePath: String, scopePath: String): String {
         return when {
             filePath.startsWith(scopePath) -> filePath  
