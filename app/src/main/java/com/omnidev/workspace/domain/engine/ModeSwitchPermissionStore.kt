@@ -51,15 +51,14 @@ class ModeSwitchPermissionStore(context: Context) {
         sessionId != null && denialKey(sessionId, from, to) in deniedForSession
 
     fun shouldOfferSwitch(from: OmniMode, to: OmniMode, sessionId: Long?): Boolean =
-        from != to && to != OmniMode.AUTO &&
-            switchPolicy() != SwitchPolicy.STAY_IN_SELECTED_MODE &&
-            !isDeniedForSession(from, to, sessionId)
+        ModeSwitchPolicyRules.shouldOffer(switchPolicy(), from, to, isDeniedForSession(from, to, sessionId))
 
     fun canAutoSwitch(from: OmniMode, to: OmniMode, sessionId: Long?): Boolean {
         if (from == to || to == OmniMode.AUTO || switchPolicy() != SwitchPolicy.AUTO_APPROVED) return false
         if (isDeniedForSession(from, to, sessionId)) return false
         val sessionGrant = sessionId != null && sessionId in allowAllForSession
-        return sessionGrant || prefs.getBoolean(transitionKey(from, to), false)
+        val previouslyApproved = sessionGrant || prefs.getBoolean(transitionKey(from, to), false)
+        return ModeSwitchPolicyRules.canAutoSwitch(switchPolicy(), previouslyApproved)
     }
 
     fun recordDecision(from: OmniMode, to: OmniMode, sessionId: Long?, approval: Approval) {
