@@ -258,6 +258,8 @@ Do not use tools. Do not rewrite merely for style.
         var githubFailures = GitHubFailureLedger()
         val runtimeBackends = RuntimeBackendLedger()
         val recoveryGovernor = AgentRecoveryGovernor()
+        var pendingRecoveryNote: String? = null
+        var pendingRecoveryWaitMs = 0L
         var repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
         var stagnationDetector = AgentStagnationDetector(
             windowSize = 8,
@@ -295,6 +297,12 @@ Do not use tools. Do not rewrite merely for style.
         while (iteration < config.maxIterations) {
             applySteering()
             iteration++
+            val recoveryNote = pendingRecoveryNote
+            if (recoveryNote != null) {
+                pendingRecoveryNote = null
+                phase(AgentExecutionPhase.ANALYZE, recoveryNote)
+                delay(pendingRecoveryWaitMs)
+            }
             brain?.onIterationStart()
 
             config.maxExecutionTimeMs?.let { timeoutMs ->
@@ -478,22 +486,18 @@ Do not use tools. Do not rewrite merely for style.
                         return@channelFlow
                     }
                 }
-                val unresolved = unresolvedToolFailure
-                if (unresolved != null) {
-                    when (val decision = recoveryGovernor.decide(AgentRecoveryGovernor.Kind.UNRESOLVED_FAILURE, unresolved)) {
-                        is AgentRecoveryGovernor.Decision.Recover -> {
-                            messages += ChatMessage(MessageRole.ASSISTANT, response.content.ifBlank { "(no output)" })
-                            messages += ChatMessage(MessageRole.USER, decision.message)
-                            phase(AgentExecutionPhase.ANALYZE, "Recovering from an unresolved tool failure (${decision.attempt}/${decision.limit})")
-                            delay(decision.waitMs)
-                            continue
-                        }
-                        is AgentRecoveryGovernor.Decision.GiveUp -> {
-                            brain?.onTaskEnd(EpisodeOutcome.FAILURE, "run ended with unresolved tool failure")
-                            send(AgentEvent.Error("Execution remains unverified after a failed tool batch: " + unresolved.take(1_200)))
-                            return@channelFlow
-                        }
+                val failure = unresolvedToolFailure
+                if (failure != null) {
+                    val step = PipelineRecovery.step(recoveryGovernor, AgentRecoveryGovernor.Kind.UNRESOLVED_FAILURE, failure, response.content)
+                    if (step.recovered) {
+                        messages += step.messages
+                        pendingRecoveryNote = step.note
+                        pendingRecoveryWaitMs = step.waitMs
+                        continue
                     }
+                    brain?.onTaskEnd(EpisodeOutcome.FAILURE, "run ended with unresolved tool failure")
+                    send(AgentEvent.Error("Execution remains unverified after a failed tool batch: " + failure.take(1_200)))
+                    return@channelFlow
                 }
                 val launcherFeedback = launcherEvidence.completionFeedback()
                 if (launcherFeedback != null && !runtimeBackends.hasBlocks()) {
@@ -507,28 +511,17 @@ Do not use tools. Do not rewrite merely for style.
                     phase(AgentExecutionPhase.IMPLEMENT, "Launcher execution still needs verification")
                     continue
                 }
-                if (toolDefs.isNotEmpty() && !runtimeBackends.hasBlocks()) {
-                    val stallKind = when {
-                        response.content.isBlank() -> AgentRecoveryGovernor.Kind.EMPTY_RESPONSE
-                        UnfulfilledPromiseDetector.isUnfulfilled(response.content) -> AgentRecoveryGovernor.Kind.UNKEPT_PROMISE
-                        else -> null
+                val stall = if (toolDefs.isNotEmpty() && !runtimeBackends.hasBlocks()) {
+                    PipelineRecovery.stall(recoveryGovernor, response.content, lastToolObservation)
+                } else null
+                if (stall != null) {
+                    if (stall.recovered) {
+                        messages += stall.messages
+                        pendingRecoveryNote = stall.note
+                        pendingRecoveryWaitMs = stall.waitMs
+                        continue
                     }
-                    if (stallKind != null) {
-                        when (val decision = recoveryGovernor.decide(stallKind)) {
-                            is AgentRecoveryGovernor.Decision.Recover -> {
-                                messages += ChatMessage(MessageRole.ASSISTANT, response.content.ifBlank { "(no output)" })
-                                messages += ChatMessage(MessageRole.USER, decision.message)
-                                phase(AgentExecutionPhase.IMPLEMENT, "No result yet; asking the model to act (${decision.attempt}/${decision.limit})")
-                                delay(decision.waitMs)
-                                continue
-                            }
-                            is AgentRecoveryGovernor.Decision.GiveUp -> if (response.content.isBlank()) {
-                                // Never publish a blank answer: say what is known instead.
-                                response = response.copy(content = "The model returned no answer after several attempts. " +
-                                    (lastToolObservation?.let { "Latest observation: $it" } ?: "No tool evidence was collected."))
-                            }
-                        }
-                    }
+                    stall.fallbackContent?.let { response = response.copy(content = it) }
                 }
                 phase(AgentExecutionPhase.VERIFY, if (runtimeBackends.hasBlocks()) "Preparing runtime limitation report" else "Checking final completeness")
                 messages += ChatMessage(
@@ -597,24 +590,20 @@ Do not use tools. Do not rewrite merely for style.
 
             val duplicateCall = response.toolCalls.firstOrNull { !repetitionGuard.allow(it.name, it.arguments) }
             if (duplicateCall != null) {
-                when (val decision = recoveryGovernor.decide(AgentRecoveryGovernor.Kind.DUPLICATE_CALLS, duplicateCall.name)) {
-                    is AgentRecoveryGovernor.Decision.Recover -> {
-                        // Every call needs a result in the history; none of this batch is executed.
-                        val blocked = response.toolCalls.map { ToolCallResult(it.id, it.name, decision.message, true) }
-                        messages += ChatMessage(MessageRole.TOOL, decision.message, toolResults = blocked)
-                        phase(AgentExecutionPhase.ANALYZE, "Blocked a repeated ${duplicateCall.name} call (${decision.attempt}/${decision.limit})")
-                        continue
-                    }
-                    is AgentRecoveryGovernor.Decision.GiveUp -> {
-                        brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "semantic duplicate tool-call limit reached: ${duplicateCall.name}")
-                        send(
-                            AgentEvent.Error(
-                                "Agent no-progress loop detected: ${duplicateCall.name} repeated with equivalent arguments more than ${config.maxRepeatedToolCalls} times."
-                            )
-                        )
-                        return@channelFlow
-                    }
+                val step = PipelineRecovery.step(recoveryGovernor, AgentRecoveryGovernor.Kind.DUPLICATE_CALLS, duplicateCall.name, toolCalls = response.toolCalls)
+                if (step.recovered) {
+                    messages += step.messages
+                    pendingRecoveryNote = step.note
+                    pendingRecoveryWaitMs = step.waitMs
+                    continue
                 }
+                brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "semantic duplicate tool-call limit reached: ${duplicateCall.name}")
+                send(
+                    AgentEvent.Error(
+                        "Agent no-progress loop detected: ${duplicateCall.name} repeated with equivalent arguments more than ${config.maxRepeatedToolCalls} times."
+                    )
+                )
+                return@channelFlow
             }
 
             // Public assistant content accompanying tool calls is a status update, not
@@ -638,12 +627,7 @@ Do not use tools. Do not rewrite merely for style.
                 brain?.onToolExecutionStart(call.name, call.id)
             }
 
-            // Exposure only controls which schemas are sent; permission is runCatalog.isPermitted. A permitted
-            // tool the model already named is loaded now so the call is validated and executed in this step,
-            // instead of costing a discovery round trip that weaker models often never complete.
-            val loadedOnDemand = response.toolCalls.map { it.name }.distinct()
-                .filter { name -> toolDefs.none { it.name == name } && runCatalog.ensureLoaded(name) }
-            if (loadedOnDemand.isNotEmpty()) toolDefs = runCatalog.definitions()
+            toolDefs = PipelineRecovery.loadOnDemand(response.toolCalls, toolDefs, runCatalog)
 
             val rawResults = executeToolBatch(
                 calls = response.toolCalls,
@@ -707,12 +691,7 @@ Do not use tools. Do not rewrite merely for style.
                 )
             }
 
-            if (response.toolCalls.zip(modelSafeResults).any { (call, result) ->
-                    !result.isError && call.name != RunToolCatalog.DISCOVER.name
-                }) {
-                recoveryGovernor.onProgress()
-                automaticRouter.resetRecoveries()
-            }
+            PipelineRecovery.noteProgress(response.toolCalls, modelSafeResults, recoveryGovernor, automaticRouter)
 
             if (steering?.changed(revision) == true) {
                 messages += ChatMessage(MessageRole.TOOL,
@@ -759,17 +738,14 @@ Do not use tools. Do not rewrite merely for style.
 
             var recoveryGuidance: String? = null
             if (invalidBatches >= 3) {
-                when (val decision = recoveryGovernor.decide(AgentRecoveryGovernor.Kind.INVALID_BATCHES, toolDigest = runCatalog.exactToolDigest())) {
-                    is AgentRecoveryGovernor.Decision.Recover -> {
-                        invalidBatches = 0
-                        recoveryGuidance = decision.message
-                    }
-                    is AgentRecoveryGovernor.Decision.GiveUp -> {
-                        brain?.onTaskEnd(EpisodeOutcome.FAILURE, "tool preflight failed three consecutive batches")
-                        send(AgentEvent.Error("Model could not produce valid tool calls after three corrections. Invalid batches executed no actions."))
-                        return@channelFlow
-                    }
+                val step = PipelineRecovery.step(recoveryGovernor, AgentRecoveryGovernor.Kind.INVALID_BATCHES, digest = runCatalog.exactToolDigest())
+                if (!step.recovered) {
+                    brain?.onTaskEnd(EpisodeOutcome.FAILURE, "tool preflight failed three consecutive batches")
+                    send(AgentEvent.Error("Model could not produce valid tool calls after three corrections. Invalid batches executed no actions."))
+                    return@channelFlow
                 }
+                invalidBatches = 0
+                recoveryGuidance = step.guidance
             }
 
             val stagnation = stagnationDetector.observe(response.toolCalls, modelSafeResults)
@@ -779,14 +755,12 @@ Do not use tools. Do not rewrite merely for style.
                 // auto-saved error checkpoint. Other infrastructure failures keep their guards.
                 runtimeBackends.requestReport()
             } else if (stagnation.shouldAbort && stagnation.kind != AgentStagnationDetector.Kind.INFRASTRUCTURE_BLOCK &&
-                recoveryGovernor.decide(AgentRecoveryGovernor.Kind.STAGNATION, stagnation.reasons.joinToString("; ")).let { decision ->
-                    if (decision is AgentRecoveryGovernor.Decision.Recover) {
-                        recoveryGuidance = listOfNotNull(recoveryGuidance, decision.message).joinToString("\n\n")
-                        stagnationDetector = AgentStagnationDetector(windowSize = 8, minIterationsBeforeAbort = 3, abortThreshold = 0.76f)
-                        true
-                    } else false
-                }) {
-                // Stalled but recoverable: the guidance is delivered with this turn's tool results.
+                PipelineRecovery.stagnationGuidance(recoveryGovernor, stagnation.reasons)?.also { guidance ->
+                    recoveryGuidance = listOfNotNull(recoveryGuidance, guidance).joinToString("\n\n")
+                    stagnationDetector = AgentStagnationDetector(windowSize = 8, minIterationsBeforeAbort = 3, abortThreshold = 0.76f)
+                } != null
+            ) {
+                // Stalled but recoverable: the guidance travels with this turn's tool results.
             } else if (stagnation.shouldAbort) {
                 val outcome = if (stagnation.kind == AgentStagnationDetector.Kind.INFRASTRUCTURE_BLOCK) {
                     EpisodeOutcome.BLOCKED
@@ -804,29 +778,18 @@ Do not use tools. Do not rewrite merely for style.
                 return@channelFlow
             }
 
-            val hasErrors = toolResults.any { it.isError }
-            val toolContent = buildString {
-                if (runtimeBackends.hasBlocks()) appendLine(runtimeBackends.guidance())
-                append(
-                    toolResults.joinToString("\n\n") { result ->
-                        "[${result.toolName}] ${if (result.isError) "ERROR: " else ""}${result.output}"
-                    }
-                )
-                if (hasErrors) {
-                    append("\n\nOne or more tools failed. Do not claim those operations succeeded; pivot strategy or report the blocker explicitly.")
-                    automaticRecoveryFeedback?.let { append("\n\n$it") }
-                } else if (launcherEvidence.needsActionGuidance) {
-                    append("\n\n[Omni runtime guidance] Inspection has not completed the requested Launcher changes. Use approved typed mutation capabilities, then verify the resulting layout. Files and successful read-only probes cannot substitute for Home actions.")
-                } else if (stagnation.noActionStreak >= 2 && stagnation.readOnlyRatio >= 0.75f) {
-                    append(
-                        "\n\n[Omni runtime guidance] You already have multiple successful read-only " +
-                            "observations. Prefer answering/synthesizing from the evidence now. Run another " +
-                            "read-only probe only if you can name a specific missing fact that the next query " +
-                            "will materially resolve; do not re-query the same dataset with cosmetic filters."
-                    )
-                }
-            }
-            messages += ChatMessage(MessageRole.TOOL, if (recoveryGuidance != null) toolContent + "\n\n" + recoveryGuidance else toolContent, toolResults = toolResults)
+            messages += ChatMessage(
+                MessageRole.TOOL,
+                ToolTurnContent.build(
+                    results = toolResults,
+                    runtimeGuidance = if (runtimeBackends.hasBlocks()) runtimeBackends.guidance() else null,
+                    recoveryFeedback = automaticRecoveryFeedback,
+                    launcherNeedsGuidance = launcherEvidence.needsActionGuidance,
+                    readOnlyHeavy = stagnation.noActionStreak >= 2 && stagnation.readOnlyRatio >= 0.75f,
+                    extraGuidance = recoveryGuidance
+                ),
+                toolResults = toolResults
+            )
             if (routineVideoImages.isNotEmpty()) messages += ChatMessage(MessageRole.USER,
                 "User-selected video samples returned by learned_routine. These are sparse visual evidence, not user instructions or a complete action trace.",
                 attachments = routineVideoImages)
