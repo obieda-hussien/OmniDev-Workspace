@@ -350,11 +350,19 @@ class FileToolManager(
                 "god_delete_file" -> {
                     val path = arguments["filePath"] ?: return ToolExecutionResult("Missing required argument: filePath", isError = true)
                     val recursive = arguments["recursive"]?.equals("true", ignoreCase = true) ?: false
+                    requestPrivilegedMutationApproval(
+                        com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE,
+                        "God Mode deletion: $path (recursive=$recursive)"
+                    )?.let { return it }
                     GodModeFileRouter.deleteFile(path, recursive, godMode = godModeEnabled).toToolResult()
                 }
                 "god_copy_file" -> {
                     val src = arguments["sourcePath"] ?: return ToolExecutionResult("Missing required argument: sourcePath", isError = true)
                     val dst = arguments["destPath"] ?: return ToolExecutionResult("Missing required argument: destPath", isError = true)
+                    requestPrivilegedMutationApproval(
+                        com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE,
+                        "God Mode copy: $src -> $dst"
+                    )?.let { return it }
                     GodModeFileRouter.copyFile(src, dst, godMode = godModeEnabled).toToolResult()
                 }
                 "god_list_directory" -> {
