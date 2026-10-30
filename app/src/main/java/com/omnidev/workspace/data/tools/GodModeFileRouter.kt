@@ -344,7 +344,7 @@ object GodModeFileRouter {
                             "\n\n[TRUNCATED at ${MAX_READ_BYTES / 1024}KB]"
                         else output
                         GodModeResult.Success(content = content, escalated = true,
-                            note = "🔓 Read via privileged shell (Shizuku/rish/root)")
+                            note = "🔓 Read via the configured Android shell backend")
                     },
                     onFailure = { ex ->
                         GodModeResult.Failure(
@@ -380,7 +380,7 @@ object GodModeFileRouter {
                         GodModeResult.Success(
                             content = "Wrote ${content.length} chars to $canonical",
                             escalated = true,
-                            note = "🔓 Written via privileged shell (Shizuku/rish/root)"
+                            note = "🔓 Written via the configured Android shell backend"
                         )
                     },
                     onFailure = { ex ->
@@ -406,7 +406,7 @@ object GodModeFileRouter {
                     GodModeResult.Success(
                         content = output.ifBlank { successMsg },
                         escalated = true,
-                        note = "🔓 Executed via privileged shell (Shizuku/rish/root)"
+                        note = "🔓 Executed via the configured Android shell backend"
                     )
                 },
                 onFailure = { ex ->
