@@ -285,7 +285,8 @@ class ChatViewModel(
             effectiveGate.request(kind, preview, diffContent)
         }
         ftm?.privilegedFileConfirmationGate = { kind, preview ->
-            effectiveGate.request(kind, preview, null)
+            // Privileged writes/copies/deletes always require an interactive user decision.
+            uiGate.request(kind, preview, null)
         }
         compositeToolManager?.confirmationGate = effectiveGate
         val routineReview = kotlinx.coroutines.sync.Mutex()
