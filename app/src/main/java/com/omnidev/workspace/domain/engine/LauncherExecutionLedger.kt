@@ -79,7 +79,7 @@ internal class LauncherExecutionLedger(objective: String) {
             mutated = true
             expectedRevision = payload?.optString("expectedRevision")?.takeIf { it.isNotBlank() }
             latestLayoutRevision = null
-            verified = !data.optBoolean("reloadScheduled")
+            verified = action !in homeMutations && !data.optBoolean("reloadScheduled")
             failure = null
         }
     }
