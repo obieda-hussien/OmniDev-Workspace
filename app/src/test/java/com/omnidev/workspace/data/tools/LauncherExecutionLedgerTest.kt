@@ -123,4 +123,29 @@ class LauncherExecutionLedgerTest {
         val freshFolderArgs = folderArgs + ("json_payload" to """{"expectedRevision":"rev-2","title":"Tools","itemIds":[22,33]}""")
         assertNull(ledger.checkTool("omni_link", freshFolderArgs))
     }
+
+    @Test fun paginatedLayoutMustBeFullyReadBeforeHomeMutation() {
+        val ledger = LauncherExecutionLedger("Organize launcher home screen")
+        val layoutArgs = mapOf(
+            "action" to "execute_capability",
+            "action_name" to "launcher.get_layout",
+            "json_payload" to "{}"
+        )
+        ledger.observe("omni_link", layoutArgs,
+            outcome(JSONObject().put("revision", "rev-1").put("total", 56).put("nextOffset", 40)), false)
+
+        val mutationArgs = mapOf(
+            "action" to "execute_capability",
+            "action_name" to "launcher.set_grid",
+            "json_payload" to """{"expectedRevision":"rev-1","rows":5,"columns":5}"""
+        )
+        val blocked = ledger.checkTool("omni_link", mutationArgs)
+        assertNotNull(blocked)
+        assertTrue(blocked!!.contains("offset=40"))
+
+        ledger.observe("omni_link",
+            layoutArgs + ("json_payload" to """{"offset":40}"""),
+            outcome(JSONObject().put("revision", "rev-1").put("total", 56).put("nextOffset", JSONObject.NULL)), false)
+        assertNull(ledger.checkTool("omni_link", mutationArgs))
+    }
 }
