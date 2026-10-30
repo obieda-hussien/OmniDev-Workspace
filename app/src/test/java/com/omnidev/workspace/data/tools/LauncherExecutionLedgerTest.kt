@@ -142,10 +142,38 @@ class LauncherExecutionLedgerTest {
         val blocked = ledger.checkTool("omni_link", mutationArgs)
         assertNotNull(blocked)
         assertTrue(blocked!!.contains("offset=40"))
+        val wrongPage = ledger.checkTool("omni_link",
+            layoutArgs + ("json_payload" to """{"offset":20}"""))
+        assertNotNull(wrongPage)
+        assertTrue(wrongPage!!.contains("expected offset=40"))
 
         ledger.observe("omni_link",
             layoutArgs + ("json_payload" to """{"offset":40}"""),
             outcome(JSONObject().put("revision", "rev-1").put("total", 56).put("nextOffset", JSONObject.NULL)), false)
         assertNull(ledger.checkTool("omni_link", mutationArgs))
+    }
+
+    @Test fun revisionChangeDuringLayoutPagingRestartsFromFirstPage() {
+        val ledger = LauncherExecutionLedger("Organize launcher home screen")
+        val initial = mapOf("action" to "execute_capability", "action_name" to "launcher.get_layout", "json_payload" to "{}")
+        ledger.observe("omni_link", initial,
+            outcome(JSONObject().put("revision", "rev-1").put("nextOffset", 40)), false)
+
+        ledger.observe("omni_link", initial + ("json_payload" to """{"offset":40}"""),
+            outcome(JSONObject().put("revision", "rev-2").put("nextOffset", JSONObject.NULL)), false)
+
+        val mutation = mapOf("action" to "execute_capability", "action_name" to "launcher.set_grid",
+            "json_payload" to """{"expectedRevision":"rev-2","rows":5,"columns":5}""")
+        assertNotNull(ledger.checkTool("omni_link", mutation))
+        assertNotNull(ledger.checkTool("omni_link",
+            initial + ("json_payload" to """{"offset":40}""")))
+        assertNull(ledger.checkTool("omni_link",
+            initial + ("json_payload" to """{"offset":0}""")))
+
+        ledger.observe("omni_link", initial + ("json_payload" to """{"offset":0}"""),
+            outcome(JSONObject().put("revision", "rev-2").put("nextOffset", 40)), false)
+        ledger.observe("omni_link", initial + ("json_payload" to """{"offset":40}"""),
+            outcome(JSONObject().put("revision", "rev-2").put("nextOffset", JSONObject.NULL)), false)
+        assertNull(ledger.checkTool("omni_link", mutation))
     }
 }
