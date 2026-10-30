@@ -341,6 +341,10 @@ class FileToolManager(
                     val path = arguments["filePath"] ?: return ToolExecutionResult("Missing required argument: filePath", isError = true)
                     val content = arguments["content"] ?: return ToolExecutionResult("Missing required argument: content", isError = true)
                     val append = arguments["append"]?.equals("true", ignoreCase = true) ?: false
+                    requestPrivilegedMutationApproval(
+                        com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE,
+                        "God Mode file write: ${if (append) "append" else "overwrite"} $path (${content.length} characters)"
+                    )?.let { return it }
                     GodModeFileRouter.writeFile(path, content, append, godMode = godModeEnabled).toToolResult()
                 }
                 "god_delete_file" -> {
