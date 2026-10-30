@@ -23,6 +23,8 @@ internal class LauncherExecutionLedger(objective: String) {
     private var verified = false
     private var expectedRevision: String? = null
     private var latestLayoutRevision: String? = null
+    private var layoutPagesComplete: Boolean = false
+    private var pendingLayoutOffset: Int? = null
     private var failure: String? = null
     private var recoveries = 0
     val exhausted get() = recoveries > 2
@@ -49,6 +51,9 @@ internal class LauncherExecutionLedger(objective: String) {
             if (expected != latest) {
                 return "Launcher mutation blocked: stale expectedRevision. Fetch launcher.get_layout again and use its newest revision as expectedRevision. No mutation was sent."
             }
+            if (!layoutPagesComplete) {
+                return "Launcher mutation blocked: get_layout is paginated. Fetch the remaining layout page using offset=${pendingLayoutOffset ?: "from nextOffset"} and its exact capability schema; do not mutate until nextOffset is null."
+            }
         }
         return null
     }
@@ -60,7 +65,11 @@ internal class LauncherExecutionLedger(objective: String) {
         val envelope = runCatching { JSONObject(output.substring(output.indexOf('{'))) }.getOrNull()
         if (isError || envelope?.optBoolean("ok") != true) {
             failure = envelope?.optString("code") ?: "tool_failure"
-            if (action in homeMutations) latestLayoutRevision = null
+            if (action in homeMutations) {
+                latestLayoutRevision = null
+                layoutPagesComplete = false
+                pendingLayoutOffset = null
+            }
             return
         }
         val outcome = runCatching { JSONObject(envelope.getString("result_json")) }.getOrNull() ?: return
@@ -69,6 +78,11 @@ internal class LauncherExecutionLedger(objective: String) {
         if (action == "launcher.get_layout") {
             val revision = data.optString("revision")
             if (revision.isNotBlank()) latestLayoutRevision = revision
+            val next = if (data.has("nextOffset") && !data.isNull("nextOffset")) {
+                data.optInt("nextOffset").takeIf { it >= 0 }
+            } else null
+            pendingLayoutOffset = next
+            layoutPagesComplete = next == null
             if (mutated && !verified && revision.isNotBlank() && revision != expectedRevision) verified = true
             return
         }
@@ -79,6 +93,8 @@ internal class LauncherExecutionLedger(objective: String) {
             mutated = true
             expectedRevision = payload?.optString("expectedRevision")?.takeIf { it.isNotBlank() }
             latestLayoutRevision = null
+            layoutPagesComplete = false
+            pendingLayoutOffset = null
             verified = action !in homeMutations && !data.optBoolean("reloadScheduled")
             failure = null
         }
@@ -100,8 +116,8 @@ internal class LauncherExecutionLedger(objective: String) {
     fun completionFeedback(): String? {
         if (!needsActionGuidance) return null
         recoveries++
-        return if (mutated) "A Launcher mutation already succeeded. Read launcher.get_layout again and verify a fresh revision and the requested arrangement before finishing. Do not repeat the mutation blindly."
-        else "The user requested Launcher changes, but no real mutation succeeded. Read-only discovery/health/layout/apps is not completion. Discover the actual extension (never guess package IDs), fetch needed pages/schemas, then execute the appropriate approved capability. For Home folders use launcher.create_home_folder, not drawer rules or files. If denied, report the real blocker without claiming success."
+        return if (mutated) "A Launcher mutation already succeeded. Read every launcher.get_layout page until nextOffset is null, then verify the fresh revision and requested arrangement before finishing. Do not repeat the mutation blindly."
+        else "The user requested Launcher changes, but no real mutation succeeded. Read-only discovery/health/layout/apps is not completion. Fetch every get_layout page until nextOffset is null, fetch the exact capability schemas, then execute the appropriate approved capability. For Home folders use launcher.create_home_folder, not drawer rules or files. If denied, report the real blocker without claiming success."
     }
     fun failureMessage() = "Launcher changes remain unverified: " + (failure ?: if (mutated) "reload not verified" else "no successful Launcher mutation")
 
