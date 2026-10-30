@@ -17,6 +17,11 @@ class AutomaticToolRouter(private val catalog: RunToolCatalog) {
             "No operation was executed by retrieval. Do not claim completion without evidence."
     }
 
+    /** Real progress starts a fresh recovery episode instead of spending one budget per whole run. */
+    fun resetRecoveries() {
+        recoveries = 0
+    }
+
     fun unavailableToolReply(content: String): Boolean = UNAVAILABLE.any { it in content.lowercase() }
 
     /** A whole-response operation proposal, never extraction from prose or observations. */
@@ -41,9 +46,20 @@ class AutomaticToolRouter(private val catalog: RunToolCatalog) {
         decoded.error?.let { return rejected(it) }
         val match = catalog.matchOperation(intent.content)
         catalog.loadCandidates(match.candidates)
-        val tool = match.tool ?: return rejected("Operation is ambiguous or unregistered. Candidates loaded for the next request: " +
-            match.candidates.joinToString { it.name } + ". Clarify the operation; no action was executed.")
-        if (tool.name !in exposedNames) return rejected("${tool.name} is now loaded. Read its schema in the next request and resubmit; no action was executed.")
+        val tool = match.tool ?: run {
+            // Strict matching needs overlapping English terms, so an intent in another language finds nothing.
+            // Offer the wider retrieval result (with exact signatures) instead of a dead-end, still without executing.
+            val candidates = match.candidates.ifEmpty { catalog.looseCandidates(intent.content).also { catalog.loadCandidates(it) } }
+            return rejected(buildString {
+                append("Operation is ambiguous or unregistered. ")
+                if (candidates.isEmpty()) append("No close tool was found; name an exact tool from: ${catalog.exactToolDigest(12)}.")
+                else append("Candidates loaded for the next request: ${candidates.joinToString("; ") { catalog.signature(it) }}.")
+                append(" Clarify the operation; no action was executed.")
+            })
+        }
+        // A unique, permitted match carrying explicit arguments is executed even if its schema was not
+        // loaded yet. Loading is only prompt economy; the strict argument contract still runs afterwards.
+        if (tool.name !in exposedNames) catalog.ensureLoaded(tool.name)
         return response.copy(content = "", toolCalls = listOf(ToolCall(
             "operation_${UUID.randomUUID()}", tool.name, decoded.arguments, textProtocol = true
         )))

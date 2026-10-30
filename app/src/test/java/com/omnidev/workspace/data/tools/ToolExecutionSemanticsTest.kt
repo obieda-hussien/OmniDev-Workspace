@@ -186,5 +186,34 @@ class ToolExecutionSemanticsTest {
         assertFalse(result.retryable)
     }
 
+    @Test
+    fun `termux wait timeout is transient and not an external-apps block`() {
+        val raw = ToolExecutionResult(
+            output = "terminal failed [Termux err=1]\n[termux] Timed out waiting for Termux result after 120000ms\n" +
+                "Termux setup: install official Termux, grant com.termux.permission.RUN_COMMAND to OmniDev, then set " +
+                "allow-external-apps=true in ~/.termux/termux.properties and restart Termux.",
+            isError = true
+        )
+
+        val result = ToolExecutionSemantics.normalize("agent_runtime", raw)
+
+        assertTrue(result.isError)
+        assertEquals("TERMUX_RESULT_TIMEOUT", result.classification)
+        assertTrue(result.retryable)
+        assertFalse(result.persistentFailure)
+    }
+
+    @Test
+    fun `explicit external-apps refusal stays a persistent block`() {
+        val raw = ToolExecutionResult(
+            output = "Termux refused the command: set allow-external-apps=true in ~/.termux/termux.properties",
+            isError = true
+        )
+
+        val result = ToolExecutionSemantics.normalize("agent_runtime", raw)
+
+        assertEquals("TERMUX_EXTERNAL_APPS_DISABLED", result.classification)
+        assertTrue(result.persistentFailure)
+    }
 
 }

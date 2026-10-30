@@ -110,5 +110,9 @@
   "app/src/main/java/com/omnidev/workspace/domain/engine/LauncherExecutionLedger.kt": {
     "sha256": "4bf2d95a4387dbd72119f6171e52412d7371f32c4c03dc03ae868c16eb9a6dc2",
     "purpose": "Functional Arabic input matching for Launcher execution intent and negation; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/UnfulfilledPromiseDetector.kt": {
+    "sha256": "0b41f32354147eb493629da63296c00aa52979a90475088080e69aa824ad6a8c",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   }
 }

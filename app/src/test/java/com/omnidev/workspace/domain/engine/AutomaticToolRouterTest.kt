@@ -28,13 +28,36 @@ class AutomaticToolRouterTest {
         assertNotNull(call.argumentError)
         assertTrue(call.argumentError!!.contains("ambiguous"))
     }
-    @Test fun `unexposed match requires a second proposal after schema loading`() {
+    @Test fun `unexposed unique match is loaded and still returned as a real proposal`() {
         val catalog = RunToolCatalog(tools, "files")
         val router = AutomaticToolRouter(catalog)
-        val rejected = router.adapt(proposal("message_lookup"), emptySet()).toolCalls.single()
-        assertNotNull(rejected.argumentError)
+        val call = router.adapt(proposal("message_lookup", """{"query":"Ahmed"}"""), emptySet()).toolCalls.single()
+        assertNull(call.argumentError)
+        assertEquals("message_lookup", call.name)
+        assertEquals(mapOf("query" to "Ahmed"), call.arguments)
         assertTrue(catalog.definitions().any { it.name == "message_lookup" })
-        assertNull(router.adapt(proposal("message_lookup"), setOf("message_lookup")).toolCalls.single().argumentError)
+    }
+    @Test fun `weak intent gets wider candidates with exact signatures instead of a dead end`() {
+        val catalog = RunToolCatalog(tools, "elsewhere")
+        val call = AutomaticToolRouter(catalog).adapt(proposal("files elsewhere"), emptySet()).toolCalls.single()
+        assertNotNull(call.argumentError)
+        assertTrue(call.argumentError!!.contains("ambiguous"))
+        assertTrue(call.argumentError!!.contains("file_lookup(path"))
+    }
+    @Test fun `an unmatched intent always names exact tools instead of an empty candidate list`() {
+        val catalog = RunToolCatalog(tools, "x")
+        val call = AutomaticToolRouter(catalog).adapt(proposal("zzzz qqqq"), emptySet()).toolCalls.single()
+        assertNotNull(call.argumentError)
+        assertTrue(call.argumentError!!.contains("_lookup("))
+        assertFalse(call.argumentError!!.contains("loaded for the next request: ."))
+    }
+    @Test fun `recoveries can be reset when real progress happens`() {
+        val router = AutomaticToolRouter(RunToolCatalog(tools.take(1), "files"))
+        assertNotNull(router.recovery("files", "x"))
+        assertNotNull(router.recovery("files", "x"))
+        assertNull(router.recovery("files", "x"))
+        router.resetRecoveries()
+        assertNotNull(router.recovery("files", "x"))
     }
     @Test fun `equal concrete matches also require clarification`() {
         val registry = listOf(ToolDefinition("search_a", "Search messages"), ToolDefinition("search_b", "Search messages"))

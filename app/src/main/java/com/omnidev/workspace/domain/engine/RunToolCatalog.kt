@@ -7,7 +7,7 @@ import kotlin.math.ln
 /** Run-local lexical retrieval over the permitted registry; loading is never permission. */
 class RunToolCatalog(
     definitions: List<ToolDefinition>,
-    objective: String,
+    private val objective: String,
     preferred: Set<String> = emptySet(),
     private val quality: Map<String, Float> = emptyMap(),
     private val additionalDomains: Set<IntentClassifier.ToolDomain> = emptySet(),
@@ -75,10 +75,39 @@ class RunToolCatalog(
         }
     }
 
+    /**
+     * Makes an already permitted tool visible. Exposure only controls which schemas are sent to the
+     * model (token economy); permission is [isPermitted], so loading a permitted tool on demand never
+     * widens what a run may do. Returns false when the tool is not permitted for this run.
+     */
+    fun ensureLoaded(name: String): Boolean {
+        val tool = catalog.firstOrNull { it.name == name } ?: return false
+        if (name !in loaded) load(listOf(tool))
+        return true
+    }
+
+    fun isLoaded(name: String): Boolean = name in loaded
+
+    /** Wider than [matchOperation]: used only to offer candidates when strict matching finds none. */
+    fun looseCandidates(intent: String): List<ToolDefinition> =
+        search(intent.ifBlank { objective }, SEARCH_SIZE)
+
+    /** One line per tool: `name(param*, other)` where `*` marks a required parameter. */
+    fun signature(tool: ToolDefinition): String =
+        tool.name + tool.parameters.joinToString(prefix = "(", postfix = ")") { it.name + if (it.required) "*" else "" }
+
+    /** Exact names and parameters of the permitted tools, for recovery messages to confused models. */
+    fun exactToolDigest(limit: Int = DIGEST_SIZE): String =
+        catalog.sortedBy { it.name }.take(limit).joinToString("; ") { signature(it) } +
+            if (catalog.size > limit) "; +${catalog.size - limit} more (use discover_tools)" else ""
+
     fun discover(query: String): ToolExecutionResult {
-        if (query.isBlank()) return ToolExecutionResult("Use a concrete task or exact tool name as query.", true,
+        // A model that calls discovery without a query (common with small models) is helped, not rejected:
+        // fall back to the run objective, which is what the automatic retrieval already uses.
+        val effectiveQuery = query.ifBlank { objective }
+        if (effectiveQuery.isBlank()) return ToolExecutionResult("Use a concrete task or exact tool name as query.", true,
             classification = "INVALID_TOOL_ARGUMENTS")
-        val matches = search(query, SEARCH_SIZE)
+        val matches = search(effectiveQuery, SEARCH_SIZE)
         if (matches.isEmpty()) return ToolExecutionResult("No registered tool matched. Describe the needed operation differently; do not invent tool names.")
         load(matches)
         return ToolExecutionResult(buildString {
@@ -124,10 +153,11 @@ class RunToolCatalog(
         private const val INITIAL_SIZE = 24
         private const val MAX_LOADED = 40
         private const val SEARCH_SIZE = 6
+        private const val DIGEST_SIZE = 40
         private val WORD = Regex("[\\p{L}\\p{N}_.-]+")
         private val STOP = setOf("the", "and", "for", "with", "tool", "tools", "use", "عايز", "اعمل", "من", "في", "علي", "failed", "returned", "error", "tool_error", "success", "retryable", "persistent", "class", "false", "true", "omni-outcome")
         val DISCOVER = ToolDefinition("discover_tools",
             "Find and load real tools for a concrete task or exact name. Returns registered schemas. Use when no loaded tool fits; never guess a tool name. Loading does not grant access.",
-            listOf(ToolParameter("query", "string", "Concrete operation, keywords, or exact tool name.")))
+            listOf(ToolParameter("query", "string", "Concrete operation, keywords, or exact tool name. Optional: defaults to the run objective.", required = false)))
     }
 }
