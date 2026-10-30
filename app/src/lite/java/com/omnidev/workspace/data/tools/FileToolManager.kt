@@ -11,6 +11,7 @@ class FileToolManager(godModeEnabled: Boolean = false) : ToolManager {
         get() = false
         set(value) { }
     @Volatile var confirmationGate: (suspend (String, String?) -> Boolean)? = null
+    @Volatile var privilegedFileConfirmationGate: (suspend (com.omnidev.workspace.core.policy.ConfirmationKind, String) -> Boolean)? = null
     override fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition("read_file", "Read an explicitly selected document or private workspace file.", path()),
         ToolDefinition("read_file_lines", "Read at most 500 authorized lines.", path() + listOf(ToolParameter("startLine", "integer", "First line", true), ToolParameter("endLine", "integer", "Last line", true))),
