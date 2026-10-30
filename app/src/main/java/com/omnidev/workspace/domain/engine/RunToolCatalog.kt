@@ -158,6 +158,6 @@ class RunToolCatalog(
         private val STOP = setOf("the", "and", "for", "with", "tool", "tools", "use", "عايز", "اعمل", "من", "في", "علي", "failed", "returned", "error", "tool_error", "success", "retryable", "persistent", "class", "false", "true", "omni-outcome")
         val DISCOVER = ToolDefinition("discover_tools",
             "Find and load real tools for a concrete task or exact name. Returns registered schemas. Use when no loaded tool fits; never guess a tool name. Loading does not grant access.",
-            listOf(ToolParameter("query", "string", "Concrete operation, keywords, or exact tool name.")))
+            listOf(ToolParameter("query", "string", "Concrete operation, keywords, or exact tool name. Optional: defaults to the run objective.", required = false)))
     }
 }

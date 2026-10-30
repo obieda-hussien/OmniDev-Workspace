@@ -99,6 +99,15 @@ class AgentPipelineRecoveryTest {
         assertEquals("Verified", events.filterIsInstance<AgentEvent.FinalAnswer>().single().content)
     }
 
+    @Test fun `a promise that is never kept ends as an explicit incomplete result`() = runTest {
+        val tools = FakeTools()
+        val pipeline = AgentPipeline(tools, completionProvider = { CompletionResponse("I'll start by reading the file:") }, config = config)
+        val events = pipeline.execute("Read the file", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
+        val final = events.filterIsInstance<AgentEvent.FinalAnswer>().single()
+        assertTrue(final.content.startsWith("[Incomplete]"))
+        assertTrue(tools.executed.isEmpty())
+    }
+
     @Test fun `a repeated identical call is blocked and the run continues instead of being cancelled`() = runTest {
         val tools = FakeTools()
         var round = 0

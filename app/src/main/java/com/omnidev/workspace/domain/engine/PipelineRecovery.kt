@@ -67,19 +67,36 @@ internal object PipelineRecovery {
         is AgentRecoveryGovernor.Decision.GiveUp -> RecoveryStep(recovered = false)
     }
 
-    /** A blank reply, or one that only announces work. Null when the reply is a normal final answer. */
-    fun stall(governor: AgentRecoveryGovernor, content: String, lastObservation: String?): RecoveryStep? {
+    /** Prefix of a result published when the model kept announcing work it never performed. */
+    const val INCOMPLETE_PREFIX = "[Incomplete]"
+
+    /**
+     * A blank reply (always, even with tools disabled), or one that only announces work (only when tools
+     * exist, since otherwise there is nothing to act with). Null when the reply is a normal final answer.
+     * When recovery is exhausted the result is never a silent success: a blank reply becomes an
+     * explanation and an unkept promise is published explicitly marked as incomplete.
+     */
+    fun stall(
+        governor: AgentRecoveryGovernor,
+        content: String,
+        lastObservation: String?,
+        toolsAvailable: Boolean = true
+    ): RecoveryStep? {
         val kind = when {
             content.isBlank() -> AgentRecoveryGovernor.Kind.EMPTY_RESPONSE
-            UnfulfilledPromiseDetector.isUnfulfilled(content) -> AgentRecoveryGovernor.Kind.UNKEPT_PROMISE
+            toolsAvailable && UnfulfilledPromiseDetector.isUnfulfilled(content) -> AgentRecoveryGovernor.Kind.UNKEPT_PROMISE
             else -> return null
         }
         val step = step(governor, kind, assistantText = content)
-        if (step.recovered || content.isNotBlank()) return step
-        // Never publish a blank answer: say what is known instead.
+        if (step.recovered) return step
         return step.copy(
-            fallbackContent = "The model returned no answer after several attempts. " +
-                (lastObservation?.let { "Latest observation: $it" } ?: "No tool evidence was collected.")
+            fallbackContent = if (content.isBlank()) {
+                "The model returned no answer after several attempts. " +
+                    (lastObservation?.let { "Latest observation: $it" } ?: "No tool evidence was collected.")
+            } else {
+                "$INCOMPLETE_PREFIX The model announced next steps but did not perform them after several attempts. " +
+                    "Its last message:\n\n$content"
+            }
         )
     }
 

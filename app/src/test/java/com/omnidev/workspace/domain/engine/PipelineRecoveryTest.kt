@@ -29,12 +29,19 @@ class PipelineRecoveryTest {
         assertTrue(last.fallbackContent!!.contains("file listed"))
     }
 
-    @Test fun `an exhausted promise keeps the model's own text`() {
+    @Test fun `an exhausted promise is published as explicitly incomplete not as a success`() {
         val governor = AgentRecoveryGovernor()
         repeat(2) { PipelineRecovery.stall(governor, "I'll start now:", null) }
         val last = PipelineRecovery.stall(governor, "I'll start now:", null)!!
         assertFalse(last.recovered)
-        assertNull(last.fallbackContent)
+        assertTrue(last.fallbackContent!!.startsWith(PipelineRecovery.INCOMPLETE_PREFIX))
+        assertTrue(last.fallbackContent!!.contains("I'll start now:"))
+    }
+
+    @Test fun `without tools a blank reply is still recovered but a promise is left alone`() {
+        val governor = AgentRecoveryGovernor()
+        assertTrue(PipelineRecovery.stall(governor, "", null, toolsAvailable = false)!!.recovered)
+        assertNull(PipelineRecovery.stall(governor, "I'll start now:", null, toolsAvailable = false))
     }
 
     @Test fun `duplicate recovery answers every call without executing any`() {

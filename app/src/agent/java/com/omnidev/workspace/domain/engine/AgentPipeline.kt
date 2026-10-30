@@ -511,8 +511,8 @@ Do not use tools. Do not rewrite merely for style.
                     phase(AgentExecutionPhase.IMPLEMENT, "Launcher execution still needs verification")
                     continue
                 }
-                val stall = if (toolDefs.isNotEmpty() && !runtimeBackends.hasBlocks()) {
-                    PipelineRecovery.stall(recoveryGovernor, response.content, lastToolObservation)
+                val stall = if (!runtimeBackends.hasBlocks()) {
+                    PipelineRecovery.stall(recoveryGovernor, response.content, lastToolObservation, toolDefs.isNotEmpty())
                 } else null
                 if (stall != null) {
                     if (stall.recovered) {
@@ -826,7 +826,7 @@ Do not use tools. Do not rewrite merely for style.
                 true, classification = "RUN_REDIRECTED", retryable = false)
             if (call.name != RunToolCatalog.DISCOVER.name && !runCatalog.isPermitted(call.name)) return ToolExecutionResult(
                 "Tool is unavailable under the current access policy.", true, classification = "TOOL_NOT_AVAILABLE")
-            if (call.name == RunToolCatalog.DISCOVER.name) return runCatalog.discover(call.arguments.getValue("query"))
+            if (call.name == RunToolCatalog.DISCOVER.name) return runCatalog.discover(call.arguments["query"].orEmpty())
             launcherEvidence?.checkTool(call.name, call.arguments)?.let { reason ->
                 return ToolExecutionResult(reason, true, classification = "LAUNCHER_TYPED_ACTION_REQUIRED", retryable = false)
             }

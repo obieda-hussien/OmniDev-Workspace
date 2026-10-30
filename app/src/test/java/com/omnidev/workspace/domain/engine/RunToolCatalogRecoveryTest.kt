@@ -35,6 +35,11 @@ class RunToolCatalogRecoveryTest {
         assertTrue(result.output.contains("tool_77"))
     }
 
+    @Test fun `discover query is optional in the advertised schema`() {
+        val query = RunToolCatalog.DISCOVER.parameters.single { it.name == "query" }
+        assertFalse(query.required)
+    }
+
     @Test fun `discover is still rejected when there is no query and no objective`() {
         val result = RunToolCatalog(registry, "").discover("  ")
         assertTrue(result.isError)
