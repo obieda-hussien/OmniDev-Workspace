@@ -12,6 +12,17 @@ class TextToolCallAdapterTest {
         assertEquals("a.kt", adapted.toolCalls.single().arguments["path"])
         assertNull(adapted.toolCalls.single().argumentError)
     }
+    @Test fun `whole response markdown fences with json label and whitespace are normalized`() {
+        for (raw in listOf(
+            "```json\n$envelope\n```",
+            "```JSON\r\n$envelope\r\n```",
+            "  ``` \n$envelope\n```  "
+        )) {
+            val call = TextToolCallAdapter.adapt(CompletionResponse(raw)).toolCalls.single()
+            assertEquals("read_file", call.name)
+            assertNull(call.argumentError)
+        }
+    }
     @Test fun `prose and ordinary JSON are never scanned for commands`() {
         for (raw in listOf("Example: $envelope", "Do this $envelope now", "{\"name\":\"delete_file\"}", "{broken}")) {
             assertTrue(TextToolCallAdapter.adapt(CompletionResponse(raw)).toolCalls.isEmpty())
