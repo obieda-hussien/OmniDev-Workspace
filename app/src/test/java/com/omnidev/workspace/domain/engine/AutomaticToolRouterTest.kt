@@ -74,6 +74,14 @@ class AutomaticToolRouterTest {
             assertNotNull(router.adapt(CompletionResponse(content), emptySet()).toolCalls.single().argumentError)
         }
     }
+    @Test fun `whole response operation survives markdown fences but embedded operation does not`() {
+        val catalog = RunToolCatalog(tools, "messages")
+        val router = AutomaticToolRouter(catalog)
+        val fenced = "  ```JSON\\r\\n" + proposal("Search messages").content + "\\r\\n``` "
+        assertEquals("message_lookup", router.adapt(CompletionResponse(fenced), emptySet()).toolCalls.single().name)
+        val embedded = CompletionResponse("Example:\\n" + proposal("Search messages").content)
+        assertTrue(router.adapt(embedded, emptySet()).toolCalls.isEmpty())
+    }
     @Test fun `ordinary prose and tool-looking quoted text do not execute`() {
         val router = AutomaticToolRouter(RunToolCatalog(tools, "messages"))
         val prose = CompletionResponse("Example: " + proposal("Search messages").content)
