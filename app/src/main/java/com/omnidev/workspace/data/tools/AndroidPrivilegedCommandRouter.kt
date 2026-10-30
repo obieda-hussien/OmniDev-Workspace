@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.tools
 
+import android.os.Build
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 
 /**
@@ -20,6 +21,9 @@ object AndroidPrivilegedCommandRouter {
     ): ToolExecutionResult? {
         val violation = ExecutionDomainGuard.findViolation(command) ?: return null
         val prepared = ExecutionDomainGuard.preparePrivilegedCommand(command)
+        val adapted = AndroidShellCommandCompatibility.adapt(prepared.command, Build.VERSION.SDK_INT)
+        val executionCommand = adapted.command
+        fun note(output: String): String = adapted.note?.let { it + "\n" + output } ?: output
 
         // Preserve explicitly requested execution semantics. rish is an ADB-equivalent shell
         // transport; su means root. Neither should be silently downgraded to Shizuku shell uid.
@@ -42,9 +46,9 @@ object AndroidPrivilegedCommandRouter {
             }
         }
 
-        return when (val shizuku = ShizukuCommandTool.execute(prepared.command, timeoutMs)) {
+        return when (val shizuku = ShizukuCommandTool.execute(executionCommand, timeoutMs)) {
             is ShizukuResult.Success -> ToolExecutionResult(
-                output = ExecutionDomainGuard.applyOutputCompatibility(shizuku.output, prepared),
+                output = note(ExecutionDomainGuard.applyOutputCompatibility(shizuku.output, prepared)),
                 isError = false,
                 classification = "SUCCESS",
                 exitCode = 0,
@@ -62,7 +66,7 @@ object AndroidPrivilegedCommandRouter {
             )
 
             is ShizukuResult.Failure -> ToolExecutionResult(
-                output = "Android privileged command failed: ${shizuku.reason}",
+                output = note("Android privileged command failed: ${shizuku.reason}"),
                 isError = true,
                 classification = ToolExecutionSemantics.classifyText(shizuku.reason)
                     ?: "ANDROID_SHELL_COMMAND_FAILED",
