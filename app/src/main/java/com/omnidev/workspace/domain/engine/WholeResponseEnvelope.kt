@@ -5,7 +5,7 @@ package com.omnidev.workspace.domain.engine
  * Never extracts JSON from surrounding prose, quoted examples, or observations.
  */
 internal object WholeResponseEnvelope {
-    private val fence = Regex("(?is)^\\u0060\\u0060\\u0060(?:json)?[ \\t]*\\r?\\n(.*?)\\r?\\n?\\u0060\\u0060\\u0060[ \\t]*$")
+    private val fence = Regex("""(?is)^\x60\x60\x60(?:json)?[ \t]*\r?\n(.*?)\r?\n?\x60\x60\x60[ \t]*$""")
 
     fun normalize(raw: String): String {
         val trimmed = raw.trim()
