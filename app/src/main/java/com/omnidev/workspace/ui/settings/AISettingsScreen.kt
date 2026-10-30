@@ -94,7 +94,7 @@ fun AISettingsScreen(
             (com.omnidev.workspace.BuildConfig.TIER != "LITE" || entry.destination != SettingsDestination.INTEGRATIONS) &&
             (allowVoice || entry.destination != SettingsDestination.VOICE) &&
                 (com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility || entry.destination != SettingsDestination.ACCESSIBILITY) &&
-                (com.omnidev.workspace.BuildConfig.ALLOW_AGENT || entry.destination !in setOf(SettingsDestination.FILE_ACCESS, SettingsDestination.SCHEDULE))
+                (com.omnidev.workspace.BuildConfig.ALLOW_AGENT || entry.destination !in setOf(SettingsDestination.FILE_ACCESS, SettingsDestination.SCHEDULE, SettingsDestination.EXECUTION_MODES))
         }
     }
     val accessibilityConnected by com.omnidev.workspace.data.accessibility.AccessibilityStateManager
@@ -216,6 +216,7 @@ fun AISettingsScreen(
                         )
                         when (page) {
                             SettingsDestination.REASONING -> DeepThinkingCard(uiState.deepThinkingEnabled, viewModel::toggleDeepThinking)
+                            SettingsDestination.EXECUTION_MODES -> ExecutionModeCard(uiState, viewModel)
                             SettingsDestination.FILE_ACCESS -> GodModeCard(uiState.godModeEnabled, viewModel::toggleGodMode)
                             SettingsDestination.ACCESSIBILITY -> AccessibilityServiceCard(viewModel::showStatusMessage)
                             SettingsDestination.COMPANION -> com.omnidev.workspace.ui.companion.CompanionSettingsCard()
