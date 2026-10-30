@@ -262,18 +262,14 @@ class FileToolManager(
             addAll(listOf(
                 ToolDefinition(
                     name = "god_read_file",
-                    description = "[GOD MODE] Read any file on the Android filesystem, including protected " +
-                        "paths like /data/data/, /system/, /proc/. Automatically routes through " +
-                        "Shizuku/rish/root when required. Returns raw UTF-8 content.",
+                    description = "[GOD MODE] Read files available to the app or the configured privileged Android shell, including inspectable paths under /data/, /system/, /system_ext/, /product/ and storage. Android sandbox, SELinux and mount restrictions still apply; inaccessible files return a real permission error. Returns bounded UTF-8 content.",
                     parameters = listOf(
                         ToolParameter("filePath", "string", "Absolute path to the file to read.", required = true)
                     )
                 ),
                 ToolDefinition(
                     name = "god_write_file",
-                    description = "[GOD MODE] Write content to any file on the Android filesystem, including " +
-                        "protected paths. Parent directories are created automatically. " +
-                        "Automatically escalates through Shizuku/rish/root when needed.",
+                    description = "[GOD MODE] Propose a UTF-8 write to an absolute path accessible to the configured privileged backend. The user must approve the exact target before dispatch. Parent directories may be created only where the backend permits; Android sandbox, SELinux and read-only system partitions remain enforced.",
                     parameters = listOf(
                         ToolParameter("filePath", "string", "Absolute path to the target file.", required = true),
                         ToolParameter("content", "string", "UTF-8 text content to write.", required = true),
@@ -282,8 +278,7 @@ class FileToolManager(
                 ),
                 ToolDefinition(
                     name = "god_delete_file",
-                    description = "[GOD MODE] Delete any file or directory on the filesystem, including " +
-                        "protected paths. Escalates through Shizuku/rish/root as needed.",
+                    description = "[GOD MODE] Propose deletion of an absolute file or directory accessible to the configured privileged backend. The user must approve the exact target and recursive scope before dispatch. Android sandbox and system protections remain enforced.",
                     parameters = listOf(
                         ToolParameter("filePath", "string", "Absolute path to the file/directory.", required = true),
                         ToolParameter("recursive", "string", "Set to 'true' for recursive directory delete.", required = false)
@@ -291,8 +286,7 @@ class FileToolManager(
                 ),
                 ToolDefinition(
                     name = "god_copy_file",
-                    description = "[GOD MODE] Copy a file from any source path to any destination path, " +
-                        "including privileged paths. Uses 'cp -p' via shell when necessary.",
+                    description = "[GOD MODE] Propose copying a file between paths accessible to the configured privileged backend. The user must approve both source and destination before dispatch; operating-system access rules remain enforced.",
                     parameters = listOf(
                         ToolParameter("sourcePath", "string", "Absolute path of the source file.", required = true),
                         ToolParameter("destPath", "string", "Absolute path of the destination.", required = true)
