@@ -22,6 +22,7 @@ internal class LauncherExecutionLedger(objective: String) {
     private var mutated = false
     private var verified = false
     private var expectedRevision: String? = null
+    private var latestLayoutRevision: String? = null
     private var failure: String? = null
     private var recoveries = 0
     val exhausted get() = recoveries > 2
@@ -32,7 +33,24 @@ internal class LauncherExecutionLedger(objective: String) {
         val shell = name in setOf("run_terminal", "run_script", "direct_terminal", "advanced_terminal", "root_shell_tool", "shizuku_command")
         val unrelatedFile = name in setOf("create_file", "write_file", "append_to_file", "patch_file", "delete_file") ||
             (name == "agent_runtime" && (args["action"].orEmpty().startsWith("file_") || args["action"] in setOf("shell_script", "termux_run")))
-        return if (shell || unrelatedFile) "Launcher organization requires typed omni_link capabilities. A shell directory or JSON file does not change Home. Discover the actual provider; use its exact schema and normal approval flow." else null
+        if (shell || unrelatedFile) {
+            return "Launcher organization requires typed omni_link capabilities. A shell directory or JSON file does not change Home. Discover the actual provider; use its exact schema and normal approval flow."
+        }
+        if (name == "omni_link" &&
+            args["action"] in setOf("execute_action", "execute_capability") &&
+            args["action_name"] in homeMutations
+        ) {
+            val payload = runCatching { JSONObject(args["json_payload"] ?: "{}") }.getOrNull()
+                ?: return "Invalid Launcher payload. Fetch launcher.get_layout and construct a valid JSON payload."
+            val expected = payload.optString("expectedRevision").takeIf { it.isNotBlank() }
+                ?: return "Launcher mutation blocked: include expectedRevision from the latest successful launcher.get_layout. Do not send revision; the required key is expectedRevision."
+            val latest = latestLayoutRevision
+                ?: return "Launcher mutation blocked: no current layout revision is in memory. Call launcher.get_layout first, then send its revision as expectedRevision."
+            if (expected != latest) {
+                return "Launcher mutation blocked: stale expectedRevision. Fetch launcher.get_layout again and use its newest revision as expectedRevision. No mutation was sent."
+            }
+        }
+        return null
     }
 
     fun observe(name: String, args: Map<String, String>, output: String, isError: Boolean) {
@@ -40,13 +58,18 @@ internal class LauncherExecutionLedger(objective: String) {
         val action = args["action_name"].orEmpty()
         if (args["action"] !in setOf("execute_action", "execute_capability") || !action.startsWith("launcher.")) return
         val envelope = runCatching { JSONObject(output.substring(output.indexOf('{'))) }.getOrNull()
-        if (isError || envelope?.optBoolean("ok") != true) { failure = envelope?.optString("code") ?: "tool_failure"; return }
+        if (isError || envelope?.optBoolean("ok") != true) {
+            failure = envelope?.optString("code") ?: "tool_failure"
+            if (action in homeMutations) latestLayoutRevision = null
+            return
+        }
         val outcome = runCatching { JSONObject(envelope.getString("result_json")) }.getOrNull() ?: return
         if (!outcome.optString("type").endsWith("ActionOutcome.Success")) return
         val data = outcome.optJSONObject("data") ?: return
-        if (action == "launcher.get_layout" && mutated && !verified) {
+        if (action == "launcher.get_layout") {
             val revision = data.optString("revision")
-            if (revision.isNotBlank() && revision != expectedRevision) verified = true
+            if (revision.isNotBlank()) latestLayoutRevision = revision
+            if (mutated && !verified && revision.isNotBlank() && revision != expectedRevision) verified = true
             return
         }
         val payload = runCatching { JSONObject(args["json_payload"] ?: "{}") }.getOrNull()
@@ -55,6 +78,7 @@ internal class LauncherExecutionLedger(objective: String) {
             successfulAction = action
             mutated = true
             expectedRevision = payload?.optString("expectedRevision")?.takeIf { it.isNotBlank() }
+            latestLayoutRevision = null
             verified = !data.optBoolean("reloadScheduled")
             failure = null
         }
