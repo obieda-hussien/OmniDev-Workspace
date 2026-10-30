@@ -176,4 +176,26 @@ class LauncherExecutionLedgerTest {
             outcome(JSONObject().put("revision", "rev-2").put("nextOffset", JSONObject.NULL)), false)
         assertNull(ledger.checkTool("omni_link", mutation))
     }
+
+    @Test fun mutationReadbackMustFinishAllPagesBeforeVerification() {
+        val ledger = LauncherExecutionLedger("Organize launcher home screen")
+        val layout = mapOf("action" to "execute_capability", "action_name" to "launcher.get_layout", "json_payload" to "{}")
+        ledger.observe("omni_link", layout, outcome(JSONObject().put("revision", "rev-1")), false)
+        val mutation = mapOf(
+            "action" to "execute_capability",
+            "action_name" to "launcher.set_grid",
+            "json_payload" to """{"expectedRevision":"rev-1","rows":5,"columns":5}"""
+        )
+        ledger.observe("omni_link", mutation, outcome(JSONObject().put("reloadScheduled", true)), false)
+        assertNotNull(ledger.completionFeedback())
+
+        ledger.observe("omni_link", layout,
+            outcome(JSONObject().put("revision", "rev-2").put("nextOffset", 40)), false)
+        assertNotNull(ledger.completionFeedback())
+
+        ledger.observe("omni_link",
+            layout + ("json_payload" to """{"offset":40}"""),
+            outcome(JSONObject().put("revision", "rev-2").put("nextOffset", JSONObject.NULL)), false)
+        assertNull(ledger.completionFeedback())
+    }
 }
