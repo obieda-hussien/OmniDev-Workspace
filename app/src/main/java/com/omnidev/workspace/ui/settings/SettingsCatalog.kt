@@ -10,7 +10,7 @@ internal enum class SettingsGroup(val title: String, val description: String) {
     INSIGHTS("Usage & diagnostics", "Costs, agent activity and troubleshooting")
 }
 
-internal enum class SettingsDestination { PROVIDERS, MODELS, REASONING, LOCAL_MODELS, ASSISTANT, VOICE, DEVICE_ACCESS, ACCESSIBILITY, FILE_ACCESS, COMPANION, PROFILE, MEMORY, INTEGRATIONS, MCP, SCHEDULE, SKILLS, ANALYTICS, BRAIN, DEBUG }
+internal enum class SettingsDestination { PROVIDERS, MODELS, REASONING, EXECUTION_MODES, LOCAL_MODELS, ASSISTANT, VOICE, DEVICE_ACCESS, ACCESSIBILITY, FILE_ACCESS, COMPANION, PROFILE, MEMORY, INTEGRATIONS, MCP, SCHEDULE, SKILLS, ANALYTICS, BRAIN, DEBUG }
 
 internal data class SettingsEntry(
     val destination: SettingsDestination,
@@ -25,6 +25,7 @@ internal object SettingsCatalog {
         SettingsEntry(SettingsDestination.PROVIDERS, SettingsGroup.AI, "Providers & API keys", "Connect and manage your AI providers", "credentials copilot openai anthropic gemini مفاتيح حسابات مزود"),
         SettingsEntry(SettingsDestination.MODELS, SettingsGroup.AI, "Model selection", "Choose models for chat, agents and teams", "routing swarm orchestrator worker نموذج نماذج شات وكيل فريق"),
         SettingsEntry(SettingsDestination.REASONING, SettingsGroup.AI, "Deep thinking", "Give supported models more time to reason", "reasoning behavior تفكير استدلال"),
+        SettingsEntry(SettingsDestination.EXECUTION_MODES, SettingsGroup.AI, "Execution modes", "Choose the default mode and control automatic mode switches", "chat agent team swarm execution routing mode التحويل تبديل الوضع اوضاع"),
         SettingsEntry(SettingsDestination.LOCAL_MODELS, SettingsGroup.AI, "On-device models", "Download and run models offline", "local edge byom gguf quantized محلي تحميل بدون انترنت"),
         SettingsEntry(SettingsDestination.ASSISTANT, SettingsGroup.ASSISTANT, "Default assistant", "Set up Omni for the Home button or assistant gesture", "overlay screen screenshot floating افتراضي مساعد شاشة عائم"),
         SettingsEntry(SettingsDestination.VOICE, SettingsGroup.ASSISTANT, "Voice activation", "Wake phrase, training and hands-free listening", "hi omni wake up microphone speech audio صوت تدريب تنبيه ميكروفون"),
