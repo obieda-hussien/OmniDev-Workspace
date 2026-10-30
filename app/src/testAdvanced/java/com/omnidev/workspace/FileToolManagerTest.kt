@@ -55,6 +55,22 @@ class FileToolManagerTest {
     }
 
     @Test
+    fun `god mode mutation fails closed without an interactive approval gate`() = runTest {
+        val target = File(scopePath, "protected-target.txt")
+        val manager = FileToolManager(godModeEnabled = true)
+
+        val result = manager.executeTool(
+            name = "god_write_file",
+            arguments = mapOf("filePath" to target.absolutePath, "content" to "must not be written"),
+            scopePath = scopePath
+        )
+
+        assertTrue(result.isError)
+        assertTrue(result.output.contains("approval UI is connected"))
+        assertFalse(target.exists())
+    }
+
+    @Test
     fun `read_file_lines reads specific line range`() = runTest {
         val file = tempDir.newFile("test.txt")
         file.writeText((1..100).joinToString("\n") { "Line $it" })
