@@ -28,7 +28,7 @@ Execute Android privileged operations through the supported Shizuku UserService 
 
 Core actions:
 • status — functionally probe Shizuku/rish/root and report independent states.
-• shell — command: privileged Android shell command.
+• shell — command: privileged Android shell command. On Android 11+ legacy media volume requests use cmd media_session volume.
 • dumpsys — service.
 • getprop / setprop — key, optional value.
 • meminfo / cpuinfo / ps / netstat.
