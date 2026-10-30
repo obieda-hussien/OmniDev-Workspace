@@ -143,6 +143,7 @@ class ChatViewModel(
     }
 
     init {
+        _uiState.update { it.copy(activeMode = modePermissionStore.preferredMode()) }
         viewModelScope.launch {
             settingsRepository.observeProfilePersonalization().collect { preferences ->
                 _uiState.update { it.copy(personalization = preferences) }
@@ -301,6 +302,7 @@ class ChatViewModel(
             cancelCurrentRun()
             _uiState.update { it.copy(errorMessage = null) }
         }
+        modePermissionStore.setPreferredMode(mode)
         _uiState.update { it.copy(activeMode = mode) }
     }
 
@@ -1107,6 +1109,8 @@ class ChatViewModel(
         val denied = proposal.copy(executionRequest = request.copy(status = "denied"))
         _uiState.update { s -> s.copy(messages = s.messages.map { if (it.messageId == messageId) denied else it }) }
         state.currentSessionId?.let { sessionId -> viewModelScope.launch { chatRepository?.updateMetadata(sessionId, denied) } }
+        // A declined escalation is not a cancellation: resume the same mode from the saved checkpoint.
+        startModeHandoff(source, request, autoApproved = false)
     }
 
     private fun maybeAutoConsumeModeRequest(
@@ -1339,7 +1343,9 @@ class ChatViewModel(
                         taskCount = event.tasks.size,
                         parallelSafeTaskCount = event.tasks.count { it.parallelSafe }
                     )
-                    if (suggestion != null) throw ModeHandoffSignal(suggestion)
+                    if (suggestion != null && modePermissionStore.shouldOfferSwitch(suggestion.from, suggestion.to, sessionId)) {
+                        throw ModeHandoffSignal(suggestion)
+                    }
                 }
             }
         } catch (signal: ModeHandoffSignal) {
@@ -1355,6 +1361,7 @@ class ChatViewModel(
         origin: ChatMessage,
         sessionId: Long
     ) {
+        if (!modePermissionStore.shouldOfferSwitch(suggestion.from, suggestion.to, sessionId)) return
         val request = ExecutionModeRequest(
             mode = suggestion.to.name,
             reason = suggestion.reason,
