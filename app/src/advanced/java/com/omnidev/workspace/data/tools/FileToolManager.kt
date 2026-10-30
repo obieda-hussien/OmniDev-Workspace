@@ -590,6 +590,11 @@ class FileToolManager(
                     val diff = generateUnifiedDiff(filePath, content, newContent)
                     val approved = gate.invoke("File: $filePath", diff.ifEmpty { null })
                     if (!approved) return ToolExecutionResult("User cancelled the file modification for $filePath.", isError = true)
+                } else if (godModeEnabled) {
+                    requestPrivilegedMutationApproval(
+                        com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH,
+                        "God Mode patch: $filePath"
+                    )?.let { return it }
                 }
 
                 if (godModeEnabled) {
@@ -642,6 +647,11 @@ class FileToolManager(
             }.trimEnd()
             val approved = gate.invoke("New file: $filePath", diffPreview)
             if (!approved) return ToolExecutionResult("User cancelled the file creation for $filePath.", isError = true)
+        } else if (godModeEnabled) {
+            requestPrivilegedMutationApproval(
+                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE,
+                "God Mode create file: $filePath (${content.length} characters)"
+            )?.let { return it }
         }
 
         if (godModeEnabled) {
@@ -689,6 +699,11 @@ class FileToolManager(
             }.trimEnd()
             val approved = gate.invoke("Delete file: $filePath", diffPreview)
             if (!approved) return ToolExecutionResult("User cancelled the file deletion for $filePath.", isError = true)
+        } else if (godModeEnabled) {
+            requestPrivilegedMutationApproval(
+                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE,
+                "God Mode delete file: $filePath"
+            )?.let { return it }
         }
 
         if (godModeEnabled) {
@@ -859,6 +874,13 @@ class FileToolManager(
      * Returns an error message string on failure, or null on success.
      */
     private suspend fun writeFileContentOrError(filePath: String, content: String): String? {
+        if (godModeEnabled) {
+            val approval = requestPrivilegedMutationApproval(
+                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE,
+                "God Mode text/file mutation: $filePath (${content.length} characters)"
+            )
+            if (approval != null) return approval.output
+        }
         return if (godModeEnabled) {
             when (val r = GodModeFileRouter.writeFile(filePath, content, false, godMode = true)) {
                 is GodModeResult.Failure -> "God Mode write failed: ${r.reason}"
