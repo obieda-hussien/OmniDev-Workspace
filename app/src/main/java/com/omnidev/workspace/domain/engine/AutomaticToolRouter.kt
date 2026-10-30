@@ -27,9 +27,7 @@ class AutomaticToolRouter(private val catalog: RunToolCatalog) {
     /** A whole-response operation proposal, never extraction from prose or observations. */
     fun adapt(response: CompletionResponse, exposedNames: Set<String>): CompletionResponse {
         if (response.toolCalls.isNotEmpty()) return response
-        val raw = response.content.trim().let {
-            if (it.startsWith("```json\n") && it.endsWith("```")) it.removePrefix("```json\n").removeSuffix("```").trim() else it
-        }
+        val raw = WholeResponseEnvelope.normalize(response.content)
         val attempted = Regex("^\\{\\s*\"omni_operation\"").containsMatchIn(raw)
         val root = try { Json.parseToJsonElement(raw) as? JsonObject } catch (_: Exception) { null }
         if (root == null && !attempted || root != null && "omni_operation" !in root) return response
@@ -66,7 +64,7 @@ class AutomaticToolRouter(private val catalog: RunToolCatalog) {
     }
 
     companion object {
-        const val CONTRACT = "Runtime automatically retrieves relevant tools each turn; discover_tools is optional. " +
+        const val CONTRACT = "Runtime automatically retrieves relevant tools each turn; discover_tools is optional. Never use Markdown fences. " +
             "Instead of naming a tool you may output ONLY {\"omni_operation\":{\"intent\":\"concrete operation\",\"arguments\":{}}}. " +
             "Use exact parameter keys from current schemas. Ambiguous matches require clarification; retrieval never executes an action."
         private val UNAVAILABLE = listOf("no suitable tool", "cannot find a tool", "can't find a tool", "no tool available", "don't have a tool", "do not have a tool",
