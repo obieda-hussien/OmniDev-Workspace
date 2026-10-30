@@ -6,34 +6,20 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * GodModeFileRouter — True Unrestricted File System Access Engine.
+ * Extended Android filesystem router for God Mode.
  *
- * ### Design
- * When God Mode is ON, normal `java.io.File` operations are attempted first for speed.
- * If the path is determined to be **privileged** (i.e. it lives under a namespace that
- * a normal app process cannot read or write — `/data/data/`, `/data/user/`, `/system/`,
- * `/proc/`, `/sys/` etc.), or if a plain-Java I/O attempt throws a [SecurityException]
- * or [java.io.IOException] consistent with a permission denial, the router **automatically
- * escalates** the operation to the Shizuku / rish / root backend via
- * [PrivilegedExecutionManager], using raw POSIX shell utilities (`cat`, `echo`, `cp`,
- * `rm`, `ls`, `stat`, etc.) to bypass the Android framework's sandbox.
+ * Direct app access is attempted first. When it is unavailable, the router uses the
+ * configured Android shell backend (normally Shizuku) for a second attempt. That backend
+ * still runs with its actual UID and remains subject to SELinux, app-data isolation,
+ * encryption state and filesystem mount flags. This router does not bypass Android's
+ * sandbox and does not turn read-only system partitions writable.
  *
- * ### Escalation heuristic
- * A path is considered **privileged** when its canonical prefix matches any entry in
- * [PRIVILEGED_PATH_PREFIXES]. File existence / readability is checked first so that
- * we do not escalate unnecessarily for paths the process legitimately owns (e.g.
- * the app's own `/data/data/<this_package>/` files which are app-accessible).
+ * The privileged path list is a routing hint, not proof of access. The actual command
+ * result is authoritative and permission failures are returned to the agent and user.
+ * God Mode must be explicitly enabled before any operation is attempted.
  *
- * ### Security & audit
- * - God Mode must be explicitly enabled by the user (`godModeEnabled = true`).
- * - Every privileged escalation is annotated in the returned [GodModeResult] so the
- *   caller can surface a clear indication (e.g., 🔓 via Shizuku) in the UI console.
- * - Calls without God Mode always short-circuit to [GodModeResult.GodModeDisabled].
- *
- * ### Shell quoting
- * All path arguments are POSIX single-quoted via [shellQuote] to prevent injection.
- * Content written to files is base64-encoded before passing through `sh -c` to handle
- * arbitrary binary payloads and special characters safely.
+ * All shell paths are single-quoted and text written through the shell is base64-encoded
+ * to preserve special characters safely.
  */
 object GodModeFileRouter {
 
@@ -42,8 +28,8 @@ object GodModeFileRouter {
     // ──────────────────────────────────────────────
 
     /**
-     * Path prefixes that almost certainly require elevated privileges.
-     * Sorted longest-first so the most specific prefix wins.
+     * Paths commonly requiring the Android shell identity instead of the app UID.
+     * This list routes an attempt; it does not promise that SELinux or mount policy permits it.
      */
     private val PRIVILEGED_PATH_PREFIXES = listOf(
         "/data/data/",
@@ -421,13 +407,9 @@ object GodModeFileRouter {
     // ──────────────────────────────────────────────
 
     /**
-     * Returns true when [canonical] starts with a prefix known to require
-     * elevated privileges on an unmodified Android system.
-     *
-     * Note: This is a conservative heuristic. Some prefixes (like `/data/local/tmp`)
-     * are actually world-writable on some devices; however, we always escalate for
-     * safety since the cost of an unnecessary shell call is negligible compared to
-     * the cost of a confusing permission-denied error.
+     * Returns true when [canonical] belongs to a known protected/system namespace.
+     * This only chooses the shell route; the shell UID still cannot bypass SELinux,
+     * application-private storage boundaries or read-only mounts.
      */
     private fun requiresEscalation(canonical: String): Boolean =
         PRIVILEGED_PATH_PREFIXES.any { prefix -> canonical.startsWith(prefix) }
