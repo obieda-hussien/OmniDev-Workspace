@@ -55,6 +55,7 @@ object GodModeFileRouter {
         "/data/app/",
         "/data/dalvik-cache/",
         "/system/",
+        "/system_ext/",
         "/vendor/",
         "/proc/",
         "/sys/",
