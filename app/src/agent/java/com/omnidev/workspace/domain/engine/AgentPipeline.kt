@@ -692,8 +692,7 @@ Do not use tools. Do not rewrite merely for style.
             }
 
             val missingAndroidCommand = response.toolCalls.zip(modelSafeResults).firstOrNull { (call, result) ->
-                call.name in setOf("privileged_tool", "run_terminal", "shizuku_command", "direct_terminal", "advanced_terminal") &&
-                    result.isError && result.classification == "COMMAND_NOT_FOUND"
+                AndroidCommandFailurePolicy.shouldStop(call.name, result)
             }
             if (missingAndroidCommand != null) {
                 val (call, result) = missingAndroidCommand
