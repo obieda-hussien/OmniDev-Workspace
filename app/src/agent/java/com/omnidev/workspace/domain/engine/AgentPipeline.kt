@@ -691,18 +691,10 @@ Do not use tools. Do not rewrite merely for style.
                 )
             }
 
-            val missingAndroidCommand = response.toolCalls.zip(modelSafeResults).firstOrNull { (call, result) ->
-                AndroidCommandFailurePolicy.shouldStop(call.name, result)
-            }
-            if (missingAndroidCommand != null) {
-                val (call, result) = missingAndroidCommand
-                brain?.onTaskEnd(EpisodeOutcome.BLOCKED, "Android shell command not found: ${call.arguments["command"].orEmpty().take(120)}")
-                send(AgentEvent.Error(
-                    "COMMAND_NOT_FOUND: Android shell could not resolve this command. This is not a Shizuku connection failure. " +
-                        "Do not retry the same binary, switch to Root/rish, or spend another planning cycle. " +
-                        "Use one verified Android service/command equivalent if known; otherwise report that the device does not expose it.\n" +
-                        result.output.take(1_600)
-                ))
+            androidCommandStopEvent(response.toolCalls, modelSafeResults) { reason ->
+                brain?.onTaskEnd(EpisodeOutcome.BLOCKED, reason)
+            }?.let { stop ->
+                send(stop)
                 return@channelFlow
             }
 
@@ -818,6 +810,27 @@ Do not use tools. Do not rewrite merely for style.
 
         brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "max iterations reached after ${config.maxIterations} loops")
         send(AgentEvent.Error("Agent reached maximum iterations (${config.maxIterations}) without completing."))
+    }
+
+    /**
+     * Kept outside [execute] on purpose: the coroutine state machine of that method is close to
+     * the JVM 64 KB method limit, so new branches must live in small helpers.
+     */
+    private fun androidCommandStopEvent(
+        calls: List<ToolCall>,
+        results: List<ToolExecutionResult>,
+        onBlocked: (String) -> Unit
+    ): AgentEvent.Error? {
+        val (call, result) = calls.zip(results).firstOrNull { (c, r) ->
+            AndroidCommandFailurePolicy.shouldStop(c.name, r)
+        } ?: return null
+        onBlocked("Android shell command not found: ${call.arguments["command"].orEmpty().take(120)}")
+        return AgentEvent.Error(
+            "COMMAND_NOT_FOUND: Android shell could not resolve this command. This is not a Shizuku connection failure. " +
+                "Do not retry the same binary, switch to Root/rish, or spend another planning cycle. " +
+                "Use one verified Android service/command equivalent if known; otherwise report that the device does not expose it.\n" +
+                result.output.take(1_600)
+        )
     }
 
     private suspend fun executeToolBatch(
