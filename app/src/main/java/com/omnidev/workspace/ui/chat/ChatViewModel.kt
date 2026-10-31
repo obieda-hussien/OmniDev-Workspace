@@ -47,6 +47,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
+import com.omnidev.workspace.data.review.ChangeKind
+import com.omnidev.workspace.data.review.ChangeStatus
+import com.omnidev.workspace.data.review.SessionChangeLedger
 import java.util.concurrent.atomic.AtomicLong
 
 /** A file selected by the user but not sent yet. */
@@ -219,6 +222,29 @@ class ChatViewModel(
 
     private var assistantConfirmationGate: com.omnidev.workspace.core.policy.ConfirmationGate? = null
 
+    /** Net per-session record of every file the agent changed; drives the review screen. */
+    val changeLedger = SessionChangeLedger()
+
+    fun keepAllChanges() = viewModelScope.launch {
+        changeLedger.keep(changeLedger.forSession(_uiState.value.currentSessionId ?: -1L).filter { it.status == ChangeStatus.PENDING }.map { it.id }.toSet())
+    }
+    fun revertAllChanges() = viewModelScope.launch {
+        changeLedger.revert(changeLedger.forSession(_uiState.value.currentSessionId ?: -1L).filter { it.status == ChangeStatus.PENDING }.map { it.id }.toSet())
+    }
+
+    /** Maps FileToolManager's gate preview strings to (absolute path, kind). */
+    private fun parseFileChange(preview: String, diff: String?): Pair<String, ChangeKind>? {
+        val p = preview.trim()
+        fun after(marker: String) = p.substringAfter(marker, "").trim().takeIf { it.startsWith("/") }
+        after("New file: ")?.takeIf { p.startsWith("New file: ") }?.let { return it to ChangeKind.CREATED }
+        if (p.startsWith("Delete file: ")) after("Delete file: ")?.let { return it to ChangeKind.DELETED }
+        if (p.startsWith("File: ")) after("File: ")?.let { return it to ChangeKind.MODIFIED }
+        // "Delete text in: X", "Append to: X", "Insert N line(s) ... in: X", "Clear all content from: X" ...
+        val tail = p.substringAfterLast(" in: ", "").ifEmpty { p.substringAfterLast(" to: ", "") }.ifEmpty { p.substringAfterLast(" from: ", "") }.trim()
+        if (tail.startsWith("/")) return tail to ChangeKind.MODIFIED
+        return null
+    }
+
     private fun wireFileConfirmationGate() {
         val ftm = fileToolManager
         val uiGate = com.omnidev.workspace.core.policy.ConfirmationGate { kind, preview, diff ->
@@ -261,11 +287,28 @@ class ChatViewModel(
         val effectiveGate = com.omnidev.workspace.data.assistant.AssistantFlavorPolicy(
             com.omnidev.workspace.core.policy.TierPolicyHolder.current).confirmationGate(uiGate)
         assistantConfirmationGate = effectiveGate
+        // File edits no longer block on a dialog: the agent keeps working, every touched file is
+        // recorded in the session ledger (baseline captured BEFORE the write) and the user reviews
+        // the net diff later via the "files changed" bar — keep / revert per file or all at once.
         ftm?.confirmationGate = { preview, diffContent ->
-            val kind = if (diffContent != null)
-                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH
-            else com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
-            effectiveGate.request(kind, preview, diffContent)
+            val change = parseFileChange(preview, diffContent)
+            if (change != null) {
+                changeLedger.recordBeforeWrite(_uiState.value.currentSessionId ?: -1L, change.first, change.second)
+                com.omnidev.workspace.core.policy.OmniAuditLog.record(
+                    tier = com.omnidev.workspace.core.policy.TierPolicyHolder.current.tier,
+                    autoApproved = true,
+                    kind = if (change.second == ChangeKind.DELETED) com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
+                           else com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH,
+                    preview = "[STAGED FOR REVIEW] $preview",
+                    diffContent = diffContent
+                )
+                true
+            } else {
+                // Unknown preview shape: fall back to the explicit dialog rather than silently applying.
+                val kind = if (diffContent != null) com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH
+                else com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
+                effectiveGate.request(kind, preview, diffContent)
+            }
         }
         compositeToolManager?.confirmationGate = effectiveGate
         val routineReview = kotlinx.coroutines.sync.Mutex()

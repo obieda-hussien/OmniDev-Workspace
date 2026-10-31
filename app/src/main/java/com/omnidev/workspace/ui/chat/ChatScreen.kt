@@ -28,6 +28,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omnidev.workspace.data.model.ChatMessage
+import com.omnidev.workspace.data.review.ChangeStatus
+import com.omnidev.workspace.data.review.TrackedChange
+import com.omnidev.workspace.ui.review.ChangeReviewDialog
+import com.omnidev.workspace.ui.review.PendingChangesPill
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.domain.engine.ModeSwitchPermissionStore
 import com.omnidev.workspace.domain.engine.OmniMode
@@ -47,6 +51,11 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
     val drawer = rememberDrawerState(if (state.isDrawerOpen) DrawerValue.Open else DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val historyState = rememberSaveableStateHolder()
+    val sessionKey = state.currentSessionId ?: -1L
+    val allChanges by viewModel.changeLedger.changes.collectAsStateWithLifecycle()
+    val pendingChanges = remember(allChanges, sessionKey) { allChanges.filter { it.sessionKey == sessionKey && it.status == ChangeStatus.PENDING } }
+    var showReview by rememberSaveable { mutableStateOf(false) }
+    if (showReview) ChangeReviewDialog(viewModel.changeLedger, sessionKey, onDismiss = { showReview = false })
     state.pendingConfirmation?.let { confirmation ->
         ConfirmationGateDialog(confirmation.copy(
             onApprove = { confirmation.onApprove(); viewModel.clearConfirmation() },
@@ -90,6 +99,8 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
                 onStop = { viewModel.cancelCurrentRun() }, onModeSelected = viewModel::setMode,
                 onOpenConversations = { scope.launch { drawer.open() } }, onNewConversation = viewModel::newSession,
                 onChooseScope = { directoryPicker.launch(null) },
+                pendingChanges = pendingChanges, onReviewChanges = { showReview = true },
+                onKeepAllChanges = { viewModel.keepAllChanges() }, onRevertAllChanges = { viewModel.revertAllChanges() },
                 onBrowser = onOpenBrowser,
                 onAttach = { attachments.launch(arrayOf("*/*")) }, onRemoveAttachment = viewModel::removeAttachment,
                 onReply = viewModel::setReplyingTo, onDismissReply = viewModel::clearReplyingTo,
@@ -110,6 +121,8 @@ internal fun ChatConversation(
     onInputChanged: (String) -> Unit = {}, onSend: () -> Unit = {}, onStop: () -> Unit = {},
     onModeSelected: (OmniMode) -> Unit = {}, onOpenConversations: () -> Unit = {}, onNewConversation: () -> Unit = {},
     onChooseScope: () -> Unit = {}, onBrowser: () -> Unit = {},
+    pendingChanges: List<TrackedChange> = emptyList(), onReviewChanges: () -> Unit = {},
+    onKeepAllChanges: () -> Unit = {}, onRevertAllChanges: () -> Unit = {},
     onAttach: () -> Unit = {}, onRemoveAttachment: (android.net.Uri) -> Unit = {},
     onReply: (ChatMessage) -> Unit = {}, onDismissReply: () -> Unit = {}, onUpdateChatSettings: (ChatSettings) -> Unit = {},
     onEditLastUser: (String, String) -> Unit = { _, _ -> }, onRegenerateLast: (String) -> Unit = {},
@@ -166,6 +179,7 @@ internal fun ChatConversation(
                             }
                         }
                     }
+                    PendingChangesPill(pendingChanges, onReviewChanges, onKeepAllChanges, onRevertAllChanges)
                     ChatInputBar(state.inputText, onInputChanged, onSend, onStop, state.isProcessing, state.pendingAttachments, onAttach,
                         onRemoveAttachment, state.replyingTo, onDismissReply, state.chatSettings, onUpdateChatSettings, focusRequester,
                         scopeLabel = if ((state.activeMode == OmniMode.CHAT && com.omnidev.workspace.BuildConfig.ALLOW_AGENT) || state.isGodModeEnabled) null
