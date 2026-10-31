@@ -55,8 +55,6 @@ object GodModeFileRouter {
         val file = File(canonical)
 
         // Fast path — process can read it directly.
-        val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
-
         if (!requiresEscalation(canonical) && file.exists() && file.canRead()) {
             return runCatching {
                 val bytes = file.inputStream().use { stream ->
@@ -162,8 +160,6 @@ object GodModeFileRouter {
         val canonical = resolveCanonical(path)
         val file = File(canonical)
 
-        val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
-
         // Fast path.
         if (!requiresEscalation(canonical) && file.exists() && file.canWrite()) {
             return runCatching {
@@ -243,8 +239,6 @@ object GodModeFileRouter {
 
         val canonical = resolveCanonical(path)
         val dir = File(canonical)
-
-        val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
 
         if (!requiresEscalation(canonical) && dir.isDirectory && dir.canRead()) {
             // File.listFiles() returns null (rather than throwing) on some permission and
@@ -413,19 +407,6 @@ object GodModeFileRouter {
      */
     private fun resolveCanonical(path: String): String =
         runCatching { File(path).canonicalPath }.getOrDefault(path)
-
-    /**
-     * Returns true if [ex] carries a message consistent with a POSIX EACCES (permission
-     * denied) or EPERM error. Used to auto-escalate after a failed direct attempt.
-     */
-    private fun isPermissionDenied(ex: Throwable): Boolean {
-        val msg = ex.message?.lowercase() ?: return false
-        return msg.contains("permission denied") ||
-               msg.contains("eacces") ||
-               msg.contains("eperm") ||
-               msg.contains("access denied") ||
-               msg.contains("operation not permitted")
-    }
 
     /**
      * POSIX single-quote escaping.
