@@ -303,9 +303,12 @@ class ChatViewModel(
                 effectiveGate.request(kind, preview, diffContent)
             }
         }
+        // Privileged (God Mode) file edits go through the same ledger so they show up in Review.
         ftm?.privilegedFileConfirmationGate = { kind, preview, diffContent ->
-            // Privileged writes/copies/deletes always require the interactive UI gate,
-            // never the flavor policy gate which may auto-approve in OEM/background contexts.
+            val change = parseFileChange(preview, diffContent)
+            if (change != null) {
+                changeLedger.recordBeforeWrite(_uiState.value.currentSessionId ?: -1L, change.first, change.second)
+            }
             uiGate.request(kind, preview, diffContent)
         }
         compositeToolManager?.confirmationGate = effectiveGate
