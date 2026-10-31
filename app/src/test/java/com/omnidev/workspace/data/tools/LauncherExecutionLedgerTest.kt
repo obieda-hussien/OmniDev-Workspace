@@ -149,7 +149,7 @@ class LauncherExecutionLedgerTest {
 
         ledger.observe("omni_link",
             layoutArgs + ("json_payload" to """{"offset":40}"""),
-            outcome(JSONObject().put("revision", "rev-1").put("total", 56).put("nextOffset", JSONObject.NULL)), false)
+            outcome(JSONObject().put("revision", "rev-1").put("total", 56).put("nextOffset", -1)), false)
         assertNull(ledger.checkTool("omni_link", mutationArgs))
     }
 
@@ -160,7 +160,7 @@ class LauncherExecutionLedgerTest {
             outcome(JSONObject().put("revision", "rev-1").put("nextOffset", 40)), false)
 
         ledger.observe("omni_link", initial + ("json_payload" to """{"offset":40}"""),
-            outcome(JSONObject().put("revision", "rev-2").put("nextOffset", JSONObject.NULL)), false)
+            outcome(JSONObject().put("revision", "rev-2").put("nextOffset", -1)), false)
 
         val mutation = mapOf("action" to "execute_capability", "action_name" to "launcher.set_grid",
             "json_payload" to """{"expectedRevision":"rev-2","rows":5,"columns":5}""")
@@ -173,7 +173,7 @@ class LauncherExecutionLedgerTest {
         ledger.observe("omni_link", initial + ("json_payload" to """{"offset":0}"""),
             outcome(JSONObject().put("revision", "rev-2").put("nextOffset", 40)), false)
         ledger.observe("omni_link", initial + ("json_payload" to """{"offset":40}"""),
-            outcome(JSONObject().put("revision", "rev-2").put("nextOffset", JSONObject.NULL)), false)
+            outcome(JSONObject().put("revision", "rev-2").put("nextOffset", -1)), false)
         assertNull(ledger.checkTool("omni_link", mutation))
     }
 
@@ -195,7 +195,7 @@ class LauncherExecutionLedgerTest {
 
         ledger.observe("omni_link",
             layout + ("json_payload" to """{"offset":40}"""),
-            outcome(JSONObject().put("revision", "rev-2").put("nextOffset", JSONObject.NULL)), false)
+            outcome(JSONObject().put("revision", "rev-2").put("nextOffset", -1)), false)
         assertNull(ledger.completionFeedback())
     }
 }
