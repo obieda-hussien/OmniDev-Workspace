@@ -707,39 +707,9 @@ Do not use tools. Do not rewrite merely for style.
                 continue
             }
 
-            val githubBlocked = modelSafeResults.firstOrNull {
-                it.classification in setOf("GITHUB_AUTH_REQUIRED", "GITHUB_PERMISSION_DENIED", "GITHUB_RATE_LIMITED")
-            }
-            if (githubBlocked != null || githubFailures.repeatedFailure()) {
-                brain?.onTaskEnd(EpisodeOutcome.BLOCKED, "GitHub resource read blocked")
-                send(AgentEvent.Error(githubBlocked?.output ?: "Repeated GitHub resource failure; stopping speculative retries. " + githubFailures.unresolved().orEmpty().take(1600)))
-                return@channelFlow
-            }
-
-            val workerScopeDenied = modelSafeResults.firstOrNull {
-                it.classification == "TOOL_POLICY_DENIED" && it.output.startsWith("READ_ONLY_WORKER:")
-            }
-            if (workerScopeDenied != null) {
-                brain?.onTaskEnd(EpisodeOutcome.BLOCKED, "worker needs serialized execution")
-                send(AgentEvent.Error(workerScopeDenied.output))
-                return@channelFlow
-            }
-
-            val pendingUserAction = modelSafeResults.firstOrNull {
-                it.classification == "USER_ACTION_REQUIRED"
-            }
-            if (pendingUserAction != null) {
-                brain?.onTaskEnd(
-                    EpisodeOutcome.BLOCKED,
-                    "user action required: " + pendingUserAction.output.take(320)
-                )
-                send(
-                    AgentEvent.Error(
-                        pendingUserAction.output.ifBlank {
-                            "USER_ACTION_REQUIRED: Android is waiting for user approval."
-                        }
-                    )
-                )
+            toolBatchStop(modelSafeResults, githubFailures)?.let { stop ->
+                brain?.onTaskEnd(EpisodeOutcome.BLOCKED, stop.first)
+                send(AgentEvent.Error(stop.second))
                 return@channelFlow
             }
 
@@ -810,6 +780,28 @@ Do not use tools. Do not rewrite merely for style.
 
         brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "max iterations reached after ${config.maxIterations} loops")
         send(AgentEvent.Error("Agent reached maximum iterations (${config.maxIterations}) without completing."))
+    }
+
+    /**
+     * Terminal tool-batch conditions (GitHub block, read-only worker scope, pending Android user
+     * action). Returns (episode reason, user-visible error) or null to keep going. Extracted from
+     * [execute] to stay clear of the JVM 64 KB method limit.
+     */
+    private fun toolBatchStop(results: List<ToolExecutionResult>, githubFailures: GitHubFailureLedger): Pair<String, String>? {
+        val githubBlocked = results.firstOrNull {
+            it.classification in setOf("GITHUB_AUTH_REQUIRED", "GITHUB_PERMISSION_DENIED", "GITHUB_RATE_LIMITED")
+        }
+        if (githubBlocked != null || githubFailures.repeatedFailure()) {
+            return "GitHub resource read blocked" to (githubBlocked?.output
+                ?: ("Repeated GitHub resource failure; stopping speculative retries. " + githubFailures.unresolved().orEmpty().take(1600)))
+        }
+        val workerScopeDenied = results.firstOrNull {
+            it.classification == "TOOL_POLICY_DENIED" && it.output.startsWith("READ_ONLY_WORKER:")
+        }
+        if (workerScopeDenied != null) return "worker needs serialized execution" to workerScopeDenied.output
+        val pendingUserAction = results.firstOrNull { it.classification == "USER_ACTION_REQUIRED" } ?: return null
+        return ("user action required: " + pendingUserAction.output.take(320)) to
+            pendingUserAction.output.ifBlank { "USER_ACTION_REQUIRED: Android is waiting for user approval." }
     }
 
     /**
