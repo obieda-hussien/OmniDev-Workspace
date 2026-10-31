@@ -71,6 +71,80 @@ class FileToolManagerTest {
     }
 
     @Test
+    fun `god mode patch cannot use an auto-approved flavor gate`() = runTest {
+        val file = tempDir.newFile("god-patch.txt").apply { writeText("before") }
+        val manager = FileToolManager(godModeEnabled = true)
+        var privilegedGateCalled = false
+        manager.confirmationGate = { _, _ -> true }
+        manager.privilegedFileConfirmationGate = { _, _, _ ->
+            privilegedGateCalled = true
+            false
+        }
+
+        val result = manager.executeTool(
+            "patch_file_content",
+            mapOf("filePath" to file.absolutePath, "searchSnippet" to "before", "replaceSnippet" to "after"),
+            scopePath
+        )
+
+        assertTrue(result.isError)
+        assertTrue(privilegedGateCalled)
+        assertEquals("before", file.readText())
+    }
+
+    @Test
+    fun `god mode create requires the interactive privileged gate`() = runTest {
+        val file = File(scopePath, "god-created.txt")
+        val manager = FileToolManager(godModeEnabled = true)
+        manager.confirmationGate = { _, _ -> true }
+        manager.privilegedFileConfirmationGate = { _, _, _ -> false }
+
+        val result = manager.executeTool(
+            "create_file",
+            mapOf("filePath" to file.absolutePath, "content" to "not-created"),
+            scopePath
+        )
+
+        assertTrue(result.isError)
+        assertFalse(file.exists())
+    }
+
+    @Test
+    fun `god mode delete requires the interactive privileged gate`() = runTest {
+        val file = tempDir.newFile("god-delete.txt").apply { writeText("keep") }
+        val manager = FileToolManager(godModeEnabled = true)
+        manager.confirmationGate = { _, _ -> true }
+        manager.privilegedFileConfirmationGate = { _, _, _ -> false }
+
+        val result = manager.executeTool(
+            "delete_file",
+            mapOf("filePath" to file.absolutePath),
+            scopePath
+        )
+
+        assertTrue(result.isError)
+        assertTrue(file.exists())
+        assertEquals("keep", file.readText())
+    }
+
+    @Test
+    fun `god mode text edits require the interactive privileged gate`() = runTest {
+        val file = tempDir.newFile("god-append.txt").apply { writeText("before") }
+        val manager = FileToolManager(godModeEnabled = true)
+        manager.confirmationGate = { _, _ -> true }
+        manager.privilegedFileConfirmationGate = { _, _, _ -> false }
+
+        val result = manager.executeTool(
+            "append_to_file",
+            mapOf("filePath" to file.absolutePath, "content" to "after"),
+            scopePath
+        )
+
+        assertTrue(result.isError)
+        assertEquals("before", file.readText())
+    }
+
+    @Test
     fun `read_file_lines reads specific line range`() = runTest {
         val file = tempDir.newFile("test.txt")
         file.writeText((1..100).joinToString("\n") { "Line $it" })
