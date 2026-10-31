@@ -31,31 +31,6 @@ object GodModeFileRouter {
      * Paths commonly requiring the Android shell identity instead of the app UID.
      * This list routes an attempt; it does not promise that SELinux or mount policy permits it.
      */
-    private val PRIVILEGED_PATH_PREFIXES = listOf(
-        "/data/data/",
-        "/data/user/",
-        "/data/user_de/",
-        "/data/system/",
-        "/data/misc/",
-        "/data/media/",
-        "/data/local/",
-        "/data/app/",
-        "/data/dalvik-cache/",
-        "/system/",
-        "/system_ext/",
-        "/vendor/",
-        "/proc/",
-        "/sys/",
-        "/dev/",
-        "/acct/",
-        "/apex/",
-        "/odm/",
-        "/oem/",
-        "/product/",
-        "/storage/emulated/0/Android/data",
-        "/storage/emulated/0/Android/obb"
-    )
-
     /** Maximum bytes to read via shell (to guard context window). */
     private const val MAX_READ_BYTES = 524_288L // 512 KB
 
@@ -187,8 +162,13 @@ object GodModeFileRouter {
         if (!requiresEscalation(canonical) && file.exists() && file.canWrite()) {
             return runCatching {
                 val deleted = if (recursive) file.deleteRecursively() else file.delete()
-                if (deleted) GodModeResult.Success("Deleted $canonical", escalated = false)
-                else GodModeResult.Failure("Direct delete returned false for $canonical")
+                if (deleted) {
+                    GodModeResult.Success("Deleted $canonical", escalated = false)
+                } else {
+                    // A false return proves the app-UID deletion did not complete. Try the
+                    // configured privileged backend once rather than reporting a false dead end.
+                    deleteViaShell(canonical, recursive)
+                }
             }.getOrElse { ex ->
                 if (isPermissionDenied(ex) || ex is SecurityException || isExternalStorage) {
                     deleteViaShell(canonical, recursive)
@@ -254,22 +234,22 @@ object GodModeFileRouter {
 
         val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
 
-        if (!requiresEscalation(canonical) && dir.canRead()) {
-            return runCatching {
-                val entries = dir.listFiles()?.joinToString("\n") { f ->
-                    val type = when { f.isDirectory -> "d"; f.isFile -> "f"; else -> "?" }
-                    val size = if (f.isFile) "${f.length()}B" else "-"
-                    "[$type] ${f.name} ($size)"
-                } ?: "(empty)"
-                GodModeResult.Success("Contents of $canonical:\n$entries", escalated = false)
-            }.getOrElse { ex ->
-                executeShell("ls -la ${shellQuote(canonical)} 2>&1",
-                    successMsg = "Directory listing via shell")
+        if (!requiresEscalation(canonical) && dir.isDirectory && dir.canRead()) {
+            // File.listFiles() returns null (rather than throwing) on some permission and
+            // filesystem failures. Null is not an empty directory: fall through to Shizuku.
+            val listed = runCatching { dir.listFiles() }.getOrNull()
+            if (listed != null) {
+                val entries = listed.joinToString("\n") { child ->
+                    val type = when { child.isDirectory -> "d"; child.isFile -> "f"; else -> "?" }
+                    val size = if (child.isFile) "${child.length()}B" else "-"
+                    "[$type] ${child.name} ($size)"
+                }.ifEmpty { "(empty)" }
+                return GodModeResult.Success("Contents of $canonical:\n$entries", escalated = false)
             }
         }
 
         return executeShell("ls -la ${shellQuote(canonical)} 2>&1",
-            successMsg = "Directory listing via shell (privileged)")
+            successMsg = "Directory listing via Android shell backend (Shizuku first)")
     }
 
     /**
@@ -413,7 +393,7 @@ object GodModeFileRouter {
      * application-private storage boundaries or read-only mounts.
      */
     private fun requiresEscalation(canonical: String): Boolean =
-        PRIVILEGED_PATH_PREFIXES.any { prefix -> canonical.startsWith(prefix) }
+        AndroidProtectedPathPolicy.requiresShell(canonical)
 
     /**
      * Resolves a (possibly relative or symlink-containing) path to its canonical form.
