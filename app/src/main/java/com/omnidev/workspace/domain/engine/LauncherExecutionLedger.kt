@@ -74,7 +74,7 @@ internal class LauncherExecutionLedger(objective: String) {
                 return "Launcher mutation blocked: stale expectedRevision. Fetch launcher.get_layout again and use its newest revision as expectedRevision. No mutation was sent."
             }
             if (!layoutPagesComplete) {
-                return "Launcher mutation blocked: get_layout is paginated. Fetch the remaining layout page using offset=${pendingLayoutOffset ?: "from nextOffset"} and its exact capability schema; do not mutate until nextOffset is null."
+                return "Launcher mutation blocked: get_layout is paginated. Fetch the remaining layout page using offset=${pendingLayoutOffset ?: "from nextOffset"} and its exact capability schema; do not mutate until nextOffset is negative (-1 means the final page is complete)."
             }
         }
         return null
@@ -180,8 +180,8 @@ internal class LauncherExecutionLedger(objective: String) {
     fun completionFeedback(): String? {
         if (!needsActionGuidance) return null
         recoveries++
-        return if (mutated) "A Launcher mutation already succeeded. Read every launcher.get_layout page until nextOffset is null, then verify the fresh revision and requested arrangement before finishing. Do not repeat the mutation blindly."
-        else "The user requested Launcher changes, but no real mutation succeeded. Read-only discovery/health/layout/apps is not completion. Fetch every get_layout page until nextOffset is null, fetch the exact capability schemas, then execute the appropriate approved capability. For Home folders use launcher.create_home_folder, not drawer rules or files. If denied, report the real blocker without claiming success."
+        return if (mutated) "A Launcher mutation already succeeded. Read every launcher.get_layout page until nextOffset is negative (-1 means the final page is complete), then verify the fresh revision and requested arrangement before finishing. Do not repeat the mutation blindly."
+        else "The user requested Launcher changes, but no real mutation succeeded. Read-only discovery/health/layout/apps is not completion. Fetch every get_layout page until nextOffset is negative (-1 means the final page is complete), fetch the exact capability schemas, then execute the appropriate approved capability. For Home folders use launcher.create_home_folder, not drawer rules or files. If denied, report the real blocker without claiming success."
     }
     fun failureMessage() = "Launcher changes remain unverified: " + (failure ?: if (mutated) "reload not verified" else "no successful Launcher mutation")
 
