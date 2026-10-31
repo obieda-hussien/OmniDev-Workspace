@@ -1,5 +1,7 @@
 package com.omnidev.workspace.data.ipc
 
+import android.os.Build
+import com.omnidev.workspace.data.tools.AndroidShellCommandCompatibility
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolParameter
@@ -26,7 +28,7 @@ Execute Android privileged operations through the supported Shizuku UserService 
 
 Core actions:
 • status — functionally probe Shizuku/rish/root and report independent states.
-• shell — command: privileged Android shell command.
+• shell — command: privileged Android shell command. On Android 11+ legacy media volume requests use cmd media_session volume.
 • dumpsys — service.
 • getprop / setprop — key, optional value.
 • meminfo / cpuinfo / ps / netstat.
@@ -90,7 +92,9 @@ RISH GUARDRAILS:
 
             "shell" -> {
                 val command = args["command"] ?: return@withContext err("shell requires 'command'")
-                PrivilegedExecutionManager.executeCommand(command).toToolResult()
+                val adapted = AndroidShellCommandCompatibility.adapt(command, Build.VERSION.SDK_INT)
+                val result = PrivilegedExecutionManager.executeCommand(adapted.command).toToolResult()
+                if (adapted.note == null) result else result.copy(output = adapted.note + "\n" + result.output)
             }
 
             "dumpsys" -> {

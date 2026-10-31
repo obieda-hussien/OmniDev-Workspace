@@ -62,6 +62,15 @@ class ExecutionDomainGuardTest {
         )
     }
     @Test
+    fun `standalone media volume command is routed to Android shell domain`() {
+        val violation = ExecutionDomainGuard.findViolation(
+            "media volume --stream 3 --set 15"
+        )
+        assertNotNull(violation)
+        assertEquals("media", violation?.commandFamily)
+    }
+
+    @Test
     fun `content provider command is recognized as Android privileged work`() {
         val violation = ExecutionDomainGuard.findViolation(
             "content query --uri content://sms --projection body,address,date"
