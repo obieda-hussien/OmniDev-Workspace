@@ -639,14 +639,14 @@ class FileToolManager(
 
         if (fileExists) return ToolExecutionResult("File already exists: $filePath. Use patch_file_content to modify.", isError = true)
 
+        val diffPreview = buildString {
+            appendLine("--- /dev/null")
+            appendLine("+++ b/${filePath.substringAfterLast('/')}")
+            appendLine("@@ -0,0 +1,${content.lines().size} @@")
+            content.lines().forEach { line -> appendLine("+$line") }
+        }.trimEnd()
         val gate = confirmationGate
         if (!godModeEnabled && gate != null) {
-            val diffPreview = buildString {
-                appendLine("--- /dev/null")
-                appendLine("+++ b/${filePath.substringAfterLast('/')}")
-                appendLine("@@ -0,0 +1,${content.lines().size} @@")
-                content.lines().forEach { line -> appendLine("+$line") }
-            }.trimEnd()
             val approved = gate.invoke("New file: $filePath", diffPreview)
             if (!approved) return ToolExecutionResult("User cancelled the file creation for $filePath.", isError = true)
         } else if (godModeEnabled) {
@@ -684,22 +684,22 @@ class FileToolManager(
             if (file.isDirectory) return ToolExecutionResult("Cannot delete directory: $filePath", isError = true)
         }
 
+        val existingContent = if (godModeEnabled) {
+            when (val r = GodModeFileRouter.readFile(filePath, godMode = true)) {
+                is GodModeResult.Success -> r.content
+                else -> ""
+            }
+        } else {
+            try { file.readText() } catch (_: Exception) { "" }
+        }
+        val diffPreview = buildString {
+            appendLine("--- a/${filePath.substringAfterLast('/')}")
+            appendLine("+++ /dev/null")
+            appendLine("@@ -1,${existingContent.lines().size} +0,0 @@")
+            existingContent.lines().forEach { line -> appendLine("-$line") }
+        }.trimEnd()
         val gate = confirmationGate
         if (!godModeEnabled && gate != null) {
-            val existingContent = if (godModeEnabled) {
-                when (val r = GodModeFileRouter.readFile(filePath, godMode = true)) {
-                    is GodModeResult.Success -> r.content
-                    else -> ""
-                }
-            } else {
-                try { file.readText() } catch (_: Exception) { "" }
-            }
-            val diffPreview = buildString {
-                appendLine("--- a/${filePath.substringAfterLast('/')}")
-                appendLine("+++ /dev/null")
-                appendLine("@@ -1,${existingContent.lines().size} +0,0 @@")
-                existingContent.lines().forEach { line -> appendLine("-$line") }
-            }.trimEnd()
             val approved = gate.invoke("Delete file: $filePath", diffPreview)
             if (!approved) return ToolExecutionResult("User cancelled the file deletion for $filePath.", isError = true)
         } else if (godModeEnabled) {
