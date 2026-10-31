@@ -263,7 +263,7 @@ class FileToolManager(
             addAll(listOf(
                 ToolDefinition(
                     name = "god_read_file",
-                    description = "[GOD MODE] Read files available to the app or the configured privileged Android shell, including inspectable paths under /data/, /system/, /system_ext/, /product/ and storage. Android sandbox, SELinux and mount restrictions still apply; inaccessible files return a real permission error. Returns bounded UTF-8 content.",
+                    description = "[GOD MODE] Read an absolute text file. Ordinary paths are tried with the app UID first; protected Android paths such as /system/, /system_ext/, /product/ and /data/ are routed through Shizuku UserService first, with the configured shell transport fallback only when the Shizuku transport itself is unavailable. SELinux, app-data isolation and read-only mounts still apply; inaccessible files return the real permission error. Returns bounded UTF-8 content.",
                     parameters = listOf(
                         ToolParameter("filePath", "string", "Absolute path to the file to read.", required = true)
                     )
@@ -295,8 +295,7 @@ class FileToolManager(
                 ),
                 ToolDefinition(
                     name = "god_list_directory",
-                    description = "[GOD MODE] List directory contents at any path including privileged " +
-                        "directories. Uses 'ls -la' via shell when direct listing fails.",
+                    description = "[GOD MODE] List an absolute directory. Ordinary paths are listed with the app UID first and fall back to Shizuku when listing is denied or unavailable. Protected roots such as /system, /system_ext, /product and /data are routed through Shizuku UserService first. A null app-UID listing is not treated as an empty directory. SELinux and mount restrictions remain enforced.",
                     parameters = listOf(
                         ToolParameter("path", "string", "Absolute directory path to list.", required = true)
                     )
