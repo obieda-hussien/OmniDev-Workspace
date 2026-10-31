@@ -4,6 +4,7 @@ import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.data.routing.AutoModelRouter
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.lifecycle.ViewModel
@@ -47,6 +48,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
+import com.omnidev.workspace.data.review.ChangeKind
+import com.omnidev.workspace.data.review.ChangeStatus
+import com.omnidev.workspace.data.review.SessionChangeLedger
 import java.util.concurrent.atomic.AtomicLong
 
 /** A file selected by the user but not sent yet. */
@@ -74,7 +78,6 @@ data class ChatUiState(
     val streamingContent: String? = null,
     /** User-facing tabs remain Chat / Agent / Team. AUTO is only for overlay routing. */
     val activeMode: OmniMode = OmniMode.CHAT,
-    val pendingConfirmation: PendingConfirmation? = null,
     val isGodModeEnabled: Boolean = false,
     val replyingTo: ChatMessage? = null,
     val chatSettings: com.omnidev.workspace.domain.model.ChatSettings =
@@ -141,8 +144,18 @@ class ChatViewModel(
     private val modePermissionStore: ModeSwitchPermissionStore by lazy {
         ModeSwitchPermissionStore(com.omnidev.workspace.OmniDevApp.instance.applicationContext)
     }
+    private var preferredModeListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+    @Volatile private var pendingPreferredMode: OmniMode? = null
 
     init {
+        _uiState.update { it.copy(activeMode = modePermissionStore.preferredMode()) }
+        preferredModeListener = modePermissionStore.registerPreferredModeListener { preferred ->
+            if (_uiState.value.isProcessing) {
+                pendingPreferredMode = preferred
+            } else {
+                _uiState.update { it.copy(activeMode = preferred) }
+            }
+        }
         viewModelScope.launch {
             settingsRepository.observeProfilePersonalization().collect { preferences ->
                 _uiState.update { it.copy(personalization = preferences) }
@@ -154,6 +167,12 @@ class ChatViewModel(
         observeGodMode()
         observeChatSettings()
         wireFileConfirmationGate()
+    }
+
+    override fun onCleared() {
+        preferredModeListener?.let(modePermissionStore::unregisterPreferredModeListener)
+        preferredModeListener = null
+        super.onCleared()
     }
 
     private fun loadTargetContext() {
@@ -219,71 +238,81 @@ class ChatViewModel(
 
     private var assistantConfirmationGate: com.omnidev.workspace.core.policy.ConfirmationGate? = null
 
+    /** Net per-session record of every file the agent changed; drives the review screen. */
+    val changeLedger = SessionChangeLedger()
+
+    fun keepAllChanges() = viewModelScope.launch {
+        changeLedger.keep(changeLedger.forSession(_uiState.value.currentSessionId ?: -1L).filter { it.status == ChangeStatus.PENDING }.map { it.id }.toSet())
+    }
+    fun revertAllChanges() = viewModelScope.launch {
+        changeLedger.revert(changeLedger.forSession(_uiState.value.currentSessionId ?: -1L).filter { it.status == ChangeStatus.PENDING }.map { it.id }.toSet())
+    }
+
+    /** Maps FileToolManager's gate preview strings to (absolute path, kind). */
+    private fun parseFileChange(preview: String, diff: String?): Pair<String, ChangeKind>? {
+        val p = preview.trim().removePrefix("God Mode ").let { if (it != preview.trim()) it.replaceFirstChar(Char::uppercase) else it }
+        fun after(marker: String) = p.substringAfter(marker, "").trim().takeIf { it.startsWith("/") }
+        after("New file: ")?.takeIf { p.startsWith("New file: ") }?.let { return it to ChangeKind.CREATED }
+        if (p.startsWith("Delete file: ")) after("Delete file: ")?.let { return it to ChangeKind.DELETED }
+        if (p.startsWith("File: ")) after("File: ")?.let { return it to ChangeKind.MODIFIED }
+        // God Mode previews: "Patch: /p", "Create file: /p (N characters)", "Delete file: /p"
+        if (p.startsWith("Patch: ")) after("Patch: ")?.let { return it to ChangeKind.MODIFIED }
+        if (p.startsWith("Create file: ")) after("Create file: ")?.substringBefore(" (")?.let { return it to ChangeKind.CREATED }
+        // "Delete text in: X", "Append to: X", "Insert N line(s) ... in: X", "Clear all content from: X" ...
+        val tail = p.substringAfterLast(" in: ", "").ifEmpty { p.substringAfterLast(" to: ", "") }.ifEmpty { p.substringAfterLast(" from: ", "") }.trim()
+        if (tail.startsWith("/")) return tail to ChangeKind.MODIFIED
+        return null
+    }
+
     private fun wireFileConfirmationGate() {
         val ftm = fileToolManager
+        // The blocking approval dialog is gone. Every privileged action proceeds and is recorded
+        // in the session ledger (Activity tab) so the user can audit it afterwards.
         val uiGate = com.omnidev.workspace.core.policy.ConfirmationGate { kind, preview, diff ->
-            val deferred = CompletableDeferred<Boolean>()
-            val confirmationType = when (kind) {
-                com.omnidev.workspace.core.policy.ConfirmationKind.LEARNED_TASK -> ConfirmationType.LEARNED_TASK
-                com.omnidev.workspace.core.policy.ConfirmationKind.ASSISTANT_ACTION -> ConfirmationType.ASSISTANT_ACTION
-                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH -> ConfirmationType.GOD_MODE_FILE_PATCH
-                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE -> ConfirmationType.GOD_MODE_FILE_WRITE
-                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE -> ConfirmationType.GOD_MODE_FILE_DELETE
-                com.omnidev.workspace.core.policy.ConfirmationKind.SHIZUKU_COMMAND -> ConfirmationType.SHIZUKU_COMMAND
-                com.omnidev.workspace.core.policy.ConfirmationKind.ANDROID_INTENT -> ConfirmationType.ANDROID_INTENT
-                com.omnidev.workspace.core.policy.ConfirmationKind.CONNECTED_APP_ACTION -> ConfirmationType.CONNECTED_APP_ACTION
-            }
-            val confirmationId = UUID.randomUUID().toString()
-            showConfirmation(
-                PendingConfirmation(
-                    id = confirmationId,
-                    type = confirmationType,
-                    preview = preview,
-                    diffContent = diff,
-                    onApprove = {
-                        com.omnidev.workspace.core.policy.OmniAuditLog.record(
-                            tier = com.omnidev.workspace.core.policy.TierPolicyHolder.current.tier,
-                            autoApproved = false,
-                            kind = kind,
-                            preview = if (kind == com.omnidev.workspace.core.policy.ConfirmationKind.LEARNED_TASK)
-                                "User approved learned task proposal; runtime values omitted" else preview,
-                            diffContent = diff
-                        )
-                        deferred.complete(true)
-                    },
-                    onDeny = { deferred.complete(false) }
-                )
-            )
-            try { deferred.await() } finally {
-                if (_uiState.value.pendingConfirmation?.id == confirmationId) clearConfirmation()
-            }
+            val learned = kind == com.omnidev.workspace.core.policy.ConfirmationKind.LEARNED_TASK
+            val shown = if (learned) "Reused a learned task; runtime values omitted" else preview
+            changeLedger.recordAction(_uiState.value.currentSessionId ?: -1L, kind, shown, diff)
+            com.omnidev.workspace.core.policy.OmniAuditLog.record(
+                tier = com.omnidev.workspace.core.policy.TierPolicyHolder.current.tier,
+                autoApproved = true, kind = kind, preview = shown, diffContent = diff)
+            true
         }
         val effectiveGate = com.omnidev.workspace.data.assistant.AssistantFlavorPolicy(
             com.omnidev.workspace.core.policy.TierPolicyHolder.current).confirmationGate(uiGate)
         assistantConfirmationGate = effectiveGate
+        // File edits no longer block on a dialog: the agent keeps working, every touched file is
+        // recorded in the session ledger (baseline captured BEFORE the write) and the user reviews
+        // the net diff later via the "files changed" bar — keep / revert per file or all at once.
         ftm?.confirmationGate = { preview, diffContent ->
-            val kind = if (diffContent != null)
-                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH
-            else com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
-            effectiveGate.request(kind, preview, diffContent)
+            val change = parseFileChange(preview, diffContent)
+            if (change != null) {
+                changeLedger.recordBeforeWrite(_uiState.value.currentSessionId ?: -1L, change.first, change.second)
+                com.omnidev.workspace.core.policy.OmniAuditLog.record(
+                    tier = com.omnidev.workspace.core.policy.TierPolicyHolder.current.tier,
+                    autoApproved = true,
+                    kind = if (change.second == ChangeKind.DELETED) com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
+                           else com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH,
+                    preview = "[STAGED FOR REVIEW] $preview",
+                    diffContent = diffContent
+                )
+                true
+            } else {
+                // Preview shape not recognised: still proceed, but keep it visible in the Activity tab.
+                val kind = if (diffContent != null) com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH
+                else com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
+                effectiveGate.request(kind, preview, diffContent)
+            }
+        }
+        // Privileged (God Mode) file edits go through the same ledger so they show up in Review.
+        ftm?.privilegedFileConfirmationGate = { kind, preview, diffContent ->
+            val change = parseFileChange(preview, diffContent)
+            if (change != null) {
+                changeLedger.recordBeforeWrite(_uiState.value.currentSessionId ?: -1L, change.first, change.second)
+            }
+            uiGate.request(kind, preview, diffContent)
         }
         compositeToolManager?.confirmationGate = effectiveGate
-        val routineReview = kotlinx.coroutines.sync.Mutex()
-        compositeToolManager?.learnedRoutineConfirmationGate = com.omnidev.workspace.core.policy.ConfirmationGate { kind, preview, diff ->
-            routineReview.lock()
-            try { uiGate.request(kind, preview, diff) } finally { routineReview.unlock() }
-        }
-    }
-
-    fun showConfirmation(confirmation: PendingConfirmation) {
-        if (assistantWorkspace != null) viewModelScope.launch {
-            com.omnidev.workspace.data.assistant.AssistantRuntime.restoreForConfirmation(com.omnidev.workspace.OmniDevApp.instance)
-        }
-        _uiState.update { it.copy(pendingConfirmation = confirmation) }
-    }
-
-    fun clearConfirmation() {
-        _uiState.update { it.copy(pendingConfirmation = null) }
+        compositeToolManager?.learnedRoutineConfirmationGate = uiGate
     }
 
     fun setDrawerOpen(open: Boolean) {
@@ -301,6 +330,7 @@ class ChatViewModel(
             cancelCurrentRun()
             _uiState.update { it.copy(errorMessage = null) }
         }
+        modePermissionStore.setPreferredMode(mode)
         _uiState.update { it.copy(activeMode = mode) }
     }
 
@@ -339,8 +369,6 @@ class ChatViewModel(
         attachmentImportJob?.cancel()
         _uiState.update { it.copy(isImportingAttachments = false) }
         compositeToolManager?.assistantActionGuard = null
-        _uiState.value.pendingConfirmation?.onDeny?.invoke()
-        clearConfirmation()
         modePermissionStore.clearSession(_uiState.value.currentSessionId)
         sessionObservation?.cancel()
         activeRunId.incrementAndGet()
@@ -584,9 +612,6 @@ class ChatViewModel(
         if (routineCall != null && (routineResult == null || routineCall.id > routineResult.id))
             compositeToolManager?.learnedRoutineTool?.runner?.pause()
         if (assistantWorkspace != null) configureAssistantActionGuard(update.text)
-        // A pending proposal belongs to the old route. Resolve it before the new plan.
-        state.pendingConfirmation?.onDeny?.invoke()
-        clearConfirmation()
         _uiState.update { it.copy(messages = it.messages + message, inputText = "", replyingTo = null,
             submittedSteeringRevision = update.revision, streamingContent = null, errorMessage = null) }
         val ready = runSessionReady
@@ -621,6 +646,14 @@ class ChatViewModel(
     }
 
     private fun startMessage(replacing: LastChatTurn? = null, replacementText: String? = null) {
+        val deferredPreference = pendingPreferredMode
+        if (deferredPreference != null && !_uiState.value.isProcessing) {
+            pendingPreferredMode = null
+            _uiState.update { it.copy(activeMode = deferredPreference) }
+        } else if (!_uiState.value.isProcessing && _uiState.value.activeMode != OmniMode.AUTO) {
+            val preferred = modePermissionStore.preferredMode()
+            if (_uiState.value.activeMode != preferred) _uiState.update { it.copy(activeMode = preferred) }
+        }
         val state = _uiState.value
         if (state.isImportingAttachments) { _uiState.update { it.copy(errorMessage = "Wait for the selected files to finish importing.") }; return }
         val attachments = replacing?.user?.attachments?.map { PendingAttachment(Uri.parse(it.uri), it.fileName) }
@@ -1107,6 +1140,8 @@ class ChatViewModel(
         val denied = proposal.copy(executionRequest = request.copy(status = "denied"))
         _uiState.update { s -> s.copy(messages = s.messages.map { if (it.messageId == messageId) denied else it }) }
         state.currentSessionId?.let { sessionId -> viewModelScope.launch { chatRepository?.updateMetadata(sessionId, denied) } }
+        // A declined escalation is not a cancellation: resume the same mode from the saved checkpoint.
+        startModeHandoff(source, request, autoApproved = false)
     }
 
     private fun maybeAutoConsumeModeRequest(
@@ -1339,7 +1374,9 @@ class ChatViewModel(
                         taskCount = event.tasks.size,
                         parallelSafeTaskCount = event.tasks.count { it.parallelSafe }
                     )
-                    if (suggestion != null) throw ModeHandoffSignal(suggestion)
+                    if (suggestion != null && modePermissionStore.shouldOfferSwitch(suggestion.from, suggestion.to, sessionId)) {
+                        throw ModeHandoffSignal(suggestion)
+                    }
                 }
             }
         } catch (signal: ModeHandoffSignal) {
@@ -1355,6 +1392,7 @@ class ChatViewModel(
         origin: ChatMessage,
         sessionId: Long
     ) {
+        if (!modePermissionStore.shouldOfferSwitch(suggestion.from, suggestion.to, sessionId)) return
         val request = ExecutionModeRequest(
             mode = suggestion.to.name,
             reason = suggestion.reason,

@@ -122,6 +122,7 @@ private fun SettingsDestination.icon(): ImageVector = when (this) {
     SettingsDestination.PROVIDERS -> Icons.Default.Key
     SettingsDestination.MODELS -> Icons.Default.Hub
     SettingsDestination.REASONING -> Icons.Default.AutoAwesome
+    SettingsDestination.EXECUTION_MODES -> Icons.Default.Tune
     SettingsDestination.LOCAL_MODELS -> Icons.Default.PhoneAndroid
     SettingsDestination.ASSISTANT -> Icons.Default.SmartToy
     SettingsDestination.VOICE -> Icons.Default.Mic

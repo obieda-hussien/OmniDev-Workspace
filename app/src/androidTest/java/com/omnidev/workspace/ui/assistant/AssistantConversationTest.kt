@@ -125,23 +125,6 @@ class AssistantConversationTest {
         saveChatPreview(compose, "floating-assistant", "assistant-compact-dark-rtl.png")
     }
 
-    @Test fun approvalCannotBeHiddenByToolsOrExpandAndDoesNotApproveOnCancel() {
-        val pending = mutableStateOf(true)
-        var approved = 0; var denied = 0; var expanded = 0
-        compose.setContent { OmniDevTheme(dynamicColor = false) {
-            AssistantConversation(AssistantScreenState(visible = true), ChatUiState(pendingConfirmation = if (pending.value)
-                PendingConfirmation("assistant-review", ConfirmationType.ASSISTANT_ACTION, "Fill Name with Obieda",
-                    onApprove = { approved++; pending.value = false }, onDeny = { denied++; pending.value = false }) else null),
-                assistantTestFlavor(), onExpand = { expanded++ })
-        } }
-        compose.onNodeWithContentDescription("Assistant tools").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Open full conversation").assertIsNotEnabled().performClick()
-        compose.onAllNodes(isDialog()).assertCountEquals(0)
-        compose.onNodeWithText("Cancel").performScrollTo().performClick()
-        compose.runOnIdle { assertEquals(0, approved); assertEquals(1, denied); assertEquals(0, expanded) }
-        compose.onNodeWithContentDescription("Assistant tools").assertExists()
-    }
-
     @Test fun liteKeepsBubbleWithoutDeviceAccessAndWelcomeDoesNotSubmit() {
         val input = mutableStateOf("")
         var sends = 0

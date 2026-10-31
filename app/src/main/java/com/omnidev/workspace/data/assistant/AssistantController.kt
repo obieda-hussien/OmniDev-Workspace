@@ -48,8 +48,6 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
         generation++
         val unsent = mutable.value.files
         scope.launch(Dispatchers.IO) { unsent.forEach { File(it.uri.path.orEmpty()).delete() } }
-        chat.uiState.value.pendingConfirmation?.onDeny?.invoke()
-        chat.clearConfirmation()
         chat.cancelCurrentRun()
         chat.newSession()
         mutable.value = AssistantScreenState()
@@ -141,14 +139,14 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     fun openConversation(open: () -> Unit) {
         if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { clearScreen(); return }
         val current = mutable.value
-        if (current.saving || current.minimizing || chat.uiState.value.isProcessing || chat.uiState.value.pendingConfirmation != null) return
+        if (current.saving || current.minimizing || chat.uiState.value.isProcessing) return
         val epoch = generation
         mutable.update { it.copy(saving = true) }
         scope.launch {
             var file: File? = null
             try {
                 current.attachment?.let { file = persistImage(it) }
-                if (epoch != generation || chat.uiState.value.isProcessing || chat.uiState.value.pendingConfirmation != null) { file?.delete(); return@launch }
+                if (epoch != generation || chat.uiState.value.isProcessing) { file?.delete(); return@launch }
                 if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { file?.delete(); clearScreen(); return@launch }
                 val fullChat = com.omnidev.workspace.WorkspaceChatRuntime.get(context)
                 chat.uiState.value.currentSessionId?.let(fullChat::loadSession)

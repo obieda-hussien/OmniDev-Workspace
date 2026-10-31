@@ -32,13 +32,13 @@ confirmation and local receiver consent; NORM may read the layout only:
 
 | Action | Contract |
 | --- | --- |
-| launcher.get_layout | Page occupancy, rows/columns, actual screen IDs and revision; hidden identities are omitted |
+| launcher.get_layout | Paginated Home layout; follow `nextOffset` with the capability's exact `offset` parameter until `nextOffset: -1`, keep all pages on one revision, and only then use the revision for a mutation |
 | launcher.move_items | expectedRevision + 1–40 {id, screenId, cellX, cellY}; only existing visible Home application icons; atomic swaps and collision checks |
 | launcher.set_grid | expectedRevision, rows, columns; standard grid migration, 3–10 (up to 20 only if locally enabled); can reflow content |
 | launcher.create_home_folder | expectedRevision, title, itemIds; atomic grouping of 2–40 existing visible Home application icons at the first member cell |
 | launcher.create_folder | title + nameContains/packagePrefix/category condition; creates a drawer rule folder, not a Home icon folder |
 
-Call find_capability for the full schema, use `dry_run=true` to validate supported actions, then request
+After a Home mutation, discard the prior layout snapshot. Read every page again; if a page reports a different revision from the first page, restart pagination at offset 0. Never combine mixed-revision pages or issue a new mutation until the final page reports `nextOffset: -1`.\n\nCall find_capability for the full schema, use `dry_run=true` to validate supported actions, then request
 normal approval for the actual mutation. `dry_run` is forwarded as ActionRequest.dryRun rather than
 inserted into a business payload. Unsupported dry runs fail explicitly. After a layout change, refetch
 get_layout once reload completes; stale_layout means replan using the new revision. Schema absence never

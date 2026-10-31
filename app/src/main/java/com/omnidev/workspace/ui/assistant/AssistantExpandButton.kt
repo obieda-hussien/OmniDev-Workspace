@@ -11,10 +11,9 @@ internal fun AssistantExpandButton(
     isSaving: Boolean,
     isMinimizing: Boolean,
     isProcessing: Boolean,
-    hasPendingConfirmation: Boolean,
     onExpand: () -> Unit
 ) {
-    val enabled = !isSaving && !isMinimizing && !isProcessing && !hasPendingConfirmation
+    val enabled = !isSaving && !isMinimizing && !isProcessing
     OmniIconButton(onClick = onExpand, enabled = enabled) {
         Icon(Icons.Default.OpenInFull, "Open full conversation")
     }

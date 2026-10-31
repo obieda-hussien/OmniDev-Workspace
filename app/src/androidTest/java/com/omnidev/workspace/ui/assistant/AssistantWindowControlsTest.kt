@@ -17,9 +17,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
-import com.omnidev.workspace.ui.chat.ConfirmationGateCard
-import com.omnidev.workspace.ui.chat.ConfirmationType
-import com.omnidev.workspace.ui.chat.PendingConfirmation
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -39,38 +36,6 @@ class AssistantWindowControlsTest {
             try { assertEquals(0, window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE) }
             finally { privacy.close() }
         }
-    }
-
-    @Test fun nonActivityContextCanReviewAndApproveWithoutCreatingDialogWindow() {
-        var approvals = 0
-        compose.setContent {
-            CompositionLocalProvider(LocalContext provides instrumentation.targetContext.applicationContext) {
-                MaterialTheme {
-                    ConfirmationGateCard(PendingConfirmation("request", ConfirmationType.ASSISTANT_ACTION,
-                        "Fill the Name field with Obieda", onApprove = { approvals++ }, onDeny = {}))
-                }
-            }
-        }
-        compose.onNodeWithText("Fill the Name field with Obieda").assertExists()
-        compose.onAllNodes(isDialog()).assertCountEquals(0)
-        compose.onNodeWithText("Allow").performClick()
-        compose.runOnIdle { assertEquals(1, approvals) }
-    }
-
-    @Test fun cancellingInlineConfirmationDoesNotApproveTheAction() {
-        var approvals = 0
-        var denials = 0
-        compose.setContent {
-            CompositionLocalProvider(LocalContext provides instrumentation.targetContext.applicationContext) {
-                MaterialTheme {
-                    ConfirmationGateCard(PendingConfirmation("request", ConfirmationType.GOD_MODE_FILE_PATCH,
-                        "Change settings.txt", "@@ -1 +1 @@\n-old\n+new",
-                        onApprove = { approvals++ }, onDeny = { denials++ }))
-                }
-            }
-        }
-        compose.onNodeWithText("Cancel").performClick()
-        compose.runOnIdle { assertEquals(0, approvals); assertEquals(1, denials) }
     }
 
     @Test fun attachmentOptionsAndFilePathWorkWithoutActivityContext() {
@@ -99,26 +64,13 @@ class AssistantWindowControlsTest {
         compose.runOnIdle { assertEquals("/storage/emulated/0/Movies/demo.mp4", addedPath) }
     }
 
-    @Test fun fullConversationCannotHidePendingApprovalOrActiveRun() {
-        val pending = mutableStateOf(true)
-        val processing = mutableStateOf(false)
+    @Test fun expandIsDisabledWhileRunIsActive() {
+        val processing = mutableStateOf(true)
         var expansions = 0
-        compose.setContent {
-            MaterialTheme {
-                Column {
-                    AssistantExpandButton(false, false, processing.value, pending.value) { expansions++ }
-                    if (pending.value) ConfirmationGateCard(PendingConfirmation("request", ConfirmationType.ASSISTANT_ACTION,
-                        "Fill Name with Obieda", onApprove = { pending.value = false }, onDeny = { pending.value = false }))
-                }
-            }
-        }
+        compose.setContent { MaterialTheme { AssistantExpandButton(false, false, processing.value) { expansions++ } } }
         val expand = compose.onNodeWithContentDescription("Open full conversation")
         expand.assertIsNotEnabled().performClick()
-        compose.runOnIdle { assertEquals(0, expansions) }
-        compose.onNodeWithText("Allow").performClick()
-        compose.runOnIdle { processing.value = true }
-        expand.assertIsNotEnabled()
-        compose.runOnIdle { processing.value = false }
+        compose.runOnIdle { assertEquals(0, expansions); processing.value = false }
         expand.assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals(1, expansions) }
     }
