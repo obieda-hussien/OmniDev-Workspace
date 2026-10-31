@@ -79,11 +79,17 @@ object GodModeFileRouter {
                     GodModeResult.Success(content = bytes.decodeToString(), escalated = false)
                 }
             }.getOrElse { ex ->
-                if (isPermissionDenied(ex) || ex is SecurityException || isExternalStorage) {
-                    // Silently escalate — the direct attempt failed on permissions, or it's external storage.
-                    readViaShell(canonical)
-                } else {
-                    GodModeResult.Failure("Direct read failed: ${ex.message}")
+                // A direct read can fail for more than EACCES (mount/I/O race, vendor FUSE,
+                // transient filesystem errors). For read-only access it is safe to try the
+                // Android shell backend once; it will use Shizuku first.
+                when (val shellResult = readViaShell(canonical)) {
+                    is GodModeResult.Success -> shellResult.copy(
+                        note = "Read via Android shell backend after app-UID read failed: ${ex.message.orEmpty().take(180)}"
+                    )
+                    is GodModeResult.Failure -> GodModeResult.Failure(
+                        "Direct app-UID read failed: ${ex.message.orEmpty()}; Android shell fallback failed: ${shellResult.reason}"
+                    )
+                    is GodModeResult.GodModeDisabled -> shellResult
                 }
             }
         }
@@ -170,10 +176,16 @@ object GodModeFileRouter {
                     deleteViaShell(canonical, recursive)
                 }
             }.getOrElse { ex ->
-                if (isPermissionDenied(ex) || ex is SecurityException || isExternalStorage) {
-                    deleteViaShell(canonical, recursive)
-                } else {
-                    GodModeResult.Failure("Direct delete failed: ${ex.message}")
+                // Deletion is idempotent at this target: if the app-UID attempt failed,
+                // let the configured Android shell backend try once; it will not use root implicitly.
+                when (val shellResult = deleteViaShell(canonical, recursive)) {
+                    is GodModeResult.Success -> shellResult.copy(
+                        note = "Deleted via Android shell backend after app-UID delete failed: ${ex.message.orEmpty().take(180)}"
+                    )
+                    is GodModeResult.Failure -> GodModeResult.Failure(
+                        "Direct app-UID delete failed: ${ex.message.orEmpty()}; Android shell fallback failed: ${shellResult.reason}"
+                    )
+                    is GodModeResult.GodModeDisabled -> shellResult
                 }
             }
         }
