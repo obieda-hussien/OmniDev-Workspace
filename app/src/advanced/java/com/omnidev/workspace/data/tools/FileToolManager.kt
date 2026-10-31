@@ -65,7 +65,8 @@ class FileToolManager(
 
     @Volatile var privilegedFileConfirmationGate: (suspend (
         kind: com.omnidev.workspace.core.policy.ConfirmationKind,
-        preview: String
+        preview: String,
+        diffContent: String?
     ) -> Boolean)? = null
 
     companion object {
@@ -586,14 +587,16 @@ class FileToolManager(
                 val newContent = content.replaceFirst(searchSnippet, replaceSnippet)
 
                 val gate = confirmationGate
-                if (gate != null) {
+                if (!godModeEnabled && gate != null) {
                     val diff = generateUnifiedDiff(filePath, content, newContent)
                     val approved = gate.invoke("File: $filePath", diff.ifEmpty { null })
                     if (!approved) return ToolExecutionResult("User cancelled the file modification for $filePath.", isError = true)
                 } else if (godModeEnabled) {
+                    val diff = generateUnifiedDiff(filePath, content, newContent)
                     requestPrivilegedMutationApproval(
                         com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH,
-                        "God Mode patch: $filePath"
+                        "God Mode patch: $filePath",
+                        diff.ifEmpty { null }
                     )?.let { return it }
                 }
 
@@ -638,7 +641,7 @@ class FileToolManager(
         if (fileExists) return ToolExecutionResult("File already exists: $filePath. Use patch_file_content to modify.", isError = true)
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diffPreview = buildString {
                 appendLine("--- /dev/null")
                 appendLine("+++ b/${filePath.substringAfterLast('/')}")
@@ -650,7 +653,8 @@ class FileToolManager(
         } else if (godModeEnabled) {
             requestPrivilegedMutationApproval(
                 com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE,
-                "God Mode create file: $filePath (${content.length} characters)"
+                "God Mode create file: $filePath (${content.length} characters)",
+                diffPreview
             )?.let { return it }
         }
 
@@ -682,7 +686,7 @@ class FileToolManager(
         }
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val existingContent = if (godModeEnabled) {
                 when (val r = GodModeFileRouter.readFile(filePath, godMode = true)) {
                     is GodModeResult.Success -> r.content
@@ -702,7 +706,8 @@ class FileToolManager(
         } else if (godModeEnabled) {
             requestPrivilegedMutationApproval(
                 com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE,
-                "God Mode delete file: $filePath"
+                "God Mode delete file: $filePath",
+                diffPreview
             )?.let { return it }
         }
 
@@ -951,7 +956,7 @@ class FileToolManager(
         }
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diff = generateUnifiedDiff(filePath, content, newContent)
             val approved = gate.invoke("Delete text in: $filePath", diff.ifEmpty { null })
             if (!approved) return ToolExecutionResult("User cancelled delete_text for $filePath.", isError = true)
@@ -986,7 +991,7 @@ class FileToolManager(
         if (!exists) return ToolExecutionResult("File not found: $filePath", isError = true)
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val approved = gate.invoke("Clear all content from: $filePath", null)
             if (!approved) return ToolExecutionResult("User cancelled clear_file for $filePath.", isError = true)
         }
@@ -1031,7 +1036,7 @@ class FileToolManager(
             .joinToString("\n")
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diff = generateUnifiedDiff(filePath, content, newContent)
             val approved = gate.invoke("Delete lines $startLine–$effectiveEnd in: $filePath", diff.ifEmpty { null })
             if (!approved) return ToolExecutionResult("User cancelled delete_lines for $filePath.", isError = true)
@@ -1070,7 +1075,7 @@ class FileToolManager(
         val newContent = lines.joinToString("\n")
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diff = generateUnifiedDiff(filePath, content, newContent)
             val approved = gate.invoke("Insert ${insertLines.size} line(s) before line $lineNumber in: $filePath", diff.ifEmpty { null })
             if (!approved) return ToolExecutionResult("User cancelled insert_lines for $filePath.", isError = true)
@@ -1122,7 +1127,7 @@ class FileToolManager(
         val newContent = (head + replacementLines + tail).joinToString("\n")
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diff = generateUnifiedDiff(filePath, content, newContent)
             val approved = gate.invoke(
                 "Replace lines $startLine–$effectiveEnd (${effectiveEnd - startLine + 1} lines → ${replacementLines.size} lines) in: $filePath",
@@ -1159,7 +1164,7 @@ class FileToolManager(
         val newContent = existing + separator + appendContent
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diff = generateUnifiedDiff(filePath, existing, newContent)
             val approved = gate.invoke("Append to: $filePath", diff.ifEmpty { null })
             if (!approved) return ToolExecutionResult("User cancelled append_to_file for $filePath.", isError = true)
@@ -1472,7 +1477,8 @@ class FileToolManager(
 
     private suspend fun requestPrivilegedMutationApproval(
         kind: com.omnidev.workspace.core.policy.ConfirmationKind,
-        preview: String
+        preview: String,
+        diffContent: String? = null
     ): ToolExecutionResult? {
         if (!godModeEnabled) return null
         val gate = privilegedFileConfirmationGate ?: return ToolExecutionResult(
@@ -1481,7 +1487,7 @@ class FileToolManager(
             classification = "USER_ACTION_REQUIRED",
             retryable = false
         )
-        return if (gate(kind, preview)) null else ToolExecutionResult(
+        return if (gate(kind, preview, diffContent)) null else ToolExecutionResult(
             output = "User denied this privileged file mutation. No file change was dispatched.",
             isError = true,
             classification = "USER_ACTION_DENIED",
