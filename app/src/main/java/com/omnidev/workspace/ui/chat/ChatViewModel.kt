@@ -284,9 +284,10 @@ class ChatViewModel(
             else com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
             effectiveGate.request(kind, preview, diffContent)
         }
-        ftm?.privilegedFileConfirmationGate = { kind, preview ->
-            // Privileged writes/copies/deletes always require an interactive user decision.
-            uiGate.request(kind, preview, null)
+        ftm?.privilegedFileConfirmationGate = { kind, preview, diffContent ->
+            // Privileged writes/copies/deletes always require the interactive UI gate,
+            // never the flavor policy gate which may auto-approve in OEM/background contexts.
+            uiGate.request(kind, preview, diffContent)
         }
         compositeToolManager?.confirmationGate = effectiveGate
         val routineReview = kotlinx.coroutines.sync.Mutex()
