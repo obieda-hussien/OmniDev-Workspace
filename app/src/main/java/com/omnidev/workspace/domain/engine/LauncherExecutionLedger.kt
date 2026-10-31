@@ -22,6 +22,11 @@ internal class LauncherExecutionLedger(objective: String) {
     private var mutated = false
     private var verified = false
     private var expectedRevision: String? = null
+    private var latestLayoutRevision: String? = null
+    private var layoutPagesComplete: Boolean = false
+    private var pendingLayoutOffset: Int? = null
+    private var layoutPageRevision: String? = null
+    private var layoutRestartRequired: Boolean = false
     private var failure: String? = null
     private var recoveries = 0
     val exhausted get() = recoveries > 2
@@ -32,7 +37,47 @@ internal class LauncherExecutionLedger(objective: String) {
         val shell = name in setOf("run_terminal", "run_script", "direct_terminal", "advanced_terminal", "root_shell_tool", "shizuku_command")
         val unrelatedFile = name in setOf("create_file", "write_file", "append_to_file", "patch_file", "delete_file") ||
             (name == "agent_runtime" && (args["action"].orEmpty().startsWith("file_") || args["action"] in setOf("shell_script", "termux_run")))
-        return if (shell || unrelatedFile) "Launcher organization requires typed omni_link capabilities. A shell directory or JSON file does not change Home. Discover the actual provider; use its exact schema and normal approval flow." else null
+        if (shell || unrelatedFile) {
+            return "Launcher organization requires typed omni_link capabilities. A shell directory or JSON file does not change Home. Discover the actual provider; use its exact schema and normal approval flow."
+        }
+        if (name == "omni_link" &&
+            args["action"] in setOf("execute_action", "execute_capability") &&
+            args["action_name"] == "launcher.get_layout"
+        ) {
+            val payload = runCatching { JSONObject(args["json_payload"] ?: "{}") }.getOrNull() ?: JSONObject()
+            val requestedOffset = payload.optInt("offset", 0)
+            if (layoutRestartRequired && requestedOffset != 0) {
+                return "Launcher layout changed while paging. Restart launcher.get_layout from offset 0; do not combine pages from different revisions."
+            }
+            val expectedOffset = pendingLayoutOffset
+            if (expectedOffset != null && requestedOffset != expectedOffset) {
+                return "Launcher layout pagination expected offset=$expectedOffset, but the request used offset=$requestedOffset. Follow nextOffset exactly before planning a mutation."
+            }
+            if (expectedOffset == null && layoutPageRevision != null && requestedOffset != 0) {
+                return "Launcher layout pagination is already complete. Do not request an unadvertised page; restart at offset=0 if a new snapshot is needed."
+            }
+            if (expectedOffset == null && layoutPageRevision == null && requestedOffset != 0) {
+                return "Start launcher.get_layout at offset=0 before requesting later pages."
+            }
+        }
+        if (name == "omni_link" &&
+            args["action"] in setOf("execute_action", "execute_capability") &&
+            args["action_name"] in homeMutations
+        ) {
+            val payload = runCatching { JSONObject(args["json_payload"] ?: "{}") }.getOrNull()
+                ?: return "Invalid Launcher payload. Fetch launcher.get_layout and construct a valid JSON payload."
+            val expected = payload.optString("expectedRevision").takeIf { it.isNotBlank() }
+                ?: return "Launcher mutation blocked: include expectedRevision from the latest successful launcher.get_layout. Do not send revision; the required key is expectedRevision."
+            val latest = latestLayoutRevision
+                ?: return "Launcher mutation blocked: no current layout revision is in memory. Call launcher.get_layout first, then send its revision as expectedRevision."
+            if (expected != latest) {
+                return "Launcher mutation blocked: stale expectedRevision. Fetch launcher.get_layout again and use its newest revision as expectedRevision. No mutation was sent."
+            }
+            if (!layoutPagesComplete) {
+                return "Launcher mutation blocked: get_layout is paginated. Fetch the remaining layout page using offset=${pendingLayoutOffset ?: "from nextOffset"} and its exact capability schema; do not mutate until nextOffset is negative (-1 means the final page is complete)."
+            }
+        }
+        return null
     }
 
     fun observe(name: String, args: Map<String, String>, output: String, isError: Boolean) {
@@ -40,13 +85,63 @@ internal class LauncherExecutionLedger(objective: String) {
         val action = args["action_name"].orEmpty()
         if (args["action"] !in setOf("execute_action", "execute_capability") || !action.startsWith("launcher.")) return
         val envelope = runCatching { JSONObject(output.substring(output.indexOf('{'))) }.getOrNull()
-        if (isError || envelope?.optBoolean("ok") != true) { failure = envelope?.optString("code") ?: "tool_failure"; return }
-        val outcome = runCatching { JSONObject(envelope.getString("result_json")) }.getOrNull() ?: return
-        if (!outcome.optString("type").endsWith("ActionOutcome.Success")) return
-        val data = outcome.optJSONObject("data") ?: return
-        if (action == "launcher.get_layout" && mutated && !verified) {
+        if (isError || envelope?.optBoolean("ok") != true) {
+            failure = envelope?.optString("code") ?: "tool_failure"
+            if (action in homeMutations || action == "launcher.get_layout") invalidateLayoutSnapshot()
+            return
+        }
+        val outcome = runCatching { JSONObject(envelope.getString("result_json")) }.getOrNull()
+        if (outcome == null || !outcome.optString("type").endsWith("ActionOutcome.Success")) {
+            if (action == "launcher.get_layout") invalidateLayoutSnapshot()
+            return
+        }
+        val data = outcome.optJSONObject("data")
+        if (data == null) {
+            if (action == "launcher.get_layout") invalidateLayoutSnapshot()
+            return
+        }
+        if (action == "launcher.get_layout") {
             val revision = data.optString("revision")
-            if (revision.isNotBlank() && revision != expectedRevision) verified = true
+            val payload = runCatching { JSONObject(args["json_payload"] ?: "{}") }.getOrNull() ?: JSONObject()
+            val requestedOffset = payload.optInt("offset", 0)
+            val next = if (data.has("nextOffset") && !data.isNull("nextOffset")) {
+                data.optInt("nextOffset").takeIf { it >= 0 }
+            } else null
+
+            if (next != null && next <= requestedOffset) {
+                layoutRestartRequired = true
+                pendingLayoutOffset = 0
+                latestLayoutRevision = null
+                layoutPagesComplete = false
+                failure = "layout_pagination_did_not_advance"
+                return
+            }
+
+            if (requestedOffset == 0) {
+                layoutPageRevision = revision.takeIf { it.isNotBlank() }
+                latestLayoutRevision = revision.takeIf { it.isNotBlank() }
+                layoutRestartRequired = false
+                pendingLayoutOffset = next
+                layoutPagesComplete = next == null
+            } else {
+                val expectedOffset = pendingLayoutOffset
+                if (layoutRestartRequired || expectedOffset != requestedOffset ||
+                    revision.isBlank() || revision != layoutPageRevision
+                ) {
+                    layoutRestartRequired = true
+                    pendingLayoutOffset = 0
+                    latestLayoutRevision = null
+                    layoutPagesComplete = false
+                    failure = "layout_changed_during_pagination"
+                    return
+                }
+                latestLayoutRevision = revision
+                pendingLayoutOffset = next
+                layoutPagesComplete = next == null
+            }
+
+            if (mutated && !verified && layoutPagesComplete && revision.isNotBlank() && revision != expectedRevision) verified = true
+            failure = null
             return
         }
         val payload = runCatching { JSONObject(args["json_payload"] ?: "{}") }.getOrNull()
@@ -55,9 +150,18 @@ internal class LauncherExecutionLedger(objective: String) {
             successfulAction = action
             mutated = true
             expectedRevision = payload?.optString("expectedRevision")?.takeIf { it.isNotBlank() }
-            verified = !data.optBoolean("reloadScheduled")
+            invalidateLayoutSnapshot()
+            verified = action !in homeMutations && !data.optBoolean("reloadScheduled")
             failure = null
         }
+    }
+
+    private fun invalidateLayoutSnapshot() {
+        latestLayoutRevision = null
+        layoutPagesComplete = false
+        pendingLayoutOffset = null
+        layoutPageRevision = null
+        layoutRestartRequired = false
     }
 
     /** Carry acknowledged side effects across a correction; read them back instead of replaying. */
@@ -76,8 +180,8 @@ internal class LauncherExecutionLedger(objective: String) {
     fun completionFeedback(): String? {
         if (!needsActionGuidance) return null
         recoveries++
-        return if (mutated) "A Launcher mutation already succeeded. Read launcher.get_layout again and verify a fresh revision and the requested arrangement before finishing. Do not repeat the mutation blindly."
-        else "The user requested Launcher changes, but no real mutation succeeded. Read-only discovery/health/layout/apps is not completion. Discover the actual extension (never guess package IDs), fetch needed pages/schemas, then execute the appropriate approved capability. For Home folders use launcher.create_home_folder, not drawer rules or files. If denied, report the real blocker without claiming success."
+        return if (mutated) "A Launcher mutation already succeeded. Read every launcher.get_layout page until nextOffset is negative (-1 means the final page is complete), then verify the fresh revision and requested arrangement before finishing. Do not repeat the mutation blindly."
+        else "The user requested Launcher changes, but no real mutation succeeded. Read-only discovery/health/layout/apps is not completion. Fetch every get_layout page until nextOffset is negative (-1 means the final page is complete), fetch the exact capability schemas, then execute the appropriate approved capability. For Home folders use launcher.create_home_folder, not drawer rules or files. If denied, report the real blocker without claiming success."
     }
     fun failureMessage() = "Launcher changes remain unverified: " + (failure ?: if (mutated) "reload not verified" else "no successful Launcher mutation")
 

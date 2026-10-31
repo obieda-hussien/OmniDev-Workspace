@@ -63,6 +63,12 @@ class FileToolManager(
      */
     @Volatile var confirmationGate: (suspend (preview: String, diffContent: String?) -> Boolean)? = null
 
+    @Volatile var privilegedFileConfirmationGate: (suspend (
+        kind: com.omnidev.workspace.core.policy.ConfirmationKind,
+        preview: String,
+        diffContent: String?
+    ) -> Boolean)? = null
+
     companion object {
         /** Maximum lines returned from a single read to guard context window usage. */
         private const val MAX_READ_LINES = 500
@@ -257,18 +263,14 @@ class FileToolManager(
             addAll(listOf(
                 ToolDefinition(
                     name = "god_read_file",
-                    description = "[GOD MODE] Read any file on the Android filesystem, including protected " +
-                        "paths like /data/data/, /system/, /proc/. Automatically routes through " +
-                        "Shizuku/rish/root when required. Returns raw UTF-8 content.",
+                    description = "[GOD MODE] Read an absolute text file. Ordinary paths are tried with the app UID first; protected Android paths such as /system/, /system_ext/, /product/ and /data/ are routed through Shizuku UserService first, with the configured shell transport fallback only when the Shizuku transport itself is unavailable. SELinux, app-data isolation and read-only mounts still apply; inaccessible files return the real permission error. Returns bounded UTF-8 content.",
                     parameters = listOf(
                         ToolParameter("filePath", "string", "Absolute path to the file to read.", required = true)
                     )
                 ),
                 ToolDefinition(
                     name = "god_write_file",
-                    description = "[GOD MODE] Write content to any file on the Android filesystem, including " +
-                        "protected paths. Parent directories are created automatically. " +
-                        "Automatically escalates through Shizuku/rish/root when needed.",
+                    description = "[GOD MODE] Propose a UTF-8 write to an absolute path accessible to the configured privileged backend. The user must approve the exact target before dispatch. Parent directories may be created only where the backend permits; Android sandbox, SELinux and read-only system partitions remain enforced.",
                     parameters = listOf(
                         ToolParameter("filePath", "string", "Absolute path to the target file.", required = true),
                         ToolParameter("content", "string", "UTF-8 text content to write.", required = true),
@@ -277,8 +279,7 @@ class FileToolManager(
                 ),
                 ToolDefinition(
                     name = "god_delete_file",
-                    description = "[GOD MODE] Delete any file or directory on the filesystem, including " +
-                        "protected paths. Escalates through Shizuku/rish/root as needed.",
+                    description = "[GOD MODE] Propose deletion of an absolute file or directory accessible to the configured privileged backend. The user must approve the exact target and recursive scope before dispatch. Android sandbox and system protections remain enforced.",
                     parameters = listOf(
                         ToolParameter("filePath", "string", "Absolute path to the file/directory.", required = true),
                         ToolParameter("recursive", "string", "Set to 'true' for recursive directory delete.", required = false)
@@ -286,8 +287,7 @@ class FileToolManager(
                 ),
                 ToolDefinition(
                     name = "god_copy_file",
-                    description = "[GOD MODE] Copy a file from any source path to any destination path, " +
-                        "including privileged paths. Uses 'cp -p' via shell when necessary.",
+                    description = "[GOD MODE] Propose copying a file between paths accessible to the configured privileged backend. The user must approve both source and destination before dispatch; operating-system access rules remain enforced.",
                     parameters = listOf(
                         ToolParameter("sourcePath", "string", "Absolute path of the source file.", required = true),
                         ToolParameter("destPath", "string", "Absolute path of the destination.", required = true)
@@ -295,8 +295,7 @@ class FileToolManager(
                 ),
                 ToolDefinition(
                     name = "god_list_directory",
-                    description = "[GOD MODE] List directory contents at any path including privileged " +
-                        "directories. Uses 'ls -la' via shell when direct listing fails.",
+                    description = "[GOD MODE] List an absolute directory. Ordinary paths are listed with the app UID first and fall back to Shizuku when listing is denied or unavailable. Protected roots such as /system, /system_ext, /product and /data are routed through Shizuku UserService first. A null app-UID listing is not treated as an empty directory. SELinux and mount restrictions remain enforced.",
                     parameters = listOf(
                         ToolParameter("path", "string", "Absolute directory path to list.", required = true)
                     )
@@ -336,16 +335,28 @@ class FileToolManager(
                     val path = arguments["filePath"] ?: return ToolExecutionResult("Missing required argument: filePath", isError = true)
                     val content = arguments["content"] ?: return ToolExecutionResult("Missing required argument: content", isError = true)
                     val append = arguments["append"]?.equals("true", ignoreCase = true) ?: false
+                    requestPrivilegedMutationApproval(
+                        com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE,
+                        "God Mode file write: ${if (append) "append" else "overwrite"} $path (${content.length} characters)"
+                    )?.let { return it }
                     GodModeFileRouter.writeFile(path, content, append, godMode = godModeEnabled).toToolResult()
                 }
                 "god_delete_file" -> {
                     val path = arguments["filePath"] ?: return ToolExecutionResult("Missing required argument: filePath", isError = true)
                     val recursive = arguments["recursive"]?.equals("true", ignoreCase = true) ?: false
+                    requestPrivilegedMutationApproval(
+                        com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE,
+                        "God Mode deletion: $path (recursive=$recursive)"
+                    )?.let { return it }
                     GodModeFileRouter.deleteFile(path, recursive, godMode = godModeEnabled).toToolResult()
                 }
                 "god_copy_file" -> {
                     val src = arguments["sourcePath"] ?: return ToolExecutionResult("Missing required argument: sourcePath", isError = true)
                     val dst = arguments["destPath"] ?: return ToolExecutionResult("Missing required argument: destPath", isError = true)
+                    requestPrivilegedMutationApproval(
+                        com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE,
+                        "God Mode copy: $src -> $dst"
+                    )?.let { return it }
                     GodModeFileRouter.copyFile(src, dst, godMode = godModeEnabled).toToolResult()
                 }
                 "god_list_directory" -> {
@@ -575,10 +586,17 @@ class FileToolManager(
                 val newContent = content.replaceFirst(searchSnippet, replaceSnippet)
 
                 val gate = confirmationGate
-                if (gate != null) {
+                if (!godModeEnabled && gate != null) {
                     val diff = generateUnifiedDiff(filePath, content, newContent)
                     val approved = gate.invoke("File: $filePath", diff.ifEmpty { null })
                     if (!approved) return ToolExecutionResult("User cancelled the file modification for $filePath.", isError = true)
+                } else if (godModeEnabled) {
+                    val diff = generateUnifiedDiff(filePath, content, newContent)
+                    requestPrivilegedMutationApproval(
+                        com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH,
+                        "God Mode patch: $filePath",
+                        diff.ifEmpty { null }
+                    )?.let { return it }
                 }
 
                 if (godModeEnabled) {
@@ -622,7 +640,7 @@ class FileToolManager(
         if (fileExists) return ToolExecutionResult("File already exists: $filePath. Use patch_file_content to modify.", isError = true)
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diffPreview = buildString {
                 appendLine("--- /dev/null")
                 appendLine("+++ b/${filePath.substringAfterLast('/')}")
@@ -631,6 +649,12 @@ class FileToolManager(
             }.trimEnd()
             val approved = gate.invoke("New file: $filePath", diffPreview)
             if (!approved) return ToolExecutionResult("User cancelled the file creation for $filePath.", isError = true)
+        } else if (godModeEnabled) {
+            requestPrivilegedMutationApproval(
+                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE,
+                "God Mode create file: $filePath (${content.length} characters)",
+                diffPreview
+            )?.let { return it }
         }
 
         if (godModeEnabled) {
@@ -661,7 +685,7 @@ class FileToolManager(
         }
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val existingContent = if (godModeEnabled) {
                 when (val r = GodModeFileRouter.readFile(filePath, godMode = true)) {
                     is GodModeResult.Success -> r.content
@@ -678,6 +702,12 @@ class FileToolManager(
             }.trimEnd()
             val approved = gate.invoke("Delete file: $filePath", diffPreview)
             if (!approved) return ToolExecutionResult("User cancelled the file deletion for $filePath.", isError = true)
+        } else if (godModeEnabled) {
+            requestPrivilegedMutationApproval(
+                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE,
+                "God Mode delete file: $filePath",
+                diffPreview
+            )?.let { return it }
         }
 
         if (godModeEnabled) {
@@ -848,6 +878,13 @@ class FileToolManager(
      * Returns an error message string on failure, or null on success.
      */
     private suspend fun writeFileContentOrError(filePath: String, content: String): String? {
+        if (godModeEnabled) {
+            val approval = requestPrivilegedMutationApproval(
+                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE,
+                "God Mode text/file mutation: $filePath (${content.length} characters)"
+            )
+            if (approval != null) return approval.output
+        }
         return if (godModeEnabled) {
             when (val r = GodModeFileRouter.writeFile(filePath, content, false, godMode = true)) {
                 is GodModeResult.Failure -> "God Mode write failed: ${r.reason}"
@@ -918,7 +955,7 @@ class FileToolManager(
         }
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diff = generateUnifiedDiff(filePath, content, newContent)
             val approved = gate.invoke("Delete text in: $filePath", diff.ifEmpty { null })
             if (!approved) return ToolExecutionResult("User cancelled delete_text for $filePath.", isError = true)
@@ -953,7 +990,7 @@ class FileToolManager(
         if (!exists) return ToolExecutionResult("File not found: $filePath", isError = true)
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val approved = gate.invoke("Clear all content from: $filePath", null)
             if (!approved) return ToolExecutionResult("User cancelled clear_file for $filePath.", isError = true)
         }
@@ -998,7 +1035,7 @@ class FileToolManager(
             .joinToString("\n")
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diff = generateUnifiedDiff(filePath, content, newContent)
             val approved = gate.invoke("Delete lines $startLine–$effectiveEnd in: $filePath", diff.ifEmpty { null })
             if (!approved) return ToolExecutionResult("User cancelled delete_lines for $filePath.", isError = true)
@@ -1037,7 +1074,7 @@ class FileToolManager(
         val newContent = lines.joinToString("\n")
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diff = generateUnifiedDiff(filePath, content, newContent)
             val approved = gate.invoke("Insert ${insertLines.size} line(s) before line $lineNumber in: $filePath", diff.ifEmpty { null })
             if (!approved) return ToolExecutionResult("User cancelled insert_lines for $filePath.", isError = true)
@@ -1089,7 +1126,7 @@ class FileToolManager(
         val newContent = (head + replacementLines + tail).joinToString("\n")
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diff = generateUnifiedDiff(filePath, content, newContent)
             val approved = gate.invoke(
                 "Replace lines $startLine–$effectiveEnd (${effectiveEnd - startLine + 1} lines → ${replacementLines.size} lines) in: $filePath",
@@ -1126,7 +1163,7 @@ class FileToolManager(
         val newContent = existing + separator + appendContent
 
         val gate = confirmationGate
-        if (gate != null) {
+        if (!godModeEnabled && gate != null) {
             val diff = generateUnifiedDiff(filePath, existing, newContent)
             val approved = gate.invoke("Append to: $filePath", diff.ifEmpty { null })
             if (!approved) return ToolExecutionResult("User cancelled append_to_file for $filePath.", isError = true)
@@ -1436,6 +1473,26 @@ class FileToolManager(
     // ──────────────────────────────────────────────
     //  Path Normalization & Scope Validation
     // ──────────────────────────────────────────────
+
+    private suspend fun requestPrivilegedMutationApproval(
+        kind: com.omnidev.workspace.core.policy.ConfirmationKind,
+        preview: String,
+        diffContent: String? = null
+    ): ToolExecutionResult? {
+        if (!godModeEnabled) return null
+        val gate = privilegedFileConfirmationGate ?: return ToolExecutionResult(
+            output = "USER_ACTION_REQUIRED: privileged file mutation is blocked because no approval UI is connected.",
+            isError = true,
+            classification = "USER_ACTION_REQUIRED",
+            retryable = false
+        )
+        return if (gate(kind, preview, diffContent)) null else ToolExecutionResult(
+            output = "User denied this privileged file mutation. No file change was dispatched.",
+            isError = true,
+            classification = "USER_ACTION_DENIED",
+            retryable = false
+        )
+    }
 
     private fun normalizePath(filePath: String, scopePath: String): String {
         return when {

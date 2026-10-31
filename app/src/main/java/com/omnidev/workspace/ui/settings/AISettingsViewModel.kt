@@ -9,6 +9,8 @@ import com.omnidev.workspace.data.chatmedia.MediaConfig
 import com.omnidev.workspace.data.chatmedia.MediaKind
 import com.omnidev.workspace.data.chatmedia.MediaPreferences
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.domain.engine.OmniMode
+import com.omnidev.workspace.domain.engine.ModeSwitchPermissionStore
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +38,8 @@ data class AISettingsUiState(
     val deepThinkingEnabled: Boolean = false,
     /** Whether God Mode (unrestricted file system access) is enabled. */
     val godModeEnabled: Boolean = false,
+    val preferredExecutionMode: OmniMode = OmniMode.CHAT,
+    val executionModeSwitchPolicy: ModeSwitchPermissionStore.SwitchPolicy = ModeSwitchPermissionStore.SwitchPolicy.AUTO_APPROVED,
     /** Which role's dropdown is currently expanded (null = all collapsed). */
     val expandedDropdownRole: ModelRole? = null,
     /** Whether a save operation is in progress. */
@@ -57,10 +61,13 @@ class AISettingsViewModel(
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
+    private val modeSwitchStore by lazy { ModeSwitchPermissionStore(com.omnidev.workspace.OmniDevApp.instance.applicationContext) }
+
     private val _uiState = MutableStateFlow(AISettingsUiState())
     val uiState: StateFlow<AISettingsUiState> = _uiState.asStateFlow()
 
     init {
+        _uiState.update { it.copy(preferredExecutionMode = modeSwitchStore.preferredMode(), executionModeSwitchPolicy = modeSwitchStore.switchPolicy()) }
         loadSettings()
         viewModelScope.launch {
             settingsRepository.observeAutoProviderScopes().collect { scopes ->
@@ -181,6 +188,17 @@ class AISettingsViewModel(
             settingsRepository.setGodMode(enabled)
             _uiState.update { it.copy(godModeEnabled = enabled) }
         }
+    }
+
+    fun setPreferredExecutionMode(mode: OmniMode) {
+        if (mode == OmniMode.AUTO || !OmniMode.permitted(mode)) return
+        modeSwitchStore.setPreferredMode(mode)
+        _uiState.update { it.copy(preferredExecutionMode = mode, statusMessage = "Default execution mode set to ${mode.label}") }
+    }
+
+    fun setExecutionModeSwitchPolicy(policy: ModeSwitchPermissionStore.SwitchPolicy) {
+        modeSwitchStore.setSwitchPolicy(policy)
+        _uiState.update { it.copy(executionModeSwitchPolicy = policy, statusMessage = "Mode switching preference saved") }
     }
 
     /**

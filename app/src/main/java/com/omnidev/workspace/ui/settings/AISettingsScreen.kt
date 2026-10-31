@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -92,7 +94,7 @@ fun AISettingsScreen(
             (com.omnidev.workspace.BuildConfig.TIER != "LITE" || entry.destination != SettingsDestination.INTEGRATIONS) &&
             (allowVoice || entry.destination != SettingsDestination.VOICE) &&
                 (com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility || entry.destination != SettingsDestination.ACCESSIBILITY) &&
-                (com.omnidev.workspace.BuildConfig.ALLOW_AGENT || entry.destination !in setOf(SettingsDestination.FILE_ACCESS, SettingsDestination.SCHEDULE))
+                (com.omnidev.workspace.BuildConfig.ALLOW_AGENT || entry.destination !in setOf(SettingsDestination.FILE_ACCESS, SettingsDestination.SCHEDULE, SettingsDestination.EXECUTION_MODES))
         }
     }
     val accessibilityConnected by com.omnidev.workspace.data.accessibility.AccessibilityStateManager
@@ -214,6 +216,7 @@ fun AISettingsScreen(
                         )
                         when (page) {
                             SettingsDestination.REASONING -> DeepThinkingCard(uiState.deepThinkingEnabled, viewModel::toggleDeepThinking)
+                            SettingsDestination.EXECUTION_MODES -> ExecutionModeCard(uiState, viewModel)
                             SettingsDestination.FILE_ACCESS -> GodModeCard(uiState.godModeEnabled, viewModel::toggleGodMode)
                             SettingsDestination.ACCESSIBILITY -> AccessibilityServiceCard(viewModel::showStatusMessage)
                             SettingsDestination.COMPANION -> com.omnidev.workspace.ui.companion.CompanionSettingsCard()
@@ -233,6 +236,39 @@ fun AISettingsScreen(
                 animationSpec = androidx.compose.animation.core.tween(motion.navigationMillis),
                 label = "Settings navigation"
             ) { pageContent(it) }
+        }
+    }
+}
+
+@Composable
+private fun ExecutionModeCard(state: AISettingsUiState, viewModel: AISettingsViewModel) {
+    val modes = com.omnidev.workspace.domain.engine.OmniMode.available()
+        .filter { it != com.omnidev.workspace.domain.engine.OmniMode.AUTO }
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Default execution mode", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            modes.forEach { mode ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { viewModel.setPreferredExecutionMode(mode) }.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = state.preferredExecutionMode == mode, onClick = { viewModel.setPreferredExecutionMode(mode) })
+                    Text(mode.label, modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            Text("Automatic mode switching", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            com.omnidev.workspace.domain.engine.ModeSwitchPermissionStore.SwitchPolicy.entries.forEach { policy ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { viewModel.setExecutionModeSwitchPolicy(policy) }.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = state.executionModeSwitchPolicy == policy, onClick = { viewModel.setExecutionModeSwitchPolicy(policy) })
+                    Column(Modifier.padding(start = 8.dp)) {
+                        Text(policy.title, style = MaterialTheme.typography.bodyMedium)
+                        Text(policy.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.data.routing.AutoModelRouter
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.lifecycle.ViewModel
@@ -143,8 +144,18 @@ class ChatViewModel(
     private val modePermissionStore: ModeSwitchPermissionStore by lazy {
         ModeSwitchPermissionStore(com.omnidev.workspace.OmniDevApp.instance.applicationContext)
     }
+    private var preferredModeListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+    @Volatile private var pendingPreferredMode: OmniMode? = null
 
     init {
+        _uiState.update { it.copy(activeMode = modePermissionStore.preferredMode()) }
+        preferredModeListener = modePermissionStore.registerPreferredModeListener { preferred ->
+            if (_uiState.value.isProcessing) {
+                pendingPreferredMode = preferred
+            } else {
+                _uiState.update { it.copy(activeMode = preferred) }
+            }
+        }
         viewModelScope.launch {
             settingsRepository.observeProfilePersonalization().collect { preferences ->
                 _uiState.update { it.copy(personalization = preferences) }
@@ -156,6 +167,12 @@ class ChatViewModel(
         observeGodMode()
         observeChatSettings()
         wireFileConfirmationGate()
+    }
+
+    override fun onCleared() {
+        preferredModeListener?.let(modePermissionStore::unregisterPreferredModeListener)
+        preferredModeListener = null
+        super.onCleared()
     }
 
     private fun loadTargetContext() {
@@ -286,6 +303,11 @@ class ChatViewModel(
                 effectiveGate.request(kind, preview, diffContent)
             }
         }
+        ftm?.privilegedFileConfirmationGate = { kind, preview, diffContent ->
+            // Privileged writes/copies/deletes always require the interactive UI gate,
+            // never the flavor policy gate which may auto-approve in OEM/background contexts.
+            uiGate.request(kind, preview, diffContent)
+        }
         compositeToolManager?.confirmationGate = effectiveGate
         compositeToolManager?.learnedRoutineConfirmationGate = uiGate
     }
@@ -305,6 +327,7 @@ class ChatViewModel(
             cancelCurrentRun()
             _uiState.update { it.copy(errorMessage = null) }
         }
+        modePermissionStore.setPreferredMode(mode)
         _uiState.update { it.copy(activeMode = mode) }
     }
 
@@ -620,6 +643,14 @@ class ChatViewModel(
     }
 
     private fun startMessage(replacing: LastChatTurn? = null, replacementText: String? = null) {
+        val deferredPreference = pendingPreferredMode
+        if (deferredPreference != null && !_uiState.value.isProcessing) {
+            pendingPreferredMode = null
+            _uiState.update { it.copy(activeMode = deferredPreference) }
+        } else if (!_uiState.value.isProcessing && _uiState.value.activeMode != OmniMode.AUTO) {
+            val preferred = modePermissionStore.preferredMode()
+            if (_uiState.value.activeMode != preferred) _uiState.update { it.copy(activeMode = preferred) }
+        }
         val state = _uiState.value
         if (state.isImportingAttachments) { _uiState.update { it.copy(errorMessage = "Wait for the selected files to finish importing.") }; return }
         val attachments = replacing?.user?.attachments?.map { PendingAttachment(Uri.parse(it.uri), it.fileName) }
@@ -1106,6 +1137,8 @@ class ChatViewModel(
         val denied = proposal.copy(executionRequest = request.copy(status = "denied"))
         _uiState.update { s -> s.copy(messages = s.messages.map { if (it.messageId == messageId) denied else it }) }
         state.currentSessionId?.let { sessionId -> viewModelScope.launch { chatRepository?.updateMetadata(sessionId, denied) } }
+        // A declined escalation is not a cancellation: resume the same mode from the saved checkpoint.
+        startModeHandoff(source, request, autoApproved = false)
     }
 
     private fun maybeAutoConsumeModeRequest(
@@ -1338,7 +1371,9 @@ class ChatViewModel(
                         taskCount = event.tasks.size,
                         parallelSafeTaskCount = event.tasks.count { it.parallelSafe }
                     )
-                    if (suggestion != null) throw ModeHandoffSignal(suggestion)
+                    if (suggestion != null && modePermissionStore.shouldOfferSwitch(suggestion.from, suggestion.to, sessionId)) {
+                        throw ModeHandoffSignal(suggestion)
+                    }
                 }
             }
         } catch (signal: ModeHandoffSignal) {
@@ -1354,6 +1389,7 @@ class ChatViewModel(
         origin: ChatMessage,
         sessionId: Long
     ) {
+        if (!modePermissionStore.shouldOfferSwitch(suggestion.from, suggestion.to, sessionId)) return
         val request = ExecutionModeRequest(
             mode = suggestion.to.name,
             reason = suggestion.reason,

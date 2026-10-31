@@ -691,6 +691,21 @@ Do not use tools. Do not rewrite merely for style.
                 )
             }
 
+            val missingAndroidCommand = response.toolCalls.zip(modelSafeResults).firstOrNull { (call, result) ->
+                AndroidCommandFailurePolicy.shouldStop(call.name, result)
+            }
+            if (missingAndroidCommand != null) {
+                val (call, result) = missingAndroidCommand
+                brain?.onTaskEnd(EpisodeOutcome.BLOCKED, "Android shell command not found: ${call.arguments["command"].orEmpty().take(120)}")
+                send(AgentEvent.Error(
+                    "COMMAND_NOT_FOUND: Android shell could not resolve this command. This is not a Shizuku connection failure. " +
+                        "Do not retry the same binary, switch to Root/rish, or spend another planning cycle. " +
+                        "Use one verified Android service/command equivalent if known; otherwise report that the device does not expose it.\n" +
+                        result.output.take(1_600)
+                ))
+                return@channelFlow
+            }
+
             PipelineRecovery.noteProgress(response.toolCalls, modelSafeResults, recoveryGovernor, automaticRouter)
 
             if (steering?.changed(revision) == true) {

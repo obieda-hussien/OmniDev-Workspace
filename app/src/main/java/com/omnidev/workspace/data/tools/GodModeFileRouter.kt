@@ -6,34 +6,20 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * GodModeFileRouter — True Unrestricted File System Access Engine.
+ * Extended Android filesystem router for God Mode.
  *
- * ### Design
- * When God Mode is ON, normal `java.io.File` operations are attempted first for speed.
- * If the path is determined to be **privileged** (i.e. it lives under a namespace that
- * a normal app process cannot read or write — `/data/data/`, `/data/user/`, `/system/`,
- * `/proc/`, `/sys/` etc.), or if a plain-Java I/O attempt throws a [SecurityException]
- * or [java.io.IOException] consistent with a permission denial, the router **automatically
- * escalates** the operation to the Shizuku / rish / root backend via
- * [PrivilegedExecutionManager], using raw POSIX shell utilities (`cat`, `echo`, `cp`,
- * `rm`, `ls`, `stat`, etc.) to bypass the Android framework's sandbox.
+ * Direct app access is attempted first. When it is unavailable, the router uses the
+ * configured Android shell backend (normally Shizuku) for a second attempt. That backend
+ * still runs with its actual UID and remains subject to SELinux, app-data isolation,
+ * encryption state and filesystem mount flags. This router does not bypass Android's
+ * sandbox and does not turn read-only system partitions writable.
  *
- * ### Escalation heuristic
- * A path is considered **privileged** when its canonical prefix matches any entry in
- * [PRIVILEGED_PATH_PREFIXES]. File existence / readability is checked first so that
- * we do not escalate unnecessarily for paths the process legitimately owns (e.g.
- * the app's own `/data/data/<this_package>/` files which are app-accessible).
+ * The privileged path list is a routing hint, not proof of access. The actual command
+ * result is authoritative and permission failures are returned to the agent and user.
+ * God Mode must be explicitly enabled before any operation is attempted.
  *
- * ### Security & audit
- * - God Mode must be explicitly enabled by the user (`godModeEnabled = true`).
- * - Every privileged escalation is annotated in the returned [GodModeResult] so the
- *   caller can surface a clear indication (e.g., 🔓 via Shizuku) in the UI console.
- * - Calls without God Mode always short-circuit to [GodModeResult.GodModeDisabled].
- *
- * ### Shell quoting
- * All path arguments are POSIX single-quoted via [shellQuote] to prevent injection.
- * Content written to files is base64-encoded before passing through `sh -c` to handle
- * arbitrary binary payloads and special characters safely.
+ * All shell paths are single-quoted and text written through the shell is base64-encoded
+ * to preserve special characters safely.
  */
 object GodModeFileRouter {
 
@@ -42,32 +28,9 @@ object GodModeFileRouter {
     // ──────────────────────────────────────────────
 
     /**
-     * Path prefixes that almost certainly require elevated privileges.
-     * Sorted longest-first so the most specific prefix wins.
+     * Paths commonly requiring the Android shell identity instead of the app UID.
+     * This list routes an attempt; it does not promise that SELinux or mount policy permits it.
      */
-    private val PRIVILEGED_PATH_PREFIXES = listOf(
-        "/data/data/",
-        "/data/user/",
-        "/data/user_de/",
-        "/data/system/",
-        "/data/misc/",
-        "/data/local/",
-        "/data/app/",
-        "/data/dalvik-cache/",
-        "/system/",
-        "/vendor/",
-        "/proc/",
-        "/sys/",
-        "/dev/",
-        "/acct/",
-        "/apex/",
-        "/odm/",
-        "/oem/",
-        "/product/",
-        "/storage/emulated/0/Android/data",
-        "/storage/emulated/0/Android/obb"
-    )
-
     /** Maximum bytes to read via shell (to guard context window). */
     private const val MAX_READ_BYTES = 524_288L // 512 KB
 
@@ -92,8 +55,6 @@ object GodModeFileRouter {
         val file = File(canonical)
 
         // Fast path — process can read it directly.
-        val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
-
         if (!requiresEscalation(canonical) && file.exists() && file.canRead()) {
             return runCatching {
                 val bytes = file.inputStream().use { stream ->
@@ -116,11 +77,17 @@ object GodModeFileRouter {
                     GodModeResult.Success(content = bytes.decodeToString(), escalated = false)
                 }
             }.getOrElse { ex ->
-                if (isPermissionDenied(ex) || ex is SecurityException || isExternalStorage) {
-                    // Silently escalate — the direct attempt failed on permissions, or it's external storage.
-                    readViaShell(canonical)
-                } else {
-                    GodModeResult.Failure("Direct read failed: ${ex.message}")
+                // A direct read can fail for more than EACCES (mount/I/O race, vendor FUSE,
+                // transient filesystem errors). For read-only access it is safe to try the
+                // Android shell backend once; it will use Shizuku first.
+                when (val shellResult = readViaShell(canonical)) {
+                    is GodModeResult.Success -> shellResult.copy(
+                        note = "Read via Android shell backend after app-UID read failed: ${ex.message.orEmpty().take(180)}"
+                    )
+                    is GodModeResult.Failure -> GodModeResult.Failure(
+                        "Direct app-UID read failed: ${ex.message.orEmpty()}; Android shell fallback failed: ${shellResult.reason}"
+                    )
+                    is GodModeResult.GodModeDisabled -> shellResult
                 }
             }
         }
@@ -193,19 +160,28 @@ object GodModeFileRouter {
         val canonical = resolveCanonical(path)
         val file = File(canonical)
 
-        val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
-
         // Fast path.
         if (!requiresEscalation(canonical) && file.exists() && file.canWrite()) {
             return runCatching {
                 val deleted = if (recursive) file.deleteRecursively() else file.delete()
-                if (deleted) GodModeResult.Success("Deleted $canonical", escalated = false)
-                else GodModeResult.Failure("Direct delete returned false for $canonical")
-            }.getOrElse { ex ->
-                if (isPermissionDenied(ex) || ex is SecurityException || isExternalStorage) {
-                    deleteViaShell(canonical, recursive)
+                if (deleted) {
+                    GodModeResult.Success("Deleted $canonical", escalated = false)
                 } else {
-                    GodModeResult.Failure("Direct delete failed: ${ex.message}")
+                    // A false return proves the app-UID deletion did not complete. Try the
+                    // configured privileged backend once rather than reporting a false dead end.
+                    deleteViaShell(canonical, recursive)
+                }
+            }.getOrElse { ex ->
+                // Deletion is idempotent at this target: if the app-UID attempt failed,
+                // let the configured Android shell backend try once; it will not use root implicitly.
+                when (val shellResult = deleteViaShell(canonical, recursive)) {
+                    is GodModeResult.Success -> shellResult.copy(
+                        note = "Deleted via Android shell backend after app-UID delete failed: ${ex.message.orEmpty().take(180)}"
+                    )
+                    is GodModeResult.Failure -> GodModeResult.Failure(
+                        "Direct app-UID delete failed: ${ex.message.orEmpty()}; Android shell fallback failed: ${shellResult.reason}"
+                    )
+                    is GodModeResult.GodModeDisabled -> shellResult
                 }
             }
         }
@@ -264,24 +240,22 @@ object GodModeFileRouter {
         val canonical = resolveCanonical(path)
         val dir = File(canonical)
 
-        val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
-
-        if (!requiresEscalation(canonical) && dir.canRead()) {
-            return runCatching {
-                val entries = dir.listFiles()?.joinToString("\n") { f ->
-                    val type = when { f.isDirectory -> "d"; f.isFile -> "f"; else -> "?" }
-                    val size = if (f.isFile) "${f.length()}B" else "-"
-                    "[$type] ${f.name} ($size)"
-                } ?: "(empty)"
-                GodModeResult.Success("Contents of $canonical:\n$entries", escalated = false)
-            }.getOrElse { ex ->
-                executeShell("ls -la ${shellQuote(canonical)} 2>&1",
-                    successMsg = "Directory listing via shell")
+        if (!requiresEscalation(canonical) && dir.isDirectory && dir.canRead()) {
+            // File.listFiles() returns null (rather than throwing) on some permission and
+            // filesystem failures. Null is not an empty directory: fall through to Shizuku.
+            val listed = runCatching { dir.listFiles() }.getOrNull()
+            if (listed != null) {
+                val entries = listed.joinToString("\n") { child ->
+                    val type = when { child.isDirectory -> "d"; child.isFile -> "f"; else -> "?" }
+                    val size = if (child.isFile) "${child.length()}B" else "-"
+                    "[$type] ${child.name} ($size)"
+                }.ifEmpty { "(empty)" }
+                return GodModeResult.Success("Contents of $canonical:\n$entries", escalated = false)
             }
         }
 
         return executeShell("ls -la ${shellQuote(canonical)} 2>&1",
-            successMsg = "Directory listing via shell (privileged)")
+            successMsg = "Directory listing via Android shell backend (Shizuku first)")
     }
 
     /**
@@ -329,21 +303,7 @@ object GodModeFileRouter {
     //  Internal — shell escalation helpers
     // ──────────────────────────────────────────────
 
-    @Volatile
-    private var appOpsGranted = false
-
-    private suspend fun ensureAppOpsGranted() {
-        if (!appOpsGranted) {
-            appOpsGranted = true
-            PrivilegedExecutionManager.executeCommand("appops set com.android.shell MANAGE_EXTERNAL_STORAGE allow")
-            PrivilegedExecutionManager.executeCommand("appops set com.android.shell READ_EXTERNAL_STORAGE allow")
-            PrivilegedExecutionManager.executeCommand("appops set com.android.shell WRITE_EXTERNAL_STORAGE allow")
-        }
-    }
-
-
     private suspend fun readViaShell(canonical: String): GodModeResult {
-        ensureAppOpsGranted()
         // Use `cat` to read the raw bytes and print them to stdout.
         // For binary files this may produce garbled output — callers dealing with
         // binary content should use `base64 <path>` directly via root_shell_tool.
@@ -358,7 +318,7 @@ object GodModeFileRouter {
                             "\n\n[TRUNCATED at ${MAX_READ_BYTES / 1024}KB]"
                         else output
                         GodModeResult.Success(content = content, escalated = true,
-                            note = "🔓 Read via privileged shell (Shizuku/rish/root)")
+                            note = "🔓 Read via the configured Android shell backend")
                     },
                     onFailure = { ex ->
                         GodModeResult.Failure(
@@ -375,7 +335,6 @@ object GodModeFileRouter {
         content: String,
         append: Boolean
     ): GodModeResult {
-        ensureAppOpsGranted()
         // Encode the content as base64 to safely pass arbitrary bytes / special chars
         // through a one-liner shell command without breaking quoting.
         val b64 = android.util.Base64.encodeToString(
@@ -395,7 +354,7 @@ object GodModeFileRouter {
                         GodModeResult.Success(
                             content = "Wrote ${content.length} chars to $canonical",
                             escalated = true,
-                            note = "🔓 Written via privileged shell (Shizuku/rish/root)"
+                            note = "🔓 Written via the configured Android shell backend"
                         )
                     },
                     onFailure = { ex ->
@@ -409,7 +368,6 @@ object GodModeFileRouter {
     }
 
     private suspend fun deleteViaShell(canonical: String, recursive: Boolean): GodModeResult {
-        ensureAppOpsGranted()
         val flags = if (recursive) "-rf" else "-f"
         return executeShell("rm $flags ${shellQuote(canonical)} && echo 'DELETE_OK'",
             successMsg = "Deleted $canonical via shell")
@@ -417,13 +375,12 @@ object GodModeFileRouter {
 
     private suspend fun executeShell(cmd: String, successMsg: String): GodModeResult =
         withContext(Dispatchers.IO) {
-            ensureAppOpsGranted()
-            PrivilegedExecutionManager.executeCommand(cmd).fold(
+                PrivilegedExecutionManager.executeCommand(cmd).fold(
                 onSuccess = { output ->
                     GodModeResult.Success(
                         content = output.ifBlank { successMsg },
                         escalated = true,
-                        note = "🔓 Executed via privileged shell (Shizuku/rish/root)"
+                        note = "🔓 Executed via the configured Android shell backend"
                     )
                 },
                 onFailure = { ex ->
@@ -437,16 +394,12 @@ object GodModeFileRouter {
     // ──────────────────────────────────────────────
 
     /**
-     * Returns true when [canonical] starts with a prefix known to require
-     * elevated privileges on an unmodified Android system.
-     *
-     * Note: This is a conservative heuristic. Some prefixes (like `/data/local/tmp`)
-     * are actually world-writable on some devices; however, we always escalate for
-     * safety since the cost of an unnecessary shell call is negligible compared to
-     * the cost of a confusing permission-denied error.
+     * Returns true when [canonical] belongs to a known protected/system namespace.
+     * This only chooses the shell route; the shell UID still cannot bypass SELinux,
+     * application-private storage boundaries or read-only mounts.
      */
     private fun requiresEscalation(canonical: String): Boolean =
-        PRIVILEGED_PATH_PREFIXES.any { prefix -> canonical.startsWith(prefix) }
+        AndroidProtectedPathPolicy.requiresShell(canonical)
 
     /**
      * Resolves a (possibly relative or symlink-containing) path to its canonical form.
@@ -454,19 +407,6 @@ object GodModeFileRouter {
      */
     private fun resolveCanonical(path: String): String =
         runCatching { File(path).canonicalPath }.getOrDefault(path)
-
-    /**
-     * Returns true if [ex] carries a message consistent with a POSIX EACCES (permission
-     * denied) or EPERM error. Used to auto-escalate after a failed direct attempt.
-     */
-    private fun isPermissionDenied(ex: Throwable): Boolean {
-        val msg = ex.message?.lowercase() ?: return false
-        return msg.contains("permission denied") ||
-               msg.contains("eacces") ||
-               msg.contains("eperm") ||
-               msg.contains("access denied") ||
-               msg.contains("operation not permitted")
-    }
 
     /**
      * POSIX single-quote escaping.
