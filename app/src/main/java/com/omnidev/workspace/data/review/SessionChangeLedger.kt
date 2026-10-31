@@ -102,7 +102,10 @@ class SessionChangeLedger {
 
     private fun readBaseline(path: String, kind: ChangeKind): Pair<String?, Boolean> {
         val f = File(path)
-        if (kind == ChangeKind.CREATED || !f.exists()) return null to (kind == ChangeKind.CREATED || !f.exists())
+        // A file the app cannot see (protected path) is not proof it is absent, so only a
+        // CREATED change may assume "no original"; anything else must not be auto-deleted on revert.
+        if (!f.exists()) return null to (kind == ChangeKind.CREATED)
+        if (kind == ChangeKind.CREATED) return null to true
         return try {
             if (f.length() > MAX_BASELINE_BYTES) null to false else f.readText() to true
         } catch (_: Exception) { null to false }

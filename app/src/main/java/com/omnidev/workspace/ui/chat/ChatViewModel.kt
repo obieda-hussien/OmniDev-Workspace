@@ -233,11 +233,14 @@ class ChatViewModel(
 
     /** Maps FileToolManager's gate preview strings to (absolute path, kind). */
     private fun parseFileChange(preview: String, diff: String?): Pair<String, ChangeKind>? {
-        val p = preview.trim()
+        val p = preview.trim().removePrefix("God Mode ").let { if (it != preview.trim()) it.replaceFirstChar(Char::uppercase) else it }
         fun after(marker: String) = p.substringAfter(marker, "").trim().takeIf { it.startsWith("/") }
         after("New file: ")?.takeIf { p.startsWith("New file: ") }?.let { return it to ChangeKind.CREATED }
         if (p.startsWith("Delete file: ")) after("Delete file: ")?.let { return it to ChangeKind.DELETED }
         if (p.startsWith("File: ")) after("File: ")?.let { return it to ChangeKind.MODIFIED }
+        // God Mode previews: "Patch: /p", "Create file: /p (N characters)", "Delete file: /p"
+        if (p.startsWith("Patch: ")) after("Patch: ")?.let { return it to ChangeKind.MODIFIED }
+        if (p.startsWith("Create file: ")) after("Create file: ")?.substringBefore(" (")?.let { return it to ChangeKind.CREATED }
         // "Delete text in: X", "Append to: X", "Insert N line(s) ... in: X", "Clear all content from: X" ...
         val tail = p.substringAfterLast(" in: ", "").ifEmpty { p.substringAfterLast(" to: ", "") }.ifEmpty { p.substringAfterLast(" from: ", "") }.trim()
         if (tail.startsWith("/")) return tail to ChangeKind.MODIFIED

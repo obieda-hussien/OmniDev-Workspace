@@ -48,4 +48,18 @@ class SessionChangeLedgerTest {
         assertTrue(ledger.forSession(2).isEmpty())
         Unit
     }
+
+    @Test fun unreadableExistingFileIsNeverDeletedOnRevert() = runBlocking {
+        val ghost = File(System.getProperty("java.io.tmpdir"), "ledger-ghost-${System.nanoTime()}.txt")
+        val ledger = SessionChangeLedger()
+        ledger.recordBeforeWrite(3, ghost.path, ChangeKind.MODIFIED)
+        val c = ledger.forSession(3).single()
+        assertTrue(!c.baselineKnown)
+        ghost.writeText("written later")
+        val result = ledger.revert(setOf(c.id))
+        assertEquals(0, result.succeeded)
+        assertTrue(ghost.exists())
+        ghost.delete()
+        Unit
+    }
 }
