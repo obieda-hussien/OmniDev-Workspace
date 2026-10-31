@@ -33,6 +33,7 @@ class SessionChangeLedgerTest {
         assertEquals("original", f.readText())
         assertEquals(ChangeStatus.REVERTED, ledger.forSession(1).single().status)
         f.delete()
+        Unit
     }
 
     @Test fun createdThenDeletedLeavesNoEntryAndRevertDeletesCreatedFile() = runBlocking {
@@ -45,5 +46,6 @@ class SessionChangeLedgerTest {
         ledger.recordBeforeWrite(2, f.path, ChangeKind.CREATED)
         ledger.recordBeforeWrite(2, f.path, ChangeKind.DELETED)
         assertTrue(ledger.forSession(2).isEmpty())
+        Unit
     }
 }

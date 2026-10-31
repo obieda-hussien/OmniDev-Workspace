@@ -54,13 +54,10 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
     val sessionKey = state.currentSessionId ?: -1L
     val allChanges by viewModel.changeLedger.changes.collectAsStateWithLifecycle()
     val pendingChanges = remember(allChanges, sessionKey) { allChanges.filter { it.sessionKey == sessionKey && it.status == ChangeStatus.PENDING } }
+    val allActions by viewModel.changeLedger.actions.collectAsStateWithLifecycle()
+    val actionCount = remember(allActions, sessionKey) { allActions.count { it.sessionKey == sessionKey } }
     var showReview by rememberSaveable { mutableStateOf(false) }
     if (showReview) ChangeReviewDialog(viewModel.changeLedger, sessionKey, onDismiss = { showReview = false })
-    state.pendingConfirmation?.let { confirmation ->
-        ConfirmationGateDialog(confirmation.copy(
-            onApprove = { confirmation.onApprove(); viewModel.clearConfirmation() },
-            onDeny = { confirmation.onDeny(); viewModel.clearConfirmation() }))
-    }
     LaunchedEffect(state.isDrawerOpen) { if (state.isDrawerOpen) drawer.open() else drawer.close() }
     LaunchedEffect(drawer.currentValue) { viewModel.setDrawerOpen(drawer.isOpen) }
     val directoryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -99,7 +96,7 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
                 onStop = { viewModel.cancelCurrentRun() }, onModeSelected = viewModel::setMode,
                 onOpenConversations = { scope.launch { drawer.open() } }, onNewConversation = viewModel::newSession,
                 onChooseScope = { directoryPicker.launch(null) },
-                pendingChanges = pendingChanges, onReviewChanges = { showReview = true },
+                pendingChanges = pendingChanges, actionCount = actionCount, onReviewChanges = { showReview = true },
                 onKeepAllChanges = { viewModel.keepAllChanges() }, onRevertAllChanges = { viewModel.revertAllChanges() },
                 onBrowser = onOpenBrowser,
                 onAttach = { attachments.launch(arrayOf("*/*")) }, onRemoveAttachment = viewModel::removeAttachment,
@@ -121,7 +118,7 @@ internal fun ChatConversation(
     onInputChanged: (String) -> Unit = {}, onSend: () -> Unit = {}, onStop: () -> Unit = {},
     onModeSelected: (OmniMode) -> Unit = {}, onOpenConversations: () -> Unit = {}, onNewConversation: () -> Unit = {},
     onChooseScope: () -> Unit = {}, onBrowser: () -> Unit = {},
-    pendingChanges: List<TrackedChange> = emptyList(), onReviewChanges: () -> Unit = {},
+    pendingChanges: List<TrackedChange> = emptyList(), actionCount: Int = 0, onReviewChanges: () -> Unit = {},
     onKeepAllChanges: () -> Unit = {}, onRevertAllChanges: () -> Unit = {},
     onAttach: () -> Unit = {}, onRemoveAttachment: (android.net.Uri) -> Unit = {},
     onReply: (ChatMessage) -> Unit = {}, onDismissReply: () -> Unit = {}, onUpdateChatSettings: (ChatSettings) -> Unit = {},
@@ -162,7 +159,7 @@ internal fun ChatConversation(
     }) { insets ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets)) {
             val compactComposer = maxHeight < 280.dp
-            ChatCompanionHost(state.currentSessionId, state.isProcessing, visible = state.pendingConfirmation == null && !compactComposer, modifier = Modifier.fillMaxSize(), activity = companionActivity(state)) {
+            ChatCompanionHost(state.currentSessionId, state.isProcessing, visible = !compactComposer, modifier = Modifier.fillMaxSize(), activity = companionActivity(state)) {
                 Column(Modifier.fillMaxSize()) {
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         LazyColumn(Modifier.fillMaxSize().companionViewport().testTag("conversation-messages"), state = list,
@@ -179,7 +176,7 @@ internal fun ChatConversation(
                             }
                         }
                     }
-                    PendingChangesPill(pendingChanges, onReviewChanges, onKeepAllChanges, onRevertAllChanges)
+                    PendingChangesPill(pendingChanges, actionCount, onReviewChanges, onKeepAllChanges, onRevertAllChanges)
                     ChatInputBar(state.inputText, onInputChanged, onSend, onStop, state.isProcessing, state.pendingAttachments, onAttach,
                         onRemoveAttachment, state.replyingTo, onDismissReply, state.chatSettings, onUpdateChatSettings, focusRequester,
                         scopeLabel = if ((state.activeMode == OmniMode.CHAT && com.omnidev.workspace.BuildConfig.ALLOW_AGENT) || state.isGodModeEnabled) null

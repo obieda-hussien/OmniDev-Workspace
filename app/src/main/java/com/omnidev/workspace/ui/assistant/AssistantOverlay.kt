@@ -59,11 +59,7 @@ fun AssistantOverlay(
         ScreenRegionPicker(screen.screenshot!!, controller::select, controller::cancelSelection)
         return
     }
-    val confirmation = chat.pendingConfirmation
-    val reviewed = confirmation?.let { pending -> pending.copy(
-        onApprove = { pending.onApprove(); controller.chat.clearConfirmation() },
-        onDeny = { pending.onDeny(); controller.chat.clearConfirmation() }) }
-    AssistantConversation(screen, chat.copy(pendingConfirmation = reviewed), controller.flavor,
+    AssistantConversation(screen, chat, controller.flavor,
         mentionLoader = controller.chat::loadMentionCandidates, onInputChanged = controller::input, onSend = { controller.send() }, onStop = { controller.chat.cancelCurrentRun() },
         onDismiss = ::dismiss, onExpand = onExpand, onMinimize = onMinimize,
         onMicrophone = onMicrophone, onAttach = onAttach, onSystemVoice = onSystemVoice,

@@ -77,7 +77,6 @@ data class ChatUiState(
     val streamingContent: String? = null,
     /** User-facing tabs remain Chat / Agent / Team. AUTO is only for overlay routing. */
     val activeMode: OmniMode = OmniMode.CHAT,
-    val pendingConfirmation: PendingConfirmation? = null,
     val isGodModeEnabled: Boolean = false,
     val replyingTo: ChatMessage? = null,
     val chatSettings: com.omnidev.workspace.domain.model.ChatSettings =
@@ -247,42 +246,16 @@ class ChatViewModel(
 
     private fun wireFileConfirmationGate() {
         val ftm = fileToolManager
+        // The blocking approval dialog is gone. Every privileged action proceeds and is recorded
+        // in the session ledger (Activity tab) so the user can audit it afterwards.
         val uiGate = com.omnidev.workspace.core.policy.ConfirmationGate { kind, preview, diff ->
-            val deferred = CompletableDeferred<Boolean>()
-            val confirmationType = when (kind) {
-                com.omnidev.workspace.core.policy.ConfirmationKind.LEARNED_TASK -> ConfirmationType.LEARNED_TASK
-                com.omnidev.workspace.core.policy.ConfirmationKind.ASSISTANT_ACTION -> ConfirmationType.ASSISTANT_ACTION
-                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH -> ConfirmationType.GOD_MODE_FILE_PATCH
-                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE -> ConfirmationType.GOD_MODE_FILE_WRITE
-                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE -> ConfirmationType.GOD_MODE_FILE_DELETE
-                com.omnidev.workspace.core.policy.ConfirmationKind.SHIZUKU_COMMAND -> ConfirmationType.SHIZUKU_COMMAND
-                com.omnidev.workspace.core.policy.ConfirmationKind.ANDROID_INTENT -> ConfirmationType.ANDROID_INTENT
-                com.omnidev.workspace.core.policy.ConfirmationKind.CONNECTED_APP_ACTION -> ConfirmationType.CONNECTED_APP_ACTION
-            }
-            val confirmationId = UUID.randomUUID().toString()
-            showConfirmation(
-                PendingConfirmation(
-                    id = confirmationId,
-                    type = confirmationType,
-                    preview = preview,
-                    diffContent = diff,
-                    onApprove = {
-                        com.omnidev.workspace.core.policy.OmniAuditLog.record(
-                            tier = com.omnidev.workspace.core.policy.TierPolicyHolder.current.tier,
-                            autoApproved = false,
-                            kind = kind,
-                            preview = if (kind == com.omnidev.workspace.core.policy.ConfirmationKind.LEARNED_TASK)
-                                "User approved learned task proposal; runtime values omitted" else preview,
-                            diffContent = diff
-                        )
-                        deferred.complete(true)
-                    },
-                    onDeny = { deferred.complete(false) }
-                )
-            )
-            try { deferred.await() } finally {
-                if (_uiState.value.pendingConfirmation?.id == confirmationId) clearConfirmation()
-            }
+            val learned = kind == com.omnidev.workspace.core.policy.ConfirmationKind.LEARNED_TASK
+            val shown = if (learned) "Reused a learned task; runtime values omitted" else preview
+            changeLedger.recordAction(_uiState.value.currentSessionId ?: -1L, kind, shown, diff)
+            com.omnidev.workspace.core.policy.OmniAuditLog.record(
+                tier = com.omnidev.workspace.core.policy.TierPolicyHolder.current.tier,
+                autoApproved = true, kind = kind, preview = shown, diffContent = diff)
+            true
         }
         val effectiveGate = com.omnidev.workspace.data.assistant.AssistantFlavorPolicy(
             com.omnidev.workspace.core.policy.TierPolicyHolder.current).confirmationGate(uiGate)
@@ -304,29 +277,14 @@ class ChatViewModel(
                 )
                 true
             } else {
-                // Unknown preview shape: fall back to the explicit dialog rather than silently applying.
+                // Preview shape not recognised: still proceed, but keep it visible in the Activity tab.
                 val kind = if (diffContent != null) com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH
                 else com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
                 effectiveGate.request(kind, preview, diffContent)
             }
         }
         compositeToolManager?.confirmationGate = effectiveGate
-        val routineReview = kotlinx.coroutines.sync.Mutex()
-        compositeToolManager?.learnedRoutineConfirmationGate = com.omnidev.workspace.core.policy.ConfirmationGate { kind, preview, diff ->
-            routineReview.lock()
-            try { uiGate.request(kind, preview, diff) } finally { routineReview.unlock() }
-        }
-    }
-
-    fun showConfirmation(confirmation: PendingConfirmation) {
-        if (assistantWorkspace != null) viewModelScope.launch {
-            com.omnidev.workspace.data.assistant.AssistantRuntime.restoreForConfirmation(com.omnidev.workspace.OmniDevApp.instance)
-        }
-        _uiState.update { it.copy(pendingConfirmation = confirmation) }
-    }
-
-    fun clearConfirmation() {
-        _uiState.update { it.copy(pendingConfirmation = null) }
+        compositeToolManager?.learnedRoutineConfirmationGate = uiGate
     }
 
     fun setDrawerOpen(open: Boolean) {
@@ -382,8 +340,6 @@ class ChatViewModel(
         attachmentImportJob?.cancel()
         _uiState.update { it.copy(isImportingAttachments = false) }
         compositeToolManager?.assistantActionGuard = null
-        _uiState.value.pendingConfirmation?.onDeny?.invoke()
-        clearConfirmation()
         modePermissionStore.clearSession(_uiState.value.currentSessionId)
         sessionObservation?.cancel()
         activeRunId.incrementAndGet()
@@ -627,9 +583,6 @@ class ChatViewModel(
         if (routineCall != null && (routineResult == null || routineCall.id > routineResult.id))
             compositeToolManager?.learnedRoutineTool?.runner?.pause()
         if (assistantWorkspace != null) configureAssistantActionGuard(update.text)
-        // A pending proposal belongs to the old route. Resolve it before the new plan.
-        state.pendingConfirmation?.onDeny?.invoke()
-        clearConfirmation()
         _uiState.update { it.copy(messages = it.messages + message, inputText = "", replyingTo = null,
             submittedSteeringRevision = update.revision, streamingContent = null, errorMessage = null) }
         val ready = runSessionReady

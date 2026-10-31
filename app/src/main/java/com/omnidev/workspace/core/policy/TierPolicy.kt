@@ -113,7 +113,7 @@ interface TierPolicy {
      *    anyway, but this is defense-in-depth).
      *
      * @param uiGate The UI-backed gate wired by `ChatViewModel.wireFileConfirmationGate`.
-     *               It drives the Compose [com.omnidev.workspace.ui.chat.ConfirmationGateDialog].
+     *               It records the action in the session ledger and lets it proceed.
      */
     fun confirmationGate(uiGate: ConfirmationGate): ConfirmationGate
 }

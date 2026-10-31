@@ -8,7 +8,7 @@ import com.omnidev.workspace.ui.chat.ChatUiState
 internal fun companionActivity(chat: ChatUiState, listening: Boolean = false): CompanionActivity = when {
     listening -> CompanionActivity.LISTENING
     chat.errorMessage != null -> CompanionActivity.ERROR
-    chat.pendingConfirmation != null || chat.messages.lastOrNull()?.executionRequest?.status == "pending" -> CompanionActivity.WAITING
+    chat.messages.lastOrNull()?.executionRequest?.status == "pending" -> CompanionActivity.WAITING
     chat.isProcessing -> when (val event = chat.consoleEntries.lastOrNull()) {
         is AgentConsoleEntry.ErrorEntry -> CompanionActivity.ERROR
         is AgentConsoleEntry.ResultEntry -> if (event.isError) CompanionActivity.ERROR else CompanionActivity.THINKING

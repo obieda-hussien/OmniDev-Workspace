@@ -83,12 +83,12 @@ internal fun AssistantConversation(
     }
     val follow = rememberTailFollowState(list, chat.currentSessionId,
         Triple(chat.messages.size, chat.streamingContent, chat.consoleEntries.size), lastUser,
-        enabled = panel == AssistantPanel.NONE && chat.pendingConfirmation == null && screen.visible)
+        enabled = panel == AssistantPanel.NONE && screen.visible)
     val console = remember(chat.consoleEntries) {
         AgentConsoleSerializer.compact(chat.consoleEntries.map(ConsoleRedactor::entry))
     }
-    LaunchedEffect(busy, chat.pendingConfirmation) {
-        if (busy || chat.pendingConfirmation != null) panel = AssistantPanel.NONE
+    LaunchedEffect(busy) {
+        if (busy) panel = AssistantPanel.NONE
     }
     fun suggest(prompt: String, attachScreen: Boolean = false) {
         onInputChanged(prompt)
@@ -113,7 +113,7 @@ internal fun AssistantConversation(
             Surface(Modifier.widthIn(max = 560.dp).fillMaxWidth().height(panelHeight).testTag("floating-assistant"),
                 shape = RoundedCornerShape(28.dp), color = colors.surface, shadowElevation = 8.dp) {
                 ChatCompanionHost(chat.currentSessionId, chat.isProcessing,
-                    visible = screen.visible && panel == AssistantPanel.NONE && chat.pendingConfirmation == null && !blocked && panelHeight >= 360.dp,
+                    visible = screen.visible && panel == AssistantPanel.NONE && !blocked && panelHeight >= 360.dp,
                     modifier = Modifier.fillMaxSize(), activity = companionActivity(chat, screen.listening)) {
                     Column {
                         Box(Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp).size(32.dp, 3.dp)
@@ -138,15 +138,9 @@ internal fun AssistantConversation(
                             if (flavor.allowBubble) OmniIconButton(onClick = onMinimize, enabled = !blocked) {
                                 Icon(Icons.Default.Remove, "Minimize to floating bubble")
                             }
-                            AssistantExpandButton(screen.saving, screen.minimizing, chat.isProcessing, chat.pendingConfirmation != null, onExpand)
+                            AssistantExpandButton(screen.saving, screen.minimizing, chat.isProcessing, onExpand)
                             OmniIconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close and save conversation") }
                         }
-                        val confirmation = chat.pendingConfirmation
-                        if (confirmation != null) {
-                            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                ConfirmationGateCard(confirmation, Modifier.fillMaxSize())
-                            }
-                        } else {
                             Box(Modifier.weight(1f).fillMaxWidth()) {
                                 if (panel == AssistantPanel.NONE) {
                                     LazyColumn(Modifier.fillMaxSize().companionViewport().testTag("assistant-messages"), state = list,
@@ -218,7 +212,7 @@ internal fun AssistantConversation(
                                     mentionLoader = mentionLoader, toolsDescription = "Assistant tools", sendDescription = "Send question", stopDescription = "Stop request", allowSteering = chat.canSteer)
                                 LiveSteeringHint(chat.isProcessing && chat.canSteer, chat.submittedSteeringRevision, chat.appliedSteeringRevision)
                             }
-                        }
+
                     }
                 }
             }

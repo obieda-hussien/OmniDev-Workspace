@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.omnidev.workspace.core.policy.ConfirmationKind
 import java.util.UUID
 
 enum class ChangeKind { MODIFIED, CREATED, DELETED }
@@ -41,6 +42,16 @@ data class DiffLine(val type: DiffLineType, val oldNo: Int?, val newNo: Int?, va
 
 data class FileDiff(val lines: List<DiffLine>, val added: Int, val removed: Int, val currentAvailable: Boolean)
 
+/** A privileged non-file action (shell command, intent, connected-app call...) that already ran. */
+data class ActionRecord(
+    val id: String = UUID.randomUUID().toString(),
+    val sessionKey: Long,
+    val kind: ConfirmationKind,
+    val preview: String,
+    val diff: String? = null,
+    val at: Long = System.currentTimeMillis()
+)
+
 data class ResolveResult(val succeeded: Int, val errors: List<String>)
 
 /**
@@ -52,6 +63,15 @@ class SessionChangeLedger {
 
     private val _changes = MutableStateFlow<List<TrackedChange>>(emptyList())
     val changes: StateFlow<List<TrackedChange>> = _changes.asStateFlow()
+
+    private val _actions = MutableStateFlow<List<ActionRecord>>(emptyList())
+    val actions: StateFlow<List<ActionRecord>> = _actions.asStateFlow()
+
+    fun recordAction(sessionKey: Long, kind: ConfirmationKind, preview: String, diff: String? = null) {
+        _actions.update { (it + ActionRecord(sessionKey = sessionKey, kind = kind, preview = preview.take(MAX_PREVIEW), diff = diff?.take(MAX_PREVIEW))).takeLast(MAX_ACTIONS) }
+    }
+
+    fun clearActions(sessionKey: Long) { _actions.update { l -> l.filterNot { it.sessionKey == sessionKey } } }
 
     /** Called by the file tools right BEFORE they write, so the disk still holds the original. */
     suspend fun recordBeforeWrite(sessionKey: Long, path: String, kind: ChangeKind) {
@@ -73,7 +93,9 @@ class SessionChangeLedger {
                     kind == ChangeKind.DELETED -> old.copy(kind = ChangeKind.DELETED, editCount = old.editCount + 1)
                     else -> old.copy(editCount = old.editCount + 1)
                 }
-                list.toMutableList().also { if (merged == null) it.removeAt(idx) else it[idx] = merged }
+                val out = list.toMutableList()
+                if (merged == null) out.removeAt(idx) else out[idx] = merged
+                out
             }
         }
     }
@@ -133,6 +155,8 @@ class SessionChangeLedger {
     }
 
     companion object {
+        private const val MAX_PREVIEW = 4_000
+        private const val MAX_ACTIONS = 300
         private const val MAX_BASELINE_BYTES = 2L * 1024 * 1024
         private const val MAX_LCS_CELLS = 4_000_000L
         private const val CONTEXT = 3

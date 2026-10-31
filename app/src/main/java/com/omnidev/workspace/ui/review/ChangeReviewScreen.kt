@@ -56,12 +56,13 @@ private val CodeBg = Color(0xFF0F0F1C)
 @Composable
 fun PendingChangesPill(
     pending: List<TrackedChange>,
+    actionCount: Int,
     onReview: () -> Unit,
     onKeepAll: () -> Unit,
     onRevertAll: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (pending.isEmpty()) return
+    if (pending.isEmpty() && actionCount == 0) return
     Surface(
         modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
         shape = RoundedCornerShape(20.dp),
@@ -76,16 +77,18 @@ fun PendingChangesPill(
             Icon(Icons.Filled.Difference, null, tint = OmniPrimary, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text("${pending.size} file${if (pending.size == 1) "" else "s"} changed", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                Text("Tap to review changes", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (pending.isEmpty()) "$actionCount action${if (actionCount == 1) "" else "s"} ran" else "${pending.size} file${if (pending.size == 1) "" else "s"} changed", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Text(if (pending.isEmpty()) "Tap to see activity" else "Tap to review changes", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(onClick = onRevertAll) { Icon(Icons.Filled.Undo, "Revert all", tint = OmniError) }
-            IconButton(onClick = onKeepAll) { Icon(Icons.Filled.DoneAll, "Keep all", tint = OmniSuccess) }
+            if (pending.isNotEmpty()) {
+                IconButton(onClick = onRevertAll) { Icon(Icons.Filled.Undo, "Revert all", tint = OmniError) }
+                IconButton(onClick = onKeepAll) { Icon(Icons.Filled.DoneAll, "Keep all", tint = OmniSuccess) }
+            } else Spacer(Modifier.width(10.dp))
         }
     }
 }
 
-private enum class ReviewTab { PENDING, HISTORY }
+private enum class ReviewTab { PENDING, HISTORY, ACTIVITY }
 
 @Composable
 fun ChangeReviewDialog(
@@ -96,6 +99,8 @@ fun ChangeReviewDialog(
     val all by ledger.changes.collectAsState()
     val mine = remember(all, sessionKey) { all.filter { it.sessionKey == sessionKey } }
     val pending = remember(mine) { mine.filter { it.status == ChangeStatus.PENDING } }
+    val allActions by ledger.actions.collectAsState()
+    val actions = remember(allActions, sessionKey) { allActions.filter { it.sessionKey == sessionKey }.sortedByDescending { it.at } }
     val history = remember(mine) { mine.filter { it.status != ChangeStatus.PENDING }.sortedByDescending { it.resolvedAt } }
     var tab by remember { mutableStateOf(ReviewTab.PENDING) }
     var openId by remember { mutableStateOf<String?>(null) }
@@ -132,7 +137,8 @@ fun ChangeReviewDialog(
                             onRevert = { resolve(setOf(change.id), true); openId = null })
                     } else {
                         ListPage(
-                            tab = tab, onTab = { tab = it }, pending = pending, history = history,
+                            tab = tab, onTab = { tab = it }, pending = pending, history = history, actions = actions,
+                            onClearActions = { ledger.clearActions(sessionKey) },
                             selected = selected,
                             onToggle = { cid -> selected = if (cid in selected) selected - cid else selected + cid },
                             onToggleAll = { selected = if (selected.size == pending.size) emptySet() else pending.map { it.id }.toSet() },
@@ -152,7 +158,7 @@ fun ChangeReviewDialog(
 @Composable
 private fun ListPage(
     tab: ReviewTab, onTab: (ReviewTab) -> Unit,
-    pending: List<TrackedChange>, history: List<TrackedChange>,
+    pending: List<TrackedChange>, history: List<TrackedChange>, actions: List<ActionRecord>, onClearActions: () -> Unit,
     selected: Set<String>, onToggle: (String) -> Unit, onToggleAll: () -> Unit,
     onOpen: (String) -> Unit, onKeep: (Set<String>) -> Unit, onRevert: (Set<String>) -> Unit,
     onClearHistory: () -> Unit, onClose: () -> Unit
@@ -168,10 +174,13 @@ private fun ListPage(
         TabRow(selectedTabIndex = tab.ordinal, containerColor = Color.Transparent, divider = {}) {
             Tab(tab == ReviewTab.PENDING, { onTab(ReviewTab.PENDING) }, text = { Text("Pending (${pending.size})") })
             Tab(tab == ReviewTab.HISTORY, { onTab(ReviewTab.HISTORY) }, text = { Text("History (${history.size})") })
+            Tab(tab == ReviewTab.ACTIVITY, { onTab(ReviewTab.ACTIVITY) }, text = { Text("Activity (${actions.size})") })
         }
         val list = if (tab == ReviewTab.PENDING) pending else history
         Box(Modifier.weight(1f)) {
-            if (list.isEmpty()) {
+            if (tab == ReviewTab.ACTIVITY) {
+                ActivityList(actions, onClearActions)
+            } else if (list.isEmpty()) {
                 EmptyState(if (tab == ReviewTab.PENDING) "All caught up" else "No resolved changes yet",
                     if (tab == ReviewTab.PENDING) "New agent edits will show up here." else "Kept and reverted files are listed here.")
             } else LazyColumn(contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -336,4 +345,46 @@ private fun LineNo(n: Int?) {
     Text(n?.toString() ?: "", color = Color(0xFF6B6B85), fontFamily = FontFamily.Monospace, fontSize = 10.sp, lineHeight = 18.sp,
         textAlign = androidx.compose.ui.text.style.TextAlign.End,
         modifier = Modifier.width(38.dp).background(Gutter).padding(end = 6.dp))
+}
+
+@Composable
+private fun ActivityList(actions: List<ActionRecord>, onClear: () -> Unit) {
+    if (actions.isEmpty()) { EmptyState("No actions yet", "Commands, intents and app actions the agent runs are logged here."); return }
+    var expanded by remember { mutableStateOf<String?>(null) }
+    val fmt = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()) }
+    LazyColumn(contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { TextButton(onClick = onClear) { Text("Clear activity") } }
+        items(actions, key = { it.id }) { a ->
+            val (label, color) = actionStyle(a.kind)
+            Surface(Modifier.fillMaxWidth().clickable { expanded = if (expanded == a.id) null else a.id },
+                shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(.5f))) {
+                Column(Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.clip(CircleShape).background(color.copy(.16f)).padding(horizontal = 10.dp, vertical = 3.dp)) {
+                            Text(label, color = color, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Text(fmt.format(java.util.Date(a.at)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(8.dp))
+                        Box(Modifier.clip(CircleShape).background(OmniSuccess.copy(.16f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                            Text("Ran", color = OmniSuccess, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(a.preview, fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp,
+                        maxLines = if (expanded == a.id) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+private fun actionStyle(kind: com.omnidev.workspace.core.policy.ConfirmationKind): Pair<String, Color> = when (kind) {
+    com.omnidev.workspace.core.policy.ConfirmationKind.SHIZUKU_COMMAND -> "Shell command" to OmniWarning
+    com.omnidev.workspace.core.policy.ConfirmationKind.ANDROID_INTENT -> "Intent" to OmniPrimary
+    com.omnidev.workspace.core.policy.ConfirmationKind.CONNECTED_APP_ACTION -> "Connected app" to OmniSecondary
+    com.omnidev.workspace.core.policy.ConfirmationKind.ASSISTANT_ACTION -> "Assistant action" to OmniPrimary
+    com.omnidev.workspace.core.policy.ConfirmationKind.LEARNED_TASK -> "Learned task" to OmniSecondary
+    else -> "File action" to OmniWarning
 }
