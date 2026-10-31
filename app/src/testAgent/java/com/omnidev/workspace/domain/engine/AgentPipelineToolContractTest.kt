@@ -192,8 +192,10 @@ class AgentPipelineToolContractTest {
             ToolParameter("json_payload", "string", "Payload", required = false))))
         override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
             val action = arguments.getValue("action_name")
+            val alreadyMoved = "launcher.move_items" in executed
             executed += action
-            val data = if (action == "launcher.move_items") "{\"reloadScheduled\":true}" else "{\"revision\":\"new\"}"
+            val data = if (action == "launcher.move_items") "{\"reloadScheduled\":true}"
+            else "{\"revision\":\"${if (alreadyMoved) "new" else "old"}\"}"
             return ToolExecutionResult(org.json.JSONObject().put("ok", true).put("result_json",
                 org.json.JSONObject().put("type", "com.omnilink.sdk.ActionOutcome.Success").put("data", org.json.JSONObject(data)).toString()).toString())
         }
@@ -215,14 +217,15 @@ class AgentPipelineToolContractTest {
         val executed = mutableListOf<String>()
         val pipeline = AgentPipeline(launcherTools(executed), completionProvider = {
             when (++round) {
-                1 -> CompletionResponse("", listOf(ToolCall("move", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.move_items", "json_payload" to "{\"expectedRevision\":\"old\"}"))))
-                2 -> CompletionResponse("Arranged")
-                3 -> CompletionResponse("", listOf(ToolCall("verify", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.get_layout"))))
+                1 -> CompletionResponse("", listOf(ToolCall("read", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.get_layout"))))
+                2 -> CompletionResponse("", listOf(ToolCall("move", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.move_items", "json_payload" to "{\"expectedRevision\":\"old\"}"))))
+                3 -> CompletionResponse("Arranged")
+                4 -> CompletionResponse("", listOf(ToolCall("verify", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.get_layout"))))
                 else -> CompletionResponse("Verified arrangement")
             }
         }, config = config)
         val events = pipeline.execute("Organize launcher home screen", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
-        assertEquals(listOf("launcher.move_items", "launcher.get_layout"), executed)
+        assertEquals(listOf("launcher.get_layout", "launcher.move_items", "launcher.get_layout"), executed)
         assertEquals(1, events.filterIsInstance<AgentEvent.FinalAnswer>().size)
     }
 
@@ -240,13 +243,14 @@ class AgentPipelineToolContractTest {
         }
         val pipeline = AgentPipeline(tools, completionProvider = {
             when (++round) {
-                1 -> CompletionResponse("", listOf(ToolCall("move", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.move_items", "json_payload" to "{\"expectedRevision\":\"old\"}"))))
-                2 -> CompletionResponse("", listOf(ToolCall("verify", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.get_layout"))))
+                1 -> CompletionResponse("", listOf(ToolCall("read", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.get_layout"))))
+                2 -> CompletionResponse("", listOf(ToolCall("move", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.move_items", "json_payload" to "{\"expectedRevision\":\"old\"}"))))
+                3 -> CompletionResponse("", listOf(ToolCall("verify", "omni_link", mapOf("action" to "execute_capability", "action_name" to "launcher.get_layout"))))
                 else -> CompletionResponse("Verified arrangement with dock preserved")
             }
         }, config = config)
         val events = pipeline.execute("Organize launcher home screen", modelId = "gpt-4o-mini", scopePath = "/tmp", steering = control).toList()
-        assertEquals(listOf("launcher.move_items", "launcher.get_layout"), executed)
+        assertEquals(listOf("launcher.get_layout", "launcher.move_items", "launcher.get_layout"), executed)
         assertEquals(1, events.filterIsInstance<AgentEvent.FinalAnswer>().size)
     }
 }
