@@ -565,7 +565,14 @@ When improving: keep every other sentence, the structure, the language and the l
                     // Only prior tool observations are supplemental evidence. User requests,
                     // assistant drafts and tool-call arguments are not proof that a file exists.
                     messages.filter { it.role == MessageRole.TOOL }
-                        .joinToString("\n") { m -> m.toolResults.joinToString("\n") { it.output }.ifBlank { m.content } }
+                        .flatMap { message ->
+                            message.toolResults.filter { result ->
+                                !result.isError && result.output.isNotBlank() &&
+                                    result.output.trim() != "(no output)" &&
+                                    !result.output.trim().startsWith("NO_MATCHES")
+                            }.map { it.output }
+                        }
+                        .joinToString("\n")
                         .take(300_000)
                 )
                 val finalContent = if (groundingNote.isBlank()) cleanedContent else cleanedContent + "\n\n" + groundingNote
