@@ -48,7 +48,7 @@ class AutomaticToolRouter(private val catalog: RunToolCatalog) {
             // Strict matching needs overlapping English terms, so an intent in another language finds nothing.
             // Offer the wider retrieval result (with exact signatures) instead of a dead-end, still without executing.
             val candidates = match.candidates.ifEmpty { catalog.looseCandidates(intent.content).also { catalog.loadCandidates(it) } }
-            return rejected(buildString {
+            return rejected("OPERATION_UNRESOLVED: " + buildString {
                 append("Operation is ambiguous or unregistered. ")
                 if (candidates.isEmpty()) append("No close tool was found; name an exact tool from: ${catalog.exactToolDigest(12)}.")
                 else append("Candidates loaded for the next request: ${candidates.joinToString("; ") { catalog.signature(it) }}.")
