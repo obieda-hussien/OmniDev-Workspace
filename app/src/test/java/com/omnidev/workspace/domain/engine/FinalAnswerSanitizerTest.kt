@@ -14,7 +14,11 @@ class FinalAnswerSanitizerTest {
 
     @Test fun `strips accidental cjk characters`() {
         val clean = FinalAnswerSanitizer.clean("Result with 汉字 and normal English.")
-        assertFalse(clean.any { it in '\\u3400'..'\\u4DBF' || it in '\\u4E00'..'\\u9FFF' || it in '\\uF900'..'\\uFAFF' })
+        assertFalse(clean.any {
+            it.code in 0x3400..0x4DBF ||
+                it.code in 0x4E00..0x9FFF ||
+                it.code in 0xF900..0xFAFF
+        })
         assertTrue(clean.contains("normal English"))
     }
 
