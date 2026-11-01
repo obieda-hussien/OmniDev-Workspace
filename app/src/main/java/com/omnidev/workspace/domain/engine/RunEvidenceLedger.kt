@@ -106,13 +106,13 @@ class RunEvidenceLedger {
         if (unverified.isEmpty() && weak.isEmpty()) return ""
         return buildString {
             if (unverified.isNotEmpty()) {
-                appendLine("⚠️ تحقق: الأسماء/المسارات دي اتذكرت في الرد ومظهرتش في أي ناتج أداة، اعتبرها غير مؤكدة: " +
+                appendLine("Verification warning: these file names/paths were mentioned in the answer but did not appear in tool output; treat them as unverified: " +
                     unverified.joinToString(", ") { "`$it`" })
             }
             if (weak.isNotEmpty()) {
                 val summary = weak.groupingBy { "${it.tool}:${it.outcome.name.lowercase()}" }.eachCount().entries
                     .joinToString(", ") { "${it.key}×${it.value}" }
-                append("ℹ️ أدوات رجعت فاضي/فشلت في التشغيل ده: $summary")
+                append("Tool calls with empty output or errors in this run: $summary")
             }
         }.trimEnd()
     }
