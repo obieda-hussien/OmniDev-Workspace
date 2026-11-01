@@ -12,6 +12,12 @@ class FinalAnswerSanitizerTest {
         assertTrue(clean.contains("before") && clean.contains("after"))
     }
 
+    @Test fun `strips accidental cjk characters`() {
+        val clean = FinalAnswerSanitizer.clean("Result with 汉字 and normal English.")
+        assertFalse(clean.any { it in '\\u3400'..'\\u4DBF' || it in '\\u4E00'..'\\u9FFF' || it in '\\uF900'..'\\uFAFF' })
+        assertTrue(clean.contains("normal English"))
+    }
+
     @Test fun `closes unbalanced fences and strips hebrew and thai letters`() {
         val clean = FinalAnswerSanitizer.clean("النتيجה \u05D1\u05E6\u05D5\u05E8\u05D4 تمام\nكود:\n```kotlin\nval x = 1")
         assertFalse(clean.any { it in '\u0590'..'\u05FF' })
