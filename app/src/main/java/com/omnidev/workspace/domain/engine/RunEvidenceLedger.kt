@@ -96,12 +96,12 @@ class RunEvidenceLedger {
             val normalized = ref.lowercase()
             if (ref.startsWith("/")) {
                 // Require token boundaries too: Foo.kt.backup must not verify Foo.kt.
-                Regex("(?<![\\\\w.-])${Regex.escape(normalized)}(?![\\\\w.-])")
+                Regex("(?<![\\w.-])${Regex.escape(normalized)}(?![\\w.-])")
                     .containsMatchIn(haystack)
             } else {
                 val base = normalized.substringAfterLast('/')
                 base.length >= 3 && Regex(
-                    "(?<![\\\\w.-])${Regex.escape(base)}(?![\\\\w.-])"
+                    "(?<![\\w.-])${Regex.escape(base)}(?![\\w.-])"
                 ).containsMatchIn(haystack)
             }
         }.take(8)
