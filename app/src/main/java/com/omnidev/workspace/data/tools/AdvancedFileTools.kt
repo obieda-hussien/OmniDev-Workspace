@@ -255,7 +255,7 @@ object AdvancedFileTools {
         }
 
         val result = executePrivilegedScript(script, headTruncate = true)
-        return if (!result.isError && result.output.isBlank() || result.output.trim() == "(no output)") {
+        return if (!result.isError && (result.output.isBlank() || result.output.trim() == "(no output)")) {
             result.copy(output = "NO_MATCHES: find searched '$directory' to depth $maxDepth and returned nothing. " +
                 "This is NOT proof the files are absent: verify the directory exists, raise max_depth, or list the directory first. " +
                 "Never report file names that this tool did not return.")
