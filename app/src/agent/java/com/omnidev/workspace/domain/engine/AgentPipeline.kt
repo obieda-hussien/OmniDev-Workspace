@@ -676,7 +676,9 @@ When improving: keep every other sentence, the structure, the language and the l
             }
             val failedResult = rawResults.firstOrNull { it.isError }
             val nonRuntimeFailure = response.toolCalls.zip(rawResults).firstOrNull { (call, result) ->
-                result.isError && !runtimeBackends.handles(call, result)
+                result.isError &&
+                    result.classification != "OPERATION_UNRESOLVED" &&
+                    !runtimeBackends.handles(call, result)
             }?.second
             if (nonRuntimeFailure != null) unresolvedToolFailure = SensitiveObservationRedactor.redact(nonRuntimeFailure.output)
             else if (response.toolCalls.any { it.name != RunToolCatalog.DISCOVER.name }) unresolvedToolFailure = githubFailures.unresolved()
