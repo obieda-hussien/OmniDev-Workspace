@@ -308,7 +308,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 runtimeClock = runtimeClock,
                 scopePath = scopePath,
                 budget = budget,
-                godModeEnabled = godModeEnabled
+                godModeEnabled = godModeEnabled,
+                userFacing = runtimeTasks.size == 1,
+                teamFindings = teamFindings(task, completed, failed)
             ) + recoveryNote?.let { "\n\n$it" }.orEmpty()
 
             val workerPipeline = AgentPipeline(
@@ -539,7 +541,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             ) ?: deterministicEvidenceSummary(completed, failed, skipped)
         }
 
-        val finalSummary = if (steering == null) summarize() else steering.reasoning(revision) { summarize() }
+        val finalSummary = FinalAnswerSanitizer.clean(if (steering == null) summarize() else steering.reasoning(revision) { summarize() })
         if (steering != null && !steering.finish(revision)) throw RunRedirected()
 
         val rootFailures = failed.keys
@@ -628,7 +630,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         runtimeClock: String,
         scopePath: String,
         budget: TeamExecutionPolicy.WorkerBudget,
-        godModeEnabled: Boolean
+        godModeEnabled: Boolean,
+        userFacing: Boolean = false,
+        teamFindings: String = ""
     ): String = buildString {
         appendLine("## Assigned Team Task")
         appendLine(task.description)
@@ -638,13 +642,19 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         appendLine("Budget: ${budget.maxIterations} iterations / ${budget.tokenBudget} tokens (${budget.reason})")
         appendLine("\n## Contract")
         appendLine("Execute only this task. Batch safe reads, stop when finish evidence is sufficient, and do not redo team planning.")
-        appendLine("Use the tool-call channel for every action; never put a tool-call JSON envelope in your reply. Do not greet or role-play; your reply is read by the synthesizer, not the user.")
+        appendLine("Use the tool-call channel for every action; never put a tool-call JSON envelope in your reply. Do not greet or role-play.")
+        if (userFacing) appendLine("You are the only worker: your final reply is shown directly to the user. Write it in the user's language (Egyptian Arabic if the user writes Arabic; keep paths and code in English) as valid Markdown: one result sentence, then evidence, then risks/next step.")
+        else appendLine("Your reply is read by the synthesizer, not the user.")
         appendLine("Empty output / '(no output)' / NO_MATCHES is inconclusive: retry once with a wider scope (deeper max_depth, parent dir, alternate tool) before reporting. Report only files, paths and results you actually received from tools; write 'NOT VERIFIED' for anything else.")
         appendLine("discover_tools requires {\"query\":\"...\"}; never call it with empty arguments.")
-        appendLine("Reply format: RESULT (1-2 lines) / EVIDENCE (paths, commands, key output) / BLOCKERS (exact errors) / NOT VERIFIED.")
+        if (!userFacing) appendLine("Reply format: RESULT (1-2 lines) / EVIDENCE (paths, commands, key output) / BLOCKERS (exact errors) / NOT VERIFIED.")
         appendLine("Pivot once when a backend is clearly blocked; do not probe it repeatedly. Never claim verification without concrete evidence.")
         appendLine("Return concise evidence useful to the parent: changes, paths, tests, errors, decisions, sources, and remaining risk.")
         if (godModeEnabled) appendLine("God Mode flag does not guarantee privilege; trust actual tool outcomes.")
+        if (teamFindings.isNotBlank()) {
+            appendLine("\n## Team findings so far (verified results of finished workers; do not redo them)")
+            appendLine(teamFindings)
+        }
         if (dependencyContext.isNotBlank()) {
             appendLine("\n## Dependency evidence")
             appendLine(dependencyContext)
@@ -704,6 +714,17 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun teamFindings(task: SwarmTask, completed: Map<String, String>, failed: Map<String, String>): String {
+        var remaining = 2_400
+        val parts = mutableListOf<String>()
+        completed.forEach { (id, raw) ->
+            if (id == task.id || id in task.dependencies || id in failed || remaining <= 0) return@forEach
+            val line = TeamHandoffCompressor.compact(raw, minOf(600, remaining))
+            if (line.isNotBlank()) { parts += "[$id] $line"; remaining -= line.length }
+        }
+        return parts.joinToString("\n")
     }
 
     private fun compactDependencyContext(

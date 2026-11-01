@@ -559,13 +559,14 @@ When improving: keep every other sentence, the structure, the language and the l
                 }
                 // Deterministic fact-check: warn about files/paths no tool ever returned and about
                 // tool calls that came back empty or failed. Never rewrites the model's answer.
+                val cleanedContent = FinalAnswerSanitizer.clean(critiquedContent)
                 val groundingNote = if (runtimeBackends.hasBlocks()) "" else evidenceLedger.groundingNote(
-                    critiquedContent,
+                    cleanedContent,
                     // Assistant text (including the draft itself) is a claim, never evidence.
                     messages.filter { it.role != MessageRole.ASSISTANT }
                         .joinToString("\n") { m -> m.content + m.toolResults.joinToString("\n") { it.output } }.take(300_000)
                 )
-                val finalContent = if (groundingNote.isBlank()) critiquedContent else critiquedContent + "\n\n" + groundingNote
+                val finalContent = if (groundingNote.isBlank()) cleanedContent else cleanedContent + "\n\n" + groundingNote
 
                 if (steering != null) {
                     if (steeringRevision != null) steering.check(revision)
