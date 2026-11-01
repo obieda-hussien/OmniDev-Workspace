@@ -39,7 +39,7 @@ class RunEvidenceLedgerTest {
         assertTrue(
             ledger.unverifiedReferences(
                 answer,
-                extraEvidence = listOf(ToolCallResult("prior", "read_file", "File: Foo.kt\\ncontents", false))
+                extraEvidence = listOf(ToolCallResult("prior", "read_file", "File: Foo.kt\ncontents", false))
             ).isEmpty()
         )
 
