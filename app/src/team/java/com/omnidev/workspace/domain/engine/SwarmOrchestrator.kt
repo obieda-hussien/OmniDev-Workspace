@@ -48,6 +48,9 @@ class SwarmOrchestrator(
         private const val MAX_SYNTHESIS_CHARS_PER_TASK = 6_500
         private const val MAX_SYNTHESIS_CONTEXT_CHARS = 28_000
         private const val MAX_OVERFLOW_DESCRIPTION_CHARS = 5_500
+        private const val MAX_WORKER_TOOL_OBSERVATIONS = 8
+        private const val MAX_WORKER_TOOL_OBSERVATION_CHARS = 900
+        private const val MAX_WORKER_TOOL_EVIDENCE_CHARS = 5_000
 
         /** Planner + workers + synthesis all fit under this logical run ceiling. */
         private const val TEAM_TOTAL_TOKEN_HARD_LIMIT = 2_000_000
@@ -337,6 +340,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
 
             var taskResult = ""
             var taskError: String? = null
+            val observedToolResults = mutableListOf<String>()
             try {
                 workerPipeline.execute(
                     userMessage = workerPrompt,
@@ -357,7 +361,20 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                         is AgentEvent.Error -> taskError = event.message
                         is AgentEvent.StreamChunk -> send(SwarmEvent.WorkerStreamChunk(task, event.delta))
                         is AgentEvent.ToolExecution -> send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
-                        is AgentEvent.ToolResult -> send(SwarmEvent.WorkerToolResult(task, event.toolName, event.output, event.isError))
+                        is AgentEvent.ToolResult -> {
+                            send(SwarmEvent.WorkerToolResult(task, event.toolName, event.output, event.isError))
+                            val outcome = when {
+                                event.isError -> "ERROR"
+                                event.output.isBlank() || event.output.trim() == "(no output)" -> "EMPTY"
+                                else -> "OK"
+                            }
+                            val output = SensitiveObservationRedactor.redact(event.output)
+                                .replace(Regex("\\s+"), " ").trim()
+                            val snippet = if (output.length <= MAX_WORKER_TOOL_OBSERVATION_CHARS) output
+                                else output.take(650) + " … " + output.takeLast(200)
+                            observedToolResults += "[TOOL OUTPUT] ${event.toolName} [$outcome]: $snippet"
+                            if (observedToolResults.size > MAX_WORKER_TOOL_OBSERVATIONS) observedToolResults.removeAt(0)
+                        }
                         is AgentEvent.Thinking -> send(SwarmEvent.WorkerThinking(task, event.iteration))
                         is AgentEvent.ThinkingBlock -> send(SwarmEvent.WorkerThinkingBlock(task, event.content))
                         is AgentEvent.TokenUsageUpdate -> {
@@ -390,11 +407,20 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             if (taskError == null && taskResult.startsWith(WorkerRecoveryPlanner.INCOMPLETE_PREFIX)) {
                 taskError = "Worker announced work without performing it."
             }
-            if (taskError == null) return TaskOutcome(task, taskResult)
+            val toolEvidence = observedToolResults.joinToString("\\n").take(MAX_WORKER_TOOL_EVIDENCE_CHARS)
+            val enrichedResult = buildString {
+                append(taskResult.take(6_000))
+                if (toolEvidence.isNotBlank()) {
+                    if (isNotBlank()) appendLine().appendLine()
+                    appendLine("[Worker tool observations — redacted outputs, not worker conclusions]")
+                    append(toolEvidence)
+                }
+            }.take(12_000)
+            if (taskError == null) return TaskOutcome(task, enrichedResult)
 
             val error = taskError.orEmpty()
-            val partial = taskResult.takeIf(String::isNotBlank)?.let {
-                "\n[Partial evidence]\n${TeamHandoffCompressor.compact(it, 3_000)}"
+            val partial = enrichedResult.takeIf(String::isNotBlank)?.let {
+                "\\n[Partial evidence]\\n${TeamHandoffCompressor.compact(it, 5_000)}"
             }.orEmpty()
             return TaskOutcome(
                 task = task,
