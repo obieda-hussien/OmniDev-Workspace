@@ -283,6 +283,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         send(SwarmEvent.PlanCompleted(runtimeTasks))
 
         val completed = linkedMapOf<String, String>()
+        val completedToolEvidence = linkedMapOf<String, String>()
         val failed = linkedMapOf<String, String>()
         val skipped = linkedMapOf<String, String>()
         val infrastructureFailed = mutableSetOf<String>()
@@ -296,14 +297,15 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             val error: String? = null,
             val infrastructureBlocked: Boolean = false,
             val requiresSerialReplan: Boolean = false,
-            val redirected: Boolean = false
+            val redirected: Boolean = false,
+            val toolEvidence: String = ""
         )
 
         suspend fun runWorkerAttempt(task: SwarmTask, attempt: Int, recoveryNote: String?, tokenCap: Int = Int.MAX_VALUE): TaskOutcome {
             if (steering?.changed(revision) == true) return TaskOutcome(task, "", redirected = true)
             if (attempt == 1) send(SwarmEvent.TaskStarted(task))
             val budget = allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)
-            val dependencyContext = compactDependencyContext(task, completed)
+            val dependencyContext = compactDependencyContext(task, completed, completedToolEvidence)
             val workerPrompt = buildWorkerPrompt(
                 task = task,
                 dependencyContext = dependencyContext,
@@ -313,7 +315,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 budget = budget,
                 godModeEnabled = godModeEnabled,
                 userFacing = runtimeTasks.size == 1,
-                teamFindings = teamFindings(task, completed, failed)
+                teamFindings = teamFindings(task, completed, failed, completedToolEvidence)
             ) + recoveryNote?.let { "\n\n$it" }.orEmpty()
 
             val workerPipeline = AgentPipeline(
@@ -408,19 +410,11 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 taskError = "Worker announced work without performing it."
             }
             val toolEvidence = observedToolResults.joinToString("\n").take(MAX_WORKER_TOOL_EVIDENCE_CHARS)
-            val enrichedResult = buildString {
-                append(taskResult.take(6_000))
-                if (toolEvidence.isNotBlank()) {
-                    if (isNotBlank()) appendLine().appendLine()
-                    appendLine("[Worker tool observations — redacted outputs, not worker conclusions]")
-                    append(toolEvidence)
-                }
-            }.take(12_000)
-            if (taskError == null) return TaskOutcome(task, enrichedResult)
+            if (taskError == null) return TaskOutcome(task, taskResult, toolEvidence = toolEvidence)
 
             val error = taskError.orEmpty()
-            val partial = enrichedResult.takeIf(String::isNotBlank)?.let {
-                "\n[Partial evidence]\n${TeamHandoffCompressor.compact(it, 5_000)}"
+            val partial = taskResult.takeIf(String::isNotBlank)?.let {
+                "\n[Partial evidence]\n${TeamHandoffCompressor.compact(it, 3_000)}"
             }.orEmpty()
             return TaskOutcome(
                 task = task,
@@ -428,7 +422,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 error = error,
                 infrastructureBlocked = isInfrastructureFailure(error),
                 requiresSerialReplan = task.parallelSafe && error.startsWith("READ_ONLY_WORKER:") &&
-                    TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f
+                    TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
+                toolEvidence = toolEvidence
             )
         }
 
@@ -469,6 +464,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 return
             }
             completed[outcome.task.id] = outcome.result
+            outcome.toolEvidence.takeIf(String::isNotBlank)?.let { completedToolEvidence[outcome.task.id] = it }
             if (outcome.error != null) {
                 failed[outcome.task.id] = outcome.error
                 if (outcome.infrastructureBlocked) infrastructureFailed += outcome.task.id
@@ -552,6 +548,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             else -> synthesize(
                 userMessage = userMessage,
                 completed = completed,
+                workerToolEvidence = completedToolEvidence,
                 failed = failed,
                 skipped = skipped,
                 orchestratorModelId = orchestratorModelId,
@@ -692,6 +689,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
     private suspend fun synthesize(
         userMessage: String,
         completed: Map<String, String>,
+        workerToolEvidence: Map<String, String>,
         failed: Map<String, String>,
         skipped: Map<String, String>,
         orchestratorModelId: String,
@@ -705,7 +703,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         selectedSkillContext: String,
         onStart: suspend () -> Unit
     ): String? {
-        val evidence = buildSynthesisContext(completed, failed, skipped)
+        val evidence = buildSynthesisContext(completed, failed, skipped, workerToolEvidence)
         val provisional = CompletionRequest(
             modelId = orchestratorModelId,
             messages = listOf(
@@ -742,20 +740,39 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         }
     }
 
-    private fun teamFindings(task: SwarmTask, completed: Map<String, String>, failed: Map<String, String>): String {
+    private fun teamFindings(
+        task: SwarmTask,
+        completed: Map<String, String>,
+        failed: Map<String, String>,
+        workerToolEvidence: Map<String, String>
+    ): String {
         var remaining = 2_400
         val parts = mutableListOf<String>()
         completed.forEach { (id, raw) ->
             if (id == task.id || id in task.dependencies || id in failed || remaining <= 0) return@forEach
-            val line = TeamHandoffCompressor.compact(raw, minOf(600, remaining))
-            if (line.isNotBlank()) { parts += "[$id] $line"; remaining -= line.length }
+            val report = TeamHandoffCompressor.compact(raw, minOf(450, remaining / 2))
+            val toolOutput = workerToolEvidence[id]?.let {
+                TeamHandoffCompressor.compact(it, minOf(300, remaining - report.length))
+            }.orEmpty()
+            val handoff = buildString {
+                if (report.isNotBlank()) append("[$id] ").append(report)
+                if (toolOutput.isNotBlank()) {
+                    if (isNotBlank()) appendLine()
+                    append(toolOutput)
+                }
+            }
+            if (handoff.isNotBlank() && handoff.length <= remaining) {
+                parts += handoff
+                remaining -= handoff.length
+            }
         }
         return parts.joinToString("\n")
     }
 
     private fun compactDependencyContext(
         task: SwarmTask,
-        completed: Map<String, String>
+        completed: Map<String, String>,
+        workerToolEvidence: Map<String, String>
     ): String {
         if (task.dependencies.isEmpty()) return ""
         var remaining = MAX_HANDOFF_CHARS_TOTAL
@@ -764,10 +781,18 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             if (remaining <= 0) return@forEach
             val raw = completed[dependency] ?: return@forEach
             val limit = minOf(MAX_HANDOFF_CHARS_PER_DEPENDENCY, remaining)
-            val compact = TeamHandoffCompressor.compact(raw, limit)
-            if (compact.isNotBlank()) {
-                parts += "[$dependency]\n$compact"
-                remaining -= compact.length
+            val compact = TeamHandoffCompressor.compact(raw, minOf(3_000, limit * 2 / 3))
+            val toolOutput = workerToolEvidence[dependency]?.let {
+                TeamHandoffCompressor.compact(it, minOf(1_500, (limit - compact.length - 32).coerceAtLeast(0)))
+            }.orEmpty()
+            val handoff = buildString {
+                append("[$dependency]")
+                if (compact.isNotBlank()) appendLine().append(compact)
+                if (toolOutput.isNotBlank()) appendLine().appendLine().append(toolOutput)
+            }
+            if (handoff.isNotBlank()) {
+                parts += handoff
+                remaining -= handoff.length
             }
         }
         return parts.joinToString("\n\n")
@@ -776,7 +801,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
     private fun buildSynthesisContext(
         completed: Map<String, String>,
         failed: Map<String, String>,
-        skipped: Map<String, String>
+        skipped: Map<String, String>,
+        workerToolEvidence: Map<String, String>
     ): String {
         val out = StringBuilder()
         completed.forEach { (id, raw) ->
@@ -784,7 +810,14 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             val remaining = MAX_SYNTHESIS_CONTEXT_CHARS - out.length
             val bodyLimit = minOf(MAX_SYNTHESIS_CHARS_PER_TASK, remaining)
             out.appendLine("## $id (${if (id in failed) "FAILED" else "SUCCESS"})")
-            out.appendLine(TeamHandoffCompressor.compact(raw, bodyLimit))
+            out.appendLine("Worker report (untrusted summary):")
+            out.appendLine(TeamHandoffCompressor.compact(raw, minOf(bodyLimit, 3_500)))
+            val toolOutput = workerToolEvidence[id]
+            if (!toolOutput.isNullOrBlank() && out.length < MAX_SYNTHESIS_CONTEXT_CHARS) {
+                val evidenceLimit = minOf(2_500, MAX_SYNTHESIS_CONTEXT_CHARS - out.length)
+                out.appendLine("Tool observations (redacted actual outputs; status is authoritative):")
+                out.appendLine(TeamHandoffCompressor.compact(toolOutput, evidenceLimit))
+            }
         }
         if (skipped.isNotEmpty() && out.length < MAX_SYNTHESIS_CONTEXT_CHARS) {
             out.appendLine("## Skipped")
