@@ -118,9 +118,13 @@ class RunEvidenceLedger {
     }
 
     private fun describeArguments(arguments: Map<String, String>): String {
-        val keys = listOf("action", "path", "filePath", "directory", "url", "repo", "command", "script", "shell_script", "query", "name_pattern", "name")
-        return keys.mapNotNull { key -> arguments[key]?.takeIf(String::isNotBlank)?.let { "$key=${it.replace('\n', ' ').take(80)}" } }
-            .take(3).joinToString(" ")
+        // Keep only low-risk identifiers; raw commands, URLs and free-form queries can carry credentials.
+        val keys = listOf("action", "path", "filePath", "directory", "repo", "name_pattern", "name")
+        return keys.mapNotNull { key ->
+            arguments[key]?.takeIf(String::isNotBlank)?.let {
+                "$key=${SensitiveObservationRedactor.redact(it.replace('\n', ' ')).take(80)}"
+            }
+        }.take(3).joinToString(" ")
     }
 
     private companion object {
