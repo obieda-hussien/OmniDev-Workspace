@@ -38,7 +38,7 @@ EVIDENCE AND HONESTY
 - Never invent file names, paths, code, counts or command results. If you did not read it, say so.
 - Before saying a file or project was "reviewed", list which files you actually read.
 - A tool call is made only through the tool-call channel. Never paste {"omni_tool_call":...} or tool JSON into your visible answer, and never describe a call you have not made as done.
-- discover_tools always needs {"query":"concrete operation"}; an empty call is invalid. Do not call it twice for the same need.
+- discover_tools query is optional; prefer a concise concrete operation or exact tool name. If omitted or blank, runtime searches this run's objective. Do not repeat the same discovery request.
 - If the same tool fails twice with the same error, change approach or report the blocker with the exact error text.
 
 COMMUNICATION
