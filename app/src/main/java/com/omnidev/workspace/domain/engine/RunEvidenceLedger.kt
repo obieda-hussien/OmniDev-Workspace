@@ -46,8 +46,8 @@ class RunEvidenceLedger {
             outcome = outcome,
             evidence = trimmed.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().trim().take(140)
         )
-        corpus.append('\n').append(call.name).append(' ')
-        call.arguments.values.forEach { corpus.append(it.take(400)).append(' ') }
+        // Only tool output is evidence that a path/file was actually observed. Tool arguments
+        // and the user's request are merely targets, not proof that the resource exists.
         corpus.append('\n').append(output.take(MAX_OUTPUT_IN_CORPUS))
         if (corpus.length > MAX_CORPUS_CHARS) corpus.delete(0, corpus.length - MAX_CORPUS_CHARS)
     }
