@@ -669,7 +669,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         if (userFacing) appendLine("You are the only worker: your final reply is shown directly to the user. Write it in the user's language (Egyptian Arabic if the user writes Arabic; keep paths and code in English) as valid Markdown: one result sentence, then evidence, then risks/next step.")
         else appendLine("Your reply is read by the synthesizer, not the user.")
         appendLine("Empty output / '(no output)' / NO_MATCHES is inconclusive: retry once with a wider scope (deeper max_depth, parent dir, alternate tool) before reporting. Report only files, paths and results you actually received from tools; write 'NOT VERIFIED' for anything else.")
-        appendLine("discover_tools requires {\"query\":\"...\"}; never call it with empty arguments.")
+        appendLine("discover_tools query is optional; pass a concrete query when useful, or omit it to search this task objective. OPERATION_UNRESOLVED means no action ran; clarify instead of treating it as an argument error.")
         if (!userFacing) appendLine("Reply format: RESULT (1-2 lines) / EVIDENCE (paths, commands, key output) / BLOCKERS (exact errors) / NOT VERIFIED.")
         appendLine("Pivot once when a backend is clearly blocked; do not probe it repeatedly. Never claim verification without concrete evidence.")
         appendLine("Return concise evidence useful to the parent: changes, paths, tests, errors, decisions, sources, and remaining risk.")
