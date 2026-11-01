@@ -38,7 +38,8 @@ class RunEvidenceLedgerTest {
 
     @Test fun `tool arguments do not prove a file was returned`() {
         val ledger = RunEvidenceLedger()
-        record(ledger, "3", "read_file", mapOf("path" to "/workspace/Secret.kt"), "Permission denied", error = true)
+        record(ledger, "3", "read_file", mapOf("path" to "/workspace/Secret.kt"),
+            "File not found: /workspace/Secret.kt; permission denied", error = true)
         assertEquals(listOf("Secret.kt"), ledger.unverifiedReferences("Successfully read Secret.kt"))
     }
 
