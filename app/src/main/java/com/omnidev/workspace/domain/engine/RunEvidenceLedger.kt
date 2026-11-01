@@ -80,8 +80,9 @@ class RunEvidenceLedger {
     }
 
     /**
-     * File names / absolute paths cited in [answer] that never appear in any tool call, tool output,
-     * or in [extraEvidence] (user message and prior turns). Fenced code is ignored.
+     * File names / absolute paths cited in [answer] that do not appear in successful, non-empty
+     * tool output or in [extraEvidence] supplied from other successful tool observations.
+     * User requests, assistant text and failed/empty tool results are never proof. Fenced code is ignored.
      */
     @Synchronized
     fun unverifiedReferences(answer: String, extraEvidence: String = ""): List<String> {
