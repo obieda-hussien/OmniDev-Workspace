@@ -79,6 +79,18 @@ DEEP MODE
 Consider alternatives and edge cases before irreversible actions, but keep visible narration compact. Re-evaluate after each tool observation.
 """
 
+    private fun requiresAndroidGuidance(
+        toolDefinitions: List<ToolDefinition>,
+        workerPersona: String?,
+        mentionContext: String?
+    ): Boolean {
+        val androidSignals = listOf("omni_link", "agent_runtime", "semantic_ui", "shizuku", "adb", "launcher", "android")
+        val toolNames = toolDefinitions.map { it.name.lowercase() }
+        return toolNames.any { name -> androidSignals.any(name::contains) } ||
+            workerPersona?.contains("android", ignoreCase = true) == true ||
+            mentionContext?.let { context -> androidSignals.any { context.contains(it, ignoreCase = true) } } == true
+    }
+
     private fun tierDirective(tier: ModelTier): String = when (tier) {
         ModelTier.FAST -> "MODE: Fast executor. Prefer direct action and minimal tool calls."
         ModelTier.EXECUTOR -> "MODE: Implementation executor. Optimize for precise edits, tests, and evidence."
@@ -110,7 +122,10 @@ Consider alternatives and edge cases before irreversible actions, but keep visib
         appendLine(tierDirective(tier))
         appendLine(CORE.trimIndent())
         appendLine(TextToolCallAdapter.CONTRACT)
-        appendLine(ANDROID_EXECUTION.trimIndent())
+        appendLine("DEVICE SAFETY: Use only explicitly exposed device capabilities. Never infer root/Shizuku access or substitute an unapproved shell action for a typed system operation.")
+        if (requiresAndroidGuidance(toolDefinitions, workerPersona, mentionContext)) {
+            appendLine(ANDROID_EXECUTION.trimIndent())
+        }
         appendLine()
         appendLine("WORKSPACE: $scopePath")
         appendLine("Relative project paths resolve under this workspace root.")
