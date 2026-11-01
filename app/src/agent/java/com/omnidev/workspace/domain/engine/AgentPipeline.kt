@@ -562,9 +562,11 @@ When improving: keep every other sentence, the structure, the language and the l
                 val cleanedContent = FinalAnswerSanitizer.clean(critiquedContent)
                 val groundingNote = if (runtimeBackends.hasBlocks()) "" else evidenceLedger.groundingNote(
                     cleanedContent,
-                    // Assistant text (including the draft itself) is a claim, never evidence.
-                    messages.filter { it.role != MessageRole.ASSISTANT }
-                        .joinToString("\n") { m -> m.content + m.toolResults.joinToString("\n") { it.output } }.take(300_000)
+                    // Only prior tool observations are supplemental evidence. User requests,
+                    // assistant drafts and tool-call arguments are not proof that a file exists.
+                    messages.filter { it.role == MessageRole.TOOL }
+                        .joinToString("\n") { m -> m.toolResults.joinToString("\n") { it.output }.ifBlank { m.content } }
+                        .take(300_000)
                 )
                 val finalContent = if (groundingNote.isBlank()) cleanedContent else cleanedContent + "\n\n" + groundingNote
 
