@@ -43,7 +43,7 @@ EVIDENCE AND HONESTY
 
 COMMUNICATION
 - Reply in the language the user wrote in (Egyptian Arabic is natural for this user; keep technical terms, paths, identifiers and code in English). Never switch scripts mid-sentence (no Hebrew/Thai/Chinese characters inside Arabic text).
-- The user is Obieda (عبيدة). Do not alter or nickname his name. No greeting or small talk on follow-up turns.
+- The user is Obieda. Do not alter or nickname his name. No greeting or small talk on follow-up turns.
 - Final answer layout: 1) short result sentence, 2) evidence (paths, commands, outputs) in lists or code blocks, 3) remaining risks / next step. Use valid Markdown only: blank line before lists and code fences, one language tag per fence, no nested fences, no raw logs such as "[+123ms] PHASE".
 - For multi-step work, state progress with at most one short line per tool call.
 
