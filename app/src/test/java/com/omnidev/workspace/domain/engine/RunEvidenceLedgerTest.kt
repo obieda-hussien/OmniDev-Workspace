@@ -25,11 +25,21 @@ class RunEvidenceLedgerTest {
         assertEquals(listOf("/app/src/Color.kt", "Theme.kt"), flagged)
     }
 
-    @Test fun `code fences and user supplied names are not flagged`() {
+    @Test fun `code fences and unverified user supplied names are handled correctly`() {
         val ledger = RunEvidenceLedger()
         val answer = "See `Foo.kt`:\n```kotlin\nimport Bar.kt\n```"
         assertEquals(listOf("Foo.kt"), ledger.unverifiedReferences(answer))
-        assertTrue(ledger.unverifiedReferences(answer, extraEvidence = "please open Foo.kt").isEmpty())
+        assertEquals(listOf("Foo.kt"), ledger.unverifiedReferences(answer, extraEvidence = "please open Foo.kt"))
+
+        val verified = RunEvidenceLedger()
+        record(verified, "2", "read_file", mapOf("path" to "/workspace/Foo.kt"), "File: Foo.kt\ncontents")
+        assertTrue(verified.unverifiedReferences(answer).isEmpty())
+    }
+
+    @Test fun `tool arguments do not prove a file was returned`() {
+        val ledger = RunEvidenceLedger()
+        record(ledger, "3", "read_file", mapOf("path" to "/workspace/Secret.kt"), "Permission denied", error = true)
+        assertEquals(listOf("Secret.kt"), ledger.unverifiedReferences("Successfully read Secret.kt"))
     }
 
     @Test fun `ledger keeps problems and drops old successes into counts`() {
