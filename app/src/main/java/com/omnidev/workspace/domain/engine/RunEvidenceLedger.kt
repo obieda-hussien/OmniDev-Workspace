@@ -95,8 +95,9 @@ class RunEvidenceLedger {
         return found.filterNot { ref ->
             val normalized = ref.lowercase()
             if (ref.startsWith("/")) {
-                // Absolute paths must match the exact path returned by a successful tool.
-                normalized in haystack
+                // Require token boundaries too: Foo.kt.backup must not verify Foo.kt.
+                Regex("(?<![\\\\w.-])${Regex.escape(normalized)}(?![\\\\w.-])")
+                    .containsMatchIn(haystack)
             } else {
                 val base = normalized.substringAfterLast('/')
                 base.length >= 3 && Regex(
