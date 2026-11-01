@@ -407,7 +407,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             if (taskError == null && taskResult.startsWith(WorkerRecoveryPlanner.INCOMPLETE_PREFIX)) {
                 taskError = "Worker announced work without performing it."
             }
-            val toolEvidence = observedToolResults.joinToString("\\n").take(MAX_WORKER_TOOL_EVIDENCE_CHARS)
+            val toolEvidence = observedToolResults.joinToString("\n").take(MAX_WORKER_TOOL_EVIDENCE_CHARS)
             val enrichedResult = buildString {
                 append(taskResult.take(6_000))
                 if (toolEvidence.isNotBlank()) {
@@ -420,7 +420,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
 
             val error = taskError.orEmpty()
             val partial = enrichedResult.takeIf(String::isNotBlank)?.let {
-                "\\n[Partial evidence]\\n${TeamHandoffCompressor.compact(it, 5_000)}"
+                "\n[Partial evidence]\n${TeamHandoffCompressor.compact(it, 5_000)}"
             }.orEmpty()
             return TaskOutcome(
                 task = task,
