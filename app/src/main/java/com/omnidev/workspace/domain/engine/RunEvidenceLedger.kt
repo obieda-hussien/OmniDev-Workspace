@@ -12,7 +12,7 @@ import com.omnidev.workspace.data.model.ToolCallResult
  */
 class RunEvidenceLedger {
 
-    enum class Outcome { OK, EMPTY, ERROR }
+    enum class Outcome { OK, EMPTY, ERROR, SKIPPED }
 
     data class Entry(
         val seq: Int,
@@ -33,7 +33,19 @@ class RunEvidenceLedger {
     fun record(call: ToolCall, result: ToolCallResult) {
         val output = result.output
         val trimmed = output.trim()
+        val wasNotExecuted = result.isError && (
+            trimmed.startsWith("Skipped:", ignoreCase = true) ||
+                trimmed.startsWith("Skipped retry", ignoreCase = true) ||
+                listOf(
+                    "TOOL_NOT_EXPOSED",
+                    "INVALID_TOOL_ARGUMENTS",
+                    "INVALID_TOOL_BATCH",
+                    "BATCH_PREFLIGHT_BLOCKED",
+                    "OPERATION_UNRESOLVED"
+                ).any { marker -> trimmed.contains(marker, ignoreCase = true) }
+            )
         val outcome = when {
+            wasNotExecuted -> Outcome.SKIPPED
             result.isError -> Outcome.ERROR
             trimmed.isEmpty() || trimmed == "(no output)" || trimmed.startsWith("NO_MATCHES") -> Outcome.EMPTY
             else -> Outcome.OK
@@ -63,7 +75,7 @@ class RunEvidenceLedger {
         val shown = (problems + recentOk).distinctBy { it.seq }.sortedBy { it.seq }
         return buildString {
             appendLine("[RUN LEDGER — deterministic record of tool calls that really ran in this run. Authoritative: never deny an action listed here, never claim an action that is not listed, never report EMPTY/ERROR as success.]")
-            appendLine("Totals: ${entries.size} calls; OK=${entries.count { it.outcome == Outcome.OK }}, EMPTY=${entries.count { it.outcome == Outcome.EMPTY }}, ERROR=${entries.count { it.outcome == Outcome.ERROR }}")
+            appendLine("Totals: ${entries.size} calls; OK=${entries.count { it.outcome == Outcome.OK }}, EMPTY=${entries.count { it.outcome == Outcome.EMPTY }}, ERROR=${entries.count { it.outcome == Outcome.ERROR }}, SKIPPED=${entries.count { it.outcome == Outcome.SKIPPED }}")
             if (olderOk.isNotEmpty()) {
                 val counts = olderOk.groupingBy { it.tool }.eachCount().entries
                     .sortedByDescending { it.value }.joinToString(", ") { "${it.key}×${it.value}" }
@@ -85,8 +97,19 @@ class RunEvidenceLedger {
      * User requests, assistant text and failed/empty tool results are never proof. Fenced code is ignored.
      */
     @Synchronized
-    fun unverifiedReferences(answer: String, extraEvidence: String = ""): List<String> {
-        val haystack = (corpus.toString() + "\n" + extraEvidence).lowercase()
+    fun unverifiedReferences(
+        answer: String,
+        extraEvidence: List<ToolCallResult> = emptyList()
+    ): List<String> {
+        val supplementalEvidence = extraEvidence.asSequence()
+            .filter { result ->
+                !result.isError && result.output.isNotBlank() &&
+                    result.output.trim() != "(no output)" &&
+                    !result.output.trim().startsWith("NO_MATCHES")
+            }
+            .joinToString("\n") { it.output }
+            .take(300_000)
+        val haystack = (corpus.toString() + "\n" + supplementalEvidence).lowercase()
         val text = answer.replace(FENCED_CODE, " ")
         val found = LinkedHashSet<String>()
         ABSOLUTE_PATH.findAll(text).forEach { found += it.value.trimEnd('.', ',', ')', ':') }
@@ -110,9 +133,12 @@ class RunEvidenceLedger {
 
     /** User-visible note appended to the final answer only when something deserves a warning. */
     @Synchronized
-    fun groundingNote(answer: String, extraEvidence: String = ""): String {
+    fun groundingNote(
+        answer: String,
+        extraEvidence: List<ToolCallResult> = emptyList()
+    ): String {
         val unverified = unverifiedReferences(answer, extraEvidence)
-        val weak = entries.filter { it.outcome != Outcome.OK }
+        val weak = unresolvedProblems()
         if (unverified.isEmpty() && weak.isEmpty()) return ""
         return buildString {
             if (unverified.isNotEmpty()) {
@@ -125,6 +151,20 @@ class RunEvidenceLedger {
                 append("Tool calls with empty output or errors in this run: $summary")
             }
         }.trimEnd()
+    }
+
+    /**
+     * A later successful call to the same tool means its earlier transient failure was recovered.
+     * Calls rejected before execution and actions skipped after steering are not execution failures.
+     */
+    private fun unresolvedProblems(): List<Entry> = entries.filterIndexed { index, entry ->
+        if (entry.outcome != Outcome.EMPTY && entry.outcome != Outcome.ERROR) {
+            false
+        } else {
+            entries.drop(index + 1).none { later ->
+                later.tool == entry.tool && later.outcome == Outcome.OK
+            }
+        }
     }
 
     private fun describeArguments(arguments: Map<String, String>): String {
