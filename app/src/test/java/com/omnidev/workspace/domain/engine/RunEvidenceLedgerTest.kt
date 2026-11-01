@@ -43,6 +43,28 @@ class RunEvidenceLedgerTest {
         assertEquals(listOf("Secret.kt"), ledger.unverifiedReferences("Successfully read Secret.kt"))
     }
 
+    @Test fun `ledger omits raw command and URL arguments that may contain secrets`() {
+        val ledger = RunEvidenceLedger()
+        record(
+            ledger,
+            "secret",
+            "http_request",
+            mapOf(
+                "action" to "get",
+                "path" to "/workspace/Foo.kt",
+                "url" to "https://example.com?token=TOPSECRET_VALUE",
+                "command" to "curl -H 'Authorization: Bearer VERY_SECRET_BEARER'"
+            ),
+            "ok"
+        )
+        val rendered = ledger.render()
+        assertTrue(rendered.contains("path=/workspace/Foo.kt"))
+        assertFalse(rendered.contains("TOPSECRET_VALUE"))
+        assertFalse(rendered.contains("VERY_SECRET_BEARER"))
+        assertFalse(rendered.contains("url="))
+        assertFalse(rendered.contains("command="))
+    }
+
     @Test fun `ledger keeps problems and drops old successes into counts`() {
         val ledger = RunEvidenceLedger()
         repeat(60) { record(ledger, "$it", "read_file", mapOf("path" to "/f$it"), "ok $it") }
