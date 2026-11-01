@@ -52,6 +52,21 @@ class RunEvidenceLedgerTest {
         assertTrue(ledger.unverifiedReferences("Read /workspace/Foo.kt").isEmpty())
     }
 
+    @Test fun `absolute path does not match a longer filename prefix`() {
+        val ledger = RunEvidenceLedger()
+        record(
+            ledger,
+            "suffix",
+            "read_file",
+            mapOf("path" to "/workspace/Foo.kt.backup"),
+            "Read file /workspace/Foo.kt.backup"
+        )
+        assertEquals(
+            listOf("/workspace/Foo.kt"),
+            ledger.unverifiedReferences("Read /workspace/Foo.kt")
+        )
+    }
+
     @Test fun `tool arguments do not prove a file was returned`() {
         val ledger = RunEvidenceLedger()
         record(ledger, "3", "read_file", mapOf("path" to "/workspace/Secret.kt"),
