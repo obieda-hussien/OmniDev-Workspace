@@ -26,6 +26,17 @@ class TeamHandoffCompressorTest {
     }
 
     @Test
+    fun `tool observations are prioritized over worker narration`() {
+        val raw = "Worker narrative. ".repeat(120) +
+            "\\n[TOOL OUTPUT] read_file [OK]: /workspace/Config.kt was returned by the tool"
+        val compact = TeamHandoffCompressor.compact(raw, 240)
+
+        assertTrue(compact.contains("[TOOL OUTPUT]"))
+        assertTrue(compact.contains("Config.kt"))
+        assertTrue(compact.length <= 240)
+    }
+
+    @Test
     fun `secrets are redacted before handoff`() {
         val raw = "Verification succeeded token=super-secret-123 and api_key:abcd1234"
         val compact = TeamHandoffCompressor.compact(raw, 2_000)
