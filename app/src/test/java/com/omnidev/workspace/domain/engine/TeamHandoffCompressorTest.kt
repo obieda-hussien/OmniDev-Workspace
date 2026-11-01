@@ -28,7 +28,7 @@ class TeamHandoffCompressorTest {
     @Test
     fun `tool observations are prioritized over worker narration`() {
         val raw = "Worker narrative. ".repeat(120) +
-            "\\n[TOOL OUTPUT] read_file [OK]: /workspace/Config.kt was returned by the tool"
+            "\n[TOOL OUTPUT] read_file [OK]: /workspace/Config.kt was returned by the tool"
         val compact = TeamHandoffCompressor.compact(raw, 240)
 
         assertTrue(compact.contains("[TOOL OUTPUT]"))
