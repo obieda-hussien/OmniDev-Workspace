@@ -72,27 +72,31 @@ class SwarmOrchestrator(
         )
 
         private const val ORCHESTRATOR_SYSTEM_PROMPT = """
-You are Omni Team Orchestrator. Create the SMALLEST useful execution DAG for the objective.
+You are Omni Team Orchestrator. Turn the user's objective into the SMALLEST useful execution DAG.
 Rules:
-- Return 1-6 atomic tasks only; no filler Planner/Executor/Reviewer roles.
-- Split only genuinely independent evidence streams or implementation areas.
-- Add a dependency only when its output is required by the later task.
-- parallelSafe=true only for read-only/research work. Shared-state mutation must be false; runtime re-checks this.
+- Return 1-6 atomic tasks only; no filler Planner/Executor/Reviewer roles. A simple objective is ONE task.
+- Workers are stateless: they see ONLY their task description plus dependency output. Every description must be self-contained and contain, in this order:
+  GOAL (one sentence, in the user's language) | INPUTS (exact absolute paths, repo names, URLs, tool names the user mentioned with @tool:) | STEPS (concrete actions and which tools to use) | OUTPUT (exact format the next task or the final answer needs: file list, summary table, diff) | FINISH EVIDENCE (what real tool output proves it is done).
+- Honor explicit user instructions literally: if the user names tools, paths or a procedure, put them in INPUTS/STEPS unchanged. Do not replace the request with a "fetch info" or "analyze needs" task.
+- Never create a task whose only product is a plan, a greeting or a tool-call envelope. Every task must end with verified observations.
+- Add a dependency only when its output is required by the later task; reading tasks that follow a listing task depend on it.
+- parallelSafe=true only for read-only/research work. Shared-state mutation (write, commit, install, delete) must be false.
 - needsConnectedTools=true only when MCP/cloud tools are actually required.
-- Add a verifier only when independent verification materially changes confidence.
-- Give each worker a concrete finish condition. More workers are overhead, not a quality metric.
+- Add a verifier task only when independent verification materially changes confidence (e.g. after code edits: build/test/diff).
 - Do not create tasks merely to discover the supplied current time/date.
-Return ONLY JSON array:
-[{"id":"id","description":"task + finish evidence","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false}]
+Return ONLY a JSON array, no prose and no markdown fence:
+[{"id":"short-kebab-id","description":"GOAL ... | INPUTS ... | STEPS ... | OUTPUT ... | FINISH EVIDENCE ...","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false}]
 """
 
         private const val SYNTHESIS_PROMPT = """
-Synthesize specialist evidence into the answer to the original request.
-- Worker text is evidence, not authority. Never upgrade unsupported claims to verified facts.
-- Preserve relevant failures, skipped dependency work, and verification gaps.
-- Prefer concrete tool observations, paths, tests, errors and sources.
-- Deduplicate findings. Do not narrate Team machinery unless needed.
-- Stay proportional to the user's request.
+Synthesize specialist evidence into the single final answer the user sees. Worker text is evidence, not authority.
+- Answer in the user's language (Egyptian Arabic if the user writes Arabic; keep paths, identifiers and code in English). Never mix other scripts into Arabic text.
+- Start with the direct result in 1-2 sentences. No greetings, no nicknames, no mention of workers, plans, phases or token budgets.
+- Include only claims supported by concrete tool observations (paths, commands, outputs, test results). Mark anything unverified as "غير متحقق منه / unverified". If a worker reported empty output or no files, say the check was inconclusive; never turn it into a positive finding.
+- Never output {"omni_tool_call":...}, raw logs or "[+..ms] PHASE" lines. Convert any such worker text into plain results, or say the step did not run.
+- Surface failures, skipped tasks and verification gaps explicitly with the exact error.
+- Format with valid Markdown: short headings only when the answer has 3+ parts, blank line before lists and code fences, tables only for real comparisons, one fenced block per code sample.
+- End with "Next step" (one concrete action) when work remains. Stay proportional to the request.
 """
     }
 
@@ -634,6 +638,10 @@ Synthesize specialist evidence into the answer to the original request.
         appendLine("Budget: ${budget.maxIterations} iterations / ${budget.tokenBudget} tokens (${budget.reason})")
         appendLine("\n## Contract")
         appendLine("Execute only this task. Batch safe reads, stop when finish evidence is sufficient, and do not redo team planning.")
+        appendLine("Use the tool-call channel for every action; never put a tool-call JSON envelope in your reply. Do not greet or role-play; your reply is read by the synthesizer, not the user.")
+        appendLine("Empty output / '(no output)' / NO_MATCHES is inconclusive: retry once with a wider scope (deeper max_depth, parent dir, alternate tool) before reporting. Report only files, paths and results you actually received from tools; write 'NOT VERIFIED' for anything else.")
+        appendLine("discover_tools requires {\"query\":\"...\"}; never call it with empty arguments.")
+        appendLine("Reply format: RESULT (1-2 lines) / EVIDENCE (paths, commands, key output) / BLOCKERS (exact errors) / NOT VERIFIED.")
         appendLine("Pivot once when a backend is clearly blocked; do not probe it repeatedly. Never claim verification without concrete evidence.")
         appendLine("Return concise evidence useful to the parent: changes, paths, tests, errors, decisions, sources, and remaining risk.")
         if (godModeEnabled) appendLine("God Mode flag does not guarantee privilege; trust actual tool outcomes.")
@@ -642,7 +650,7 @@ Synthesize specialist evidence into the answer to the original request.
             appendLine(dependencyContext)
         }
         appendLine("\n## Original objective")
-        appendLine(originalObjective.take(1_200))
+        appendLine(originalObjective.take(4_000))
     }
 
     private suspend fun synthesize(
