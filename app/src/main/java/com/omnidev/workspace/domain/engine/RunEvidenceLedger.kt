@@ -92,9 +92,17 @@ class RunEvidenceLedger {
         FILE_NAME.findAll(text).forEach { m ->
             if (found.none { it.endsWith("/" + m.value) }) found += m.value
         }
-        return found.filter { ref ->
-            val base = ref.substringAfterLast('/').lowercase()
-            base.length >= 3 && base !in haystack
+        return found.filterNot { ref ->
+            val normalized = ref.lowercase()
+            if (ref.startsWith("/")) {
+                // Absolute paths must match the exact path returned by a successful tool.
+                normalized in haystack
+            } else {
+                val base = normalized.substringAfterLast('/')
+                base.length >= 3 && Regex(
+                    "(?<![\\\\w.-])${Regex.escape(base)}(?![\\\\w.-])"
+                ).containsMatchIn(haystack)
+            }
         }.take(8)
     }
 
