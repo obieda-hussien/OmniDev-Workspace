@@ -8,7 +8,7 @@ object FinalAnswerSanitizer {
 
     private val logLine = Regex("(?m)^\\s*\\[\\+\\d+ms]\\s+(?:THINK|PHASE|TOKENS|RUN|OK|ERR|DEEP).*$\\n?")
     private val fencedEnvelope = Regex("(?s)```[a-zA-Z]*\\s*\\{\\s*\"omni_tool_call\".*?```\\s*")
-    private val foreignScripts = Regex("[\\u0590-\\u05FF\\u0E00-\\u0E7F]")
+    private val foreignScripts = Regex("[\\u0590-\\u05FF\\u0E00-\\u0E7F\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF]")
     private val manyBlankLines = Regex("\\n{3,}")
     private val fenceOpenGlued = Regex("(?m)([^\\n])\\n(```[a-zA-Z]*\\n)")
 
