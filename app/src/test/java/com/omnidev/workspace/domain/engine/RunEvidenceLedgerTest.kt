@@ -36,6 +36,22 @@ class RunEvidenceLedgerTest {
         assertTrue(verified.unverifiedReferences(answer).isEmpty())
     }
 
+    @Test fun `absolute path evidence does not validate a different directory with the same filename`() {
+        val ledger = RunEvidenceLedger()
+        record(
+            ledger,
+            "path",
+            "read_file",
+            mapOf("path" to "/workspace/Foo.kt"),
+            "Read file /workspace/Foo.kt successfully"
+        )
+        assertEquals(
+            listOf("/another/folder/Foo.kt"),
+            ledger.unverifiedReferences("Read /another/folder/Foo.kt")
+        )
+        assertTrue(ledger.unverifiedReferences("Read /workspace/Foo.kt").isEmpty())
+    }
+
     @Test fun `tool arguments do not prove a file was returned`() {
         val ledger = RunEvidenceLedger()
         record(ledger, "3", "read_file", mapOf("path" to "/workspace/Secret.kt"),
