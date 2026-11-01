@@ -12,7 +12,17 @@ class ToolCallPreflight(definitions: List<ToolDefinition>) {
     fun check(call: ToolCall): ToolExecutionResult? {
         val definition = catalog[call.name]
             ?: return denied("TOOL_NOT_EXPOSED", "Tool is not in this request's catalog. Use discover_tools to find and load an exact registered name.")
-        call.argumentError?.let { return denied("INVALID_TOOL_ARGUMENTS", it) }
+        call.argumentError?.let { error ->
+            if (error.startsWith("OPERATION_UNRESOLVED:")) {
+                return ToolExecutionResult(
+                    "$error No operation was executed; choose one of the returned candidates or clarify the intended action.",
+                    true,
+                    classification = "OPERATION_UNRESOLVED",
+                    retryable = false
+                )
+            }
+            return denied("INVALID_TOOL_ARGUMENTS", error)
+        }
         val parameters = definition.parameters.associateBy { it.name }
         val unknown = call.arguments.keys - parameters.keys
         if (unknown.isNotEmpty()) return denied("INVALID_TOOL_ARGUMENTS",
