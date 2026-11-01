@@ -29,7 +29,19 @@ class RunEvidenceLedgerTest {
         val ledger = RunEvidenceLedger()
         val answer = "See `Foo.kt`:\n```kotlin\nimport Bar.kt\n```"
         assertEquals(listOf("Foo.kt"), ledger.unverifiedReferences(answer))
-        assertEquals(listOf("Foo.kt"), ledger.unverifiedReferences(answer, extraEvidence = "please open Foo.kt"))
+        assertEquals(
+            listOf("Foo.kt"),
+            ledger.unverifiedReferences(
+                answer,
+                extraEvidence = listOf(ToolCallResult("failed", "read_file", "please open Foo.kt", true))
+            )
+        )
+        assertTrue(
+            ledger.unverifiedReferences(
+                answer,
+                extraEvidence = listOf(ToolCallResult("prior", "read_file", "File: Foo.kt\\ncontents", false))
+            ).isEmpty()
+        )
 
         val verified = RunEvidenceLedger()
         record(verified, "2", "read_file", mapOf("path" to "/workspace/Foo.kt"), "File: Foo.kt\ncontents")
@@ -65,6 +77,22 @@ class RunEvidenceLedgerTest {
             listOf("/workspace/Foo.kt"),
             ledger.unverifiedReferences("Read /workspace/Foo.kt")
         )
+    }
+
+    @Test fun `a later successful call recovers an earlier transient failure`() {
+        val ledger = RunEvidenceLedger()
+        record(ledger, "failed", "agent_runtime", mapOf("action" to "shell_script"), "SHIZUKU_UNAVAILABLE", error = true)
+        record(ledger, "probe", "agent_runtime", mapOf("action" to "env_probe"), "Fresh probe")
+        record(ledger, "retry", "agent_runtime", mapOf("action" to "shell_script"), "Completed")
+        assertTrue(ledger.groundingNote("Execution completed").isEmpty())
+    }
+
+    @Test fun `actions skipped after steering are not reported as execution failures`() {
+        val ledger = RunEvidenceLedger()
+        record(ledger, "skip", "write_file", mapOf("path" to "/workspace/obsolete.kt"),
+            "Skipped: the user redirected this run before this action started.", error = true)
+        assertTrue(ledger.groundingNote("Kept the requested file").isEmpty())
+        assertTrue(ledger.render().contains("SKIPPED"))
     }
 
     @Test fun `tool arguments do not prove a file was returned`() {
