@@ -87,8 +87,9 @@ Rules:
 - needsConnectedTools=true only when MCP/cloud tools are actually required.
 - Add a verifier task only when independent verification materially changes confidence (e.g. after code edits: build/test/diff).
 - Do not create tasks merely to discover the supplied current time/date.
+- acceptance: 1-3 checkable done-when items per task that a tool result can prove (a file exists, a test passes, a value was read). Omit for pure analysis. The worker must prove each with real tool evidence and the coordinator re-checks it.
 Return ONLY a JSON array, no prose and no markdown fence:
-[{"id":"short-kebab-id","description":"GOAL ... | INPUTS ... | STEPS ... | OUTPUT ... | FINISH EVIDENCE ...","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false}]
+[{"id":"short-kebab-id","description":"GOAL ... | INPUTS ... | STEPS ... | OUTPUT ... | FINISH EVIDENCE ...","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false,"acceptance":["checkable done-when item"]}]
 """
 
         private const val SYNTHESIS_PROMPT = """
@@ -342,6 +343,14 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
 
             var taskResult = ""
             var taskError: String? = null
+            var completionReport: com.omnidev.workspace.domain.engine.completion.CompletionReport? = null
+            // Independent tasks and anything that may mutate must be backed by real tool success;
+            // pure synthesis over dependency evidence may legitimately run no tool.
+            val workerRequiresExecution = task.dependencies.isEmpty() || !task.parallelSafe ||
+                TeamExecutionPolicy.classify(task).mutationScore >= 0.2f
+            val workerIdentity = com.omnidev.workspace.domain.engine.completion.RunIdentity(
+                workerId = task.id, acceptance = task.acceptance, requireExecution = workerRequiresExecution
+            )
             val observedToolResults = mutableListOf<String>()
             try {
                 workerPipeline.execute(
@@ -356,10 +365,14 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     disabledToolNames = disabledToolNames,
                     mentionFocus = mentionFocus,
                     steering = steering,
-                    steeringRevision = revision
+                    steeringRevision = revision,
+                    runIdentity = workerIdentity
                 ).collect { event ->
                     when (event) {
-                        is AgentEvent.FinalAnswer -> taskResult = event.content
+                        is AgentEvent.FinalAnswer -> {
+                            taskResult = event.content
+                            completionReport = event.completion
+                        }
                         is AgentEvent.Error -> taskError = event.message
                         is AgentEvent.StreamChunk -> send(SwarmEvent.WorkerStreamChunk(task, event.delta))
                         is AgentEvent.ToolExecution -> send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
@@ -408,6 +421,18 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             // A worker that only announced work (the agent loop marks this explicitly) did not do its task.
             if (taskError == null && taskResult.startsWith(WorkerRecoveryPlanner.INCOMPLETE_PREFIX)) {
                 taskError = "Worker announced work without performing it."
+            }
+            // The coordinator never accepts a worker's prose as success: its runtime-produced report is
+            // re-verified (status, run/worker identity, digest, acceptance items, ledger rules).
+            if (taskError == null) {
+                val review = com.omnidev.workspace.domain.engine.completion.WorkerEvidenceReview.review(
+                    report = completionReport,
+                    expectedWorkerId = task.id,
+                    taskCriteria = task.acceptance,
+                    requireExecution = workerRequiresExecution,
+                    legacyToolEvidencePresent = observedToolResults.isNotEmpty()
+                )
+                if (!review.accepted) taskError = "Worker result not accepted by coordinator evidence review: ${review.reason}"
             }
             val toolEvidence = observedToolResults.joinToString("\n").take(MAX_WORKER_TOOL_EVIDENCE_CHARS)
             if (taskError == null) return TaskOutcome(task, taskResult, toolEvidence = toolEvidence)
@@ -659,6 +684,10 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
     ): String = buildString {
         appendLine("## Assigned Team Task")
         appendLine(task.description)
+        if (task.acceptance.isNotEmpty()) {
+            appendLine("\n## Acceptance (finish_task must prove each with ledger ids: 'A1 => id1,id2')")
+            task.acceptance.forEachIndexed { index, item -> appendLine("A${index + 1}. ${item.take(300)}") }
+        }
         appendLine("\n## Runtime")
         appendLine("Time: $runtimeClock")
         appendLine("Workspace: $scopePath")

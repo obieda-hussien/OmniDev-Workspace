@@ -15,6 +15,8 @@ data class AgentConfig(
     val maxRepeatedToolCalls: Int = 15,
     val enableParallelToolExecution: Boolean = true,
     val enableSelfReflection: Boolean = false,
+    /** Apply per-model ModelExecutionProfile overrides (off = identical to previous behaviour). */
+    val enableModelProfiles: Boolean = false,
     val recentMessagesWindow: Int = 18,
     val sessionDigestUpdateEveryNMessages: Int = 6,
     val sessionDigestMaxChars: Int = 1_800,
@@ -65,7 +67,9 @@ sealed class AgentEvent {
         val content: String,
         val totalIterations: Int,
         val totalTokensUsed: Int,
-        val conversationHistory: List<ChatMessage>
+        val conversationHistory: List<ChatMessage>,
+        /** Runtime-produced finish record; null when the run was not bound by the finish protocol. */
+        val completion: com.omnidev.workspace.domain.engine.completion.CompletionReport? = null
     ) : AgentEvent()
     data class Reflecting(val draftLength: Int) : AgentEvent()
     data class Error(val message: String) : AgentEvent()

@@ -2,6 +2,8 @@ package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.model.ToolCallResult
+import com.omnidev.workspace.domain.engine.completion.EvidenceKinds
+import com.omnidev.workspace.domain.engine.completion.EvidenceRef
 
 /**
  * Deterministic record of what tools actually did during one run.
@@ -10,7 +12,11 @@ import com.omnidev.workspace.data.model.ToolCallResult
  * (1) pin ground truth into compacted context, (2) fact-check the draft final answer, and
  * (3) flag file names/paths in the final answer that no tool ever returned.
  */
-class RunEvidenceLedger {
+class RunEvidenceLedger(
+    /** Identity stamped on every entry; evidence from another run can never match this ledger. */
+    val runId: String = "",
+    val workerId: String? = null
+) {
 
     enum class Outcome { OK, EMPTY, ERROR, SKIPPED }
 
@@ -19,7 +25,10 @@ class RunEvidenceLedger {
         val tool: String,
         val target: String,
         val outcome: Outcome,
-        val evidence: String
+        val evidence: String,
+        // Added for the finish protocol. Defaults keep every existing constructor call valid.
+        val callId: String = "",
+        val kind: EvidenceKinds.Kind = EvidenceKinds.Kind.OTHER
     )
 
     private val entries = ArrayList<Entry>()
@@ -56,12 +65,43 @@ class RunEvidenceLedger {
             tool = call.name,
             target = describeArguments(call.arguments),
             outcome = outcome,
-            evidence = trimmed.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().trim().take(140)
+            evidence = trimmed.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().trim().take(140),
+            callId = call.id,
+            kind = EvidenceKinds.classify(call.name)
         )
         // Only successful, non-empty tool output can confirm a file/path. Error and empty
         // outputs remain in the ledger but cannot validate a claimed read or listing.
         if (outcome == Outcome.OK) corpus.append('\n').append(output.take(MAX_OUTPUT_IN_CORPUS))
         if (corpus.length > MAX_CORPUS_CHARS) corpus.delete(0, corpus.length - MAX_CORPUS_CHARS)
+    }
+
+    /** Immutable, runtime-produced view of every entry; the only evidence a finish request can cite. */
+    @Synchronized
+    fun snapshot(): List<EvidenceRef> = entries.map { e ->
+        EvidenceRef(e.callId, e.seq, e.tool, e.target, e.outcome, e.kind, runId, workerId)
+    }
+
+    /**
+     * Compact id-bearing view for the per-turn RUN STATE block: the ids a model may cite, newest last,
+     * plus unresolved problems. Unlike [render] it is sized for every request, not just compaction.
+     */
+    @Synchronized
+    fun renderCitable(maxLines: Int = 10): String {
+        if (entries.isEmpty()) return "(no tool has run yet)"
+        val problems = entries.filter { it.outcome == Outcome.ERROR || it.outcome == Outcome.EMPTY }
+            .takeLast(maxLines / 2)
+        val recent = entries.takeLast(maxLines)
+        val shown = (problems + recent).distinctBy { it.seq }.sortedBy { it.seq }
+        return buildString {
+            appendLine("${entries.size} calls: OK=${entries.count { it.outcome == Outcome.OK }}, EMPTY=${entries.count { it.outcome == Outcome.EMPTY }}, ERROR=${entries.count { it.outcome == Outcome.ERROR }}, SKIPPED=${entries.count { it.outcome == Outcome.SKIPPED }}")
+            shown.forEach { e ->
+                append(e.callId.ifBlank { "#" + e.seq }).append(' ').append(e.tool)
+                if (e.target.isNotBlank()) append(' ').append(e.target)
+                append(" -> ").append(e.outcome.name)
+                if (e.evidence.isNotBlank()) append(": ").append(e.evidence.take(90))
+                appendLine()
+            }
+        }.trimEnd()
     }
 
     /** Model-facing block, pinned after compaction. Must start with "[RUN LEDGER". */

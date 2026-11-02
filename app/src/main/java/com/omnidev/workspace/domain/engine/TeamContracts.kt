@@ -43,7 +43,9 @@ data class SwarmTask(
     val status: SwarmTaskStatus = SwarmTaskStatus.PENDING,
     val requiredPersona: String = "",
     val parallelSafe: Boolean = true,
-    val needsConnectedTools: Boolean = false
+    val needsConnectedTools: Boolean = false,
+    /** Checkable "done when" items. The worker must prove each with ledger evidence (A1..An). */
+    val acceptance: List<String> = emptyList()
 )
 
 @kotlinx.serialization.Serializable

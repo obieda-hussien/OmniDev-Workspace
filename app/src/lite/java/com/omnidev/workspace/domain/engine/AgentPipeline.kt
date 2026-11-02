@@ -55,6 +55,7 @@ class AgentPipeline(
         preferredToolNames: Set<String> = emptySet(),
         steering: RunSteering? = null,
         steeringRevision: Long? = null,
-        mentionFocus: MentionFocus = MentionFocus.parse(userMessage)
+        mentionFocus: MentionFocus = MentionFocus.parse(userMessage),
+        runIdentity: com.omnidev.workspace.domain.engine.completion.RunIdentity? = null
     ): Flow<AgentEvent> = kotlinx.coroutines.flow.flowOf(AgentEvent.Error("Agent mode is not included in this build."))
 }
