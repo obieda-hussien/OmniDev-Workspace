@@ -8,7 +8,9 @@ data class FinalizationPolicy(
     val enforce: Boolean,
     /** A final answer needs at least one successful tool call behind it. */
     val requireExecution: Boolean,
-    val maxRejections: Int = 3
+    val maxRejections: Int = 3,
+    /** Implementation work needs at least one successful non-read action, not only reads. */
+    val requireAction: Boolean = false
 ) {
     companion object {
         // Same thresholds already used by AdaptiveModeRouter ("explicit execution") and bucketKey ("exec").
@@ -27,7 +29,8 @@ data class FinalizationPolicy(
             val enforce = isWorker || actionTask
             val require = identity.requireExecution
                 ?: (isWorker || signals.mutationIntent >= MUTATION || signals.executionIntent >= STRONG_EXECUTION)
-            return FinalizationPolicy(enforce, enforce && require)
+            return FinalizationPolicy(enforce, enforce && require,
+                requireAction = enforce && require && identity.taskKind == TaskKind.IMPLEMENTATION)
         }
     }
 }

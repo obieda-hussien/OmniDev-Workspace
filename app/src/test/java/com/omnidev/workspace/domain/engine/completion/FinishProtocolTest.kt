@@ -176,4 +176,52 @@ class FinishProtocolTest {
         assertEquals(false, ModelExecutionProfile.resolve("gemini-2.5-flash-lite", true).selfReflection)
         assertNull(ModelExecutionProfile.resolve("gemini-2.5-pro", true).selfReflection)
     }
+
+    @Test fun `implementation work needs a non-read action and review cross checks observed events`() {
+        val wid = RunIdentity("run-impl", "w9", taskKind = TaskKind.IMPLEMENTATION)
+        val policy = FinalizationPolicy(true, true, requireAction = true)
+        val r = Rig(wid, policy)
+        r.run("c1", "read_file", mapOf("path" to "/p/A.kt"), "x")
+        val onlyReads = r.finish("status" to "completed", "summary" to "done", "evidence" to "c1")
+        assertTrue(onlyReads is GateResult.Reject)
+        r.run("c2", "patch_file_content", mapOf("path" to "/p/A.kt"), "patched")
+        r.run("c3", "read_file", mapOf("path" to "/p/A.kt"), "patched content")
+        val ok = r.finish("status" to "completed", "summary" to "done", "evidence" to "c2,c3") as GateResult.Publish
+        assertTrue(ok.report.verified)
+        val seen = mapOf("read_file" to 2, "patch_file_content" to 1)
+        assertTrue(WorkerEvidenceReview.review(ok.report, "w9", emptyList(), true, true, "run-impl", true, seen).accepted)
+        // The coordinator saw only one successful read: the report claims two, so it is not accepted.
+        val fewer = WorkerEvidenceReview.review(ok.report, "w9", emptyList(), true, true, "run-impl", true, mapOf("read_file" to 1, "patch_file_content" to 1))
+        assertFalse(fewer.accepted)
+        assertFalse(WorkerEvidenceReview.review(ok.report, "w9", emptyList(), true, true, "run-other", true, seen).accepted)
+    }
+
+    @Test fun `analysis worker is never forced to modify and honest terminals are not retryable`() {
+        val wid = RunIdentity("run-an", "w2", taskKind = TaskKind.ANALYSIS)
+        val policy = FinalizationPolicy.decide(IntentClassifier.TaskSignals(), isWorker = true, toolsAvailable = true, identity = wid)
+        assertTrue(policy.requireExecution)
+        assertFalse(policy.requireAction)
+        val r = Rig(wid, policy)
+        r.run("c1", "read_file", mapOf("path" to "/p/A.kt"), "x")
+        val done = r.finish("status" to "completed", "summary" to "findings", "evidence" to "c1") as GateResult.Publish
+        assertTrue(WorkerEvidenceReview.review(done.report, "w2", emptyList(), true, true, "run-an", false, mapOf("read_file" to 1)).accepted)
+        val wait = r.finish("status" to "awaiting_approval", "summary" to "need approval") as GateResult.Publish
+        val review = WorkerEvidenceReview.review(wait.report, "w2", emptyList(), true, true)
+        assertFalse(review.accepted)
+        assertEquals(FinishStatus.AWAITING_APPROVAL, review.terminal)
+        val inc = r.gate.incomplete("[Incomplete] stalled")
+        assertNull(WorkerEvidenceReview.review(inc.report, "w2", emptyList(), true, true).terminal)
+    }
+
+    @Test fun `missing planner criteria never means automatic acceptance`() {
+        val wid = RunIdentity("run-nc", "w3", taskKind = TaskKind.IMPLEMENTATION)
+        val r = Rig(wid, FinalizationPolicy(true, true, requireAction = true), acceptance = emptyList())
+        assertTrue(r.gate.implicit("All done.") is GateResult.Reject)                  // nothing ran
+        r.run("c1", "read_file", mapOf("path" to "/p/A.kt"), "x")
+        assertTrue(r.gate.implicit("All done.") is GateResult.Reject)                  // only reads
+        r.run("c2", "run_terminal", mapOf("action" to "exec"), "ok")
+        val accepted = r.gate.implicit("All done.") as GateResult.Publish              // real action exists
+        assertTrue(accepted.report.stats.implicit)
+        assertEquals(3, accepted.report.stats.rejections + 1)
+    }
 }

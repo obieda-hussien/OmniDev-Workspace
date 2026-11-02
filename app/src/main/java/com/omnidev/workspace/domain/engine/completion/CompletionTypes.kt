@@ -24,6 +24,16 @@ enum class FinishStatus(val wire: String, val label: String) {
     }
 }
 
+/** What the assigned objective is, as far as the runtime must enforce evidence for it. */
+enum class TaskKind {
+    /** Single-agent run or chat-like task: only baseline checks. */
+    GENERAL,
+    /** Read-only research/review work: needs real tool evidence, never forced to modify anything. */
+    ANALYSIS,
+    /** Work that changes state: needs at least one successful non-read action as well. */
+    IMPLEMENTATION
+}
+
 /** Identity of one run (and of the worker inside a team run). Created by the runtime only. */
 data class RunIdentity(
     val runId: String = "run-" + UUID.randomUUID().toString().take(8),
@@ -31,8 +41,12 @@ data class RunIdentity(
     /** Checkable acceptance criteria for this run, usually from the coordinator's task. */
     val acceptance: List<String> = emptyList(),
     /** null = decide from task signals. */
-    val requireExecution: Boolean? = null
+    val requireExecution: Boolean? = null,
+    val taskKind: TaskKind = TaskKind.GENERAL
 )
+
+/** Counters for measuring how often the protocol intervenes (benchmark input, never trusted by the gate). */
+data class FinishStats(val rejections: Int = 0, val malformed: Int = 0, val implicit: Boolean = false)
 
 /** Immutable, runtime-produced snapshot of one ledger entry. Models can cite it but never create it. */
 data class EvidenceRef(
@@ -76,7 +90,8 @@ data class CompletionReport(
     val criteria: List<CriterionResult>,
     val evidence: List<EvidenceRef>,
     val problems: List<String>,
-    val ledgerDigest: String
+    val ledgerDigest: String,
+    val stats: FinishStats = FinishStats()
 ) {
     companion object {
         fun digest(evidence: List<EvidenceRef>): String {

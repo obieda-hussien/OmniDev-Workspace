@@ -23,23 +23,30 @@ class FinishGate(
 ) {
     var rejections = 0
         private set
+    var malformed = 0
+        private set
+    private var implicitClaim = false
 
     private fun context() = VerificationContext(
         runId = identity.runId, workerId = identity.workerId, evidence = ledger.snapshot(),
-        requireExecution = policy.requireExecution, taskCriteria = state.taskCriteria
+        requireExecution = policy.requireExecution, taskCriteria = state.taskCriteria,
+        requireAction = policy.requireAction
     )
 
     fun explicit(call: ToolCall, streamedText: String): GateResult {
-        if (call.argumentError != null) return reject("finish_task arguments were malformed (${call.argumentError.take(120)}). Send status and summary.", emptyList())
+        implicitClaim = false
+        if (call.argumentError != null) { malformed += 1; return reject("finish_task arguments were malformed (${call.argumentError.take(120)}). Send status and summary.", emptyList()) }
         val parsed = FinishTool.parse(call.arguments)
-            ?: return reject("finish_task needs status = completed | blocked | failed | awaiting_approval | incomplete.", emptyList())
+            ?: run { malformed += 1; return reject("finish_task needs status = completed | blocked | failed | awaiting_approval | incomplete.", emptyList()) }
         val request = if (parsed.summary.isBlank() && streamedText.isNotBlank()) parsed.copy(summary = streamedText.trim()) else parsed
         return decide(request)
     }
 
     /** A plain-text final in an enforced run is treated as an implicit `completed` claim. */
-    fun implicit(text: String): GateResult =
-        decide(FinishRequest(FinishStatus.COMPLETED, text.trim()))
+    fun implicit(text: String): GateResult {
+        implicitClaim = true
+        return decide(FinishRequest(FinishStatus.COMPLETED, text.trim()))
+    }
 
     /** Honest terminal used when another runtime mechanism already gave up (e.g. stalled promises). */
     fun incomplete(text: String): GateResult.Publish = publish(FinishStatus.INCOMPLETE, text, evaluate(FinishRequest(FinishStatus.INCOMPLETE, text)), verified = false)
@@ -80,30 +87,52 @@ class FinishGate(
         return GateResult.Publish(
             status, text,
             CompletionReport(identity.runId, identity.workerId, status, summary, verified, eval.results, evidence,
-                eval.problems, CompletionReport.digest(evidence))
+                eval.problems, CompletionReport.digest(evidence), FinishStats(rejections, malformed, implicitClaim))
         )
     }
 }
 
 /** Coordinator-side re-check of a worker's report. Never trusts the worker's prose. */
 object WorkerEvidenceReview {
-    data class Review(val accepted: Boolean, val reason: String?)
+    /** [terminal] is set when the worker ended honestly in a non-success state; such a result must not be retried blindly. */
+    data class Review(val accepted: Boolean, val reason: String?, val terminal: FinishStatus? = null)
 
-    fun review(report: CompletionReport?, expectedWorkerId: String, taskCriteria: List<String>, requireExecution: Boolean, legacyToolEvidencePresent: Boolean): Review {
+    fun review(
+        report: CompletionReport?,
+        expectedWorkerId: String,
+        taskCriteria: List<String>,
+        requireExecution: Boolean,
+        legacyToolEvidencePresent: Boolean,
+        expectedRunId: String? = null,
+        requireAction: Boolean = false,
+        /** Successful tool results the coordinator itself saw on the event stream, per tool name. */
+        observedOkByTool: Map<String, Int>? = null
+    ): Review {
         if (report == null) {
             // Old/unprotected path: accept only when the worker really ran tools, as before it was checked by prose alone.
             return if (!requireExecution || legacyToolEvidencePresent) Review(true, null)
             else Review(false, "worker returned no completion report and no tool evidence")
         }
-        if (report.status != FinishStatus.COMPLETED) return Review(false, "worker ended ${report.status.wire}: ${report.summary.take(200)}")
+        if (report.status != FinishStatus.COMPLETED) {
+            val terminal = report.status.takeIf { it != FinishStatus.INCOMPLETE }
+            return Review(false, "worker ended ${report.status.wire}: ${report.summary.take(200)}", terminal)
+        }
         if (!report.verified) return Review(false, "worker's completion was not verified by its runtime")
         if (report.workerId != expectedWorkerId) return Review(false, "report belongs to another worker (${report.workerId})")
+        if (expectedRunId != null && report.runId != expectedRunId) return Review(false, "report belongs to another run (${report.runId})")
         if (report.ledgerDigest != CompletionReport.digest(report.evidence)) return Review(false, "evidence digest mismatch")
         if (report.evidence.any { it.runId != report.runId || it.workerId != report.workerId }) return Review(false, "evidence from another run")
+        // A self-consistent digest proves nothing about what really ran: cross-check against what the coordinator observed.
+        if (observedOkByTool != null) {
+            val claimed = report.evidence.filter { it.outcome == com.omnidev.workspace.domain.engine.RunEvidenceLedger.Outcome.OK }
+                .groupingBy { it.tool }.eachCount()
+            val unseen = claimed.filter { (tool, n) -> n > (observedOkByTool[tool] ?: 0) }.keys
+            if (unseen.isNotEmpty()) return Review(false, "evidence for ${unseen.joinToString()} was not observed by the coordinator")
+        }
         val claims = report.criteria.filter { it.criterion.source != AcceptanceCriterion.Source.RUNTIME }
             .map { CriterionClaim(if (it.criterion.source == AcceptanceCriterion.Source.TASK) it.criterion.id else "", it.criterion.text, it.evidenceIds) }
         val eval = FinishVerifier.evaluate(
-            VerificationContext(report.runId, report.workerId, report.evidence, requireExecution, taskCriteria),
+            VerificationContext(report.runId, report.workerId, report.evidence, requireExecution, taskCriteria, requireAction),
             FinishRequest(FinishStatus.COMPLETED, report.summary, claims = claims)
         )
         return if (eval.accepted) Review(true, null) else Review(false, eval.problems.joinToString("; ").take(300))

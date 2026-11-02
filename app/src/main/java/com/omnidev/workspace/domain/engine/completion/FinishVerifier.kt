@@ -57,7 +57,8 @@ data class VerificationContext(
     val evidence: List<EvidenceRef>,
     val requireExecution: Boolean,
     /** Task acceptance items; they are numbered A1..An in order. */
-    val taskCriteria: List<String> = emptyList()
+    val taskCriteria: List<String> = emptyList(),
+    val requireAction: Boolean = false
 )
 
 data class Evaluation(
@@ -100,6 +101,12 @@ object FinishVerifier {
             results += CriterionResult(AcceptanceCriterion("R1", "At least one tool call really succeeded", AcceptanceCriterion.Source.RUNTIME), met,
                 ok.takeLast(3).map { it.citeId }, if (met) null else "no successful tool call exists in this run")
             if (!met) problems += "no successful tool call exists in this run, so nothing was actually executed"
+        }
+        if (ctx.requireAction) {
+            val acted = ok.filter { it.kind != EvidenceKinds.Kind.READ }
+            results += CriterionResult(AcceptanceCriterion("R4", "At least one successful non-read action (implementation work)", AcceptanceCriterion.Source.RUNTIME),
+                acted.isNotEmpty(), acted.takeLast(3).map { it.citeId }, if (acted.isNotEmpty()) null else "only reads succeeded")
+            if (acted.isEmpty()) problems += "this is implementation work but only read calls succeeded, so nothing was changed or run"
         }
         val open = openErrors(ctx.evidence)
         results += CriterionResult(AcceptanceCriterion("R2", "No unresolved tool failure", AcceptanceCriterion.Source.RUNTIME), open.isEmpty(),

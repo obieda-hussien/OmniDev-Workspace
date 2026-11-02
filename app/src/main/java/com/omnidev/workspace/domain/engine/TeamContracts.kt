@@ -45,7 +45,9 @@ data class SwarmTask(
     val parallelSafe: Boolean = true,
     val needsConnectedTools: Boolean = false,
     /** Checkable "done when" items. The worker must prove each with ledger evidence (A1..An). */
-    val acceptance: List<String> = emptyList()
+    val acceptance: List<String> = emptyList(),
+    /** Only honoured for tasks with dependencies: pure synthesis over dependency results may run no tool. */
+    val toolFree: Boolean = false
 )
 
 @kotlinx.serialization.Serializable

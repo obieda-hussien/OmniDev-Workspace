@@ -87,9 +87,9 @@ Rules:
 - needsConnectedTools=true only when MCP/cloud tools are actually required.
 - Add a verifier task only when independent verification materially changes confidence (e.g. after code edits: build/test/diff).
 - Do not create tasks merely to discover the supplied current time/date.
-- acceptance: 1-3 checkable done-when items per task that a tool result can prove (a file exists, a test passes, a value was read). Omit for pure analysis. The worker must prove each with real tool evidence and the coordinator re-checks it.
+- acceptance: 1-3 checkable done-when items per task that a tool result can prove (a file exists, a test passes, a value was read). Omit for pure analysis. toolFree=true only for pure synthesis over dependency results (needs dependencies); every other worker must run real tools. The worker must prove each with real tool evidence and the coordinator re-checks it.
 Return ONLY a JSON array, no prose and no markdown fence:
-[{"id":"short-kebab-id","description":"GOAL ... | INPUTS ... | STEPS ... | OUTPUT ... | FINISH EVIDENCE ...","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false,"acceptance":["checkable done-when item"]}]
+[{"id":"short-kebab-id","description":"GOAL ... | INPUTS ... | STEPS ... | OUTPUT ... | FINISH EVIDENCE ...","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false,"acceptance":["checkable done-when item"],"toolFree":false}]
 """
 
         private const val SYNTHESIS_PROMPT = """
@@ -299,7 +299,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             val infrastructureBlocked: Boolean = false,
             val requiresSerialReplan: Boolean = false,
             val redirected: Boolean = false,
-            val toolEvidence: String = ""
+            val toolEvidence: String = "",
+            /** Honest terminal states (awaiting approval, blocked, failed) are never retried: a retry could repeat side effects or approval prompts. */
+            val noRetry: Boolean = false
         )
 
         suspend fun runWorkerAttempt(task: SwarmTask, attempt: Int, recoveryNote: String?, tokenCap: Int = Int.MAX_VALUE): TaskOutcome {
@@ -344,13 +346,19 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             var taskResult = ""
             var taskError: String? = null
             var completionReport: com.omnidev.workspace.domain.engine.completion.CompletionReport? = null
-            // Independent tasks and anything that may mutate must be backed by real tool success;
-            // pure synthesis over dependency evidence may legitimately run no tool.
-            val workerRequiresExecution = task.dependencies.isEmpty() || !task.parallelSafe ||
-                TeamExecutionPolicy.classify(task).mutationScore >= 0.2f
+            // Requirements follow the assigned objective, not a text heuristic: the planner's own contract says
+            // parallelSafe=false is the only way to change state, so that is implementation work (needs a
+            // successful non-read action). Read-only workers need grounded evidence but are never forced to
+            // modify anything. Only an explicit toolFree synthesis task with dependencies may run no tool.
+            val workerRequiresExecution = !(task.toolFree && task.dependencies.isNotEmpty())
+            val workerKind = if (task.parallelSafe) com.omnidev.workspace.domain.engine.completion.TaskKind.ANALYSIS
+                else com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION
             val workerIdentity = com.omnidev.workspace.domain.engine.completion.RunIdentity(
-                workerId = task.id, acceptance = task.acceptance, requireExecution = workerRequiresExecution
+                workerId = task.id, acceptance = task.acceptance, requireExecution = workerRequiresExecution, taskKind = workerKind
             )
+            // Independent count of successful tool results seen on the event stream (not from the worker's report).
+            val observedOkByTool = HashMap<String, Int>()
+            var reviewTerminal: com.omnidev.workspace.domain.engine.completion.FinishStatus? = null
             val observedToolResults = mutableListOf<String>()
             try {
                 workerPipeline.execute(
@@ -387,6 +395,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                                 .replace(Regex("\\s+"), " ").trim()
                             val snippet = if (output.length <= MAX_WORKER_TOOL_OBSERVATION_CHARS) output
                                 else output.take(650) + " … " + output.takeLast(200)
+                            if (outcome == "OK") observedOkByTool.merge(event.toolName, 1, Int::plus)
                             observedToolResults += "[TOOL OUTPUT] ${event.toolName} [$outcome]: $snippet"
                             if (observedToolResults.size > MAX_WORKER_TOOL_OBSERVATIONS) observedToolResults.removeAt(0)
                         }
@@ -430,9 +439,19 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     expectedWorkerId = task.id,
                     taskCriteria = task.acceptance,
                     requireExecution = workerRequiresExecution,
-                    legacyToolEvidencePresent = observedToolResults.isNotEmpty()
+                    legacyToolEvidencePresent = observedToolResults.isNotEmpty(),
+                    expectedRunId = workerIdentity.runId,
+                    requireAction = workerKind == com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION && workerRequiresExecution,
+                    observedOkByTool = observedOkByTool
                 )
-                if (!review.accepted) taskError = "Worker result not accepted by coordinator evidence review: ${review.reason}"
+                if (!review.accepted) {
+                    reviewTerminal = review.terminal
+                    taskError = when (review.terminal) {
+                        com.omnidev.workspace.domain.engine.completion.FinishStatus.AWAITING_APPROVAL -> "AWAITING_APPROVAL: ${review.reason}"
+                        null -> "Worker result not accepted by coordinator evidence review: ${review.reason}"
+                        else -> "Worker stopped (${review.terminal.wire}): ${review.reason}"
+                    }
+                }
             }
             val toolEvidence = observedToolResults.joinToString("\n").take(MAX_WORKER_TOOL_EVIDENCE_CHARS)
             if (taskError == null) return TaskOutcome(task, taskResult, toolEvidence = toolEvidence)
@@ -448,7 +467,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 infrastructureBlocked = isInfrastructureFailure(error),
                 requiresSerialReplan = task.parallelSafe && error.startsWith("READ_ONLY_WORKER:") &&
                     TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
-                toolEvidence = toolEvidence
+                toolEvidence = toolEvidence,
+                noRetry = reviewTerminal != null
             )
         }
 
@@ -460,7 +480,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         suspend fun runWorker(task: SwarmTask): TaskOutcome {
             var attempt = 1
             var outcome = runWorkerAttempt(task, attempt, null)
-            while (attempt < WorkerRecoveryPlanner.MAX_ATTEMPTS &&
+            while (attempt < WorkerRecoveryPlanner.MAX_ATTEMPTS && !outcome.noRetry &&
                 WorkerRecoveryPlanner.shouldRetry(outcome.error, outcome.redirected, outcome.requiresSerialReplan)
             ) {
                 val wanted = (allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)).tokenBudget
