@@ -29,7 +29,7 @@ jsoup = "1.23.2"
 okhttp = "4.12.0"
 work = "2.12.0"
 securityCrypto = "1.1.0"
-orgJson = "20250107"
+orgJson = "20260814"
 
 [libraries]
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleRuntimeKtx" }
