@@ -1,6 +1,6 @@
 [versions]
 owaspDependencyCheck = "13.0.0"
-agp = "8.10.1"
+agp = "8.13.2"
 kotlin = "2.4.21"
 # Keep Core on the API-36 / AGP-8 compatible line. Upgrade with the toolchain, not alone.
 coreKtx = "1.17.0"
