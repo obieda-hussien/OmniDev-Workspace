@@ -62,7 +62,7 @@ object AdvancedFileTools {
                 ToolParameter("type", "string", "File type: 'f' (file), 'd' (dir), 'l' (symlink)", required = false),
                 ToolParameter("min_size", "string", "Minimum size (e.g., '10k', '1M')", required = false),
                 ToolParameter("max_size", "string", "Maximum size (e.g., '100M')", required = false),
-                ToolParameter("max_depth", "string", "Max depth (default: 5)", required = false),
+                ToolParameter("max_depth", "string", "Max depth (default: 12; deep source trees such as app/src/main/java/com/x/y need >= 10)", required = false),
                 ToolParameter("newer_than_days", "string", "Modified within N days", required = false),
                 ToolParameter("perm", "string", "Permission mask to match (e.g., '-o+w' for world-writable)", required = false),
                 ToolParameter("show_details", "string", "Set to 'true' to output `ls -la` for each result", required = false)
@@ -233,7 +233,7 @@ object AdvancedFileTools {
         val type         = args["type"]
         val minSize      = args["min_size"]
         val maxSize      = args["max_size"]
-        val maxDepth     = args["max_depth"]?.toIntOrNull() ?: 5
+        val maxDepth     = args["max_depth"]?.toIntOrNull()?.coerceIn(1, 30) ?: 12
         val newerThanDays = args["newer_than_days"]?.toIntOrNull()
         val perm         = args["perm"]
         val showDetails  = args["show_details"]?.equals("true", ignoreCase = true) ?: false
@@ -254,7 +254,12 @@ object AdvancedFileTools {
             }
         }
 
-        return executePrivilegedScript(script, headTruncate = true)
+        val result = executePrivilegedScript(script, headTruncate = true)
+        return if (!result.isError && (result.output.isBlank() || result.output.trim() == "(no output)")) {
+            result.copy(output = "NO_MATCHES: find searched '$directory' to depth $maxDepth and returned nothing. " +
+                "This is NOT proof the files are absent: verify the directory exists, raise max_depth, or list the directory first. " +
+                "Never report file names that this tool did not return.")
+        } else result
     }
 
     private suspend fun filePermissions(args: Map<String, String>): ToolExecutionResult {

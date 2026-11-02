@@ -44,7 +44,10 @@ class ToolCallPreflightTest {
     }
     @Test fun `decode errors cannot become zero argument calls`() {
         val zero = ToolCallPreflight(listOf(ToolDefinition("erase", "Erase")))
-        assertNotNull(zero.check(ToolCall("1", "erase", emptyMap(), argumentError = "Invalid JSON")))
+        assertEquals(
+            "INVALID_TOOL_ARGUMENTS",
+            zero.check(ToolCall("1", "erase", emptyMap(), argumentError = "Invalid JSON"))?.classification
+        )
     }
     @Test fun `invalid member blocks every call in batch`() {
         val results = guard.checkBatch(listOf(call(read), call(read, "invented").copy(id = "2")))

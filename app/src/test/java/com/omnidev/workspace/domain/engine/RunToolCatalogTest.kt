@@ -39,6 +39,20 @@ class RunToolCatalogTest {
         val run = RunToolCatalog(registry, "registered_120", quality = mapOf("registered_1" to 1f))
         assertEquals("registered_120", run.search("registered_120", 1).single().name)
     }
+    @Test fun `empty discovery query falls back to the current run objective`() {
+        val target = ToolDefinition(
+            "read_project_file",
+            "Read a file inside the project workspace",
+            listOf(ToolParameter("path", "string", "Exact file path"))
+        )
+        val run = RunToolCatalog(listOf(target), "read project file")
+        assertFalse(RunToolCatalog.DISCOVER.parameters.single().required)
+
+        val result = run.discover("")
+        assertFalse(result.isError)
+        assertTrue(result.output.contains("read_project_file"))
+    }
+
     @Test fun `discovery loads schemas for the next request and stays bounded`() {
         val run = RunToolCatalog(registry, "registered_120")
         for (number in 1..120) {

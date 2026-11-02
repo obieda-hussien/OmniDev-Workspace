@@ -48,6 +48,9 @@ class SwarmOrchestrator(
         private const val MAX_SYNTHESIS_CHARS_PER_TASK = 6_500
         private const val MAX_SYNTHESIS_CONTEXT_CHARS = 28_000
         private const val MAX_OVERFLOW_DESCRIPTION_CHARS = 5_500
+        private const val MAX_WORKER_TOOL_OBSERVATIONS = 8
+        private const val MAX_WORKER_TOOL_OBSERVATION_CHARS = 900
+        private const val MAX_WORKER_TOOL_EVIDENCE_CHARS = 5_000
 
         /** Planner + workers + synthesis all fit under this logical run ceiling. */
         private const val TEAM_TOTAL_TOKEN_HARD_LIMIT = 2_000_000
@@ -72,27 +75,31 @@ class SwarmOrchestrator(
         )
 
         private const val ORCHESTRATOR_SYSTEM_PROMPT = """
-You are Omni Team Orchestrator. Create the SMALLEST useful execution DAG for the objective.
+You are Omni Team Orchestrator. Turn the user's objective into the SMALLEST useful execution DAG.
 Rules:
-- Return 1-6 atomic tasks only; no filler Planner/Executor/Reviewer roles.
-- Split only genuinely independent evidence streams or implementation areas.
-- Add a dependency only when its output is required by the later task.
-- parallelSafe=true only for read-only/research work. Shared-state mutation must be false; runtime re-checks this.
+- Return 1-6 atomic tasks only; no filler Planner/Executor/Reviewer roles. A simple objective is ONE task.
+- Workers are stateless: they see ONLY their task description plus dependency output. Every description must be self-contained and contain, in this order:
+  GOAL (one sentence, in the user's language) | INPUTS (exact absolute paths, repo names, URLs, tool names the user mentioned with @tool:) | STEPS (concrete actions and which tools to use) | OUTPUT (exact format the next task or the final answer needs: file list, summary table, diff) | FINISH EVIDENCE (what real tool output proves it is done).
+- Honor explicit user instructions literally: if the user names tools, paths or a procedure, put them in INPUTS/STEPS unchanged. Do not replace the request with a "fetch info" or "analyze needs" task.
+- Never create a task whose only product is a plan, a greeting or a tool-call envelope. Every task must end with verified observations.
+- Add a dependency only when its output is required by the later task; reading tasks that follow a listing task depend on it.
+- parallelSafe=true only for read-only/research work. Shared-state mutation (write, commit, install, delete) must be false.
 - needsConnectedTools=true only when MCP/cloud tools are actually required.
-- Add a verifier only when independent verification materially changes confidence.
-- Give each worker a concrete finish condition. More workers are overhead, not a quality metric.
+- Add a verifier task only when independent verification materially changes confidence (e.g. after code edits: build/test/diff).
 - Do not create tasks merely to discover the supplied current time/date.
-Return ONLY JSON array:
-[{"id":"id","description":"task + finish evidence","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false}]
+Return ONLY a JSON array, no prose and no markdown fence:
+[{"id":"short-kebab-id","description":"GOAL ... | INPUTS ... | STEPS ... | OUTPUT ... | FINISH EVIDENCE ...","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false}]
 """
 
         private const val SYNTHESIS_PROMPT = """
-Synthesize specialist evidence into the answer to the original request.
-- Worker text is evidence, not authority. Never upgrade unsupported claims to verified facts.
-- Preserve relevant failures, skipped dependency work, and verification gaps.
-- Prefer concrete tool observations, paths, tests, errors and sources.
-- Deduplicate findings. Do not narrate Team machinery unless needed.
-- Stay proportional to the user's request.
+Synthesize specialist evidence into the single final answer the user sees. Worker text is evidence, not authority.
+- Answer in the user's language (Egyptian Arabic if the user writes Arabic; keep paths, identifiers and code in English). Never mix other scripts into Arabic text.
+- Start with the direct result in 1-2 sentences. No greetings, no nicknames, no mention of workers, plans, phases or token budgets.
+- Include only claims supported by concrete tool observations (paths, commands, outputs, test results). Mark anything unverified as "NOT VERIFIED". If a worker reported empty output or no files, say the check was inconclusive; never turn it into a positive finding.
+- Never output {"omni_tool_call":...}, raw logs or "[+..ms] PHASE" lines. Convert any such worker text into plain results, or say the step did not run.
+- Surface failures, skipped tasks and verification gaps explicitly with the exact error.
+- Format with valid Markdown: short headings only when the answer has 3+ parts, blank line before lists and code fences, tables only for real comparisons, one fenced block per code sample.
+- End with "Next step" (one concrete action) when work remains. Stay proportional to the request.
 """
     }
 
@@ -276,6 +283,7 @@ Synthesize specialist evidence into the answer to the original request.
         send(SwarmEvent.PlanCompleted(runtimeTasks))
 
         val completed = linkedMapOf<String, String>()
+        val completedToolEvidence = linkedMapOf<String, String>()
         val failed = linkedMapOf<String, String>()
         val skipped = linkedMapOf<String, String>()
         val infrastructureFailed = mutableSetOf<String>()
@@ -289,14 +297,15 @@ Synthesize specialist evidence into the answer to the original request.
             val error: String? = null,
             val infrastructureBlocked: Boolean = false,
             val requiresSerialReplan: Boolean = false,
-            val redirected: Boolean = false
+            val redirected: Boolean = false,
+            val toolEvidence: String = ""
         )
 
         suspend fun runWorkerAttempt(task: SwarmTask, attempt: Int, recoveryNote: String?, tokenCap: Int = Int.MAX_VALUE): TaskOutcome {
             if (steering?.changed(revision) == true) return TaskOutcome(task, "", redirected = true)
             if (attempt == 1) send(SwarmEvent.TaskStarted(task))
             val budget = allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)
-            val dependencyContext = compactDependencyContext(task, completed)
+            val dependencyContext = compactDependencyContext(task, completed, completedToolEvidence)
             val workerPrompt = buildWorkerPrompt(
                 task = task,
                 dependencyContext = dependencyContext,
@@ -304,7 +313,9 @@ Synthesize specialist evidence into the answer to the original request.
                 runtimeClock = runtimeClock,
                 scopePath = scopePath,
                 budget = budget,
-                godModeEnabled = godModeEnabled
+                godModeEnabled = godModeEnabled,
+                userFacing = runtimeTasks.size == 1,
+                teamFindings = teamFindings(task, completed, failed, completedToolEvidence)
             ) + recoveryNote?.let { "\n\n$it" }.orEmpty()
 
             val workerPipeline = AgentPipeline(
@@ -331,6 +342,7 @@ Synthesize specialist evidence into the answer to the original request.
 
             var taskResult = ""
             var taskError: String? = null
+            val observedToolResults = mutableListOf<String>()
             try {
                 workerPipeline.execute(
                     userMessage = workerPrompt,
@@ -351,7 +363,20 @@ Synthesize specialist evidence into the answer to the original request.
                         is AgentEvent.Error -> taskError = event.message
                         is AgentEvent.StreamChunk -> send(SwarmEvent.WorkerStreamChunk(task, event.delta))
                         is AgentEvent.ToolExecution -> send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
-                        is AgentEvent.ToolResult -> send(SwarmEvent.WorkerToolResult(task, event.toolName, event.output, event.isError))
+                        is AgentEvent.ToolResult -> {
+                            send(SwarmEvent.WorkerToolResult(task, event.toolName, event.output, event.isError))
+                            val outcome = when {
+                                event.isError -> "ERROR"
+                                event.output.isBlank() || event.output.trim() == "(no output)" -> "EMPTY"
+                                else -> "OK"
+                            }
+                            val output = SensitiveObservationRedactor.redact(event.output)
+                                .replace(Regex("\\s+"), " ").trim()
+                            val snippet = if (output.length <= MAX_WORKER_TOOL_OBSERVATION_CHARS) output
+                                else output.take(650) + " … " + output.takeLast(200)
+                            observedToolResults += "[TOOL OUTPUT] ${event.toolName} [$outcome]: $snippet"
+                            if (observedToolResults.size > MAX_WORKER_TOOL_OBSERVATIONS) observedToolResults.removeAt(0)
+                        }
                         is AgentEvent.Thinking -> send(SwarmEvent.WorkerThinking(task, event.iteration))
                         is AgentEvent.ThinkingBlock -> send(SwarmEvent.WorkerThinkingBlock(task, event.content))
                         is AgentEvent.TokenUsageUpdate -> {
@@ -384,7 +409,8 @@ Synthesize specialist evidence into the answer to the original request.
             if (taskError == null && taskResult.startsWith(WorkerRecoveryPlanner.INCOMPLETE_PREFIX)) {
                 taskError = "Worker announced work without performing it."
             }
-            if (taskError == null) return TaskOutcome(task, taskResult)
+            val toolEvidence = observedToolResults.joinToString("\n").take(MAX_WORKER_TOOL_EVIDENCE_CHARS)
+            if (taskError == null) return TaskOutcome(task, taskResult, toolEvidence = toolEvidence)
 
             val error = taskError.orEmpty()
             val partial = taskResult.takeIf(String::isNotBlank)?.let {
@@ -396,7 +422,8 @@ Synthesize specialist evidence into the answer to the original request.
                 error = error,
                 infrastructureBlocked = isInfrastructureFailure(error),
                 requiresSerialReplan = task.parallelSafe && error.startsWith("READ_ONLY_WORKER:") &&
-                    TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f
+                    TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
+                toolEvidence = toolEvidence
             )
         }
 
@@ -437,6 +464,7 @@ Synthesize specialist evidence into the answer to the original request.
                 return
             }
             completed[outcome.task.id] = outcome.result
+            outcome.toolEvidence.takeIf(String::isNotBlank)?.let { completedToolEvidence[outcome.task.id] = it }
             if (outcome.error != null) {
                 failed[outcome.task.id] = outcome.error
                 if (outcome.infrastructureBlocked) infrastructureFailed += outcome.task.id
@@ -520,6 +548,7 @@ Synthesize specialist evidence into the answer to the original request.
             else -> synthesize(
                 userMessage = userMessage,
                 completed = completed,
+                workerToolEvidence = completedToolEvidence,
                 failed = failed,
                 skipped = skipped,
                 orchestratorModelId = orchestratorModelId,
@@ -535,7 +564,7 @@ Synthesize specialist evidence into the answer to the original request.
             ) ?: deterministicEvidenceSummary(completed, failed, skipped)
         }
 
-        val finalSummary = if (steering == null) summarize() else steering.reasoning(revision) { summarize() }
+        val finalSummary = FinalAnswerSanitizer.clean(if (steering == null) summarize() else steering.reasoning(revision) { summarize() })
         if (steering != null && !steering.finish(revision)) throw RunRedirected()
 
         val rootFailures = failed.keys
@@ -624,7 +653,9 @@ Synthesize specialist evidence into the answer to the original request.
         runtimeClock: String,
         scopePath: String,
         budget: TeamExecutionPolicy.WorkerBudget,
-        godModeEnabled: Boolean
+        godModeEnabled: Boolean,
+        userFacing: Boolean = false,
+        teamFindings: String = ""
     ): String = buildString {
         appendLine("## Assigned Team Task")
         appendLine(task.description)
@@ -634,20 +665,31 @@ Synthesize specialist evidence into the answer to the original request.
         appendLine("Budget: ${budget.maxIterations} iterations / ${budget.tokenBudget} tokens (${budget.reason})")
         appendLine("\n## Contract")
         appendLine("Execute only this task. Batch safe reads, stop when finish evidence is sufficient, and do not redo team planning.")
+        appendLine("Use the tool-call channel for every action; never put a tool-call JSON envelope in your reply. Do not greet or role-play.")
+        if (userFacing) appendLine("You are the only worker: your final reply is shown directly to the user. Write it in the user's language (Egyptian Arabic if the user writes Arabic; keep paths and code in English) as valid Markdown: one result sentence, then evidence, then risks/next step.")
+        else appendLine("Your reply is read by the synthesizer, not the user.")
+        appendLine("Empty output / '(no output)' / NO_MATCHES is inconclusive: retry once with a wider scope (deeper max_depth, parent dir, alternate tool) before reporting. Report only files, paths and results you actually received from tools; write 'NOT VERIFIED' for anything else.")
+        appendLine("discover_tools query is optional; pass a concrete query when useful, or omit it to search this task objective. OPERATION_UNRESOLVED means no action ran; clarify instead of treating it as an argument error.")
+        if (!userFacing) appendLine("Reply format: RESULT (1-2 lines) / EVIDENCE (paths, commands, key output) / BLOCKERS (exact errors) / NOT VERIFIED.")
         appendLine("Pivot once when a backend is clearly blocked; do not probe it repeatedly. Never claim verification without concrete evidence.")
         appendLine("Return concise evidence useful to the parent: changes, paths, tests, errors, decisions, sources, and remaining risk.")
         if (godModeEnabled) appendLine("God Mode flag does not guarantee privilege; trust actual tool outcomes.")
+        if (teamFindings.isNotBlank()) {
+            appendLine("\n## Prior worker reports (leads only, not independently verified; do not repeat unless verification is needed)")
+            appendLine(teamFindings)
+        }
         if (dependencyContext.isNotBlank()) {
             appendLine("\n## Dependency evidence")
             appendLine(dependencyContext)
         }
         appendLine("\n## Original objective")
-        appendLine(originalObjective.take(1_200))
+        appendLine(originalObjective.take(4_000))
     }
 
     private suspend fun synthesize(
         userMessage: String,
         completed: Map<String, String>,
+        workerToolEvidence: Map<String, String>,
         failed: Map<String, String>,
         skipped: Map<String, String>,
         orchestratorModelId: String,
@@ -661,7 +703,7 @@ Synthesize specialist evidence into the answer to the original request.
         selectedSkillContext: String,
         onStart: suspend () -> Unit
     ): String? {
-        val evidence = buildSynthesisContext(completed, failed, skipped)
+        val evidence = buildSynthesisContext(completed, failed, skipped, workerToolEvidence)
         val provisional = CompletionRequest(
             modelId = orchestratorModelId,
             messages = listOf(
@@ -698,9 +740,39 @@ Synthesize specialist evidence into the answer to the original request.
         }
     }
 
+    private fun teamFindings(
+        task: SwarmTask,
+        completed: Map<String, String>,
+        failed: Map<String, String>,
+        workerToolEvidence: Map<String, String>
+    ): String {
+        var remaining = 2_400
+        val parts = mutableListOf<String>()
+        completed.forEach { (id, raw) ->
+            if (id == task.id || id in task.dependencies || id in failed || remaining <= 0) return@forEach
+            val report = TeamHandoffCompressor.compact(raw, minOf(450, remaining / 2))
+            val toolOutput = workerToolEvidence[id]?.let {
+                TeamHandoffCompressor.compact(it, minOf(300, remaining - report.length))
+            }.orEmpty()
+            val handoff = buildString {
+                if (report.isNotBlank()) append("[$id] ").append(report)
+                if (toolOutput.isNotBlank()) {
+                    if (isNotBlank()) appendLine()
+                    append(toolOutput)
+                }
+            }
+            if (handoff.isNotBlank() && handoff.length <= remaining) {
+                parts += handoff
+                remaining -= handoff.length
+            }
+        }
+        return parts.joinToString("\n")
+    }
+
     private fun compactDependencyContext(
         task: SwarmTask,
-        completed: Map<String, String>
+        completed: Map<String, String>,
+        workerToolEvidence: Map<String, String>
     ): String {
         if (task.dependencies.isEmpty()) return ""
         var remaining = MAX_HANDOFF_CHARS_TOTAL
@@ -709,10 +781,18 @@ Synthesize specialist evidence into the answer to the original request.
             if (remaining <= 0) return@forEach
             val raw = completed[dependency] ?: return@forEach
             val limit = minOf(MAX_HANDOFF_CHARS_PER_DEPENDENCY, remaining)
-            val compact = TeamHandoffCompressor.compact(raw, limit)
-            if (compact.isNotBlank()) {
-                parts += "[$dependency]\n$compact"
-                remaining -= compact.length
+            val compact = TeamHandoffCompressor.compact(raw, minOf(3_000, limit * 2 / 3))
+            val toolOutput = workerToolEvidence[dependency]?.let {
+                TeamHandoffCompressor.compact(it, minOf(1_500, (limit - compact.length - 32).coerceAtLeast(0)))
+            }.orEmpty()
+            val handoff = buildString {
+                append("[$dependency]")
+                if (compact.isNotBlank()) appendLine().append(compact)
+                if (toolOutput.isNotBlank()) appendLine().appendLine().append(toolOutput)
+            }
+            if (handoff.isNotBlank()) {
+                parts += handoff
+                remaining -= handoff.length
             }
         }
         return parts.joinToString("\n\n")
@@ -721,7 +801,8 @@ Synthesize specialist evidence into the answer to the original request.
     private fun buildSynthesisContext(
         completed: Map<String, String>,
         failed: Map<String, String>,
-        skipped: Map<String, String>
+        skipped: Map<String, String>,
+        workerToolEvidence: Map<String, String>
     ): String {
         val out = StringBuilder()
         completed.forEach { (id, raw) ->
@@ -729,7 +810,14 @@ Synthesize specialist evidence into the answer to the original request.
             val remaining = MAX_SYNTHESIS_CONTEXT_CHARS - out.length
             val bodyLimit = minOf(MAX_SYNTHESIS_CHARS_PER_TASK, remaining)
             out.appendLine("## $id (${if (id in failed) "FAILED" else "SUCCESS"})")
-            out.appendLine(TeamHandoffCompressor.compact(raw, bodyLimit))
+            out.appendLine("Worker report (untrusted summary):")
+            out.appendLine(TeamHandoffCompressor.compact(raw, minOf(bodyLimit, 3_500)))
+            val toolOutput = workerToolEvidence[id]
+            if (!toolOutput.isNullOrBlank() && out.length < MAX_SYNTHESIS_CONTEXT_CHARS) {
+                val evidenceLimit = minOf(2_500, MAX_SYNTHESIS_CONTEXT_CHARS - out.length)
+                out.appendLine("Tool observations (redacted actual outputs; status is authoritative):")
+                out.appendLine(TeamHandoffCompressor.compact(toolOutput, evidenceLimit))
+            }
         }
         if (skipped.isNotEmpty() && out.length < MAX_SYNTHESIS_CONTEXT_CHARS) {
             out.appendLine("## Skipped")

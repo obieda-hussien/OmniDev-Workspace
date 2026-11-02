@@ -26,7 +26,11 @@ class AutomaticToolRouterTest {
         val catalog = RunToolCatalog(tools, "Search")
         val call = AutomaticToolRouter(catalog).adapt(proposal("Search"), tools.map { it.name }.toSet()).toolCalls.single()
         assertNotNull(call.argumentError)
+        assertTrue(call.argumentError!!.startsWith("OPERATION_UNRESOLVED:"))
         assertTrue(call.argumentError!!.contains("ambiguous"))
+        val preflight = ToolCallPreflight(listOf(RunToolCatalog.DISCOVER)).check(call)
+        assertEquals("OPERATION_UNRESOLVED", preflight?.classification)
+        assertFalse(preflight?.output.orEmpty().contains("INVALID_TOOL_ARGUMENTS"))
     }
     @Test fun `unexposed unique match is loaded and still returned as a real proposal`() {
         val catalog = RunToolCatalog(tools, "files")

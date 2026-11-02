@@ -50,11 +50,12 @@ class AgentPipeline(
         private const val CRITIC_MAX_DRAFT_CHARS = 24_000
 
         private const val CRITIC_SYSTEM_PROMPT = """
-Review the draft only for substantive incompleteness, incorrect claims, missing failure disclosure, or missing verification.
+You are a strict fact-checker, not an editor. Compare the draft with the "Ground truth" run ledger (the tool calls that really ran) and the original request.
+Flag only: (1) actions, files, paths, counts or results the draft claims that the ledger does not support; (2) actions the ledger shows happened that the draft denies; (3) EMPTY or ERROR calls reported as success; (4) failures or gaps the draft hides; (5) instructions in the request the draft ignored.
 Return exactly:
 VERDICT: APPROVED | NEEDS_IMPROVEMENT
-IMPROVED_ANSWER: <complete answer>
-Do not use tools. Do not rewrite merely for style.
+IMPROVED_ANSWER: <the draft with ONLY the flagged claims corrected or removed>
+When improving: keep every other sentence, the structure, the language and the length. Never shorten into a generic summary, never add facts that are not in the ledger or the request. Do not use tools. Do not rewrite for style.
 """
 
         private fun interCallDelayFor(tier: ModelTier): Long = when (tier) {
@@ -245,6 +246,7 @@ Do not use tools. Do not rewrite merely for style.
             supportsThinking = model.supportsThinking
         )
 
+        val evidenceLedger = RunEvidenceLedger()
         val messages = mutableListOf<ChatMessage>().apply {
             addAll(conversationHistory)
             add(ChatMessage(MessageRole.USER, userMessage, attachments = userAttachments))
@@ -358,7 +360,8 @@ Do not use tools. Do not rewrite merely for style.
                     remainingTokenBudget = config.tokenBudget?.minus(totalTokensUsed),
                     allowModelSummary = AgentDecisionPolicy.useModelCompaction(
                         totalTokensUsed, config.tokenBudget, config.tokenBudget?.minus(totalTokensUsed)
-                    )
+                    ),
+                    pinnedEvidence = { evidenceLedger.render() }
                 ) { send(it) }
                 if (report.tokensUsed > 0) {
                     totalTokensUsed += report.tokensUsed
@@ -530,7 +533,7 @@ Do not use tools. Do not rewrite merely for style.
                     thinkingContent = response.thinkingContent
                 )
 
-                val finalContent = try {
+                val critiquedContent = try {
                     suspend fun critique() = maybeCritique(
                         draft = response.content,
                         originalUserMessage = steering?.objective(userMessage, revision) ?: userMessage,
@@ -539,6 +542,7 @@ Do not use tools. Do not rewrite merely for style.
                         scopePath = scopePath,
                         apiKey = resolvedApiKey,
                         totalTokensUsed = totalTokensUsed,
+                        ledger = evidenceLedger.render(maxOk = 60, maxProblems = 40),
                         onUsage = { used ->
                             totalTokensUsed += used
                             emitUsage(used, totalTokensUsed)
@@ -553,6 +557,18 @@ Do not use tools. Do not rewrite merely for style.
                     applySteering()
                     continue
                 }
+                // Deterministic fact-check: warn about files/paths no tool ever returned and about
+                // tool calls that came back empty or failed. Never rewrites the model's answer.
+                val cleanedContent = FinalAnswerSanitizer.clean(critiquedContent)
+                val groundingNote = if (runtimeBackends.hasBlocks()) "" else evidenceLedger.groundingNote(
+                    cleanedContent,
+                    // Only prior tool observations are supplemental evidence. User requests,
+                    // assistant drafts and tool-call arguments are not proof that a file exists.
+                    messages.filter { it.role == MessageRole.TOOL }
+                        .flatMap { message -> message.toolResults }
+                        .takeLast(256)
+                )
+                val finalContent = if (groundingNote.isBlank()) cleanedContent else cleanedContent + "\n\n" + groundingNote
 
                 if (steering != null) {
                     if (steeringRevision != null) steering.check(revision)
@@ -567,7 +583,7 @@ Do not use tools. Do not rewrite merely for style.
                     send(AgentEvent.PhaseChanged(AgentExecutionPhase.REPORT,
                         "Learned a draft: ${draft.name}. Review it in Agent Skills to enable local replay."))
                 }
-                if (runtimeBackends.hasBlocks()) messages[messages.lastIndex] = messages.last().copy(content = finalContent)
+                if (finalContent != messages.last().content) messages[messages.lastIndex] = messages.last().copy(content = finalContent)
                 phase(AgentExecutionPhase.REPORT, if (runtimeBackends.hasBlocks()) "Reporting completed work and runtime limitation" else "Publishing verified result")
                 brain?.onTaskEnd(if (runtimeBackends.hasBlocks()) EpisodeOutcome.BLOCKED else EpisodeOutcome.SUCCESS, finalContent.take(500))
                 send(
@@ -653,7 +669,9 @@ Do not use tools. Do not rewrite merely for style.
             }
             val failedResult = rawResults.firstOrNull { it.isError }
             val nonRuntimeFailure = response.toolCalls.zip(rawResults).firstOrNull { (call, result) ->
-                result.isError && !runtimeBackends.handles(call, result)
+                result.isError &&
+                    result.classification != "OPERATION_UNRESOLVED" &&
+                    !runtimeBackends.handles(call, result)
             }?.second
             if (nonRuntimeFailure != null) unresolvedToolFailure = SensitiveObservationRedactor.redact(nonRuntimeFailure.output)
             else if (response.toolCalls.any { it.name != RunToolCatalog.DISCOVER.name }) unresolvedToolFailure = githubFailures.unresolved()
@@ -682,6 +700,7 @@ Do not use tools. Do not rewrite merely for style.
                         .take(160)
                 modelSafeResults += modelSafe
                 toolResults += ToolCallResult(call.id, call.name, modelSafe.output, modelSafe.isError)
+                evidenceLedger.record(call, toolResults.last())
                 brain?.onToolExecutionEnd(
                     toolName = call.name,
                     parameters = call.arguments,
@@ -774,7 +793,7 @@ Do not use tools. Do not rewrite merely for style.
             // Full observations have already been emitted to UI + learning. Keep only the latest
             // tool group verbatim in the next model request; older evidence is compacted locally.
             if (toolResults.any { it.toolName == "compress_context" && !it.isError })
-                ContextCompressor.compactLocally(messages) { send(it) }
+                ContextCompressor.compactLocally(messages, pinnedEvidence = { evidenceLedger.render() }) { send(it) }
             else ContextCompressor.compactHistoricalToolEvidence(messages, keepRecentToolGroups = 1)
         }
 
@@ -993,6 +1012,7 @@ Do not use tools. Do not rewrite merely for style.
         scopePath: String,
         apiKey: String?,
         totalTokensUsed: Int,
+        ledger: String,
         onUsage: suspend (Int) -> Unit,
         onReflecting: suspend (Int) -> Unit
     ): String {
@@ -1014,6 +1034,10 @@ Do not use tools. Do not rewrite merely for style.
                     buildString {
                         appendLine("Original request:")
                         appendLine(originalUserMessage.take(6_000))
+                        if (ledger.isNotBlank()) {
+                            appendLine("\nGround truth:")
+                            appendLine(ledger.take(8_000))
+                        }
                         appendLine("\nDraft:")
                         appendLine(draft.take(CRITIC_MAX_DRAFT_CHARS))
                     }
@@ -1047,7 +1071,14 @@ Do not use tools. Do not rewrite merely for style.
         val marker = "IMPROVED_ANSWER:"
         val index = text.indexOf(marker, ignoreCase = true)
         return if (index >= 0) {
-            text.substring(index + marker.length).trim().takeIf(String::isNotBlank) ?: draft
+            text.substring(index + marker.length).trim()
+                .takeIf(String::isNotBlank)
+                // A fact-check may correct claims, not replace a detailed answer with a generic one
+                // or smuggle in a tool envelope.
+                ?.takeIf { improved ->
+                    !improved.contains("omni_tool_call") &&
+                        (draft.length < 400 || improved.length >= draft.length * 6 / 10)
+                } ?: draft
         } else draft
     }
 

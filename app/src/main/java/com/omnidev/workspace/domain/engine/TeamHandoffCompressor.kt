@@ -80,6 +80,7 @@ object TeamHandoffCompressor {
         if (COMMAND_HINTS.any(lower::contains)) score += 4
         if (line.startsWith("#") || line.endsWith(":")) score += 2
         if (line.length > 1_200) score -= 2
+        if (line.startsWith(TOOL_OBSERVATION_PREFIX)) score += 9
         return score
     }
 
@@ -102,6 +103,7 @@ object TeamHandoffCompressor {
             "\"$1\":\"[REDACTED]\""
         )
 
+    private const val TOOL_OBSERVATION_PREFIX = "[TOOL OUTPUT]"
     private const val MAX_SINGLE_LINE = 1_400
     private val WHITESPACE = Regex("\\s+")
     private val NUMBER = Regex("\\b\\d+\\b")
