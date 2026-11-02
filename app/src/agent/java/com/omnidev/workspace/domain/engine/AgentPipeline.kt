@@ -476,7 +476,6 @@ When improving: keep every other sentence, the structure, the language and the l
             val modelStep = evidenceLedger.fin.afterModel(response)
             if (modelStep.rejected) {
                 messages += modelStep.append
-                phase(AgentExecutionPhase.VERIFY, "Finish claim rejected by runtime check")
                 continue
             }
             response = modelStep.response
@@ -543,7 +542,6 @@ When improving: keep every other sentence, the structure, the language and the l
                 val finalStep = evidenceLedger.fin.beforePublish(response, runtimeBackends.hasBlocks())
                 if (finalStep.rejected) {
                     messages += finalStep.append
-                    phase(AgentExecutionPhase.IMPLEMENT, "Final answer lacks runtime-verifiable evidence")
                     continue
                 }
                 response = finalStep.response
