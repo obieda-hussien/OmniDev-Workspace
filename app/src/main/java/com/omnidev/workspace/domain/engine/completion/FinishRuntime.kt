@@ -43,6 +43,10 @@ class FinishRuntime private constructor(
     fun exposed(defs: List<ToolDefinition>, reportOnly: Boolean): List<ToolDefinition> =
         if (policy.enforce && !reportOnly && defs.isNotEmpty()) defs + FinishTool.DEFINITION else defs
 
+    /** Tool names the model may call this turn, including the control tool. */
+    fun callableNames(defs: List<ToolDefinition>, reportOnly: Boolean): Set<String> =
+        exposed(defs, reportOnly).mapTo(mutableSetOf()) { it.name }
+
     /** Runtime-owned Goal/Plan/Ledger/Next Action, appended fresh to every request and never stored in history. */
     fun stateMessages(iteration: Int): List<ChatMessage> =
         if (policy.enforce && (iteration > 1 || ledger.size() > 0)) listOf(ChatMessage(MessageRole.USER, state.render())) else emptyList()
@@ -89,8 +93,10 @@ class FinishRuntime private constructor(
             val policy = FinalizationPolicy.decide(signals, isWorker, toolsAvailable, identity)
             val ledger = RunEvidenceLedger(identity.runId, identity.workerId)
             val state = RunState(goal, ledger, identity.acceptance, policy.requireExecution)
-            return FinishRuntime(identity, profile, policy, ledger, state,
+            val runtime = FinishRuntime(identity, profile, policy, ledger, state,
                 FinishGate(ledger, state, policy, identity, profile.maxFinishRejections), ToolCallIdentity(identity.runId))
+            ledger.fin = runtime
+            return runtime
         }
     }
 }

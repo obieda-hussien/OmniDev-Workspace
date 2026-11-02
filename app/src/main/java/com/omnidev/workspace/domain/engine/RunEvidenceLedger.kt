@@ -17,6 +17,11 @@ class RunEvidenceLedger(
     val runId: String = "",
     val workerId: String? = null
 ) {
+    /**
+     * The finish runtime of this run. Reached through the ledger so AgentPipeline's flow lambda keeps no
+     * extra long-lived local (every one is saved and restored at each suspension point).
+     */
+    lateinit var fin: com.omnidev.workspace.domain.engine.completion.FinishRuntime
 
     enum class Outcome { OK, EMPTY, ERROR, SKIPPED }
 

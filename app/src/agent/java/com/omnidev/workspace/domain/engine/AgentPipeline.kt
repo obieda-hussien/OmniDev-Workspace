@@ -225,10 +225,9 @@ When improving: keep every other sentence, the structure, the language and the l
         } catch (_: Exception) { null }
         val brainContext = try { brain?.buildFullContextEnrichment() } catch (_: Exception) { null }
         // Finish protocol: runtime-owned state, kept out of this lambda (see FinishRuntime).
-        val fin = FinishRuntime.create(runIdentity, routingObjective, taskSignals,
+        val evidenceLedger = FinishRuntime.create(runIdentity, routingObjective, taskSignals,
             workerPersona != null || userMessage.contains("## Assigned Team Task"),
-            permittedDefinitions.isNotEmpty(), modelId, config.enableModelProfiles)
-        val evidenceLedger = fin.ledger
+            permittedDefinitions.isNotEmpty(), modelId, config.enableModelProfiles).ledger
 
         val systemPrompt = AgentPromptCompiler.compile(
             tier = model.tier,
@@ -253,7 +252,7 @@ When improving: keep every other sentence, the structure, the language and the l
             toolAccessMode = "ON_DEMAND",
             enableDeepThinking = enableDeepThinking,
             supportsThinking = model.supportsThinking,
-            finishProtocol = fin.enforce
+            finishProtocol = evidenceLedger.fin.enforce
         )
 
         val messages = mutableListOf<ChatMessage>().apply {
@@ -289,7 +288,7 @@ When improving: keep every other sentence, the structure, the language and the l
             revision = pending.last().revision
             val objective = control.objective(userMessage, revision)
             routingContext = objective.takeLast(8_000)
-            fin.setGoal(objective)
+            evidenceLedger.fin.setGoal(objective)
             taskSignals = IntentClassifier.analyze(objective)
             unresolvedToolFailure = null
             invalidBatches = 0
@@ -309,7 +308,7 @@ When improving: keep every other sentence, the structure, the language and the l
         while (iteration < config.maxIterations) {
             applySteering()
             iteration++
-            fin.beginTurn()
+            evidenceLedger.fin.beginTurn()
             val recoveryNote = pendingRecoveryNote
             if (recoveryNote != null) {
                 pendingRecoveryNote = null
@@ -343,21 +342,14 @@ When improving: keep every other sentence, the structure, the language and the l
                 if (added.isNotEmpty()) phase(AgentExecutionPhase.ANALYZE, "Automatically loaded tools: ${added.joinToString()}")
             }
 
-            val exposed = fin.exposed(toolDefs, runtimeBackends.reportOnly)
             val desiredOutputBudget = AgentDecisionPolicy.outputCap(
                 taskSignals, model.maxOutputTokens,
                 remainingAtStart?.coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE)
             )
-            val iterationSystemPrompt = systemPrompt + "\n" + runtimeBackends.guidance() +
-                (if (runtimeBackends.reportOnly) "\nTool execution has ended for this run. Answer now from existing evidence; disclose incomplete work and required recovery. No tool calls." else "") +
-                (if (toolDefs.isEmpty()) "" else "\n" + AutomaticToolRouter.CONTRACT) +
-                (if (nativeTools || toolDefs.isEmpty()) "" else "\n" + ToolTextProtocol.schemas(exposed))
-            // Tool definitions are already compacted to the exact set sent to the provider.
-            val schemaEstimate = if (nativeTools) (exposed.sumOf { it.toString().length } / 3).coerceAtLeast(0) else 0
-            val inputBudget = model.contextWindow - desiredOutputBudget - config.contextWindowBuffer -
-                iterationSystemPrompt.length / 3 - schemaEstimate -
-                fin.inputReserveTokens()
-            if (inputBudget <= 0) {
+            val plan = IterationPlan.compute(systemPrompt, runtimeBackends, toolDefs,
+                evidenceLedger.fin.exposed(toolDefs, runtimeBackends.reportOnly), nativeTools, model,
+                desiredOutputBudget, config.contextWindowBuffer, evidenceLedger.fin.inputReserveTokens())
+            if (plan.inputBudget <= 0) {
                 brain?.onTaskEnd(EpisodeOutcome.FAILURE, "system/tool schema exceeds context window")
                 send(AgentEvent.Error("System instructions and tool definitions exceed this model's context window."))
                 return@channelFlow
@@ -366,7 +358,7 @@ When improving: keep every other sentence, the structure, the language and the l
             if (config.enableMemoryTrimming) {
                 val report = ContextCompressor.checkAndCompact(
                     messages = messages,
-                    tokenBudget = inputBudget,
+                    tokenBudget = plan.inputBudget,
                     modelId = modelId,
                     completionProvider = completionProvider,
                     apiKey = resolvedApiKey,
@@ -383,9 +375,9 @@ When improving: keep every other sentence, the structure, the language and the l
             }
 
             val requestMessages = if (config.enableMemoryTrimming) {
-                ContextCompressor.trim(messages, inputBudget)
+                ContextCompressor.trim(messages, plan.inputBudget)
             } else messages.toList()
-            if (requestMessages.sumOf(ContextCompressor::estimatedTokens) > inputBudget) {
+            if (requestMessages.sumOf(ContextCompressor::estimatedTokens) > plan.inputBudget) {
                 brain?.onTaskEnd(EpisodeOutcome.FAILURE, "latest context still exceeds input budget")
                 send(AgentEvent.Error("The latest message/tool result exceeds this model's context window."))
                 return@channelFlow
@@ -393,13 +385,13 @@ When improving: keep every other sentence, the structure, the language and the l
 
             val requestPrototype = CompletionRequest(
                 modelId = modelId,
-                messages = ToolTextProtocol.messages(requestMessages + fin.stateMessages(iteration), textCallsOnly = nativeTools),
-                systemPrompt = iterationSystemPrompt,
+                messages = ToolTextProtocol.messages(requestMessages + evidenceLedger.fin.stateMessages(iteration), textCallsOnly = nativeTools),
+                systemPrompt = plan.systemPrompt,
                 maxTokens = desiredOutputBudget,
                 enableThinking = enableDeepThinking && model.supportsThinking && !runtimeBackends.reportOnly,
                 targetContext = scopePath,
                 apiKey = resolvedApiKey,
-                tools = if (nativeTools) exposed else null,
+                tools = if (nativeTools) plan.exposed else null,
                 autoRouteRole = autoRouteRole
             )
             val estimatedRequestInput = TokenAccounting.estimateInputTokens(requestPrototype)
@@ -468,7 +460,7 @@ When improving: keep every other sentence, the structure, the language and the l
                     "Execution could not finish because a required runtime capability is unavailable. Restore it and retry the remaining operation."
                 }
             ) else if (toolDefs.isEmpty()) nativeResponse else automaticRouter.adapt(
-                TextToolCallAdapter.adapt(nativeResponse), exposed.mapTo(mutableSetOf()) { it.name }
+                TextToolCallAdapter.adapt(nativeResponse), evidenceLedger.fin.callableNames(toolDefs, runtimeBackends.reportOnly)
             )
 
             // Usage is never allowed to disappear merely because a provider omitted metadata.
@@ -481,7 +473,7 @@ When improving: keep every other sentence, the structure, the language and the l
                 ?.let { send(AgentEvent.ThinkingBlock(it)) }
 
             // Stable ids + runtime decision on finish_task (never executed as an ordinary tool).
-            val modelStep = fin.afterModel(response)
+            val modelStep = evidenceLedger.fin.afterModel(response)
             if (modelStep.rejected) {
                 messages += modelStep.append
                 phase(AgentExecutionPhase.VERIFY, "Finish claim rejected by runtime check")
@@ -536,7 +528,7 @@ When improving: keep every other sentence, the structure, the language and the l
                     phase(AgentExecutionPhase.IMPLEMENT, "Launcher execution still needs verification")
                     continue
                 }
-                val stall = if (!runtimeBackends.hasBlocks() && !fin.hasVerdict()) {
+                val stall = if (!runtimeBackends.hasBlocks() && !evidenceLedger.fin.hasVerdict()) {
                     PipelineRecovery.stall(recoveryGovernor, response.content, lastToolObservation, toolDefs.isNotEmpty())
                 } else null
                 if (stall != null) {
@@ -548,7 +540,7 @@ When improving: keep every other sentence, the structure, the language and the l
                     }
                     stall.fallbackContent?.let { response = response.copy(content = it) }
                 }
-                val finalStep = fin.beforePublish(response, runtimeBackends.hasBlocks())
+                val finalStep = evidenceLedger.fin.beforePublish(response, runtimeBackends.hasBlocks())
                 if (finalStep.rejected) {
                     messages += finalStep.append
                     phase(AgentExecutionPhase.IMPLEMENT, "Final answer lacks runtime-verifiable evidence")
@@ -577,10 +569,10 @@ When improving: keep every other sentence, the structure, the language and the l
                             emitUsage(used, totalTokensUsed)
                         },
                         onReflecting = { send(AgentEvent.Reflecting(it)) },
-                        enabled = fin.reflectionEnabled(config.enableSelfReflection)
+                        enabled = evidenceLedger.fin.reflectionEnabled(config.enableSelfReflection)
                     )
                     if (runtimeBackends.hasBlocks()) response.content + "\n\n" + runtimeBackends.reportSummary()
-                    else if (fin.keepsText()) response.content
+                    else if (evidenceLedger.fin.keepsText()) response.content
                     else if (steering == null) critique() else steering.reasoning(revision) { critique() }
                 } catch (redirected: RunRedirected) {
                     // A draft has no tool side effects; remove it before continuing.
@@ -616,7 +608,7 @@ When improving: keep every other sentence, the structure, the language and the l
                 }
                 if (finalContent != messages.last().content) messages[messages.lastIndex] = messages.last().copy(content = finalContent)
                 phase(AgentExecutionPhase.REPORT, if (runtimeBackends.hasBlocks()) "Reporting completed work and runtime limitation" else "Publishing verified result")
-                val finalOutcome = fin.episodeOutcome(runtimeBackends.hasBlocks())
+                val finalOutcome = evidenceLedger.fin.episodeOutcome(runtimeBackends.hasBlocks())
                 brain?.onTaskEnd(finalOutcome, finalContent.take(500))
                 send(
                     AgentEvent.FinalAnswer(
@@ -624,7 +616,7 @@ When improving: keep every other sentence, the structure, the language and the l
                         totalIterations = iteration,
                         totalTokensUsed = totalTokensUsed,
                         conversationHistory = messages.toList(),
-                        completion = fin.report()
+                        completion = evidenceLedger.fin.report()
                     )
                 )
                 return@channelFlow
