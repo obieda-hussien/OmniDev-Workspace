@@ -46,7 +46,12 @@ class SwarmToolRecoveryTest {
                 request.messages.any { it.toolResults.isNotEmpty() } &&
                     (authReadbacks.get() > 0 || (layoutReads.get() > 0 && authWrites.get() == 0)) -> CompletionResponse("Verified task")
                 else -> {
-                    val assigned = request.messages.joinToString("\n") { it.content }
+                    val assigned = request.messages.asReversed()
+                        .firstOrNull { it.content.contains("## Assigned Team Task") }
+                        ?.content
+                        ?.substringAfter("## Assigned Team Task")
+                        ?.substringBefore("\n## ")
+                        .orEmpty()
                     when {
                         assigned.contains("authentication", ignoreCase = true) && authWrites.get() == 0 ->
                             CompletionResponse("", listOf(ToolCall("write-auth", "write_file", mapOf("path" to "/tmp/auth.kt", "content" to "verified"))))
