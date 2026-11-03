@@ -168,6 +168,26 @@ class FinishProtocolTest {
         assertFalse(FinalizationPolicy.decide(inspection, false, true, inspectRuntime.identity).requireAction)
     }
 
+    @Test fun `typed copy and symlink mutations retain their destination path`() {
+        val ledger = RunEvidenceLedger("run-paths", null)
+        ledger.record(
+            ToolCall("copy-1", "copy_move", mapOf("action" to "copy", "source" to "/p/source.kt", "destination" to "/p/copy.kt")),
+            ToolCallResult("copy-1", "copy_move", "copied")
+        )
+        ledger.record(
+            ToolCall("copy-2", "god_copy_file", mapOf("sourcePath" to "/p/source.kt", "destPath" to "/p/god-copy.kt")),
+            ToolCallResult("copy-2", "god_copy_file", "copied")
+        )
+        ledger.record(
+            ToolCall("link-1", "symlink_manager", mapOf("action" to "create", "link_path" to "/p/link.kt", "target_path" to "/p/source.kt")),
+            ToolCallResult("link-1", "symlink_manager", "created")
+        )
+        val snapshot = ledger.snapshot()
+        assertEquals(listOf("/p/copy.kt", "/p/god-copy.kt", "/p/link.kt"), snapshot.map { EvidenceKinds.pathOf(it.target) })
+        assertEquals(EvidenceKinds.Kind.MUTATION, snapshot[2].kind)
+        assertEquals(EvidenceKinds.Kind.READ, EvidenceKinds.classify("symlink_manager", mapOf("action" to "inspect", "link_path" to "/p/link.kt")))
+    }
+
     @Test fun `shell file writes are tracked and require same path read back`() {
         val r = rig(policy = FinalizationPolicy(true, true, requireAction = true))
         assertEquals(EvidenceKinds.Kind.READ, EvidenceKinds.classify("run_terminal", mapOf("command" to "cat /p/Foo.kt")))

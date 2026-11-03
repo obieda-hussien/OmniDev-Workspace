@@ -216,7 +216,8 @@ class RunEvidenceLedger(
         // Keep only low-risk identifiers; raw commands, URLs and free-form queries can carry credentials.
         val explicitPath = listOf("path", "filePath", "file_path", "filepath", "directory", "file", "filename", "output_path")
             .firstNotNullOfOrNull { key -> arguments[key]?.takeIf(String::isNotBlank) }
-        val path = (explicitPath ?: EvidenceKinds.commandTarget(toolName, arguments))?.let {
+        val path = (explicitPath ?: EvidenceKinds.explicitMutationTarget(toolName, arguments)
+            ?: EvidenceKinds.commandTarget(toolName, arguments))?.let {
             "path=${SensitiveObservationRedactor.redact(it.replace('\n', ' ')).take(120)}"
         }
         val metadata = listOf("action", "repo", "name_pattern", "name").mapNotNull { key ->

@@ -162,6 +162,11 @@ object EvidenceKinds {
 
     /** Inspect command payload only to classify side effects; raw command text is never persisted as evidence. */
     fun classify(tool: String, arguments: Map<String, String>): Kind {
+        if (tool == "symlink_manager") return when (arguments["action"]?.lowercase()) {
+            "create", "remove" -> Kind.MUTATION
+            "inspect" -> Kind.READ
+            else -> Kind.OTHER
+        }
         val known = classify(tool)
         if (known != Kind.OTHER || tool !in COMMAND_TOOLS) return known
         val command = arguments.entries.filter { it.key.lowercase() in COMMAND_ARGUMENTS }
@@ -173,6 +178,14 @@ object EvidenceKinds {
             else -> Kind.OTHER
         }
     }
+
+    /** Destination path mutated by typed file/link tools with non-standard argument names. */
+    fun explicitMutationTarget(tool: String, arguments: Map<String, String>): String? = when (tool) {
+        "copy_move" -> arguments["destination"]
+        "god_copy_file" -> arguments["destPath"]
+        "symlink_manager" -> arguments["link_path"]
+        else -> null
+    }?.takeIf(String::isNotBlank)
 
     /** Best-effort target extraction for common shell redirection and file mutation operations. */
     fun commandTarget(tool: String, arguments: Map<String, String>): String? {
