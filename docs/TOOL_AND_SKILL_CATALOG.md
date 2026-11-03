@@ -12,7 +12,11 @@ This source inventory follows the providers referenced by `CompositeToolManager.
 
 Hidden registered legacy aliases: `direct_terminal`, `termux_bridge`.
 
-MCP tools are discovered from connected servers at runtime and are excluded from these counts. Runtime helpers such as `discover_tools` and `request_execution_mode` are also excluded. The five default MCP services are server configurations, not five tool definitions. See [default MCP services](MCP_DEFAULT_SERVICES.md).
+MCP tools are discovered from connected servers at runtime and are excluded from these counts. Runtime helpers such as `discover_tools`, `request_execution_mode` and `finish_task` are also excluded. The five default MCP services are server configurations, not five tool definitions. See [default MCP services](MCP_DEFAULT_SERVICES.md).
+
+## Runtime control protocol (not a tool)
+
+`finish_task` is a control signal of the finish protocol, not an entry of the tool catalog. It is exposed to the model only in runs bound by the protocol (action tasks and team workers with tools), is intercepted by the runtime before tool execution and never reaches `ToolManager`. The runtime, not the model, decides whether a `completed` claim is accepted, by checking it against the run evidence ledger. See [finish protocol](FINISH_PROTOCOL.md) for statuses, lifecycle limits and measurement.
 
 Reproduce from the checked-out source:
 

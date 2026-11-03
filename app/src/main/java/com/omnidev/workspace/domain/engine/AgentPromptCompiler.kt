@@ -97,6 +97,12 @@ Consider alternatives and edge cases before irreversible actions, but keep visib
         ModelTier.ORCHESTRATOR -> "MODE: Deep executor. Handle architecture and long-horizon dependencies carefully."
     }
 
+    /** Only added to runs bound by the finish protocol; pure chat prompts are unchanged. */
+    internal const val FINISH_PROTOCOL = "FINISH PROTOCOL: [RUN STATE] at the end of the conversation is written by the runtime from real tool results; trust it over your own memory. " +
+        "Do the work with tool calls in the same turn you announce it; a reply without a tool call ends the task. " +
+        "To end, call finish_task alone: status completed|blocked|failed|awaiting_approval|incomplete, a summary in the user's language, and ledger ids as evidence (A1 => id lines when RUN STATE lists acceptance items). " +
+        "The runtime rejects 'completed' that the ledger does not support (nothing executed, unresolved failure, edit not read back). Read back what you changed before finishing."
+
     fun compile(
         tier: ModelTier,
         scopePath: String,
@@ -110,7 +116,8 @@ Consider alternatives and edge cases before irreversible actions, but keep visib
         enableDeepThinking: Boolean,
         supportsThinking: Boolean,
         mentionContext: String? = null,
-        selectedSkillContext: String? = null
+        selectedSkillContext: String? = null,
+        finishProtocol: Boolean = false
     ): String = buildString {
         workerPersona?.takeIf(String::isNotBlank)?.let {
             appendLine("ROLE: ${it.trim().take(300)}")
@@ -123,6 +130,7 @@ Consider alternatives and edge cases before irreversible actions, but keep visib
         appendLine(CORE.trimIndent())
         appendLine(TextToolCallAdapter.CONTRACT)
         appendLine("DEVICE SAFETY: Use only explicitly exposed device capabilities. Never infer root/Shizuku access or substitute an unapproved shell action for a typed system operation.")
+        if (finishProtocol) appendLine(FINISH_PROTOCOL)
         if (requiresAndroidGuidance(toolDefinitions, workerPersona, mentionContext)) {
             appendLine(ANDROID_EXECUTION.trimIndent())
         }

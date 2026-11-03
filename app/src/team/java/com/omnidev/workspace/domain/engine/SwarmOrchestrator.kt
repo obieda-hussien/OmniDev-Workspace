@@ -87,8 +87,9 @@ Rules:
 - needsConnectedTools=true only when MCP/cloud tools are actually required.
 - Add a verifier task only when independent verification materially changes confidence (e.g. after code edits: build/test/diff).
 - Do not create tasks merely to discover the supplied current time/date.
+- acceptance: 1-3 checkable done-when items per task that a tool result can prove (a file exists, a test passes, a value was read). Omit for pure reasoning/explanation. toolFree=true only when the complete task can be done from the user's supplied context or dependency outputs without external/current/repository/device/network/build operations; it may have no dependencies. toolFree tasks must have empty acceptance and needsConnectedTools=false. Set toolFree=false for research, inspection, verification, code, file, build, device, or any task requiring fresh evidence. Every non-toolFree worker must run real tools; the coordinator re-checks evidence.
 Return ONLY a JSON array, no prose and no markdown fence:
-[{"id":"short-kebab-id","description":"GOAL ... | INPUTS ... | STEPS ... | OUTPUT ... | FINISH EVIDENCE ...","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false}]
+[{"id":"short-kebab-id","description":"GOAL ... | INPUTS ... | STEPS ... | OUTPUT ... | FINISH EVIDENCE ...","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false,"acceptance":["checkable done-when item"],"toolFree":false}]
 """
 
         private const val SYNTHESIS_PROMPT = """
@@ -298,7 +299,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             val infrastructureBlocked: Boolean = false,
             val requiresSerialReplan: Boolean = false,
             val redirected: Boolean = false,
-            val toolEvidence: String = ""
+            val toolEvidence: String = "",
+            /** Honest terminal states (awaiting approval, blocked, failed) are never retried: a retry could repeat side effects or approval prompts. */
+            val noRetry: Boolean = false
         )
 
         suspend fun runWorkerAttempt(task: SwarmTask, attempt: Int, recoveryNote: String?, tokenCap: Int = Int.MAX_VALUE): TaskOutcome {
@@ -342,6 +345,20 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
 
             var taskResult = ""
             var taskError: String? = null
+            var completionReport: com.omnidev.workspace.domain.engine.completion.CompletionReport? = null
+            // Requirements follow the assigned objective, not a text heuristic: the planner's own contract says
+            // parallelSafe=false is the only way to change state, so that is implementation work (needs a
+            // successful non-read action). Read-only workers need grounded evidence but are never forced to
+            // Tool-free is an explicit planner decision for self-contained reasoning/synthesis; all evidence-bearing work requires a real tool call.
+            val workerRequiresExecution = !task.toolFree
+            val workerKind = if (task.parallelSafe) com.omnidev.workspace.domain.engine.completion.TaskKind.ANALYSIS
+                else com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION
+            val workerIdentity = com.omnidev.workspace.domain.engine.completion.RunIdentity(
+                workerId = task.id, acceptance = task.acceptance, requireExecution = workerRequiresExecution, taskKind = workerKind
+            )
+            // Independent count of successful tool results seen on the event stream (not from the worker's report).
+            val observedOkByTool = HashMap<String, Int>()
+            var reviewTerminal: com.omnidev.workspace.domain.engine.completion.FinishStatus? = null
             val observedToolResults = mutableListOf<String>()
             try {
                 workerPipeline.execute(
@@ -356,10 +373,14 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     disabledToolNames = disabledToolNames,
                     mentionFocus = mentionFocus,
                     steering = steering,
-                    steeringRevision = revision
+                    steeringRevision = revision,
+                    runIdentity = workerIdentity
                 ).collect { event ->
                     when (event) {
-                        is AgentEvent.FinalAnswer -> taskResult = event.content
+                        is AgentEvent.FinalAnswer -> {
+                            taskResult = event.content
+                            completionReport = event.completion
+                        }
                         is AgentEvent.Error -> taskError = event.message
                         is AgentEvent.StreamChunk -> send(SwarmEvent.WorkerStreamChunk(task, event.delta))
                         is AgentEvent.ToolExecution -> send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
@@ -374,6 +395,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                                 .replace(Regex("\\s+"), " ").trim()
                             val snippet = if (output.length <= MAX_WORKER_TOOL_OBSERVATION_CHARS) output
                                 else output.take(650) + " … " + output.takeLast(200)
+                            if (outcome == "OK") observedOkByTool.merge(event.toolName, 1, Int::plus)
                             observedToolResults += "[TOOL OUTPUT] ${event.toolName} [$outcome]: $snippet"
                             if (observedToolResults.size > MAX_WORKER_TOOL_OBSERVATIONS) observedToolResults.removeAt(0)
                         }
@@ -409,6 +431,28 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             if (taskError == null && taskResult.startsWith(WorkerRecoveryPlanner.INCOMPLETE_PREFIX)) {
                 taskError = "Worker announced work without performing it."
             }
+            // The coordinator never accepts a worker's prose as success: its runtime-produced report is
+            // re-verified (status, run/worker identity, digest, acceptance items, ledger rules).
+            if (taskError == null) {
+                val review = com.omnidev.workspace.domain.engine.completion.WorkerEvidenceReview.review(
+                    report = completionReport,
+                    expectedWorkerId = task.id,
+                    taskCriteria = task.acceptance,
+                    requireExecution = workerRequiresExecution,
+                    legacyToolEvidencePresent = observedToolResults.isNotEmpty(),
+                    expectedRunId = workerIdentity.runId,
+                    requireAction = workerKind == com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION && workerRequiresExecution,
+                    observedOkByTool = observedOkByTool
+                )
+                if (!review.accepted) {
+                    reviewTerminal = review.terminal
+                    taskError = when (review.terminal) {
+                        com.omnidev.workspace.domain.engine.completion.FinishStatus.AWAITING_APPROVAL -> "AWAITING_APPROVAL: ${review.reason}"
+                        null -> "Worker result not accepted by coordinator evidence review: ${review.reason}"
+                        else -> "Worker stopped (${review.terminal.wire}): ${review.reason}"
+                    }
+                }
+            }
             val toolEvidence = observedToolResults.joinToString("\n").take(MAX_WORKER_TOOL_EVIDENCE_CHARS)
             if (taskError == null) return TaskOutcome(task, taskResult, toolEvidence = toolEvidence)
 
@@ -423,7 +467,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 infrastructureBlocked = isInfrastructureFailure(error),
                 requiresSerialReplan = task.parallelSafe && error.startsWith("READ_ONLY_WORKER:") &&
                     TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
-                toolEvidence = toolEvidence
+                toolEvidence = toolEvidence,
+                noRetry = reviewTerminal != null
             )
         }
 
@@ -435,7 +480,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         suspend fun runWorker(task: SwarmTask): TaskOutcome {
             var attempt = 1
             var outcome = runWorkerAttempt(task, attempt, null)
-            while (attempt < WorkerRecoveryPlanner.MAX_ATTEMPTS &&
+            while (attempt < WorkerRecoveryPlanner.MAX_ATTEMPTS && !outcome.noRetry &&
                 WorkerRecoveryPlanner.shouldRetry(outcome.error, outcome.redirected, outcome.requiresSerialReplan)
             ) {
                 val wanted = (allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)).tokenBudget
@@ -659,13 +704,21 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
     ): String = buildString {
         appendLine("## Assigned Team Task")
         appendLine(task.description)
+        if (task.acceptance.isNotEmpty()) {
+            appendLine("\n## Acceptance (finish_task must prove each with ledger ids: 'A1 => id1,id2')")
+            task.acceptance.forEachIndexed { index, item -> appendLine("A${index + 1}. ${item.take(300)}") }
+        }
         appendLine("\n## Runtime")
         appendLine("Time: $runtimeClock")
         appendLine("Workspace: $scopePath")
         appendLine("Budget: ${budget.maxIterations} iterations / ${budget.tokenBudget} tokens (${budget.reason})")
         appendLine("\n## Contract")
         appendLine("Execute only this task. Batch safe reads, stop when finish evidence is sufficient, and do not redo team planning.")
-        appendLine("Use the tool-call channel for every action; never put a tool-call JSON envelope in your reply. Do not greet or role-play.")
+        if (task.toolFree) {
+            appendLine("This task is explicitly tool-free: use only the supplied objective and dependency context. Do not call tools or claim fresh external verification.")
+        } else {
+            appendLine("Use the tool-call channel for every action; never put a tool-call JSON envelope in your reply. Do not greet or role-play.")
+        }
         if (userFacing) appendLine("You are the only worker: your final reply is shown directly to the user. Write it in the user's language (Egyptian Arabic if the user writes Arabic; keep paths and code in English) as valid Markdown: one result sentence, then evidence, then risks/next step.")
         else appendLine("Your reply is read by the synthesizer, not the user.")
         appendLine("Empty output / '(no output)' / NO_MATCHES is inconclusive: retry once with a wider scope (deeper max_depth, parent dir, alternate tool) before reporting. Report only files, paths and results you actually received from tools; write 'NOT VERIFIED' for anything else.")
@@ -874,6 +927,12 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         if (tasks.any { task -> task.dependencies.any { it !in ids || it == task.id } }) {
             return "Invalid Team plan: every dependency must reference another task."
         }
+        if (tasks.any { it.toolFree && it.acceptance.isNotEmpty() }) {
+            return "Invalid Team plan: tool-free tasks cannot declare tool-verifiable acceptance criteria."
+        }
+        if (tasks.any { it.toolFree && it.needsConnectedTools }) {
+            return "Invalid Team plan: tool-free tasks cannot require connected tools."
+        }
         return null
     }
 
@@ -886,6 +945,12 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         }
         if (tasks.any { task -> task.dependencies.any { it !in ids || it == task.id } }) {
             return "Invalid Team plan: every dependency must reference another task."
+        }
+        if (tasks.any { it.toolFree && it.acceptance.isNotEmpty() }) {
+            return "Invalid Team plan: tool-free tasks cannot declare tool-verifiable acceptance criteria."
+        }
+        if (tasks.any { it.toolFree && it.needsConnectedTools }) {
+            return "Invalid Team plan: tool-free tasks cannot require connected tools."
         }
         val resolved = mutableSetOf<String>()
         repeat(tasks.size) {

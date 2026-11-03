@@ -14,17 +14,26 @@ class SwarmToolRecoveryTest {
         val readsInFlight = AtomicInteger(0)
         val mutations = AtomicInteger(0)
         val unsafeOverlap = AtomicInteger(0)
+        val authWrites = AtomicInteger(0)
+        val authReadbacks = AtomicInteger(0)
+        val layoutReads = AtomicInteger(0)
         val manager = object : ToolManager {
-            override fun getToolDefinitions() = listOf("read_file", "write_file").map { ToolDefinition(it, "Inspect authentication documentation and research visual hierarchy") }
+            override fun getToolDefinitions() = listOf(
+                ToolDefinition("read_file", "Read a file", listOf(ToolParameter("path", "string", "Path"))),
+                ToolDefinition("write_file", "Write a file", listOf(ToolParameter("path", "string", "Path"), ToolParameter("content", "string", "Content")))
+            )
             override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
+                val path = arguments["path"].orEmpty()
                 if (name == "read_file") {
                     readsInFlight.incrementAndGet()
                     try { delay(20) } finally { readsInFlight.decrementAndGet() }
+                    if (path == "/tmp/auth.kt") authReadbacks.incrementAndGet() else layoutReads.incrementAndGet()
                 } else {
                     mutations.incrementAndGet()
                     if (readsInFlight.get() != 0) unsafeOverlap.incrementAndGet()
+                    if (path == "/tmp/auth.kt") authWrites.incrementAndGet()
                 }
-                return ToolExecutionResult("Verified result")
+                return ToolExecutionResult(if (name == "read_file") "Verified result from $path" else "Written $path")
             }
         }
         val team = SwarmOrchestrator(manager, completionProvider = { request ->
@@ -34,11 +43,25 @@ class SwarmToolRecoveryTest {
                     {"id":"layout","description":"Research screen layout and visual hierarchy","parallelSafe":true}
                 ]""")
                 request.systemPrompt.orEmpty().contains("Synthesize specialist") -> CompletionResponse("Complete")
-                request.messages.any { it.toolResults.isNotEmpty() } -> CompletionResponse("Verified task")
+                request.messages.any { it.toolResults.isNotEmpty() } &&
+                    (authReadbacks.get() > 0 || (layoutReads.get() > 0 && authWrites.get() == 0)) -> CompletionResponse("Verified task")
                 else -> {
-                    val assigned = request.messages.last().content.substringBefore("## Runtime")
-                    val name = if (assigned.contains("authentication")) "write_file" else "read_file"
-                    CompletionResponse("", listOf(ToolCall("call", name, emptyMap())))
+                    val assigned = request.messages.asReversed()
+                        .firstOrNull { it.content.contains("## Assigned Team Task") }
+                        ?.content
+                        ?.substringAfter("## Assigned Team Task")
+                        ?.substringBefore("\n## ")
+                        .orEmpty()
+                    when {
+                        assigned.contains("authentication", ignoreCase = true) && authWrites.get() == 0 ->
+                            CompletionResponse("", listOf(ToolCall("write-auth", "write_file", mapOf("path" to "/tmp/auth.kt", "content" to "verified"))))
+                        assigned.contains("authentication", ignoreCase = true) && authReadbacks.get() == 0 ->
+                            CompletionResponse("", listOf(ToolCall("read-auth", "read_file", mapOf("path" to "/tmp/auth.kt"))))
+                        assigned.contains("authentication", ignoreCase = true) -> CompletionResponse("Verified task")
+                        layoutReads.get() == 0 ->
+                            CompletionResponse("", listOf(ToolCall("read-layout", "read_file", mapOf("path" to "/tmp/layout.md"))))
+                        else -> CompletionResponse("Verified task")
+                    }
                 }
             }
         })
@@ -46,6 +69,9 @@ class SwarmToolRecoveryTest {
             "gpt-4o-mini", "gpt-4o-mini", "/tmp").toList()
         assertEquals(events.joinToString("\n"), 1, mutations.get())
         assertEquals(0, unsafeOverlap.get())
+        assertEquals(1, authWrites.get())
+        assertEquals(1, authReadbacks.get())
+        assertEquals(1, layoutReads.get())
         assertEquals(1, events.filterIsInstance<SwarmEvent.WorkerPhaseChanged>().count { it.phase == "REPLAN" })
         val complete = events.filterIsInstance<SwarmEvent.Completed>().single()
         assertEquals(2, complete.tasksCompleted)
