@@ -170,6 +170,8 @@ class FinishProtocolTest {
 
     @Test fun `shell file writes are tracked and require same path read back`() {
         val r = rig(policy = FinalizationPolicy(true, true, requireAction = true))
+        assertEquals(EvidenceKinds.Kind.READ, EvidenceKinds.classify("run_terminal", mapOf("command" to "cat /p/Foo.kt")))
+        assertEquals(EvidenceKinds.Kind.MUTATION, EvidenceKinds.classify("run_terminal", mapOf("command" to "printf 'fixed' > /p/Foo.kt")))
         r.run("c1", "run_terminal", mapOf("command" to "printf 'fixed' > /p/Foo.kt"), "written")
         assertTrue(r.state.nextAction().contains("/p/Foo.kt"))
         assertTrue(r.finish("status" to "completed", "summary" to "fixed", "evidence" to "c1") is GateResult.Reject)

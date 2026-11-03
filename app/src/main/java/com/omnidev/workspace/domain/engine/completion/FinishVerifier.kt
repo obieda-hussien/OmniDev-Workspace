@@ -103,7 +103,7 @@ object FinishVerifier {
             if (!met) problems += "no successful tool call exists in this run, so nothing was actually executed"
         }
         if (ctx.requireAction) {
-            val acted = ok.filter { it.kind != EvidenceKinds.Kind.READ }
+            val acted = ok.filter { it.kind == EvidenceKinds.Kind.MUTATION || it.kind == EvidenceKinds.Kind.ACTION }
             results += CriterionResult(AcceptanceCriterion("R4", "At least one successful non-read action (implementation work)", AcceptanceCriterion.Source.RUNTIME),
                 acted.isNotEmpty(), acted.takeLast(3).map { it.citeId }, if (acted.isNotEmpty()) null else "only reads succeeded")
             if (acted.isEmpty()) problems += "this is implementation work but only read calls succeeded, so nothing was changed or run"
