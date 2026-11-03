@@ -14,12 +14,21 @@ class AgentSteeringTest {
     private val config = AgentConfig(maxIterations = 8, enableRetry = false, enableMemoryTrimming = false)
     private class Tools(val action: suspend (Map<String, String>) -> Unit = {}) : ToolManager {
         val paths = mutableListOf<String>()
-        override fun getToolDefinitions() = listOf(ToolDefinition("write_file", "Write file", listOf(
-            ToolParameter("path", "string", "File"), ToolParameter("content", "string", "Content"))))
+        val reads = mutableListOf<String>()
+        override fun getToolDefinitions() = listOf(
+            ToolDefinition("write_file", "Write file", listOf(
+                ToolParameter("path", "string", "File"), ToolParameter("content", "string", "Content"))),
+            ToolDefinition("read_file", "Read file", listOf(ToolParameter("path", "string", "File")))
+        )
         override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
-            paths += arguments.getValue("path")
-            action(arguments)
-            return ToolExecutionResult("Written ${arguments.getValue("path")}")
+            val path = arguments.getValue("path")
+            if (name == "write_file") {
+                paths += path
+                action(arguments)
+                return ToolExecutionResult("Written $path")
+            }
+            reads += path
+            return ToolExecutionResult("Read $path: value")
         }
     }
     private fun write(id: String, path: String) = ToolCall(id, "write_file", mapOf("path" to path, "content" to "value"))
@@ -48,15 +57,22 @@ class AgentSteeringTest {
         val tools = Tools { if (it["path"] == "first.kt") control.submit("Keep first.kt, do not write obsolete.kt") }
         var requests = 0
         val pipeline = AgentPipeline(tools, completionProvider = { request ->
-            if (++requests == 1) CompletionResponse("", listOf(write("a", "first.kt"), write("b", "obsolete.kt")))
-            else {
-                assertTrue(request.messages.flatMap { it.toolResults }.any { it.output.contains("Written first.kt") })
-                assertTrue(request.messages.flatMap { it.toolResults }.any { it.output.contains("Skipped:") })
-                CompletionResponse("Kept first.kt")
+            when (++requests) {
+                1 -> CompletionResponse("", listOf(write("a", "first.kt"), write("b", "obsolete.kt")))
+                2 -> {
+                    assertTrue(request.messages.flatMap { it.toolResults }.any { it.output.contains("Written first.kt") })
+                    assertTrue(request.messages.flatMap { it.toolResults }.any { it.output.contains("Skipped:") })
+                    CompletionResponse("", listOf(ToolCall("verify-first", "read_file", mapOf("path" to "first.kt"))))
+                }
+                else -> {
+                    assertTrue(request.messages.flatMap { it.toolResults }.any { it.output.contains("Read first.kt") })
+                    CompletionResponse("Kept first.kt")
+                }
             }
         }, config = config)
         val events = pipeline.execute("Write two files", modelId = "gpt-4o-mini", scopePath = "/tmp", steering = control).toList()
         assertEquals(listOf("first.kt"), tools.paths)
+        assertEquals(listOf("first.kt"), tools.reads)
         assertEquals("Kept first.kt", events.filterIsInstance<AgentEvent.FinalAnswer>().single().content)
         val usage = events.filterIsInstance<AgentEvent.TokenUsageUpdate>().map { it.totalTokens }
         assertTrue(usage.zipWithNext().all { (a, b) -> b >= a })

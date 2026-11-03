@@ -115,7 +115,7 @@ object EvidenceKinds {
     private val MUTATION = setOf(
         "create_file", "append_to_file", "clear_file", "delete_file", "delete_lines", "delete_text",
         "insert_lines", "replace_lines", "patch_file_content", "multi_patch_file_content",
-        "god_write_file", "god_copy_file", "god_delete_file", "copy_move", "secure_delete"
+        "god_write_file", "god_copy_file", "god_delete_file", "copy_move", "secure_delete", "write_file"
     )
     private val ACTION = setOf(
         "install_tool", "package_installer_tool", "create_notion_page", "remember_fact", "update_memory", "delete_memory",

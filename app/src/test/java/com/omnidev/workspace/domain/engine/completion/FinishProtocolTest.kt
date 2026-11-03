@@ -288,9 +288,11 @@ class FinishProtocolTest {
         assertTrue(r.gate.implicit("All done.") is GateResult.Reject)                  // nothing ran
         r.run("c1", "read_file", mapOf("path" to "/p/A.kt"), "x")
         assertTrue(r.gate.implicit("All done.") is GateResult.Reject)                  // only reads
-        r.run("c2", "run_terminal", mapOf("action" to "exec"), "ok")
-        val accepted = r.gate.implicit("All done.") as GateResult.Publish              // real action exists
+        r.run("c2", "write_file", mapOf("path" to "/p/A.kt", "content" to "fixed"), "written")
+        assertTrue(r.gate.implicit("All done.") is GateResult.Reject)                  // write has not been read back
+        r.run("c3", "read_file", mapOf("path" to "/p/A.kt"), "fixed")
+        val accepted = r.gate.implicit("All done.") as GateResult.Publish              // real action plus same-path read-back
         assertTrue(accepted.report.stats.implicit)
-        assertEquals(3, accepted.report.stats.rejections + 1)
+        assertEquals(3, accepted.report.stats.rejections)
     }
 }

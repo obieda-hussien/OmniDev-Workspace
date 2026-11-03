@@ -87,7 +87,7 @@ Rules:
 - needsConnectedTools=true only when MCP/cloud tools are actually required.
 - Add a verifier task only when independent verification materially changes confidence (e.g. after code edits: build/test/diff).
 - Do not create tasks merely to discover the supplied current time/date.
-- acceptance: 1-3 checkable done-when items per task that a tool result can prove (a file exists, a test passes, a value was read). Omit for pure analysis. toolFree=true only for pure synthesis over dependency results (needs dependencies); every other worker must run real tools. The worker must prove each with real tool evidence and the coordinator re-checks it.
+- acceptance: 1-3 checkable done-when items per task that a tool result can prove (a file exists, a test passes, a value was read). Omit for pure reasoning/explanation. toolFree=true only when the complete task can be done from the user's supplied context or dependency outputs without external/current/repository/device/network/build operations; it may have no dependencies. toolFree tasks must have empty acceptance and needsConnectedTools=false. Set toolFree=false for research, inspection, verification, code, file, build, device, or any task requiring fresh evidence. Every non-toolFree worker must run real tools; the coordinator re-checks evidence.
 Return ONLY a JSON array, no prose and no markdown fence:
 [{"id":"short-kebab-id","description":"GOAL ... | INPUTS ... | STEPS ... | OUTPUT ... | FINISH EVIDENCE ...","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false,"acceptance":["checkable done-when item"],"toolFree":false}]
 """
@@ -349,8 +349,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             // Requirements follow the assigned objective, not a text heuristic: the planner's own contract says
             // parallelSafe=false is the only way to change state, so that is implementation work (needs a
             // successful non-read action). Read-only workers need grounded evidence but are never forced to
-            // modify anything. Only an explicit toolFree synthesis task with dependencies may run no tool.
-            val workerRequiresExecution = !(task.toolFree && task.dependencies.isNotEmpty())
+            // Tool-free is an explicit planner decision for self-contained reasoning/synthesis; all evidence-bearing work requires a real tool call.
+            val workerRequiresExecution = !task.toolFree
             val workerKind = if (task.parallelSafe) com.omnidev.workspace.domain.engine.completion.TaskKind.ANALYSIS
                 else com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION
             val workerIdentity = com.omnidev.workspace.domain.engine.completion.RunIdentity(
@@ -714,7 +714,11 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         appendLine("Budget: ${budget.maxIterations} iterations / ${budget.tokenBudget} tokens (${budget.reason})")
         appendLine("\n## Contract")
         appendLine("Execute only this task. Batch safe reads, stop when finish evidence is sufficient, and do not redo team planning.")
-        appendLine("Use the tool-call channel for every action; never put a tool-call JSON envelope in your reply. Do not greet or role-play.")
+        if (task.toolFree) {
+            appendLine("This task is explicitly tool-free: use only the supplied objective and dependency context. Do not call tools or claim fresh external verification.")
+        } else {
+            appendLine("Use the tool-call channel for every action; never put a tool-call JSON envelope in your reply. Do not greet or role-play.")
+        }
         if (userFacing) appendLine("You are the only worker: your final reply is shown directly to the user. Write it in the user's language (Egyptian Arabic if the user writes Arabic; keep paths and code in English) as valid Markdown: one result sentence, then evidence, then risks/next step.")
         else appendLine("Your reply is read by the synthesizer, not the user.")
         appendLine("Empty output / '(no output)' / NO_MATCHES is inconclusive: retry once with a wider scope (deeper max_depth, parent dir, alternate tool) before reporting. Report only files, paths and results you actually received from tools; write 'NOT VERIFIED' for anything else.")
@@ -923,6 +927,12 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         if (tasks.any { task -> task.dependencies.any { it !in ids || it == task.id } }) {
             return "Invalid Team plan: every dependency must reference another task."
         }
+        if (tasks.any { it.toolFree && it.acceptance.isNotEmpty() }) {
+            return "Invalid Team plan: tool-free tasks cannot declare tool-verifiable acceptance criteria."
+        }
+        if (tasks.any { it.toolFree && it.needsConnectedTools }) {
+            return "Invalid Team plan: tool-free tasks cannot require connected tools."
+        }
         return null
     }
 
@@ -935,6 +945,12 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         }
         if (tasks.any { task -> task.dependencies.any { it !in ids || it == task.id } }) {
             return "Invalid Team plan: every dependency must reference another task."
+        }
+        if (tasks.any { it.toolFree && it.acceptance.isNotEmpty() }) {
+            return "Invalid Team plan: tool-free tasks cannot declare tool-verifiable acceptance criteria."
+        }
+        if (tasks.any { it.toolFree && it.needsConnectedTools }) {
+            return "Invalid Team plan: tool-free tasks cannot require connected tools."
         }
         val resolved = mutableSetOf<String>()
         repeat(tasks.size) {

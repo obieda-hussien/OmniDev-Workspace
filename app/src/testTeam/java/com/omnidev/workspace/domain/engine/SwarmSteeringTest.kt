@@ -25,7 +25,7 @@ class SwarmSteeringTest {
             if (request.systemPrompt.orEmpty().contains("Omni Team Orchestrator")) {
                 if (++plans == 1) { planning.complete(Unit); awaitCancellation() }
                 assertTrue(request.messages.single().content.contains("Use Kotlin instead"))
-                CompletionResponse("""[{"id":"corrected","description":"Explain Kotlin","parallelSafe":true}]""")
+                CompletionResponse("""[{"id":"corrected","description":"Explain Kotlin","parallelSafe":true,"toolFree":true}]""")
             } else CompletionResponse("Corrected team answer")
         })
         val run = async { team.execute("Explain Java", "gpt-4o-mini", "gpt-4o-mini", "/tmp", steering = control).toList() }
@@ -53,7 +53,7 @@ class SwarmSteeringTest {
                 else {
                     assertEquals(0, active.get())
                     assertEquals(2, cancelled.get())
-                    CompletionResponse("""[{"id":"corrected","description":"Explain corrected requirements","parallelSafe":true}]""")
+                    CompletionResponse("""[{"id":"corrected","description":"Explain corrected requirements","parallelSafe":true,"toolFree":true}]""")
                 }
             } else if (plans.get() == 1) {
                 if (active.incrementAndGet() == 2) bothStarted.complete(Unit)
@@ -92,7 +92,7 @@ class SwarmSteeringTest {
                 else {
                     assertTrue(settled)
                     assertTrue(request.messages.single().content.contains("Created app.kt with verified content"))
-                    CompletionResponse("""[{"id":"verify","description":"Explain remaining work","parallelSafe":true}]""")
+                    CompletionResponse("""[{"id":"verify","description":"Explain remaining work","parallelSafe":true,"toolFree":true}]""")
                 }
             } else if (plans == 1) CompletionResponse("", listOf(ToolCall("w", "write_file", emptyMap())))
             else CompletionResponse("Remaining work verified")
@@ -136,7 +136,7 @@ class SwarmSteeringTest {
                         assertTrue(toolSettled)
                         assertFalse(toolCancelled)
                         assertTrue(request.messages.single().content.contains("Verified layout documentation"))
-                        CompletionResponse("""[{"id":"corrected","description":"Explain corrected objective","parallelSafe":true}]""")
+                        CompletionResponse("""[{"id":"corrected","description":"Explain corrected objective","parallelSafe":true,"toolFree":true}]""")
                     }
                 }
                 plans > 1 -> CompletionResponse("Corrected result")

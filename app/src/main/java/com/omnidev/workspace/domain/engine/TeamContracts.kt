@@ -46,7 +46,7 @@ data class SwarmTask(
     val needsConnectedTools: Boolean = false,
     /** Checkable "done when" items. The worker must prove each with ledger evidence (A1..An). */
     val acceptance: List<String> = emptyList(),
-    /** Only honoured for tasks with dependencies: pure synthesis over dependency results may run no tool. */
+    /** Explicit self-contained reasoning or dependency synthesis that needs no external/tool evidence. */
     val toolFree: Boolean = false
 )
 

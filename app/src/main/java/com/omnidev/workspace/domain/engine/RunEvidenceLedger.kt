@@ -76,7 +76,13 @@ class RunEvidenceLedger(
         )
         // Only successful, non-empty tool output can confirm a file/path. Error and empty
         // outputs remain in the ledger but cannot validate a claimed read or listing.
-        if (outcome == Outcome.OK) corpus.append('\n').append(output.take(MAX_OUTPUT_IN_CORPUS))
+        if (outcome == Outcome.OK) {
+            corpus.append('\n').append(output.take(MAX_OUTPUT_IN_CORPUS))
+            val entry = entries.last()
+            if (entry.kind == EvidenceKinds.Kind.READ) {
+                EvidenceKinds.pathOf(entry.target)?.let { path -> corpus.append('\n').append(path) }
+            }
+        }
         if (corpus.length > MAX_CORPUS_CHARS) corpus.delete(0, corpus.length - MAX_CORPUS_CHARS)
     }
 
