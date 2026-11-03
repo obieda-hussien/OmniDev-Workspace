@@ -151,9 +151,10 @@ object FinishVerifier {
             .forEach { lastByPath[EvidenceKinds.pathOf(it.target) ?: "*"] = it }
         return lastByPath.values.filter { m ->
             val path = EvidenceKinds.pathOf(m.target)
-            evidence.none { r ->
+            // Unknown targets are unverifiable: an unrelated or pathless read is not proof.
+            path == null || evidence.none { r ->
                 r.seq > m.seq && r.kind == EvidenceKinds.Kind.READ && r.outcome == Outcome.OK &&
-                    (path == null || EvidenceKinds.pathOf(r.target).let { it == null || it == path })
+                    EvidenceKinds.pathOf(r.target) == path
             }
         }
     }

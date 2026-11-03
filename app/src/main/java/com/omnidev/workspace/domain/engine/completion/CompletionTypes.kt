@@ -95,9 +95,16 @@ data class CompletionReport(
 ) {
     companion object {
         fun digest(evidence: List<EvidenceRef>): String {
-            val text = evidence.joinToString("\n") { "${it.seq}|${it.callId}|${it.tool}|${it.outcome}|${it.runId}" }
-            return MessageDigest.getInstance("SHA-256").digest(text.toByteArray())
-                .joinToString("") { "%02x".format(it) }.take(16)
+            // Length-prefix every field so separators inside paths and ids cannot make an ambiguous payload.
+            fun field(value: String): String = value.length.toString() + ":" + value
+            val canonical = evidence.joinToString("\n") { entry ->
+                listOf(
+                    entry.seq.toString(), entry.callId, entry.tool, entry.target,
+                    entry.outcome.name, entry.kind.name, entry.runId, entry.workerId.orEmpty()
+                ).joinToString("") { field(it) }
+            }
+            return MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray())
+                .joinToString("") { "%02x".format(it) }
         }
     }
 }
@@ -108,19 +115,59 @@ object EvidenceKinds {
     private val MUTATION = setOf(
         "create_file", "append_to_file", "clear_file", "delete_file", "delete_lines", "delete_text",
         "insert_lines", "replace_lines", "patch_file_content", "multi_patch_file_content",
-        "god_write_file", "god_copy_file", "god_delete_file", "copy_move", "secure_delete"
+        "god_write_file", "god_copy_file", "god_delete_file", "copy_move", "secure_delete",
+        "install_tool", "package_installer_tool", "create_notion_page", "remember_fact", "update_memory", "delete_memory"
     )
     private val READ = setOf(
         "read_file", "read_file_lines", "multi_read", "god_read_file", "god_list_directory",
         "god_stat_file", "find_files", "file_info", "hex_dump", "diff_files", "grep_search",
-        "search_codebase", "repo_find_context", "repo_file_symbols"
+        "search_codebase", "repo_find_context", "repo_file_symbols", "repo_search_symbols",
+        "search_messages", "list_chat_sessions", "read_chat_session", "read_chat_message",
+        "fetch_page", "web_search", "web_search_deep", "web_scraper", "scrape_multiple", "headless_browser"
     )
-    private val PATH = Regex("(?:path|filePath|directory)=(\\S+)")
+    private val COMMAND_TOOLS = setOf(
+        "run_terminal", "agent_runtime", "privileged_tool", "root_shell_tool", "advanced_root_shell",
+        "direct_terminal", "execute_terminal_command", "python_runner", "python_runtime"
+    )
+    private val COMMAND_ARGUMENTS = setOf("command", "cmd", "shell_command", "script", "code", "source", "expression")
+    private val PATH = Regex("""(?:path|filePath|file_path|filepath|directory|file|filename|output_path)=(\S+)""")
+    private val MUTATING_COMMAND = Regex(
+        """(?is)(?:^|[;&|]\s*)(?:sudo\s+)?(?:tee|touch|mkdir|rmdir|rm|mv|cp|install|truncate|patch)\b|(?:sed|perl)\s+-i\b|\bgit\s+(?:apply|checkout|merge|cherry-pick|reset|revert|clean)\b|\b(?:write_text|write_bytes|unlink|mkdir|remove|rename|replace)\s*\(|\bopen\s*\([^)]*,\s*['"][wax]|(?<!>)>(?!>)"""
+    )
+    private val REDIRECT_TARGET = Regex(
+        """(?:>>?|\btee\s+)\s*["']?(/[^\s"';&|]+|~?/[^\s"';&|]+|(?:\./)?[A-Za-z0-9_.-]+\.[A-Za-z0-9_-]+)"""
+    )
+    private val FILE_TARGET = Regex(
+        """(?is)\b(?:touch|mkdir|rmdir|rm|mv|cp|install|truncate|patch)\b(?:\s+-[^\s]+)*\s+(/[^\s;&|]+|~?/[^\s;&|]+|(?:\./)?[A-Za-z0-9_.-]+\.[A-Za-z0-9_-]+)"""
+    )
+    private val PYTHON_TARGET = Regex(
+        """(?:write_text|write_bytes|open)\s*\(\s*['"]([^'"]+)['"]"""
+    )
 
     fun classify(tool: String): Kind = when (tool) {
         in MUTATION -> Kind.MUTATION
         in READ -> Kind.READ
         else -> Kind.OTHER
+    }
+
+    /** Inspect command payload only to classify side effects; raw command text is never persisted as evidence. */
+    fun classify(tool: String, arguments: Map<String, String>): Kind {
+        val known = classify(tool)
+        if (known != Kind.OTHER || tool !in COMMAND_TOOLS) return known
+        val command = arguments.entries.filter { it.key.lowercase() in COMMAND_ARGUMENTS }
+            .joinToString("\n") { it.value.take(20_000) }
+        return if (MUTATING_COMMAND.containsMatchIn(command)) Kind.MUTATION else Kind.OTHER
+    }
+
+    /** Best-effort target extraction for common shell redirection and file mutation operations. */
+    fun commandTarget(tool: String, arguments: Map<String, String>): String? {
+        if (tool !in COMMAND_TOOLS) return null
+        val command = arguments.entries.filter { it.key.lowercase() in COMMAND_ARGUMENTS }
+            .joinToString("\n") { it.value.take(20_000) }
+        if (!MUTATING_COMMAND.containsMatchIn(command)) return null
+        return REDIRECT_TARGET.find(command)?.groupValues?.getOrNull(1)
+            ?: PYTHON_TARGET.find(command)?.groupValues?.getOrNull(1)
+            ?: FILE_TARGET.find(command)?.groupValues?.getOrNull(1)
     }
 
     /** Path-like target recorded by the ledger (already redacted), or null. */

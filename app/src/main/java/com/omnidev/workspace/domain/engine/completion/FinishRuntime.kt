@@ -88,7 +88,10 @@ class FinishRuntime private constructor(
             runIdentity: RunIdentity?, goal: String, signals: IntentClassifier.TaskSignals, isWorker: Boolean,
             toolsAvailable: Boolean, modelId: String, enableModelProfiles: Boolean
         ): FinishRuntime {
-            val identity = runIdentity ?: RunIdentity()
+            val requestedIdentity = runIdentity ?: RunIdentity()
+            val identity = requestedIdentity.copy(
+                taskKind = FinalizationPolicy.resolveTaskKind(signals, requestedIdentity.taskKind)
+            )
             val profile = ModelExecutionProfile.resolve(modelId, enableModelProfiles)
             val policy = FinalizationPolicy.decide(signals, isWorker, toolsAvailable, identity)
             val ledger = RunEvidenceLedger(identity.runId, identity.workerId)

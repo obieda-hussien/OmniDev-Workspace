@@ -22,6 +22,24 @@ class FinishProtocolTest {
 
     private fun rig(acceptance: List<String> = emptyList(), policy: FinalizationPolicy = action) = Rig(identity, policy, acceptance)
 
+    private fun signals(
+        wordCount: Int = 1,
+        executionIntent: Float = 0f,
+        conversationalIntent: Float = 0f,
+        mutationIntent: Float = 0f,
+        codeIntent: Float = 0f,
+        deviceIntent: Float = 0f,
+        researchIntent: Float = 0f,
+        verificationIntent: Float = 0f,
+        parallelism: Float = 0f,
+        breadth: Float = 0f,
+        structuralComplexity: Float = 0f,
+        domainCount: Int = 0
+    ) = IntentClassifier.TaskSignals(
+        wordCount, executionIntent, conversationalIntent, mutationIntent, codeIntent, deviceIntent,
+        researchIntent, verificationIntent, parallelism, breadth, structuralComplexity, domainCount
+    )
+
     // 1. Model says it executed without any tool call.
     @Test fun `text claiming execution with no tool call is rejected then downgraded to incomplete`() {
         val r = rig()
@@ -105,6 +123,12 @@ class FinishProtocolTest {
         assertFalse(WorkerEvidenceReview.review(published.report, "w2", emptyList(), true, true).accepted)
         val forged = published.report.copy(evidence = published.report.evidence + published.report.evidence.first().copy(seq = 99, callId = "fake"))
         assertFalse(WorkerEvidenceReview.review(forged, "w1", emptyList(), true, true).accepted)
+        val changedTarget = published.report.copy(evidence = published.report.evidence.map { it.copy(target = "path=/p/Other.kt") })
+        assertFalse(WorkerEvidenceReview.review(changedTarget, "w1", emptyList(), true, true).accepted)
+        val changedKind = published.report.copy(evidence = published.report.evidence.map { it.copy(kind = EvidenceKinds.Kind.MUTATION) })
+        assertFalse(WorkerEvidenceReview.review(changedKind, "w1", emptyList(), true, true).accepted)
+        val changedWorker = published.report.copy(evidence = published.report.evidence.map { it.copy(workerId = "other-worker") })
+        assertFalse(WorkerEvidenceReview.review(changedWorker, "w1", emptyList(), true, true).accepted)
         val blocked = r.finish("status" to "blocked", "summary" to "no permission") as GateResult.Publish
         assertFalse(WorkerEvidenceReview.review(blocked.report, "w1", emptyList(), true, true).accepted)
     }
@@ -121,15 +145,38 @@ class FinishProtocolTest {
 
     // 8. Pure chat never enters forced finalization.
     @Test fun `pure chat and toolless runs are not bound by the protocol`() {
-        val chat = IntentClassifier.TaskSignals(conversationalIntent = 0.9f)
+        val chat = signals(conversationalIntent = 0.9f)
         assertFalse(FinalizationPolicy.decide(chat, isWorker = false, toolsAvailable = true).enforce)
-        val act = IntentClassifier.TaskSignals(executionIntent = 0.7f, mutationIntent = 0.5f)
+        val act = signals(executionIntent = 0.7f, mutationIntent = 0.5f)
         assertFalse(FinalizationPolicy.decide(act, isWorker = false, toolsAvailable = false).enforce)
         val bound = FinalizationPolicy.decide(act, isWorker = false, toolsAvailable = true)
         assertTrue(bound.enforce && bound.requireExecution)
-        val soft = FinalizationPolicy.decide(IntentClassifier.TaskSignals(executionIntent = 0.4f), false, true)
+        val soft = FinalizationPolicy.decide(signals(executionIntent = 0.4f), false, true)
         assertTrue(soft.enforce && !soft.requireExecution)
         assertTrue(FinalizationPolicy.decide(chat, isWorker = true, toolsAvailable = true).enforce)
+    }
+
+    @Test fun `ordinary agent infers implementation requirements from mutation intent`() {
+        val mutation = signals(executionIntent = 0.72f, mutationIntent = 0.48f)
+        val runtime = FinishRuntime.create(null, "fix Foo.kt", mutation, false, true, "test-model", false)
+        assertEquals(TaskKind.IMPLEMENTATION, runtime.identity.taskKind)
+        assertTrue(FinalizationPolicy.decide(mutation, false, true, runtime.identity).requireAction)
+
+        val inspection = signals(executionIntent = 0.72f)
+        val inspectRuntime = FinishRuntime.create(null, "inspect Foo.kt", inspection, false, true, "test-model", false)
+        assertEquals(TaskKind.GENERAL, inspectRuntime.identity.taskKind)
+        assertFalse(FinalizationPolicy.decide(inspection, false, true, inspectRuntime.identity).requireAction)
+    }
+
+    @Test fun `shell file writes are tracked and require same path read back`() {
+        val r = rig(policy = FinalizationPolicy(true, true, requireAction = true))
+        r.run("c1", "run_terminal", mapOf("command" to "printf 'fixed' > /p/Foo.kt"), "written")
+        assertTrue(r.state.nextAction().contains("/p/Foo.kt"))
+        assertTrue(r.finish("status" to "completed", "summary" to "fixed", "evidence" to "c1") is GateResult.Reject)
+        r.run("c2", "read_file", mapOf("path" to "/p/Other.kt"), "unrelated")
+        assertTrue(r.finish("status" to "completed", "summary" to "fixed", "evidence" to "c1,c2") is GateResult.Reject)
+        r.run("c3", "read_file", mapOf("path" to "/p/Foo.kt"), "fixed")
+        assertTrue(r.finish("status" to "completed", "summary" to "fixed", "evidence" to "c1,c3") is GateResult.Publish)
     }
 
     @Test fun `edits must be read back`() {
@@ -198,7 +245,7 @@ class FinishProtocolTest {
 
     @Test fun `analysis worker is never forced to modify and honest terminals are not retryable`() {
         val wid = RunIdentity("run-an", "w2", taskKind = TaskKind.ANALYSIS)
-        val policy = FinalizationPolicy.decide(IntentClassifier.TaskSignals(), isWorker = true, toolsAvailable = true, identity = wid)
+        val policy = FinalizationPolicy.decide(signals(), isWorker = true, toolsAvailable = true, identity = wid)
         assertTrue(policy.requireExecution)
         assertFalse(policy.requireAction)
         val r = Rig(wid, policy)

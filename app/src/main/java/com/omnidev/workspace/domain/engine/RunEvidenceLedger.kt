@@ -68,11 +68,11 @@ class RunEvidenceLedger(
         entries += Entry(
             seq = seq,
             tool = call.name,
-            target = describeArguments(call.arguments),
+            target = describeArguments(call.name, call.arguments),
             outcome = outcome,
             evidence = trimmed.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().trim().take(140),
             callId = call.id,
-            kind = EvidenceKinds.classify(call.name)
+            kind = EvidenceKinds.classify(call.name, call.arguments)
         )
         // Only successful, non-empty tool output can confirm a file/path. Error and empty
         // outputs remain in the ledger but cannot validate a claimed read or listing.
@@ -212,14 +212,19 @@ class RunEvidenceLedger(
         }
     }
 
-    private fun describeArguments(arguments: Map<String, String>): String {
+    private fun describeArguments(toolName: String, arguments: Map<String, String>): String {
         // Keep only low-risk identifiers; raw commands, URLs and free-form queries can carry credentials.
-        val keys = listOf("action", "path", "filePath", "directory", "repo", "name_pattern", "name")
-        return keys.mapNotNull { key ->
+        val explicitPath = listOf("path", "filePath", "file_path", "filepath", "directory", "file", "filename", "output_path")
+            .firstNotNullOfOrNull { key -> arguments[key]?.takeIf(String::isNotBlank) }
+        val path = (explicitPath ?: EvidenceKinds.commandTarget(toolName, arguments))?.let {
+            "path=${SensitiveObservationRedactor.redact(it.replace('\n', ' ')).take(120)}"
+        }
+        val metadata = listOf("action", "repo", "name_pattern", "name").mapNotNull { key ->
             arguments[key]?.takeIf(String::isNotBlank)?.let {
                 "$key=${SensitiveObservationRedactor.redact(it.replace('\n', ' ')).take(80)}"
             }
-        }.take(3).joinToString(" ")
+        }
+        return (listOfNotNull(path) + metadata).take(4).joinToString(" ")
     }
 
     private companion object {

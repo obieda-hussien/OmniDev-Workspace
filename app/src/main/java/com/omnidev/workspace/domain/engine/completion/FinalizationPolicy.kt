@@ -18,6 +18,10 @@ data class FinalizationPolicy(
         private const val MUTATION = 0.16f
         private const val STRONG_EXECUTION = 0.55f
 
+        fun resolveTaskKind(signals: IntentClassifier.TaskSignals, requested: TaskKind): TaskKind =
+            if (requested == TaskKind.GENERAL && signals.mutationIntent >= MUTATION) TaskKind.IMPLEMENTATION
+            else requested
+
         fun decide(
             signals: IntentClassifier.TaskSignals,
             isWorker: Boolean,
