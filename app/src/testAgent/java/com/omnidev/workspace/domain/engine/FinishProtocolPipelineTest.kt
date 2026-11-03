@@ -158,7 +158,7 @@ class FinishProtocolPipelineTest {
         val tools = FileTools()
         var lastState: String? = null
         val long = config.copy(maxIterations = 60)
-        val readOnlyTask = "Analyze and verify 40 files and report findings"
+        val readOnlyTask = "Analyze and verify 40 Kotlin files and report findings"
         var round = 0
         val pipeline = AgentPipeline(tools, completionProvider = { req ->
             round++
@@ -168,7 +168,7 @@ class FinishProtocolPipelineTest {
         }, config = long)
         val events = pipeline.execute(readOnlyTask, modelId = "gpt-4o-mini", scopePath = "/tmp",
             preferredToolNames = setOf("read_file", "patch_file_content"),
-            runIdentity = RunIdentity(taskKind = TaskKind.ANALYSIS)).toList()
+            runIdentity = RunIdentity(taskKind = TaskKind.ANALYSIS, requireExecution = true)).toList()
         val report = events.final().completion!!
         assertEquals(FinishStatus.COMPLETED, report.status)
         assertTrue(lastState!!.contains("GOAL: $readOnlyTask"))
