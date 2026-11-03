@@ -115,11 +115,10 @@ object EvidenceKinds {
     private val MUTATION = setOf(
         "create_file", "append_to_file", "clear_file", "delete_file", "delete_lines", "delete_text",
         "insert_lines", "replace_lines", "patch_file_content", "multi_patch_file_content",
-        "god_write_file", "god_copy_file", "god_delete_file", "copy_move", "secure_delete",
-        "install_tool", "package_installer_tool", "create_notion_page", "remember_fact", "update_memory", "delete_memory"
+        "god_write_file", "god_copy_file", "god_delete_file", "copy_move", "secure_delete"
     )
     private val ACTION = setOf(
-        "install_tool", "package_installer_tool", "create_notion_page", "remember_fact", "update_memory",
+        "install_tool", "package_installer_tool", "create_notion_page", "remember_fact", "update_memory", "delete_memory",
         "device_admin", "hardware_toggle_tool", "app_manager_tool", "communicate_tool", "oem_system"
     )
     private val READ = setOf(
@@ -139,10 +138,10 @@ object EvidenceKinds {
         """(?is)(?:^|[;&|]\s*)(?:sudo\s+)?(?:tee|touch|mkdir|rmdir|rm|mv|cp|install|truncate|patch)\b|(?:sed|perl)\s+-i\b|\bgit\s+(?:apply|checkout|merge|cherry-pick|reset|revert|clean)\b|\b(?:write_text|write_bytes|unlink|mkdir|remove|rename|replace)\s*\(|\bopen\s*\([^)]*,\s*['"][wax]|(?<!>)>(?!>)"""
     )
     private val READ_ONLY_COMMAND = Regex(
-        """(?is)(?:^|[;&|]\\s*)(?:cd\\s+[^;&|]+\\s*(?:&&|;)\\s*)?(?:pwd|ls|find|cat|head|tail|grep|rg|stat|file|wc|git\\s+(?:status|diff|log|show|branch|rev-parse))\\b|\\b(?:read_text|read_bytes|exists|is_file|is_dir)\\s*\\(|\\bopen\\s*\\([^)]*,\\s*['"]r"""
+        """(?is)(?:^|[;&|]\s*)(?:cd\s+[^;&|]+\s*(?:&&|;)\s*)?(?:pwd|ls|find|cat|head|tail|grep|rg|stat|file|wc|git\s+(?:status|diff|log|show|branch|rev-parse))\b|\b(?:read_text|read_bytes|exists|is_file|is_dir)\s*\(|\bopen\s*\([^)]*,\s*['"]r"""
     )
     private val SYSTEM_ACTION_COMMAND = Regex(
-        """(?is)(?:^|[;&|]\\s*)(?:settings\\s+put|pm\\s+(?:install|uninstall|enable|disable)|svc\\s+\\w+\\s+(?:enable|disable)|setprop|chmod|chown|am\\s+(?:start|force-stop)|reboot)\\b"""
+        """(?is)(?:^|[;&|]\s*)(?:settings\s+put|pm\s+(?:install|uninstall|enable|disable)|svc\s+\w+\s+(?:enable|disable)|setprop|chmod|chown|am\s+(?:start|force-stop)|reboot)\b"""
     )
     private val REDIRECT_TARGET = Regex(
         """(?:>>?|\btee\s+)\s*["']?(/[^\s"';&|]+|~?/[^\s"';&|]+|(?:\./)?[A-Za-z0-9_.-]+\.[A-Za-z0-9_-]+)"""
