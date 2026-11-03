@@ -101,7 +101,9 @@ class FinishProtocolPipelineTest {
             when (round) {
                 1 -> CompletionResponse("", listOf(call("r1", "read_file", "path" to "/tmp/Foo.kt")))
                 2 -> CompletionResponse("", listOf(finish("f1", "status" to "done!!", "summary" to "x")))
-                else -> CompletionResponse("", listOf(finish("f2", "status" to "completed", "summary" to "read ok", "evidence" to "r1")))
+                3 -> CompletionResponse("", listOf(call("p1", "patch_file_content", "path" to "/tmp/Foo.kt", "content" to "fixed")))
+                4 -> CompletionResponse("", listOf(call("r2", "read_file", "path" to "/tmp/Foo.kt")))
+                else -> CompletionResponse("", listOf(finish("f2", "status" to "completed", "summary" to "patched and verified", "evidence" to "p1,r2")))
             }
         }
         val report = events.final().completion!!
@@ -140,8 +142,12 @@ class FinishProtocolPipelineTest {
         var exposed = false
         run(tools) { round, req ->
             if (req.tools.orEmpty().any { it.name == FinishTool.NAME }) exposed = true
-            if (round == 1) CompletionResponse("", listOf(call("r1", "read_file", "path" to "/tmp/Foo.kt")))
-            else CompletionResponse("", listOf(finish("f1", "status" to "completed", "summary" to "ok", "evidence" to "r1")))
+            when (round) {
+                1 -> CompletionResponse("", listOf(call("r1", "read_file", "path" to "/tmp/Foo.kt")))
+                2 -> CompletionResponse("", listOf(call("p1", "patch_file_content", "path" to "/tmp/Foo.kt", "content" to "fixed")))
+                3 -> CompletionResponse("", listOf(call("r2", "read_file", "path" to "/tmp/Foo.kt")))
+                else -> CompletionResponse("", listOf(finish("f1", "status" to "completed", "summary" to "ok", "evidence" to "p1,r2")))
+            }
         }
         assertTrue(exposed)
         assertTrue(tools.executed.none { it.first == FinishTool.NAME })
@@ -152,6 +158,7 @@ class FinishProtocolPipelineTest {
         val tools = FileTools()
         var lastState: String? = null
         val long = config.copy(maxIterations = 60)
+        val readOnlyTask = "Analyze and verify 40 files and report findings"
         var round = 0
         val pipeline = AgentPipeline(tools, completionProvider = { req ->
             round++
@@ -159,11 +166,12 @@ class FinishProtocolPipelineTest {
             if (round <= 40) CompletionResponse("", listOf(call("c$round", "read_file", "path" to "/tmp/F$round.kt")))
             else CompletionResponse("", listOf(finish("f", "status" to "completed", "summary" to "read 40 files", "evidence" to "c40")))
         }, config = long)
-        val events = pipeline.execute(task, modelId = "gpt-4o-mini", scopePath = "/tmp",
-            preferredToolNames = setOf("read_file", "patch_file_content")).toList()
+        val events = pipeline.execute(readOnlyTask, modelId = "gpt-4o-mini", scopePath = "/tmp",
+            preferredToolNames = setOf("read_file", "patch_file_content"),
+            runIdentity = RunIdentity(taskKind = TaskKind.ANALYSIS)).toList()
         val report = events.final().completion!!
         assertEquals(FinishStatus.COMPLETED, report.status)
-        assertTrue(lastState!!.contains("GOAL: $task"))
+        assertTrue(lastState!!.contains("GOAL: $readOnlyTask"))
         assertTrue(lastState!!.contains("c39") || lastState!!.contains("c40"))
     }
 
