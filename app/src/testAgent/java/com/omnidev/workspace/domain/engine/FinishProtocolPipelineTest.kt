@@ -158,7 +158,10 @@ class FinishProtocolPipelineTest {
         val tools = FileTools()
         var lastState: String? = null
         val long = config.copy(maxIterations = 60)
-        val readOnlyTask = "Analyze and verify 40 Kotlin files and report findings"
+        val readOnlyTask = "Analyze, test and verify 40 Kotlin files and report findings"
+        val signals = IntentClassifier.analyze(readOnlyTask)
+        assertTrue(signals.executionIntent >= 0.34f)
+        assertTrue(signals.mutationIntent < 0.16f)
         var round = 0
         val pipeline = AgentPipeline(tools, completionProvider = { req ->
             round++
