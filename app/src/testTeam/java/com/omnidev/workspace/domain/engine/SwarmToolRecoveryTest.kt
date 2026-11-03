@@ -43,7 +43,8 @@ class SwarmToolRecoveryTest {
                     {"id":"layout","description":"Research screen layout and visual hierarchy","parallelSafe":true}
                 ]""")
                 request.systemPrompt.orEmpty().contains("Synthesize specialist") -> CompletionResponse("Complete")
-                request.messages.any { it.toolResults.isNotEmpty() } -> CompletionResponse("Verified task")
+                request.messages.any { it.toolResults.isNotEmpty() } &&
+                    (authReadbacks.get() > 0 || (layoutReads.get() > 0 && authWrites.get() == 0)) -> CompletionResponse("Verified task")
                 else -> {
                     val assigned = request.messages.joinToString("\n") { it.content }
                     when {
@@ -63,6 +64,9 @@ class SwarmToolRecoveryTest {
             "gpt-4o-mini", "gpt-4o-mini", "/tmp").toList()
         assertEquals(events.joinToString("\n"), 1, mutations.get())
         assertEquals(0, unsafeOverlap.get())
+        assertEquals(1, authWrites.get())
+        assertEquals(1, authReadbacks.get())
+        assertEquals(1, layoutReads.get())
         assertEquals(1, events.filterIsInstance<SwarmEvent.WorkerPhaseChanged>().count { it.phase == "REPLAN" })
         val complete = events.filterIsInstance<SwarmEvent.Completed>().single()
         assertEquals(2, complete.tasksCompleted)
