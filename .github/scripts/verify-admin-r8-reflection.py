@@ -30,7 +30,7 @@ def verify_mapping(mapping_text: str) -> None:
                 break
             member_lines.append(line)
 
-        if not any(re.search(r"<init>\(\)\s*->\s*<init>", line) for line in member_lines):
+        if not any(re.search(r"<init>\(\)(?::\d+(?::\d+)?)?\s*->\s*<init>", line) for line in member_lines):
             raise ValueError(
                 f"R8 removed or renamed the public zero-argument constructor for {class_name}"
             )
