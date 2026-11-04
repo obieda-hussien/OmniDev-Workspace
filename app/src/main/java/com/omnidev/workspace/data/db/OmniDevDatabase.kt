@@ -15,9 +15,11 @@ import com.omnidev.workspace.data.db.dao.ReflexionDao
 import com.omnidev.workspace.data.db.dao.RepoIndexDao
 import com.omnidev.workspace.data.db.dao.RollbackDao
 import com.omnidev.workspace.data.db.dao.SystemKnowledgeDao
+import com.omnidev.workspace.data.db.dao.TaskStateDao
 import com.omnidev.workspace.data.db.dao.ToolExecutionDao
 import com.omnidev.workspace.data.db.dao.ScheduledTaskDao
 import com.omnidev.workspace.data.db.dao.SharedMemoryDao
+import com.omnidev.workspace.data.db.entities.AgentTaskEntity
 import com.omnidev.workspace.data.db.entities.BuildDiagnosticEntry
 import com.omnidev.workspace.data.db.entities.ChatMessageEntity
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
@@ -31,6 +33,11 @@ import com.omnidev.workspace.data.db.entities.SystemKnowledgeEntry
 import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
 import com.omnidev.workspace.data.db.entities.ScheduledTaskEntity
 import com.omnidev.workspace.data.db.entities.SharedMemoryRecordEntity
+import com.omnidev.workspace.data.db.entities.TaskCycleEntity
+import com.omnidev.workspace.data.db.entities.TaskEventEntity
+import com.omnidev.workspace.data.db.entities.TaskInvocationEntity
+import com.omnidev.workspace.data.db.entities.TaskPlanEntity
+import com.omnidev.workspace.data.db.entities.TaskStepEntity
 
 /**
  * Single Room database instance for all persisted OmniDev data:
@@ -71,13 +78,21 @@ import com.omnidev.workspace.data.db.entities.SharedMemoryRecordEntity
         // ── Build Doctor Pro (v10) ────────────────────────
         BuildDiagnosticEntry::class
     , ScheduledTaskEntity::class,
-        SharedMemoryRecordEntity::class],
-    version = 17,
+        SharedMemoryRecordEntity::class,
+        // ── Persistent task state (v18) ───────────────────
+        AgentTaskEntity::class,
+        TaskPlanEntity::class,
+        TaskStepEntity::class,
+        TaskCycleEntity::class,
+        TaskInvocationEntity::class,
+        TaskEventEntity::class],
+    version = 18,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
 
     abstract fun knowledgeDao(): KnowledgeDao
+    abstract fun taskStateDao(): TaskStateDao
     abstract fun chatSessionDao(): ChatSessionDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun toolExecutionDao(): ToolExecutionDao
@@ -651,6 +666,34 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        /** v18: persistent task state. Purely additive: no existing table or row is touched. */
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS agent_tasks (taskId TEXT NOT NULL, sessionId INTEGER, originalRequest TEXT NOT NULL, normalizedObjective TEXT NOT NULL, parentTaskId TEXT, workerId TEXT, constraintsJson TEXT NOT NULL, status TEXT NOT NULL, currentCycle INTEGER NOT NULL, currentStepId TEXT, planRevision INTEGER NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, heartbeatAt INTEGER NOT NULL, finishStatus TEXT, finishSummary TEXT NOT NULL, completionDigest TEXT NOT NULL, PRIMARY KEY(taskId))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_tasks_sessionId ON agent_tasks (sessionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_tasks_status ON agent_tasks (status)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS agent_task_plans (planId TEXT NOT NULL, taskId TEXT NOT NULL, revision INTEGER NOT NULL, reason TEXT NOT NULL, createdAt INTEGER NOT NULL, supersededAt INTEGER, PRIMARY KEY(planId))")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_agent_task_plans_taskId_revision ON agent_task_plans (taskId, revision)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS agent_task_steps (stepId TEXT NOT NULL, planId TEXT NOT NULL, taskId TEXT NOT NULL, stepKey TEXT NOT NULL, ordinal INTEGER NOT NULL, description TEXT NOT NULL, dependsOn TEXT NOT NULL, expectedOutput TEXT NOT NULL, completionCondition TEXT NOT NULL, status TEXT NOT NULL, statusReason TEXT NOT NULL, evidenceIds TEXT NOT NULL, nonToolJustification TEXT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(stepId))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_task_steps_taskId ON agent_task_steps (taskId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_task_steps_planId ON agent_task_steps (planId)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS agent_task_cycles (cycleId TEXT NOT NULL, taskId TEXT NOT NULL, seq INTEGER NOT NULL, planRevision INTEGER NOT NULL, stepId TEXT, startedAt INTEGER NOT NULL, endedAt INTEGER, outcome TEXT NOT NULL, summary TEXT NOT NULL, decisionsJson TEXT NOT NULL, PRIMARY KEY(cycleId))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_task_cycles_taskId ON agent_task_cycles (taskId)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS agent_task_invocations (invocationId TEXT NOT NULL, callId TEXT NOT NULL, taskId TEXT NOT NULL, cycleId TEXT NOT NULL, stepId TEXT, toolName TEXT NOT NULL, schemaId TEXT NOT NULL, inputSanitized TEXT NOT NULL, inputHash TEXT NOT NULL, effect TEXT NOT NULL, idempotencyKey TEXT NOT NULL, attempt INTEGER NOT NULL, retryOf TEXT, status TEXT NOT NULL, requestedAt INTEGER NOT NULL, startedAt INTEGER, completedAt INTEGER, resultSummary TEXT NOT NULL, resultHash TEXT NOT NULL, resultTruncated INTEGER NOT NULL, resultChars INTEGER NOT NULL, isError INTEGER NOT NULL, errorDetail TEXT NOT NULL, classification TEXT NOT NULL, verification TEXT NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY(invocationId))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_task_invocations_taskId_seq ON agent_task_invocations (taskId, seq)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_task_invocations_taskId_status ON agent_task_invocations (taskId, status)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS agent_task_events (seq INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, taskId TEXT NOT NULL, entityType TEXT NOT NULL, entityId TEXT NOT NULL, fromState TEXT NOT NULL, toState TEXT NOT NULL, reason TEXT NOT NULL, at INTEGER NOT NULL, eventKey TEXT NOT NULL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_agent_task_events_taskId_eventKey ON agent_task_events (taskId, eventKey)")
+            }
+        }
+
+        /** Every migration in order. The database builder and the migration tests use this one list. */
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(
+            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+            MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
+            MIGRATION_16_17, MIGRATION_17_18
+        )
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -658,19 +701,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     OmniDevDatabase::class.java,
                     "omnidev_workspace.db"
                 )
-                    .addMigrations(
-                        MIGRATION_1_2,
-                        MIGRATION_2_3,
-                        MIGRATION_3_4,
-                        MIGRATION_4_5,
-                        MIGRATION_5_6,
-                        MIGRATION_6_7,
-                        MIGRATION_7_8,
-                        MIGRATION_8_9,
-                        MIGRATION_9_10,
-                        MIGRATION_10_11,
-                        MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17
-                    )
+                    .addMigrations(*ALL_MIGRATIONS)
                     .build().also { INSTANCE = it }
             }
     }
