@@ -69,3 +69,12 @@ so they block completion, and skipped ones return as `SKIPPED`. The gate re-veri
 - Results are bounded (8,000 characters, head and tail kept, hash of the full redacted text); the full text is not kept.
 - Automatic reconciliation probes per tool do not exist; `UNKNOWN` needs a read-only check or an explicit `reconcile`.
 - Worker and parent ids are stored but no team-level completion protocol is implemented here.
+
+
+## Side-effect reconciliation safety
+
+A later read is diagnostic context, not reconciliation evidence by itself. An unresolved side effect remains blocked
+until its exact invocation ID is explicitly reconciled with a verification statement stored on that invocation.
+An identical side effect already recorded as successful is also blocked from accidental duplicate execution.
+Startup recovery is a readiness barrier: new agent task persistence waits for the previous-process sweep to finish,
+and a failed sweep remains visible and prevents mutation execution.

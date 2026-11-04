@@ -38,7 +38,9 @@ class TaskRunRecorder(
     private val effectOf: (ToolCall) -> Effect,
     private val redact: (String) -> String = { it },
     private val clock: () -> Long = System::currentTimeMillis,
-    private val schemaIdOf: (String) -> String = { it }
+    private val schemaIdOf: (String) -> String = { it },
+    /** Waits for the process-wide stale-task sweep before this run can create persistent state. */
+    private val awaitStartupRecovery: suspend () -> Unit = { TaskRecoveryBootstrap.awaitReady() }
 ) {
     private val lock = Mutex()
     /** Own scope: persistence of the verdict must survive the run's coroutine being cancelled. */
@@ -79,6 +81,8 @@ class TaskRunRecorder(
 
     fun start(objective: String) {
         queue {
+            // A new run must not become visible to the startup sweep until that sweep is complete.
+            awaitStartupRecovery()
             val at = clock()
             if (!resumed) {
                 store.createTask(NewTask(taskId, sessionId, originalRequest, "", parentTaskId, workerId, "{}", at))
@@ -150,35 +154,44 @@ class TaskRunRecorder(
      * cannot be stored is refused, and so is a repeat of a side effect whose earlier outcome is still unknown.
      */
     suspend fun gateRunning(call: ToolCall): RunGate = lock.withLock {
-        val invocationId = invocationByCall[call.id] ?: return@withLock RunGate.Proceed
         val effect = effectOf(call)
+        val invocationId = invocationByCall[call.id]
+        if (invocationId == null) {
+            // Missing intent/cycle means the task state was not durably initialized. Never fail open for mutations.
+            return@withLock if (effect == Effect.SIDE_EFFECT) RunGate.Blocked(
+                "The action was not executed because its task and invocation records are unavailable. Persistence/recovery must succeed first.",
+                "PERSISTENCE_UNAVAILABLE"
+            ) else RunGate.Proceed
+        }
         if (effect == Effect.SIDE_EFFECT) {
             val key = sha("$taskId|${call.name}|${canonical(call.arguments)}")
-            val blockers = safely { store.unresolvedSideEffects(taskId) }.orEmpty()
-                .filter { it.invocationId != invocationId && it.idempotencyKey == key && it.status in UNRESOLVED }
-            if (blockers.isNotEmpty() && !verifiedByLaterRead(blockers.first())) return@withLock RunGate.Blocked(
-                "An earlier identical ${call.name} call was interrupted and its outcome is unknown. Do not repeat it blindly: " +
-                    "check the real state with a read-only tool first, then decide. Nothing was executed.",
+            val snapshot = safely { store.snapshot(taskId) } ?: return@withLock RunGate.Blocked(
+                "The action was not executed because its task state could not be read safely. Nothing was executed.",
+                "PERSISTENCE_UNAVAILABLE")
+            val previous = snapshot.invocations.filter {
+                it.invocationId != invocationId && it.effect == Effect.SIDE_EFFECT && it.idempotencyKey == key
+            }
+            if (previous.any { it.status == InvocationStatus.SUCCEEDED && !it.isError }) return@withLock RunGate.Blocked(
+                "An identical ${call.name} side effect is already recorded as successful for this task. Verify the current state and do not repeat it as a duplicate.",
+                "DUPLICATE_SIDE_EFFECT_ALREADY_SUCCEEDED")
+            val unresolved = previous.firstOrNull {
+                it.status == InvocationStatus.RUNNING || it.status == InvocationStatus.INTERRUPTED || it.status == InvocationStatus.UNKNOWN
+            }
+            if (unresolved != null) return@withLock RunGate.Blocked(
+                "An earlier identical ${call.name} side effect (${unresolved.invocationId}) has no reconciled outcome. A later read alone is not proof. Reconcile that exact invocation before retrying. Nothing was executed.",
                 "PRIOR_MUTATION_OUTCOME_UNKNOWN")
         }
         val marked = safely {
             store.transitionInvocation(invocationId, InvocationStatus.RUNNING, InvocationPatch(startedAt = clock()), clock(), "run:$invocationId", call.name)
         }
-        if (effect == Effect.SIDE_EFFECT && (marked == null || marked is TransitionResult.Rejected)) return@withLock RunGate.Blocked(
-            "The action was not executed because its start could not be recorded durably. No side effect happened; try again.",
+        if (effect == Effect.SIDE_EFFECT && marked != TransitionResult.Applied) return@withLock RunGate.Blocked(
+            "The action was not executed because its RUNNING transition was not durably applied. Nothing was executed.",
             "PERSISTENCE_UNAVAILABLE")
         running += call.id
         nextStepId()?.let { sid ->
             if (stepStarted.add(sid)) safely { store.transitionStep(sid, StepStatus.RUNNING, "first action started", clock(), "stepstart:$runToken:$sid") }
         }
         RunGate.Proceed
-    }
-
-    private suspend fun verifiedByLaterRead(blocker: InvocationRecord): Boolean {
-        val all = safely { store.snapshot(taskId) }?.invocations.orEmpty()
-        val path = pathOf(blocker.inputSanitized)
-        return all.any { it.effect == Effect.READ_ONLY && it.status == InvocationStatus.SUCCEEDED && it.seq > blocker.seq &&
-            (path == null || pathOf(it.inputSanitized).let { p -> p == null || p == path }) }
     }
 
     suspend fun completed(call: ToolCall, output: String, isError: Boolean, classification: String?) = lock.withLock {
@@ -269,7 +282,7 @@ class TaskRunRecorder(
         /** Classifications of results that were produced without the tool ever executing. */
         val NEVER_RAN = setOf("TOOL_NOT_AVAILABLE", "TOOL_POLICY_DENIED", "TIER_DENIED", "RUN_REDIRECTED", "SKILL_NOT_SELECTED",
             "LAUNCHER_TYPED_ACTION_REQUIRED", "TOOL_NOT_EXPOSED", "INVALID_TOOL_ARGUMENTS", "BATCH_PREFLIGHT_BLOCKED", "INVALID_TOOL_BATCH",
-            "PRIOR_MUTATION_OUTCOME_UNKNOWN", "PERSISTENCE_UNAVAILABLE")
+            "PRIOR_MUTATION_OUTCOME_UNKNOWN", "DUPLICATE_SIDE_EFFECT_ALREADY_SUCCEEDED", "PERSISTENCE_UNAVAILABLE")
 
         private val SENSITIVE_KEY = Regex("(?i)(pass(word|wd)?|secret|token|api[_-]?key|authorization|credential|otp|\\bpin\\b|private[_-]?key)")
         /** Stable, key-sorted JSON of the arguments with credential-like values masked; used for storage and hashing. */

@@ -10,6 +10,12 @@ import com.omnidev.workspace.domain.engine.completion.FinishTool
 import com.omnidev.workspace.domain.engine.completion.GateResult
 import com.omnidev.workspace.domain.engine.completion.RunIdentity
 import com.omnidev.workspace.domain.engine.completion.RunState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -57,19 +63,80 @@ class TaskRecoveryTest {
         assertEquals(listOf("t1/t1:c1/c1"), out.plan.needsReconciliation)
     }
 
-    @Test fun `a resumed run cannot blindly repeat an unresolved side effect until the real state was read`() = runBlocking {
+    @Test fun `a later read does not reconcile an unresolved side effect; exact reconciliation is required`() = runBlocking {
         val r = started(recorder()); r.requested(listOf(patch("c1"))); r.gateRunning(patch("c1"))
         TaskRecovery(store, ::tick).recover("t1")
+        val originalId = "t1/t1:c1/c1"
         val resumed = recorder(resumed = true); resumed.start("edit Foo.kt"); resumed.beginTurn()
-        resumed.requested(listOf(patch("c9")))
-        val blocked = resumed.gateRunning(patch("c9"))
+        resumed.requested(listOf(read("c10"))); assertEquals(RunGate.Proceed, resumed.gateRunning(read("c10")))
+        resumed.completed(read("c10"), "the file currently contains the expected text", false, null)
+
+        resumed.requested(listOf(patch("c11")))
+        val blocked = resumed.gateRunning(patch("c11"))
         assertTrue(blocked is RunGate.Blocked)
         assertEquals("PRIOR_MUTATION_OUTCOME_UNKNOWN", (blocked as RunGate.Blocked).classification)
-        assertEquals(InvocationStatus.PENDING, status("c9", "t1:c2"))      // it never reached RUNNING
-        resumed.completed(patch("c9"), blocked.output, true, blocked.classification)
-        assertEquals(InvocationStatus.CANCELLED, status("c9", "t1:c2"))
-        resumed.requested(listOf(read("c10"))); resumed.gateRunning(read("c10")); resumed.completed(read("c10"), "class Foo", false, null)
-        resumed.requested(listOf(patch("c11"))); assertEquals(RunGate.Proceed, resumed.gateRunning(patch("c11")))
+        assertEquals(InvocationStatus.UNKNOWN, store.snapshot("t1")!!.invocations.first { it.invocationId == originalId }.status)
+        resumed.completed(patch("c11"), blocked.output, true, blocked.classification)
+        assertEquals(InvocationStatus.CANCELLED, status("c11", "t1:c2"))
+
+        val reconciled = TaskRecovery(store, ::tick).reconcile(
+            originalId, InvocationStatus.FAILED,
+            "Read-only inspection of /p/Foo.kt confirmed the original patch did not take effect."
+        )
+        assertEquals(TransitionResult.Applied, reconciled)
+        assertEquals("Read-only inspection of /p/Foo.kt confirmed the original patch did not take effect.",
+            store.snapshot("t1")!!.invocations.first { it.invocationId == originalId }.verification)
+
+        resumed.requested(listOf(patch("c12")))
+        assertEquals(RunGate.Proceed, resumed.gateRunning(patch("c12")))
+    }
+
+    @Test fun `startup recovery completes before a new run can be persisted`() = runBlocking {
+        val previous = started(recorder("previous"))
+        previous.requested(emptyList())
+        assertEquals(TaskStatus.RUNNING, store.task("previous")!!.status)
+
+        val barrier = TaskRecoveryBarrier()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val releaseSweep = kotlinx.coroutines.CompletableDeferred<Unit>()
+        assertTrue(barrier.startOnce(scope, recovery = {
+            releaseSweep.await()
+            TaskRecovery(store, ::tick).recoverStale(staleAfterMs = 0L, liveTaskIds = emptySet())
+        }, onFailure = {}))
+        var duplicateRuns = 0
+        assertFalse(barrier.startOnce(scope, recovery = { duplicateRuns++ }, onFailure = {}))
+
+        val current = TaskRunRecorder(store, "current", 7L, "new task", null, null, emptyList(), false, effect,
+            SensitiveObservationRedactor::redact, ::tick, awaitStartupRecovery = { barrier.awaitReady() })
+        current.start("new task"); current.beginTurn()
+        val persist = async(Dispatchers.Unconfined) { current.requested(emptyList()) }
+        yield()
+        assertNull(store.task("current")) // waiting behind the recovery barrier
+        releaseSweep.complete(Unit)
+        persist.await()
+        assertEquals(TaskStatus.INTERRUPTED, store.task("previous")!!.status)
+        assertEquals(TaskStatus.RUNNING, store.task("current")!!.status)
+        assertEquals(0, duplicateRuns)
+        scope.cancel()
+    }
+
+    @Test fun `startup recovery failure remains visible and blocks new mutations`() = runBlocking {
+        val barrier = TaskRecoveryBarrier()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        var failure: Throwable? = null
+        assertTrue(barrier.startOnce(scope, recovery = {
+            throw IllegalStateException("database unavailable during recovery")
+        }, onFailure = { failure = it }))
+        val current = TaskRunRecorder(store, "failed-startup", 7L, "mutation", null, null, emptyList(), false, effect,
+            SensitiveObservationRedactor::redact, ::tick, awaitStartupRecovery = { barrier.awaitReady() })
+        current.start("mutation"); current.beginTurn(); current.requested(listOf(patch("c1")))
+        val blocked = current.gateRunning(patch("c1"))
+        assertTrue(blocked is RunGate.Blocked)
+        assertEquals("PERSISTENCE_UNAVAILABLE", (blocked as RunGate.Blocked).classification)
+        assertNotNull(failure)
+        assertNull(store.task("failed-startup"))
+        assertTrue(current.degraded)
+        scope.cancel()
     }
 
     @Test fun `5 a persisted result survives death before the step was completed and no step is invented complete`() = runBlocking {

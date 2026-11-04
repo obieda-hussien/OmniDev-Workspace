@@ -122,24 +122,63 @@ class TaskRecovery(private val store: TaskStateStore, private val now: () -> Lon
 }
 
 /**
+ * Single-flight readiness barrier for the process-start recovery sweep.
+ *
+ * Runs may enqueue their initialization before recovery completes, but their first persistence flush waits
+ * here. This guarantees the sweep sees only records left by an earlier process, never a task created by
+ * the current process. A failed/cancelled sweep remains a failed barrier: callers must not assume readiness.
+ */
+internal class TaskRecoveryBarrier {
+    private val lock = Any()
+    private var readiness: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    fun startOnce(
+        scope: kotlinx.coroutines.CoroutineScope,
+        recovery: suspend () -> Unit,
+        onFailure: (Throwable) -> Unit
+    ): Boolean {
+        val gate = synchronized(lock) {
+            if (readiness != null) return false
+            kotlinx.coroutines.CompletableDeferred<Unit>().also { readiness = it }
+        }
+        scope.launch {
+            try {
+                recovery()
+                gate.complete(Unit)
+            } catch (c: kotlinx.coroutines.CancellationException) {
+                gate.cancel(c)
+                throw c
+            } catch (e: Exception) {
+                gate.completeExceptionally(e)
+                onFailure(e)
+            }
+        }
+        return true
+    }
+
+    suspend fun awaitReady() {
+        val gate = synchronized(lock) { readiness } ?: return
+        gate.await()
+    }
+}
+
+/**
  * Once per process, marks tasks left RUNNING by a previous process as INTERRUPTED and settles their open
  * invocations (read-only: interrupted; side effects: UNKNOWN). Nothing is executed or retried here.
  */
 object TaskRecoveryBootstrap {
-    private val started = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val barrier = TaskRecoveryBarrier()
 
     fun runOnce(store: TaskStateStore, scope: kotlinx.coroutines.CoroutineScope, log: (String) -> Unit) {
-        if (!started.compareAndSet(false, true)) return
-        scope.launch {
-            try {
-                // A fresh process has no live runs, so every CREATED/RUNNING task belongs to a dead one.
-                val outcomes = TaskRecovery(store).recoverStale(staleAfterMs = 0L, liveTaskIds = emptySet())
-                if (outcomes.isNotEmpty()) log("recovered ${outcomes.size} interrupted task(s): ${outcomes.joinToString { it.plan.decision.name }}")
-            } catch (c: kotlinx.coroutines.CancellationException) {
-                throw c
-            } catch (e: Exception) {
-                log("task recovery failed: ${e.message}")
-            }
-        }
+        barrier.startOnce(scope, recovery = {
+            // Agent task creation is held behind this sweep, so no current-process task can enter this query.
+            val outcomes = TaskRecovery(store).recoverStale(staleAfterMs = 0L, liveTaskIds = emptySet())
+            if (outcomes.isNotEmpty()) log("recovered ${outcomes.size} interrupted task(s): ${outcomes.joinToString { it.plan.decision.name }}")
+        }, onFailure = { e ->
+            log("task recovery failed; agent task creation remains blocked: ${e.message}")
+        })
     }
+
+    /** Await before creating persistent task state or executing a side effect. */
+    suspend fun awaitReady() = barrier.awaitReady()
 }

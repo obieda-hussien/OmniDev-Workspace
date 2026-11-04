@@ -10,6 +10,7 @@ import com.omnidev.workspace.domain.engine.completion.FinishTool
 import com.omnidev.workspace.domain.engine.completion.GateResult
 import com.omnidev.workspace.domain.engine.completion.RunIdentity
 import com.omnidev.workspace.domain.engine.completion.RunState
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -44,6 +45,33 @@ class TaskRunRecorderTest {
         assertNotNull(r.lastError)
         backend.failAfterWrites = 0
         assertEquals(RunGate.Proceed, r.gateRunning(read("c2")))              // best effort for reads
+    }
+
+
+    @Test fun `a confirmed successful side effect is not repeated with identical inputs`() = runBlocking {
+        val r = recorder(); r.start("g"); r.beginTurn()
+        r.requested(listOf(patch("c1"))); assertEquals(RunGate.Proceed, r.gateRunning(patch("c1")))
+        r.completed(patch("c1"), "created successfully", false, null)
+        r.requested(listOf(patch("c2")))
+        val blocked = r.gateRunning(patch("c2"))
+        assertTrue(blocked is RunGate.Blocked)
+        assertEquals("DUPLICATE_SIDE_EFFECT_ALREADY_SUCCEEDED", (blocked as RunGate.Blocked).classification)
+        assertEquals(InvocationStatus.PENDING, store.snapshot("t1")!!.invocations.last().status)
+    }
+
+    @Test fun `a side effect without a persisted task or invocation fails closed`() = runBlocking {
+        val failedBarrier = TaskRecoveryBarrier()
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined)
+        failedBarrier.startOnce(scope, recovery = { throw IllegalStateException("startup recovery unavailable") }, onFailure = {})
+        val r = TaskRunRecorder(store, "blocked", 7L, "edit Foo.kt", null, null, emptyList(), false, effect,
+            SensitiveObservationRedactor::redact, { ++clock }, awaitStartupRecovery = { failedBarrier.awaitReady() })
+        r.start("g"); r.beginTurn(); r.requested(listOf(patch("c1")))
+        val blocked = r.gateRunning(patch("c1"))
+        assertTrue(blocked is RunGate.Blocked)
+        assertEquals("PERSISTENCE_UNAVAILABLE", (blocked as RunGate.Blocked).classification)
+        assertNull(store.task("blocked"))
+        assertTrue(r.degraded)
+        scope.cancel()
     }
 
     @Test fun `results are bounded and redacted and inputs never keep credentials`() = runBlocking {
