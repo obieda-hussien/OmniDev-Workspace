@@ -25,8 +25,6 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import androidx.webkit.WebViewRenderProcess
 import androidx.webkit.WebViewRenderProcessClient
-import java.util.Collections
-import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -399,10 +397,10 @@ internal class BrowserChromeClient(
     }
 
     private val permissionLock = Any()
-    private val pendingPermissionRequests: MutableSet<PermissionRequest> =
-        Collections.newSetFromMap(WeakHashMap<PermissionRequest, Boolean>())
-    private val pendingPermissionDialogs: MutableMap<PermissionRequest, AlertDialog> =
-        WeakHashMap()
+    // Keep each native request alive until it is granted, denied, or cancelled by WebView.
+    // The collection is bounded by outstanding page prompts and cleared by every terminal path.
+    private val pendingPermissionRequests = mutableSetOf<PermissionRequest>()
+    private val pendingPermissionDialogs = mutableMapOf<PermissionRequest, AlertDialog>()
 
     private fun isPermissionRequestPending(request: PermissionRequest): Boolean =
         synchronized(permissionLock) { request in pendingPermissionRequests }
