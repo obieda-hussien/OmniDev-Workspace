@@ -55,15 +55,12 @@
 # ── Kotlin Coroutines / Flow ──────────────────────────────────────────────────
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
-# FastServiceLoader loads this provider by a class-name string and invokes its
-# zero-argument constructor reflectively. Keep both the provider name and ctor:
-# name-only preservation is insufficient for the getDeclaredConstructor() path.
--keep class kotlinx.coroutines.android.AndroidDispatcherFactory {
-    public <init>();
-}
--keep class kotlinx.coroutines.android.AndroidExceptionPreHandler {
-    public <init>();
-}
+# kotlinx-coroutines-android registers these classes as service providers.
+# FastServiceLoader / ServiceLoader discover and instantiate them reflectively;
+# preserve class names, constructors, overrides and provider metadata together.
+# This also prevents R8 from removing the no-argument constructor used at runtime.
+-keep class kotlinx.coroutines.android.AndroidDispatcherFactory { *; }
+-keep class kotlinx.coroutines.android.AndroidExceptionPreHandler { *; }
 -keepclassmembernames class kotlinx.** {
     volatile <fields>;
 }
