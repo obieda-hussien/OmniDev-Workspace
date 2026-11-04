@@ -55,6 +55,15 @@
 # ── Kotlin Coroutines / Flow ──────────────────────────────────────────────────
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+# FastServiceLoader loads this provider by a class-name string and invokes its
+# zero-argument constructor reflectively. Keep both the provider name and ctor:
+# name-only preservation is insufficient for the getDeclaredConstructor() path.
+-keep class kotlinx.coroutines.android.AndroidDispatcherFactory {
+    public <init>();
+}
+-keep class kotlinx.coroutines.android.AndroidExceptionPreHandler {
+    public <init>();
+}
 -keepclassmembernames class kotlinx.** {
     volatile <fields>;
 }

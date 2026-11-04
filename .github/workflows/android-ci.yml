@@ -68,6 +68,9 @@ jobs:
       - name: Self-test single-file Admin delivery packaging
         run: python3 .github/scripts/test-package-admin-delivery.py
 
+      - name: Self-test Admin R8 reflective entrypoint verification
+        run: python3 .github/scripts/test-verify-admin-r8-reflection.py
+
       - name: Self-test voice native APK verification
         run: python3 .github/scripts/test-verify-voice-native-apk.py
 
@@ -348,6 +351,19 @@ jobs:
             :app:assembleOemRelease \
             :oem-system:assembleRelease \
             --continue --stacktrace
+
+      - name: Build private Admin release for R8 verification (never uploaded)
+        run: |
+          bash .github/scripts/gradle-with-retry.sh --no-daemon --max-workers 1 \
+            -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.incremental=false \
+            -Dorg.gradle.vfs.watch=false \
+            -POMNI_ADMIN_UNSIGNED_RELEASE=true \
+            :app:assembleAdminRelease --stacktrace
+
+      - name: Verify Admin reflective coroutine entrypoints survive R8
+        run: python3 .github/scripts/verify-admin-r8-reflection.py app/build/outputs/mapping/adminRelease/mapping.txt
 
       - name: Verify JNA and Vosk survive release shrinking
         run: |

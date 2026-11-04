@@ -321,12 +321,13 @@ internal object BrowserRuntimeOptimizer {
             }
 
             if (isIncognito) {
-                AlertDialog.Builder(activity)
+                val dialog = AlertDialog.Builder(activity)
                     .setTitle("Private download")
                     .setMessage("The downloaded file will remain on this device after the private tab is closed.")
                     .setPositiveButton("Download") { _, _ -> startDownload() }
                     .setNegativeButton("Cancel", null)
-                    .show()
+                    .create()
+                BrowserDialogSafety.show(activity, dialog, webView)
             } else {
                 startDownload()
             }
@@ -373,7 +374,7 @@ internal object BrowserRuntimeOptimizer {
                 val key = "${currentUrl.substringBefore('#')}|${step.kind}"
                 val prompted = sensitivePrompts.getOrPut(webView) { mutableSetOf() }
                 if (!prompted.add(key)) return@evaluateJavascript
-                showSensitiveStepDialog(webView, step)
+                showSensitiveStepDialog(webView, step) { prompted.remove(key) }
             }
         }
     }
@@ -402,11 +403,13 @@ internal object BrowserRuntimeOptimizer {
         else -> null
     }
 
-    private fun showSensitiveStepDialog(webView: WebView, step: SensitiveStep) {
-        val activity = webView.context.findActivity() ?: return
-        if (activity.isFinishing || activity.isDestroyed) return
-
-        AlertDialog.Builder(activity)
+    private fun showSensitiveStepDialog(
+        webView: WebView,
+        step: SensitiveStep,
+        onUnavailable: () -> Unit
+    ) {
+        val activity = webView.context.findActivity() ?: run { onUnavailable(); return }
+        val dialog = AlertDialog.Builder(activity)
             .setTitle(step.title)
             .setMessage(step.message)
             .setPositiveButton("Take control") { _, _ ->
@@ -414,7 +417,8 @@ internal object BrowserRuntimeOptimizer {
             }
             .setNegativeButton("Later", null)
             .setCancelable(true)
-            .show()
+            .create()
+        BrowserDialogSafety.show(activity, dialog, webView, onUnavailable)
     }
 
     private fun focusSensitiveField(webView: WebView, kind: String) {
@@ -467,17 +471,24 @@ internal object BrowserRuntimeOptimizer {
         val alreadyPrompted = promptedIssues.getOrPut(webView) { mutableSetOf() }
         if (!alreadyPrompted.add(issue.key)) return
 
-        val activity = webView.context.findActivity() ?: return
-        if (activity.isFinishing || activity.isDestroyed) return
+        val activity = webView.context.findActivity() ?: run {
+            alreadyPrompted.remove(issue.key)
+            return
+        }
 
-        AlertDialog.Builder(activity)
+        val dialog = AlertDialog.Builder(activity)
             .setTitle(issue.title)
             .setMessage(issue.message)
             .setPositiveButton("Open in secure browser") { _, _ ->
-                openInSecureBrowser(activity, currentUrl)
+                if (BrowserDialogSafety.isUsable(activity, webView)) {
+                    openInSecureBrowser(activity, currentUrl)
+                }
             }
             .setNegativeButton("Continue here", null)
-            .show()
+            .create()
+        BrowserDialogSafety.show(activity, dialog, webView, onUnavailable = {
+            alreadyPrompted.remove(issue.key)
+        })
     }
 
     private fun classifyAuthIssue(url: String): AuthCompatibilityIssue? {
