@@ -141,4 +141,37 @@ class TaskRunRecorderTest {
         assertEquals(StepStatus.RUNNING, snap.currentSteps[0].status)
         assertEquals(1, snap.task.currentCycle)
     }
+
+    @Test fun `a verified run that needed no tool still finalizes as completed with a written justification`() = runBlocking {
+        val r = recorder(); r.start("explain the design"); r.beginTurn(); r.requested(emptyList())
+        val ledger = RunEvidenceLedger("t1", null)
+        val gate = FinishGate(ledger, RunState("explain", ledger, emptyList(), false), FinalizationPolicy(true, false), RunIdentity("t1"))
+        val v = gate.implicit("The design keeps three layers.") as GateResult.Publish
+        assertTrue(v.report.verified)
+        r.finalize(v)
+        val snap = store.snapshot("t1")!!
+        assertEquals(TaskStatus.COMPLETED, snap.task.status)
+        val step = snap.currentSteps.single()
+        assertEquals(StepStatus.COMPLETED, step.status)               // READY -> COMPLETED, proven by the justification
+        assertTrue(step.evidenceInvocationIds.isEmpty())
+        assertTrue(step.nonToolJustification.contains("did not require execution"))
+        assertTrue(r.finalized)
+    }
+
+    @Test fun `a resumed run can complete a step that an earlier run left interrupted`() = runBlocking {
+        val first = recorder(listOf("read the file")); first.start("g"); first.beginTurn()
+        first.requested(listOf(read("c1"))); first.gateRunning(read("c1")); first.completed(read("c1"), "x", false, null)
+        TaskRecovery(store, { ++clock }).recover("t1")
+        assertEquals(StepStatus.INTERRUPTED, store.snapshot("t1")!!.currentSteps.single().status)
+        val again = TaskRunRecorder(store, "t1", 7L, "edit Foo.kt", null, null, listOf("read the file"), true, effect, SensitiveObservationRedactor::redact, { ++clock })
+        again.start("g"); again.beginTurn(); again.requested(emptyList())
+        val ledger = RunEvidenceLedger("t1", null).also { it.restore(TaskRunRecorder.seedFrom(store.snapshot("t1")!!)) }
+        val gate = FinishGate(ledger, RunState("g", ledger, listOf("read the file"), true), FinalizationPolicy(true, true), RunIdentity("t1", acceptance = listOf("read the file")))
+        val v = gate.explicit(ToolCall("f", FinishTool.NAME, mapOf("status" to "completed", "summary" to "ok", "evidence" to "c1", "criteria" to "A1 => c1")), "") as GateResult.Publish
+        again.finalize(v)
+        val snap = store.snapshot("t1")!!
+        assertEquals(TaskStatus.COMPLETED, snap.task.status)
+        assertEquals(StepStatus.COMPLETED, snap.currentSteps.single().status)
+        assertEquals(listOf("t1/t1:c1/c1"), snap.currentSteps.single().evidenceInvocationIds)
+    }
 }

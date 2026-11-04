@@ -34,12 +34,15 @@ enum class StepStatus {
 
     companion object {
         private val NEXT = mapOf(
-            PENDING to setOf(READY, RUNNING, SKIPPED, BLOCKED, FAILED, INTERRUPTED),
-            READY to setOf(RUNNING, SKIPPED, BLOCKED, FAILED, INTERRUPTED),
+            // COMPLETED is reachable from every open state because the proof (a SUCCEEDED invocation or a written
+            // non-tool justification) is enforced by the store, not by the path: a task that needed no tool, or a
+            // resumed run that finishes an interrupted step, must be able to complete.
+            PENDING to setOf(READY, RUNNING, COMPLETED, SKIPPED, BLOCKED, FAILED, INTERRUPTED),
+            READY to setOf(RUNNING, COMPLETED, SKIPPED, BLOCKED, FAILED, INTERRUPTED),
             RUNNING to setOf(COMPLETED, FAILED, BLOCKED, INTERRUPTED, SKIPPED),
-            INTERRUPTED to setOf(READY, RUNNING, FAILED, SKIPPED, BLOCKED),
-            FAILED to setOf(READY, RUNNING, SKIPPED),
-            BLOCKED to setOf(READY, RUNNING, FAILED, SKIPPED),
+            INTERRUPTED to setOf(READY, RUNNING, COMPLETED, FAILED, SKIPPED, BLOCKED),
+            FAILED to setOf(READY, RUNNING, COMPLETED, SKIPPED),
+            BLOCKED to setOf(READY, RUNNING, COMPLETED, FAILED, SKIPPED),
             COMPLETED to emptySet(), SKIPPED to emptySet()
         )
         fun allowed(from: StepStatus, to: StepStatus) = to in NEXT.getValue(from)
