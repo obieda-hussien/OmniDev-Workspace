@@ -76,7 +76,7 @@ internal class BrowserChromeClient(
                         view: WebView,
                         renderer: WebViewRenderProcess?
                     ) {
-                        if (!BrowserDialogSafety.isUsable(activity, view) || rendererDialog?.isShowing == true) return
+                        if (!BrowserDialogSafety.isUsable(activity, view) || rendererDialog != null) return
                         val dialog = AlertDialog.Builder(activity)
                             .setTitle("Page isn't responding")
                             .setMessage("The WebView renderer stopped responding. You can wait or reload the page without closing the tab.")
@@ -89,10 +89,10 @@ internal class BrowserChromeClient(
                         dialog.setOnDismissListener {
                             if (rendererDialog === dialog) rendererDialog = null
                         }
+                        rendererDialog = dialog
                         BrowserDialogSafety.show(activity, dialog, view, onUnavailable = {
                             if (rendererDialog === dialog) rendererDialog = null
                         })
-                        if (dialog.isShowing) rendererDialog = dialog
                     }
 
                     override fun onRenderProcessResponsive(
@@ -153,17 +153,16 @@ internal class BrowserChromeClient(
         defaultValue: String?,
         result: JsPromptResult?
     ): Boolean {
-        val settled = AtomicBoolean(false)
-        val confirm = { if (settled.compareAndSet(false, true)) runCatching {
-            result?.confirm(inputValue)
-        } }
-        val cancel = { if (settled.compareAndSet(false, true)) runCatching { result?.cancel() } }
         val input = EditText(activity).apply {
             setText(defaultValue.orEmpty())
             setSelection(text.length)
             setSingleLine(false)
         }
-        val inputValue = { input.text.toString() }
+        val settled = AtomicBoolean(false)
+        val confirm = { if (settled.compareAndSet(false, true)) runCatching {
+            result?.confirm(input.text.toString())
+        } }
+        val cancel = { if (settled.compareAndSet(false, true)) runCatching { result?.cancel() } }
         val dialog = AlertDialog.Builder(activity)
             .setTitle(siteLabel(url))
             .setMessage(message.orEmpty())
@@ -183,7 +182,7 @@ internal class BrowserChromeClient(
         fileChooserParams: FileChooserParams?
     ): Boolean {
         val callback = filePathCallback ?: return false
-        if (!activity.isUsable()) {
+        if (!BrowserDialogSafety.isUsable(activity, webView)) {
             callback.onReceiveValue(null)
             return true
         }
@@ -207,13 +206,17 @@ internal class BrowserChromeClient(
     ): Boolean {
         val parent = view ?: return false
         val message = resultMsg ?: return false
-        if (!isUserGesture || !activity.isUsable()) return false
+        if (!isUserGesture || !BrowserDialogSafety.isUsable(activity, parent)) return false
 
         val transport = message.obj as? WebView.WebViewTransport ?: return false
         val popup = WebView(activity)
         var transferred = false
 
         fun transfer(url: String?): Boolean {
+            if (!BrowserDialogSafety.isUsable(activity, parent)) {
+                runCatching { popup.stopLoading(); popup.destroy() }
+                return false
+            }
             val target = url?.takeIf {
                 it.startsWith("http://") || it.startsWith("https://")
             } ?: return false
