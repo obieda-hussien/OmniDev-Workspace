@@ -79,16 +79,31 @@ class TaskRecoveryTest {
         resumed.completed(patch("c11"), blocked.output, true, blocked.classification)
         assertEquals(InvocationStatus.CANCELLED, status("c11", "t1:c2"))
 
-        val reconciled = TaskRecovery(store, ::tick).reconcile(
-            originalId, InvocationStatus.FAILED,
-            "Read-only inspection of /p/Foo.kt confirmed the original patch did not take effect."
-        )
+        val verification = "Read-only inspection of /p/Foo.kt confirmed the original patch did not take effect."
+        val reconciled = TaskRecovery(store, ::tick).reconcile(originalId, InvocationStatus.CANCELLED, verification)
         assertEquals(TransitionResult.Applied, reconciled)
-        assertEquals("Read-only inspection of /p/Foo.kt confirmed the original patch did not take effect.",
-            store.snapshot("t1")!!.invocations.first { it.invocationId == originalId }.verification)
+        val reconciledInvocation = store.snapshot("t1")!!.invocations.first { it.invocationId == originalId }
+        assertEquals(InvocationStatus.CANCELLED, reconciledInvocation.status)
+        assertEquals(verification, reconciledInvocation.verification)
+        val restored = TaskRunRecorder.seedFrom(store.snapshot("t1")!!).first { it.callId == "c1" }
+        assertEquals(RunEvidenceLedger.Outcome.SKIPPED, restored.outcome)
+        assertEquals(verification, restored.evidence)
 
         resumed.requested(listOf(patch("c12")))
         assertEquals(RunGate.Proceed, resumed.gateRunning(patch("c12")))
+    }
+
+    @Test fun `a reconciled successful side effect restores its verification into P0 evidence`() = runBlocking {
+        val r = started(recorder())
+        r.requested(listOf(patch("c1"))); assertEquals(RunGate.Proceed, r.gateRunning(patch("c1")))
+        TaskRecovery(store, ::tick).recover("t1")
+        val invocationId = "t1/t1:c1/c1"
+        val verification = "The provider confirmed the created resource by its exact ID."
+        assertEquals(TransitionResult.Applied,
+            TaskRecovery(store, ::tick).reconcile(invocationId, InvocationStatus.SUCCEEDED, verification))
+        val restored = TaskRunRecorder.seedFrom(store.snapshot("t1")!!).single()
+        assertEquals(RunEvidenceLedger.Outcome.OK, restored.outcome)
+        assertEquals(verification, restored.evidence)
     }
 
     @Test fun `startup recovery completes before a new run can be persisted`() = runBlocking {

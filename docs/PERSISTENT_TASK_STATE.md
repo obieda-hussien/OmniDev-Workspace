@@ -75,6 +75,8 @@ so they block completion, and skipped ones return as `SKIPPED`. The gate re-veri
 
 A later read is diagnostic context, not reconciliation evidence by itself. An unresolved side effect remains blocked
 until its exact invocation ID is explicitly reconciled with a verification statement stored on that invocation.
-An identical side effect already recorded as successful is also blocked from accidental duplicate execution.
+Reconciliation verification is restored into the P0 ledger; a confirmed non-execution is recorded as CANCELLED
+(not FAILED), so a later permitted retry is not permanently poisoned by a false failure. An identical side effect
+already recorded as successful is also blocked from accidental duplicate execution.
 Startup recovery is a readiness barrier: new agent task persistence waits for the previous-process sweep to finish,
 and a failed sweep remains visible and prevents mutation execution.

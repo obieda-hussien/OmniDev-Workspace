@@ -148,9 +148,10 @@ internal class TaskRecoveryBarrier {
             } catch (c: kotlinx.coroutines.CancellationException) {
                 gate.cancel(c)
                 throw c
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 gate.completeExceptionally(e)
                 onFailure(e)
+                if (e is Error) throw e
             }
         }
         return true

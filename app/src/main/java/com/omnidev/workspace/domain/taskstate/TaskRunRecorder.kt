@@ -278,7 +278,6 @@ class TaskRunRecorder(
     companion object {
         const val MAX_INPUT_CHARS = 4_000
         const val MAX_RESULT_CHARS = 8_000
-        private val UNRESOLVED = setOf(InvocationStatus.INTERRUPTED, InvocationStatus.UNKNOWN)
         /** Classifications of results that were produced without the tool ever executing. */
         val NEVER_RAN = setOf("TOOL_NOT_AVAILABLE", "TOOL_POLICY_DENIED", "TIER_DENIED", "RUN_REDIRECTED", "SKILL_NOT_SELECTED",
             "LAUNCHER_TYPED_ACTION_REQUIRED", "TOOL_NOT_EXPOSED", "INVALID_TOOL_ARGUMENTS", "BATCH_PREFLIGHT_BLOCKED", "INVALID_TOOL_BATCH",
@@ -301,8 +300,10 @@ class TaskRunRecorder(
                     (inv.status == InvocationStatus.INTERRUPTED && inv.effect == Effect.SIDE_EFFECT) -> RunEvidenceLedger.Outcome.ERROR
                 else -> RunEvidenceLedger.Outcome.SKIPPED
             }
-            ResumeEntry(inv.callId, inv.toolName, pathOf(inv.inputSanitized)?.let { "path=$it" }.orEmpty(), outcome,
-                inv.resultSummary.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().take(140).ifBlank { "restored: ${inv.status}" })
+            val evidence = inv.verification.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().take(140)
+                .ifBlank { inv.resultSummary.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().take(140) }
+                .ifBlank { "restored: ${inv.status}" }
+            ResumeEntry(inv.callId, inv.toolName, pathOf(inv.inputSanitized)?.let { "path=$it" }.orEmpty(), outcome, evidence)
         }
     }
 }
