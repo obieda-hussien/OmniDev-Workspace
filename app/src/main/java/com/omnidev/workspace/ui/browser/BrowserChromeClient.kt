@@ -121,7 +121,7 @@ internal class BrowserChromeClient(
             .setOnCancelListener { cancel() }
             .create()
         BrowserDialogSafety.show(activity, dialog, view, onUnavailable = { cancel() })
-        true
+        return true
     }
 
     override fun onJsConfirm(
@@ -141,7 +141,7 @@ internal class BrowserChromeClient(
             .setOnCancelListener { cancel() }
             .create()
         BrowserDialogSafety.show(activity, dialog, view, onUnavailable = { cancel() })
-        true
+        return true
     }
 
     override fun onJsPrompt(
@@ -170,7 +170,7 @@ internal class BrowserChromeClient(
             .setOnCancelListener { cancel() }
             .create()
         BrowserDialogSafety.show(activity, dialog, view, onUnavailable = { cancel() })
-        true
+        return true
     }
 
     /** Enables <input type=file> / image attachment flows through Android SAF. */
