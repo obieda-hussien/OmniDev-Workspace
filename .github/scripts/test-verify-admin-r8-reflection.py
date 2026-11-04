@@ -17,8 +17,8 @@ def mapping_for(class_name: str, target_name: str | None = None, constructor: bo
                 source_lines: bool = False) -> str:
     target = target_name or class_name
     signature = "1:1:void <init>():7:7 -> <init>" if source_lines else "public void <init>() -> <init>"
-    member = f"    {signature}\\n" if constructor else ""
-    return f"{class_name} -> {target}:\\n{member}example.Type -> example.Type:\\n"
+    member = f"    {signature}\n" if constructor else ""
+    return f"{class_name} -> {target}:\n{member}example.Type -> example.Type:\n"
 
 
 class VerifyAdminR8ReflectionTest(unittest.TestCase):
@@ -27,7 +27,7 @@ class VerifyAdminR8ReflectionTest(unittest.TestCase):
         MODULE.verify_mapping(content)
 
     def test_accepts_r8_source_line_ranges_before_constructor_mapping(self):
-        content = "\\n".join(mapping_for(name, source_lines=True) for name in MODULE.REQUIRED)
+        content = "\n".join(mapping_for(name, source_lines=True) for name in MODULE.REQUIRED)
         MODULE.verify_mapping(content)
 
     def test_rejects_renamed_dispatcher_factory(self):
