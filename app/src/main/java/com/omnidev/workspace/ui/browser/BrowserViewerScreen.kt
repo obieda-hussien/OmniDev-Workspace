@@ -59,6 +59,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +78,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniIconButton
@@ -112,13 +115,19 @@ fun BrowserViewerScreen(
 ) {
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
     val browserError by viewModel.browserError.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
+    val browserHostResumed = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
     var autofillHelp by remember { mutableStateOf(false) }
-    if (browserError != null) {
+    LaunchedEffect(browserHostResumed) {
+        if (!browserHostResumed) autofillHelp = false
+    }
+    if (browserHostResumed && browserError != null) {
         AlertDialog(onDismissRequest = { viewModel.clearBrowserError() },
             title = { Text("Browser") }, text = { Text(browserError.orEmpty()) },
             confirmButton = { TextButton(onClick = { viewModel.clearBrowserError() }) { Text("OK") } })
     }
-    if (autofillHelp) {
+    if (browserHostResumed && autofillHelp) {
         AlertDialog(
             onDismissRequest = { autofillHelp = false },
             title = { Text("Passwords") },
@@ -262,6 +271,7 @@ fun BrowserViewerScreen(
             // ── Cookie / Storage panel ────────────────────────────────────────
             BrowserToolsPanel(
                 activeSession = activeSession,
+                allowDialogs = browserHostResumed,
                 getCookies    = { viewModel.getCookies() },
                 onSetCookie   = { name, value -> viewModel.setCookie(name, value) },
                 onClearCookies        = { viewModel.clearCookies() },
@@ -489,6 +499,7 @@ private fun NoWebViewPlaceholder(onNewSession: () -> Unit) {
 @Composable
 private fun BrowserToolsPanel(
     activeSession: com.omnidev.workspace.data.tools.HeadlessBrowserManager.BrowserSessionInfo?,
+    allowDialogs: Boolean,
     getCookies: () -> List<Pair<String, String>>,
     onSetCookie: (String, String) -> Unit,
     onClearCookies: () -> Unit,
@@ -556,11 +567,12 @@ private fun BrowserToolsPanel(
                 Box(modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)) {
                     when (selectedTab) {
                         0 -> CookiesTab(
+                            allowDialogs = allowDialogs,
                             getCookies       = getCookies,
                             onSetCookie      = onSetCookie,
                             onClearCookies   = onClearCookies
                         )
-                        1 -> StorageTab(onClearLocalStorage = onClearLocalStorage)
+                        1 -> StorageTab(allowDialogs = allowDialogs, onClearLocalStorage = onClearLocalStorage)
                         2 -> SessionInfoTab(activeSession = activeSession)
                     }
                 }
@@ -575,6 +587,7 @@ private fun BrowserToolsPanel(
 
 @Composable
 private fun CookiesTab(
+    allowDialogs: Boolean,
     getCookies: () -> List<Pair<String, String>>,
     onSetCookie: (String, String) -> Unit,
     onClearCookies: () -> Unit
@@ -582,6 +595,12 @@ private fun CookiesTab(
     val cookies = remember(getCookies) { getCookies() }
     var showAddDialog by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    LaunchedEffect(allowDialogs) {
+        if (!allowDialogs) {
+            showAddDialog = false
+            showClearConfirm = false
+        }
+    }
 
     Column(modifier = Modifier.padding(8.dp)) {
         // Action row
@@ -638,7 +657,7 @@ private fun CookiesTab(
         }
     }
 
-    if (showAddDialog) {
+    if (allowDialogs && showAddDialog) {
         AddCookieDialog(
             onConfirm = { name, value ->
                 onSetCookie(name, value)
@@ -648,7 +667,7 @@ private fun CookiesTab(
         )
     }
 
-    if (showClearConfirm) {
+    if (allowDialogs && showClearConfirm) {
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
             title = { Text("Clear All Cookies?") },
@@ -706,8 +725,11 @@ private fun AddCookieDialog(
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun StorageTab(onClearLocalStorage: () -> Unit) {
+private fun StorageTab(allowDialogs: Boolean, onClearLocalStorage: () -> Unit) {
     var showConfirm by remember { mutableStateOf(false) }
+    LaunchedEffect(allowDialogs) {
+        if (!allowDialogs) showConfirm = false
+    }
 
     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("localStorage", color = BrowserGray,
@@ -728,7 +750,7 @@ private fun StorageTab(onClearLocalStorage: () -> Unit) {
         )
     }
 
-    if (showConfirm) {
+    if (allowDialogs && showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("Clear localStorage?") },
