@@ -42,7 +42,12 @@ data class RunIdentity(
     val acceptance: List<String> = emptyList(),
     /** null = decide from task signals. */
     val requireExecution: Boolean? = null,
-    val taskKind: TaskKind = TaskKind.GENERAL
+    val taskKind: TaskKind = TaskKind.GENERAL,
+    /** Conversation the task belongs to, for the persistent task record. */
+    val sessionId: Long? = null,
+    val parentTaskId: String? = null,
+    /** Evidence restored from the task store when an interrupted task of the same [runId] is resumed. */
+    val resume: List<com.omnidev.workspace.domain.taskstate.ResumeEntry>? = null
 )
 
 /** Counters for measuring how often the protocol intervenes (benchmark input, never trusted by the gate). */

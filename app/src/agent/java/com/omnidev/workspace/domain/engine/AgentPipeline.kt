@@ -39,7 +39,8 @@ class AgentPipeline(
     private val toolOrchestrator: ToolOrchestrator = ToolOrchestrator(),
     private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null,
     private val toolEligibility: ((String) -> String?)? = null,
-    private val toolCallEligibility: ((ToolCall) -> String?)? = null
+    private val toolCallEligibility: ((ToolCall) -> String?)? = null,
+    private val taskStateStore: com.omnidev.workspace.domain.taskstate.TaskStateStore? = null
 ) {
 
     companion object {
@@ -227,7 +228,8 @@ When improving: keep every other sentence, the structure, the language and the l
         // Finish protocol: runtime-owned state, kept out of this lambda (see FinishRuntime).
         val evidenceLedger = FinishRuntime.create(runIdentity, routingObjective, taskSignals,
             workerPersona != null || userMessage.contains("## Assigned Team Task"),
-            permittedDefinitions.isNotEmpty(), modelId, config.enableModelProfiles).ledger
+            permittedDefinitions.isNotEmpty(), modelId, config.enableModelProfiles, taskStateStore, userMessage).ledger
+        evidenceLedger.fin.attach(coroutineContext[kotlinx.coroutines.Job])
 
         val systemPrompt = AgentPromptCompiler.compile(
             tier = model.tier,
@@ -683,6 +685,7 @@ When improving: keep every other sentence, the structure, the language and the l
                     else steering?.objective(userMessage, revision) ?: userMessage,
                 launcherEvidence = launcherEvidence,
                 runtimeBackends = runtimeBackends,
+                recorder = evidenceLedger.fin.recorder,
                 requireRoutineReview = workerPersona != null || userMessage.contains("## Assigned Team Task")
             )
 
@@ -880,8 +883,10 @@ When improving: keep every other sentence, the structure, the language and the l
         requireRoutineReview: Boolean = false,
         selectedSkillNames: Set<String> = emptySet(),
         launcherEvidence: LauncherExecutionLedger? = null,
-        runtimeBackends: RuntimeBackendLedger? = null
+        runtimeBackends: RuntimeBackendLedger? = null,
+        recorder: com.omnidev.workspace.domain.taskstate.TaskRunRecorder? = null
     ): List<ToolExecutionResult> {
+        recorder?.requested(calls)
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
             if (steering?.changed(steeringRevision) == true) return ToolExecutionResult(
                 "Skipped: the user redirected this run before this action started. Re-plan using the latest instruction.",
@@ -939,6 +944,10 @@ When improving: keep every other sentence, the structure, the language and the l
                 if (denied != null) return ToolExecutionResult("Learned task requires unavailable tool: $denied", true, retryable = false)
             }
             runtimeBackends?.before(call)?.let { return it }
+            // Write-ahead: the call is durably marked RUNNING before it executes; refused when that cannot be stored.
+            (recorder?.gateRunning(call) as? com.omnidev.workspace.domain.taskstate.RunGate.Blocked)?.let {
+                return ToolExecutionResult(it.output, true, classification = it.classification, retryable = false)
+            }
             val started = System.nanoTime()
             val retrySafe = ToolBatchPolicy.isReadOnly(call)
             val recordedStep = capture?.before(call, retrySafe)
@@ -1022,9 +1031,12 @@ When improving: keep every other sentence, the structure, the language and the l
             return finalResult
         }
 
-        return ValidatedToolBatchExecutor.execute(calls, definitions, allowParallel,
+        val results = ValidatedToolBatchExecutor.execute(calls, definitions, allowParallel,
             authorize = { call -> toolCallEligibility?.invoke(call) ?: toolEligibility?.invoke(call.name) },
-            dispatch = ::executeOne)
+            dispatch = { call -> executeOne(call).also { recorder?.completed(call, it.output, it.isError, it.classification) } })
+        // Calls that never reached dispatch (preflight blocked) are recorded as not executed, not left PENDING.
+        calls.forEachIndexed { i, call -> results.getOrNull(i)?.let { recorder?.completed(call, it.output, it.isError, it.classification) } }
+        return results
     }
 
     private suspend fun maybeCritique(

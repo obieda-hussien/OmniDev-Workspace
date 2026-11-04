@@ -55,20 +55,18 @@ A matching digest alone is not accepted as proof.
 
 ## Lifecycle limits (read before relying on it)
 
-The ledger and run state are **in memory and scoped to one `AgentPipeline.execute` call**.
+The ledger and run state are in memory and scoped to one `AgentPipeline.execute` call. Runs bound by the protocol are
+also written to the persistent task store (see [persistent task state](PERSISTENT_TASK_STATE.md)) when it is wired.
 
 | Event | Ledger / run state |
 | --- | --- |
 | New model request in the same run | Kept; re-rendered into every request. |
 | Context compaction in the same run | Kept; it is not stored in the message history. |
-| Live steering of the same run | Kept; the goal text is updated. |
-| New `execute` call, pipeline recreation, retry attempt | Fresh ledger; earlier evidence cannot satisfy the new run. |
-| App process death or restart | Lost. |
-| Resuming an earlier conversation | Fresh ledger. Old tool results in the history are context, not evidence. |
-
-This is deliberate: stale evidence must not complete a different run. If recovery after process death is
-needed, the smallest design is an append-only run-evidence journal keyed by run id, written after each tool result and
-read only to resume that same run. It is not implemented and needs its own migration review.
+| Live steering of the same run | Kept; the goal text is updated and a new plan revision is stored. |
+| New `execute` call without a resume seed, pipeline recreation, retry attempt | Fresh ledger; earlier evidence cannot satisfy the new run. |
+| App process death or restart | The in-memory ledger is lost; the task store keeps what was executed. |
+| Resuming a stored task | The ledger is restored from stored invocations; only `SUCCEEDED` ones count as `OK`. |
+| Resuming an earlier conversation without a task | Fresh ledger. Old tool results in the history are context, not evidence. |
 
 ## Known limits
 

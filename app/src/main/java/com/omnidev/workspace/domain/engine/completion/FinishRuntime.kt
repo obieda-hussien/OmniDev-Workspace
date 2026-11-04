@@ -7,6 +7,11 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.domain.engine.IntentClassifier
 import com.omnidev.workspace.domain.engine.RunEvidenceLedger
+import com.omnidev.workspace.domain.engine.SensitiveObservationRedactor
+import com.omnidev.workspace.domain.engine.ToolBatchPolicy
+import com.omnidev.workspace.domain.taskstate.Effect
+import com.omnidev.workspace.domain.taskstate.TaskRunRecorder
+import com.omnidev.workspace.domain.taskstate.TaskStateStore
 
 /**
  * Everything the finish protocol needs for one run, behind a handful of calls. AgentPipeline's flow
@@ -20,7 +25,9 @@ class FinishRuntime private constructor(
     val ledger: RunEvidenceLedger,
     private val state: RunState,
     private val gate: FinishGate,
-    private val ids: ToolCallIdentity
+    private val ids: ToolCallIdentity,
+    /** Persistent task state for this run; null for plain chat or when no store is wired. */
+    val recorder: TaskRunRecorder? = null
 ) {
     val enforce: Boolean get() = policy.enforce
     /** Verdict of the current turn; cleared at the start of every turn. */
@@ -29,8 +36,19 @@ class FinishRuntime private constructor(
     /** Result of a protocol step: the (possibly rewritten) response, or messages to append before another turn. */
     class Step(val response: CompletionResponse, val append: List<ChatMessage> = emptyList(), val rejected: Boolean = false)
 
-    fun beginTurn() { verdict = null }
-    fun setGoal(goal: String) { state.goal = goal }
+    fun beginTurn() { verdict = null; recorder?.beginTurn() }
+    fun setGoal(goal: String) {
+        if (state.goal != goal) recorder?.replan("steering: the user changed the objective", goal)
+        state.goal = goal
+    }
+
+    /** Persists the run's end (verdict or interruption) when its job completes, even on cancellation. */
+    fun attach(job: kotlinx.coroutines.Job?) {
+        val r = recorder ?: return
+        job?.invokeOnCompletion { r.closeAsync() }
+    }
+
+    private fun decided(p: GateResult.Publish) { verdict = p; recorder?.finalizeAsync(p) }
     fun report(): CompletionReport? = verdict?.report
     fun reflectionEnabled(configured: Boolean): Boolean = profile.selfReflection ?: configured
     /** Honest non-success terminal texts must not be rewritten by the critic. */
@@ -59,7 +77,7 @@ class FinishRuntime private constructor(
             ?: return Step(stable)
         val step = FinishDispatch.explicit(gate, finishCall, stable)
         val published = step.publish ?: return Step(stable, step.append, rejected = true)
-        verdict = published
+        decided(published)
         return Step(stable.copy(toolCalls = emptyList(), content = published.text))
     }
 
@@ -68,7 +86,7 @@ class FinishRuntime private constructor(
         if (verdict != null || !policy.enforce || blocked) return Step(response)
         val step = FinishDispatch.implicit(gate, response.content)
         val published = step.publish ?: return Step(response, step.append, rejected = true)
-        verdict = published
+        decided(published)
         return Step(response.copy(content = published.text))
     }
 
@@ -86,7 +104,8 @@ class FinishRuntime private constructor(
     companion object {
         fun create(
             runIdentity: RunIdentity?, goal: String, signals: IntentClassifier.TaskSignals, isWorker: Boolean,
-            toolsAvailable: Boolean, modelId: String, enableModelProfiles: Boolean
+            toolsAvailable: Boolean, modelId: String, enableModelProfiles: Boolean,
+            store: TaskStateStore? = null, originalRequest: String = goal
         ): FinishRuntime {
             val requestedIdentity = runIdentity ?: RunIdentity()
             val identity = requestedIdentity.copy(
@@ -96,8 +115,16 @@ class FinishRuntime private constructor(
             val policy = FinalizationPolicy.decide(signals, isWorker, toolsAvailable, identity)
             val ledger = RunEvidenceLedger(identity.runId, identity.workerId)
             val state = RunState(goal, ledger, identity.acceptance, policy.requireExecution)
+            // Only runs bound by the finish protocol become persistent tasks; plain chat never touches the task store.
+            val recorder = if (store != null && policy.enforce) {
+                identity.resume?.let { ledger.restore(it) }
+                TaskRunRecorder(store, identity.runId, identity.sessionId, originalRequest, identity.parentTaskId, identity.workerId, identity.acceptance,
+                    resumed = identity.resume != null,
+                    effectOf = { if (ToolBatchPolicy.isReadOnly(it)) Effect.READ_ONLY else Effect.SIDE_EFFECT },
+                    redact = SensitiveObservationRedactor::redact).also { it.start(goal) }
+            } else null
             val runtime = FinishRuntime(identity, profile, policy, ledger, state,
-                FinishGate(ledger, state, policy, identity, profile.maxFinishRejections), ToolCallIdentity(identity.runId))
+                FinishGate(ledger, state, policy, identity, profile.maxFinishRejections), ToolCallIdentity(identity.runId), recorder)
             ledger.fin = runtime
             return runtime
         }

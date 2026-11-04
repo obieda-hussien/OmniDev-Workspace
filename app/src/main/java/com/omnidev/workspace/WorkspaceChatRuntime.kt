@@ -55,6 +55,12 @@ object WorkspaceChatRuntime {
         val database = OmniDevDatabase.getInstance(applicationContext)
         val chatRepository = ChatRepository(database.chatSessionDao(), database.chatMessageDao())
         val memoryManager = MemoryManager(database.knowledgeDao())
+        // Persistent task state: only runs bound by the finish protocol use it; plain chat never does.
+        val taskStateStore = com.omnidev.workspace.data.repository.roomTaskStateStore(database)
+        com.omnidev.workspace.domain.taskstate.TaskRecoveryBootstrap.runOnce(taskStateStore,
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)) {
+            android.util.Log.i("TaskRecovery", it)
+        }
 
         val fileToolManager = FileToolManager()
         val environmentSetupManager = if (com.omnidev.workspace.BuildConfig.ALLOW_AGENT) EnvironmentSetupManager else null
@@ -109,7 +115,8 @@ object WorkspaceChatRuntime {
             memoryManager = memoryManager,
             smartLearningBridge = app.smartLearningBridge,
             analyticsRepository = analyticsRepository,
-            toolEligibility = if (assistant) com.omnidev.workspace.data.tools.TierToolGate::denyReason else null
+            toolEligibility = if (assistant) com.omnidev.workspace.data.tools.TierToolGate::denyReason else null,
+            taskStateStore = taskStateStore
         )
 
         val swarmOrchestrator = SwarmOrchestrator(

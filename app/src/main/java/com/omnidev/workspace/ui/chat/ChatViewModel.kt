@@ -1304,7 +1304,8 @@ class ChatViewModel(
             additionalToolDomains = if (assistantWorkspace != null) flavor.toolDomains
                 else if (isLearnedTaskRequest(input)) setOf(IntentClassifier.ToolDomain.DEVICE_CONTROL) else emptySet(),
             preferredToolNames = if (assistantWorkspace == null) emptySet() else flavor.preferredToolNames,
-            steering = control
+            steering = control,
+            runIdentity = com.omnidev.workspace.domain.engine.completion.RunIdentity(sessionId = sessionId)
         ).collect { event ->
             handleAgentEvent(event, sessionId, runId)
             if (event is AgentEvent.Error) {
