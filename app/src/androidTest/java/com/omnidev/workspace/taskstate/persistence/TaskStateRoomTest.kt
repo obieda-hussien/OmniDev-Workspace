@@ -109,7 +109,7 @@ class TaskStateRoomTest {
         var db = Room.databaseBuilder(context, OmniDevDatabase::class.java, fileName).build()
         val session = db.chatSessionDao().insert(ChatSessionEntity(title = "Existing chat"))
         db.chatMessageDao().insert(ChatMessageEntity(sessionId = session, role = "USER", content = "hello", messageId = "m1"))
-        db.toolExecutionDao().insert(ToolExecutionEntry(toolName = "read_file"))
+        db.toolExecutionDao().insert(ToolExecutionEntry(toolName = "read_file", executionTimeMs = 5, success = true))
         val raw: SupportSQLiteDatabase = db.openHelper.writableDatabase
         listOf("agent_task_events", "agent_task_invocations", "agent_task_cycles", "agent_task_steps", "agent_task_plans", "agent_tasks")
             .forEach { raw.execSQL("DROP TABLE IF EXISTS $it") }
