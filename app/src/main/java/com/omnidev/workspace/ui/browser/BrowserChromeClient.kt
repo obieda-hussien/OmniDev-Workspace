@@ -337,6 +337,9 @@ internal class BrowserChromeClient(
                     if (finishPermissionRequest(request)) denyPermissionRequest(request)
                 }
                 .create()
+            synchronized(permissionLock) {
+                if (request in pendingPermissionRequests) pendingPermissionDialogs[request] = dialog
+            }
             BrowserDialogSafety.show(activity, dialog, onUnavailable = {
                 if (finishPermissionRequest(request)) denyPermissionRequest(request)
             })
@@ -397,13 +400,21 @@ internal class BrowserChromeClient(
 
     private val permissionLock = Any()
     private val pendingPermissionRequests: MutableSet<PermissionRequest> =
-        Collections.newSetFromMap(WeakHashMap())
+        Collections.newSetFromMap(WeakHashMap<PermissionRequest, Boolean>())
+    private val pendingPermissionDialogs: MutableMap<PermissionRequest, AlertDialog> =
+        WeakHashMap()
 
     private fun isPermissionRequestPending(request: PermissionRequest): Boolean =
         synchronized(permissionLock) { request in pendingPermissionRequests }
 
-    private fun finishPermissionRequest(request: PermissionRequest): Boolean =
-        synchronized(permissionLock) { pendingPermissionRequests.remove(request) }
+    private fun finishPermissionRequest(request: PermissionRequest): Boolean {
+        val dialog = synchronized(permissionLock) {
+            if (!pendingPermissionRequests.remove(request)) return false
+            pendingPermissionDialogs.remove(request)
+        }
+        BrowserDialogSafety.dismiss(dialog)
+        return true
+    }
 
     private fun denyPermissionRequest(request: PermissionRequest) {
         runCatching { request.deny() }
