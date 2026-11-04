@@ -59,7 +59,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -78,9 +77,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.omnidev.workspace.ui.lifecycle.rememberHostResumed
 import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniIconButton
 
@@ -115,9 +113,7 @@ fun BrowserViewerScreen(
 ) {
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
     val browserError by viewModel.browserError.collectAsStateWithLifecycle()
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
-    val browserHostResumed = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+    val browserHostResumed = rememberHostResumed()
     var autofillHelp by remember { mutableStateOf(false) }
     LaunchedEffect(browserHostResumed) {
         if (!browserHostResumed) autofillHelp = false
