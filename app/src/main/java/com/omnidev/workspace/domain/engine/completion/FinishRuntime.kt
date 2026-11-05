@@ -123,7 +123,7 @@ class FinishRuntime private constructor(
                     resumed = identity.resume != null,
                     effectOf = { if (ToolBatchPolicy.isReadOnly(it)) Effect.READ_ONLY else Effect.SIDE_EFFECT },
                     redact = SensitiveObservationRedactor::redact,
-                    constraintsJson = TaskResumeMetadata.encode(identity),
+                    constraintsJson = TaskResumeMetadata.encode(identity, policy),
                     resumeClaimed = identity.resumeClaimed).also { it.start(goal) }
             } else null
             val runtime = FinishRuntime(identity, profile, policy, ledger, state,

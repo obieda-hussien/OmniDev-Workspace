@@ -55,9 +55,9 @@ sealed class TaskResumeResult {
  * It uses the existing constraintsJson column, so P2 does not require a Room migration.
  */
 object TaskResumeMetadata {
-    fun encode(identity: RunIdentity): String = buildString {
-        append("{\"p2FinishPolicy\":{\"requireExecution\":")
-        append(identity.requireExecution?.toString() ?: "null")
+    fun encode(identity: RunIdentity, policy: com.omnidev.workspace.domain.engine.completion.FinalizationPolicy): String = buildString {
+        append("{\"p2FinishPolicy\":{\"enforce\":true,\"requireExecution\":")
+        append(policy.requireExecution.toString())
         append(",\"taskKind\":\"")
         append(identity.taskKind.name)
         append("\"}}")
@@ -68,6 +68,10 @@ object TaskResumeMetadata {
             .find(raw)?.groupValues?.getOrNull(1)?.lowercase()?.let {
                 when (it) { "true" -> true; "false" -> false; else -> null }
             }
+
+    fun forceFinishProtocol(raw: String): Boolean =
+        Regex("\"enforce\"\\s*:\\s*(true|false)", RegexOption.IGNORE_CASE)
+            .find(raw)?.groupValues?.getOrNull(1)?.equals("true", ignoreCase = true) ?: true
 
     fun taskKind(raw: String): TaskKind =
         Regex("\"taskKind\"\\s*:\\s*\"([A-Z_]+)\"", RegexOption.IGNORE_CASE)
@@ -137,7 +141,8 @@ class TaskContinuationCoordinator(
                     sessionId = task.sessionId,
                     parentTaskId = task.parentTaskId,
                     resume = TaskRunRecorder.seedFrom(snapshot),
-                    resumeClaimed = true
+                    resumeClaimed = true,
+                    forceFinishProtocol = TaskResumeMetadata.forceFinishProtocol(metadata)
                 )
                 TaskResumeResult.Ready(TaskContinuation(
                     taskId = task.taskId,

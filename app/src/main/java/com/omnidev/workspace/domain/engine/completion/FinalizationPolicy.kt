@@ -30,7 +30,7 @@ data class FinalizationPolicy(
         ): FinalizationPolicy {
             if (!toolsAvailable) return FinalizationPolicy(enforce = false, requireExecution = false)
             val actionTask = signals.executionIntent >= EXECUTION || signals.mutationIntent >= MUTATION
-            val enforce = isWorker || actionTask
+            val enforce = isWorker || actionTask || identity.forceFinishProtocol
             val require = identity.requireExecution
                 ?: (isWorker || signals.mutationIntent >= MUTATION || signals.executionIntent >= STRONG_EXECUTION)
             return FinalizationPolicy(enforce, enforce && require,

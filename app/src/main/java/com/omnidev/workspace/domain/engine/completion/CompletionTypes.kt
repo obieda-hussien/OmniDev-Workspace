@@ -49,7 +49,9 @@ data class RunIdentity(
     /** Evidence restored from the task store when an interrupted task of the same [runId] is resumed. */
     val resume: List<com.omnidev.workspace.domain.taskstate.ResumeEntry>? = null,
     /** True only when TaskStateStore already acquired the atomic RUNNING claim for this resume. */
-    val resumeClaimed: Boolean = false
+    val resumeClaimed: Boolean = false,
+    /** Existing persistent tasks were created only when P0 was enforced; preserve that decision on resume. */
+    val forceFinishProtocol: Boolean = false
 )
 
 /** Counters for measuring how often the protocol intervenes (benchmark input, never trusted by the gate). */
