@@ -9,6 +9,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import java.text.DateFormat
+import java.util.Date
+import java.util.Locale
 import com.omnidev.workspace.domain.taskstate.*
 
 @Composable
@@ -46,6 +49,10 @@ private fun TaskRecoveryCard(
     onDismiss: (String) -> Unit
 ) {
     var expanded by rememberSaveable(task.taskId) { mutableStateOf(false) }
+    val lastActivity = remember(task.latestActivityAt) {
+        DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, Locale.getDefault())
+            .format(Date(task.latestActivityAt))
+    }
     var selectedInvocation by remember(task.taskId) { mutableStateOf<RecoveryInvocationSummary?>(null) }
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
@@ -64,6 +71,8 @@ private fun TaskRecoveryCard(
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Cycles ${task.counts.cycles} · Successful ${task.counts.succeeded} · Failed ${task.counts.failed} · Unresolved ${task.counts.unresolved}",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Last activity: $lastActivity", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (task.decision == RecoveryDecision.REQUIRES_RECONCILIATION) {
                 Text("Reconciliation required before this task can safely continue.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
@@ -122,7 +131,7 @@ private fun ReconcileInvocationDialog(
     onDismiss: () -> Unit,
     onConfirm: (InvocationStatus, String) -> Unit
 ) {
-    var outcome by remember(invocation.invocationId) { mutableStateOf(InvocationStatus.SUCCEEDED) }
+    var outcome by remember(invocation.invocationId) { mutableStateOf<InvocationStatus?>(null) }
     var verification by rememberSaveable(invocation.invocationId) { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -152,7 +161,8 @@ private fun ReconcileInvocationDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(outcome, verification.trim()) }, enabled = verification.isNotBlank()) {
+            Button(onClick = { outcome?.let { onConfirm(it, verification.trim()) } },
+                enabled = outcome != null && verification.isNotBlank()) {
                 Text("Record outcome")
             }
         },

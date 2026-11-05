@@ -261,8 +261,20 @@ class TaskRunRecorder(
         val result = safely {
             store.finalizeTask(taskId, status, FinishRecord(report.status.wire, report.summary, report.ledgerDigest), outcomes, clock(), "finish:$taskId:${report.ledgerDigest}")
         }
-        if (result != null && result !is TransitionResult.Rejected) finalized = true
-        else if (result is TransitionResult.Rejected) { degraded = true; lastError = result.reason.take(300) }
+        if (result != null && result !is TransitionResult.Rejected) {
+            finalized = true
+            if (resumed) safely {
+                val event = when (status) {
+                    TaskStatus.COMPLETED -> "RESUME_COMPLETED"
+                    TaskStatus.FAILED -> "RESUME_FAILED"
+                    TaskStatus.BLOCKED -> "RESUME_BLOCKED"
+                    TaskStatus.AWAITING_APPROVAL -> "RESUME_AWAITING_APPROVAL"
+                    else -> "RESUME_INCOMPLETE"
+                }
+                store.recordEvent(taskId, "resume", taskId, "RUNNING", event,
+                    "finish gate persisted the resumed task outcome", clock(), "resume-finish:$runToken:$event")
+            }
+        } else if (result is TransitionResult.Rejected) { degraded = true; lastError = result.reason.take(300) }
     }
 
     private fun stepOutcomes(snapshot: TaskSnapshot, report: com.omnidev.workspace.domain.engine.completion.CompletionReport, status: TaskStatus): List<StepOutcome> {
@@ -286,7 +298,11 @@ class TaskRunRecorder(
         if (finalized) return@withLock
         flush()
         safely { endOpenCycle("interrupted") }
-        safely { TaskRecovery(store, clock).recover(taskId) }
+        val recovered = safely { TaskRecovery(store, clock).recover(taskId) }
+        if (resumed && recovered != null) safely {
+            store.recordEvent(taskId, "resume", taskId, "RUNNING", "RESUME_INTERRUPTED",
+                "resumed execution ended without a P0 finish verdict", clock(), "resume-interrupted:$runToken")
+        }
     }
 
     companion object {

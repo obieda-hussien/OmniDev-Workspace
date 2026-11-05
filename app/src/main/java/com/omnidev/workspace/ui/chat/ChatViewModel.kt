@@ -357,8 +357,11 @@ class ChatViewModel(
             }
             val readyState = _uiState.value
             val originalMessage = readyState.messages.lastOrNull { message ->
-                message.role == MessageRole.USER &&
-                    (message.userInput == continuation.originalRequest || message.content.contains(continuation.originalRequest))
+                message.role == MessageRole.USER && (
+                    message.userInput == continuation.originalRequest ||
+                        message.content.contains(continuation.originalRequest) ||
+                        continuation.originalRequest.startsWith(message.userInput?.takeIf { it.isNotBlank() } ?: message.content)
+                    )
             }
             val scopePath = originalMessage?.userScopePath ?: readyState.targetContext.orEmpty()
             val runId = activeRunId.incrementAndGet()
@@ -375,7 +378,6 @@ class ChatViewModel(
             currentSteering = null
             runSessionReady = CompletableDeferred(sessionId)
             steeringSaveJob = null
-            modePermissionStore.setPreferredMode(OmniMode.AGENT)
             compositeToolManager?.currentSessionId = sessionId
             _uiState.update { it.copy(
                 messages = it.messages + resumeMessage,
@@ -517,7 +519,11 @@ class ChatViewModel(
         activeRunId.incrementAndGet()
         currentSteering = null
         currentAgentJob?.cancel()
-        _uiState.update { it.copy(isProcessing = false, canSteer = false, streamingContent = null) }
+        _uiState.update { it.copy(
+            isProcessing = false, canSteer = false, streamingContent = null,
+            recoveryTasks = emptyList(), recoveryLoading = true, recoveryError = null
+        ) }
+        recoveryLoadJob?.cancel()
         sessionObservation?.cancel()
         sessionObservation = viewModelScope.launch {
             var loadedRecovery = false
@@ -596,7 +602,10 @@ class ChatViewModel(
                         consoleEntries = emptyList(),
                         messageConsoleEntries = emptyMap(),
                         errorMessage = null,
-                        streamingContent = null
+                        streamingContent = null,
+                        recoveryTasks = emptyList(),
+                        recoveryLoading = false,
+                        recoveryError = null
                     )
                 }
             }
@@ -614,7 +623,10 @@ class ChatViewModel(
                     consoleEntries = emptyList(),
                     messageConsoleEntries = emptyMap(),
                     errorMessage = null,
-                    streamingContent = null
+                    streamingContent = null,
+                    recoveryTasks = emptyList(),
+                    recoveryLoading = false,
+                    recoveryError = null
                 )
             }
         }
@@ -632,7 +644,10 @@ class ChatViewModel(
                         consoleEntries = emptyList(),
                         messageConsoleEntries = emptyMap(),
                         errorMessage = null,
-                        streamingContent = null
+                        streamingContent = null,
+                        recoveryTasks = emptyList(),
+                        recoveryLoading = false,
+                        recoveryError = null
                     )
                 }
             }

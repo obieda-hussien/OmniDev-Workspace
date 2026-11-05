@@ -192,6 +192,8 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
      */
     override suspend fun claimForResume(taskId: String, at: Long, eventKey: String): TaskResumeClaimResult = backend.atomic {
         val initial = task(taskId) ?: return@atomic TaskResumeClaimResult.Rejected("Task no longer exists.")
+        appendEvent(taskId, "resume", taskId, initial.status.name, "RESUME_REQUESTED",
+            "user explicitly requested task continuation", at, "resume-requested:$eventKey")
         appendEvent(taskId, "recovery", taskId, initial.status.name, "DISCOVERED",
             "user requested task recovery", at, "recovery-discovered:$eventKey")
         if (initial.status != TaskStatus.INTERRUPTED && initial.status != TaskStatus.INCOMPLETE) {
@@ -255,6 +257,8 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
             return@atomic TaskResumeClaimResult.Rejected((transition as? TransitionResult.Rejected)?.reason ?: "Resume claim was already taken.")
         }
         updateTask(current.copy(status = TaskStatus.RUNNING, updatedAt = at, heartbeatAt = at))
+        appendEvent(taskId, "resume", taskId, current.status.name, "RESUME_CLAIMED",
+            "exclusive persistent claim acquired", at, "resume-claimed:$eventKey")
         appendEvent(taskId, "task", taskId, current.status.name, TaskStatus.RUNNING.name,
             "user requested resume; exclusive claim acquired", at, eventKey)
         val after = task(taskId) ?: return@atomic TaskResumeClaimResult.Rejected("Task disappeared after claim.")
@@ -269,6 +273,8 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
             return@atomic TransitionResult.Rejected("resume already entered a new execution cycle or changed state")
         }
         updateTask(current.copy(status = TaskStatus.INTERRUPTED, updatedAt = at))
+        appendEvent(taskId, "resume", taskId, "RUNNING", "RESUME_FAILED",
+            "resume initialization failed before a new cycle started", at, "resume-failed:$eventKey")
         appendEvent(taskId, "task", taskId, TaskStatus.RUNNING.name, TaskStatus.INTERRUPTED.name,
             "resume initialization failed before a new cycle started", at, eventKey)
         TransitionResult.Applied
