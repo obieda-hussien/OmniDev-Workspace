@@ -133,6 +133,22 @@ class TaskStateEngineTest {
         assertEquals(50, store.invocations("t1", 100, 1_150).size)             // pagination bounds the page, not the data
     }
 
+    @Test fun `two concurrent resume requests produce exactly one persistent claimant`() = runBlocking {
+        store.createTask(newTask())
+        store.transitionTask("t1", TaskStatus.RUNNING, "run", 2_000, "run")
+        store.transitionTask("t1", TaskStatus.INTERRUPTED, "process died", 3_000, "dead")
+        val outcomes = kotlinx.coroutines.coroutineScope {
+            listOf(
+                async(kotlinx.coroutines.Dispatchers.Default) { store.claimForResume("t1", 4_000, "claim-a") },
+                async(kotlinx.coroutines.Dispatchers.Default) { store.claimForResume("t1", 4_001, "claim-b") }
+            ).awaitAll()
+        }
+        assertEquals(1, outcomes.count { it is TaskResumeClaimResult.Claimed })
+        assertEquals(1, outcomes.count { it is TaskResumeClaimResult.Rejected })
+        assertEquals(TaskStatus.RUNNING, store.task("t1")!!.status)
+        assertEquals(0, store.counts("t1").cycles) // the claim does not create or overwrite an execution cycle
+    }
+
     @Test fun `tasks are found by status and session`() = runBlocking {
         store.createTask(newTask("a")); store.createTask(newTask("b"))
         store.transitionTask("a", TaskStatus.RUNNING, "go", 5, "s")

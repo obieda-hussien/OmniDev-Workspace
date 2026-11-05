@@ -80,7 +80,7 @@ class TaskRecoveryTest {
         assertEquals(InvocationStatus.CANCELLED, status("c11", "t1:c2"))
 
         val verification = "Read-only inspection of /p/Foo.kt confirmed the original patch did not take effect."
-        val reconciled = TaskRecovery(store, ::tick).reconcile(originalId, InvocationStatus.CANCELLED, verification)
+        val reconciled = TaskRecovery(store, ::tick).reconcile("t1", originalId, InvocationStatus.CANCELLED, verification)
         assertEquals(TransitionResult.Applied, reconciled)
         val reconciledInvocation = store.snapshot("t1")!!.invocations.first { it.invocationId == originalId }
         assertEquals(InvocationStatus.CANCELLED, reconciledInvocation.status)
@@ -100,7 +100,7 @@ class TaskRecoveryTest {
         val invocationId = "t1/t1:c1/c1"
         val verification = "The provider confirmed the created resource by its exact ID."
         assertEquals(TransitionResult.Applied,
-            TaskRecovery(store, ::tick).reconcile(invocationId, InvocationStatus.SUCCEEDED, verification))
+            TaskRecovery(store, ::tick).reconcile("t1", invocationId, InvocationStatus.SUCCEEDED, verification))
         val restored = TaskRunRecorder.seedFrom(store.snapshot("t1")!!).single()
         assertEquals(RunEvidenceLedger.Outcome.OK, restored.outcome)
         assertEquals(verification, restored.evidence)
@@ -235,8 +235,10 @@ class TaskRecoveryTest {
         val r = started(recorder()); r.requested(listOf(patch("c1"))); r.gateRunning(patch("c1"))
         val rec = TaskRecovery(store, ::tick); rec.recover("t1")
         val id = "t1/t1:c1/c1"
-        assertTrue(rec.reconcile(id, InvocationStatus.SUCCEEDED, "") is TransitionResult.Rejected)
-        assertEquals(TransitionResult.Applied, rec.reconcile(id, InvocationStatus.SUCCEEDED, "read back /p/Foo.kt: patch present"))
+        assertTrue(rec.reconcile("t1", id, InvocationStatus.SUCCEEDED, "") is TransitionResult.Rejected)
+        assertTrue(rec.reconcile("wrong-task", id, InvocationStatus.SUCCEEDED, "verification") is TransitionResult.Rejected)
+        assertEquals(TransitionResult.Applied, rec.reconcile("t1", id, InvocationStatus.SUCCEEDED, "read back /p/Foo.kt: patch present"))
+        assertEquals(TransitionResult.Duplicate, rec.reconcile("t1", id, InvocationStatus.SUCCEEDED, "read back /p/Foo.kt: patch present"))
         val i = store.snapshot("t1")!!.invocations.single()
         assertEquals(InvocationStatus.SUCCEEDED, i.status)
         assertEquals("read back /p/Foo.kt: patch present", i.verification)
@@ -254,6 +256,17 @@ class TaskRecoveryTest {
         store.finalizeTask("wait", TaskStatus.AWAITING_APPROVAL, FinishRecord("awaiting_approval", "ok?", "d"), emptyList(), 3, "f")
         assertEquals(RecoveryDecision.REQUIRES_USER_INTERVENTION, TaskRecovery(store, ::tick).recover("wait")!!.plan.decision)
         assertEquals(TaskStatus.AWAITING_APPROVAL, store.task("wait")!!.status)   // untouched
+    }
+
+    @Test fun `startup sweep drains every stale task beyond the first recovery page`() = runBlocking {
+        repeat(125) { index ->
+            val taskId = "stale-$index"
+            val r = started(recorder(taskId))
+            r.requested(emptyList())
+        }
+        val swept = TaskRecovery(store, ::tick).recoverStale(staleAfterMs = 0L, liveTaskIds = emptySet(), limit = 17)
+        assertEquals(125, swept.size)
+        assertTrue((0 until 125).all { store.task("stale-$it")?.status == TaskStatus.INTERRUPTED })
     }
 
     @Test fun `startup sweep only touches stale tasks that are not live`() = runBlocking {
