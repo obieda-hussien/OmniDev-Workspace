@@ -1128,7 +1128,7 @@ class ChatViewModel(
     /** Explicit local task buttons use the same tool stack and never invoke completionProvider. */
     fun runLocalRoutine(routineId: String, parameters: Map<String, String> = emptyMap(),
         resumeRunId: String? = null, userCompletedStep: Boolean = false) {
-        if (_uiState.value.isProcessing) return
+        if (_uiState.value.isProcessing || resumePreparationJob != null) return
         val manager = compositeToolManager ?: return
         if (manager.getToolDefinitions().none { it.name == "learned_routine" }) {
             _uiState.update { it.copy(errorMessage = "Local tasks are unavailable under the current tool policy") }; return

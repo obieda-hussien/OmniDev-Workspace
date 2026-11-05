@@ -1,5 +1,7 @@
 package com.omnidev.workspace.domain.taskstate
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
