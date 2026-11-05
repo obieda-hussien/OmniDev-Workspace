@@ -307,7 +307,8 @@ class TaskRecoveryTest {
         assertEquals(2, snapshot.cycles.size)
         assertEquals("t1:c1", snapshot.cycles.first().cycleId)
         assertEquals("t1:c2", snapshot.cycles.last().cycleId)
-        assertEquals(InvocationStatus.SUCCEEDED, snapshot.invocations.single().status)
+        assertEquals(InvocationStatus.SUCCEEDED, snapshot.invocations.first { it.callId == "read-before-resume" }.status)
+        assertEquals(InvocationStatus.INTERRUPTED, snapshot.invocations.first { it.callId == "read-interrupted" }.status)
         assertEquals(2, coordinator.summary("t1")!!.counts.cycles)
     }
 
