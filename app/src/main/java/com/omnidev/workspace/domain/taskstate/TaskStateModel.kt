@@ -231,6 +231,8 @@ interface TaskStateStore {
     suspend fun recoverTask(taskId: String, at: Long): RecoveryOutcome?
     /** Re-check status and heartbeat in the same transaction as recovery to avoid interrupting an active run. */
     suspend fun recoverIfStale(taskId: String, cutoff: Long, liveTaskIds: Set<String>, at: Long): RecoveryOutcome?
+    /** Append a bounded operational event without changing task state. */
+    suspend fun recordEvent(taskId: String, entityType: String, entityId: String, from: String, to: String, reason: String, at: Long, eventKey: String): Boolean
     suspend fun invocation(invocationId: String): InvocationRecord?
     suspend fun invocations(taskId: String, limit: Int, offset: Int): List<InvocationRecord>
     suspend fun events(taskId: String, limit: Int, offset: Int): List<TransitionEvent>

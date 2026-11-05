@@ -192,6 +192,8 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
      */
     override suspend fun claimForResume(taskId: String, at: Long, eventKey: String): TaskResumeClaimResult = backend.atomic {
         val initial = task(taskId) ?: return@atomic TaskResumeClaimResult.Rejected("Task no longer exists.")
+        appendEvent(taskId, "recovery", taskId, initial.status.name, "DISCOVERED",
+            "user requested task recovery", at, "recovery-discovered:$eventKey")
         if (initial.status != TaskStatus.INTERRUPTED && initial.status != TaskStatus.INCOMPLETE) {
             val reason = when (initial.status) {
                 TaskStatus.RUNNING -> "This task is already running."
@@ -201,10 +203,14 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
                 TaskStatus.AWAITING_APPROVAL -> "This task is waiting for approval."
                 else -> "This task is not in a resumable state."
             }
+            appendEvent(taskId, "resume", taskId, initial.status.name, "CLAIM_REJECTED",
+                reason, at, "resume-rejected:$eventKey")
             return@atomic TaskResumeClaimResult.Rejected(reason)
         }
         val before = TaskSnapshot(initial, plans(taskId), steps(taskId), cycles(taskId), invocations(taskId))
         val recovery = TaskRecoveryPlanner.plan(before)
+        appendEvent(taskId, "recovery", taskId, "DISCOVERED", recovery.decision.name,
+            recovery.reasons.joinToString("; ").take(300), at, "recovery-decision:$eventKey")
 
         for (move in recovery.invocationTransitions) {
             val current = invocation(move.invocationId) ?: continue
@@ -233,13 +239,15 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
             }
         }
         if (recovery.decision !in setOf(RecoveryDecision.SAFE_TO_RESUME, RecoveryDecision.SAFE_TO_RETRY)) {
-            return@atomic TaskResumeClaimResult.Rejected(
-                recovery.reasons.joinToString("; ").ifBlank { "Recovery policy requires user intervention." },
-                recovery.decision
-            )
+            val reason = recovery.reasons.joinToString("; ").ifBlank { "Recovery policy requires user intervention." }
+            appendEvent(taskId, "resume", taskId, initial.status.name, "CLAIM_REJECTED",
+                reason, at, "resume-rejected:$eventKey")
+            return@atomic TaskResumeClaimResult.Rejected(reason, recovery.decision)
         }
         val current = task(taskId) ?: return@atomic TaskResumeClaimResult.Rejected("Task no longer exists.")
         if (current.status !in setOf(TaskStatus.INTERRUPTED, TaskStatus.INCOMPLETE)) {
+            appendEvent(taskId, "resume", taskId, current.status.name, "CLAIM_REJECTED",
+                "task state changed before claim", at, "resume-rejected:$eventKey")
             return@atomic TaskResumeClaimResult.Rejected("The task changed while recovery was being prepared.")
         }
         val transition = TaskStateRules.taskTransition(current.status, TaskStatus.RUNNING)
@@ -281,6 +289,10 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         val currentTask = task(taskId) ?: return null
         val snapshot = TaskSnapshot(currentTask, plans(taskId), steps(taskId), cycles(taskId), invocations(taskId))
         val plan = TaskRecoveryPlanner.plan(snapshot)
+        appendEvent(taskId, "recovery", taskId, currentTask.status.name, "DISCOVERED",
+            "recovery evaluation started", at, "recovery-discovered:$taskId:${currentTask.currentCycle}:${currentTask.status}")
+        appendEvent(taskId, "recovery", taskId, "DISCOVERED", plan.decision.name,
+            plan.reasons.joinToString("; ").take(300), at, "recovery-decision:$taskId:${currentTask.currentCycle}:${plan.decision}")
         for (move in plan.invocationTransitions) {
             val current = invocation(move.invocationId) ?: continue
             if (TaskStateRules.invocationTransition(current.status, move.to) != TransitionResult.Applied) continue
@@ -309,6 +321,12 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         }
         return RecoveryOutcome(taskId, plan, applied = true)
     }
+
+    override suspend fun recordEvent(taskId: String, entityType: String, entityId: String, from: String, to: String, reason: String, at: Long, eventKey: String) =
+        backend.atomic {
+            if (task(taskId) == null) false else appendEvent(taskId, entityType, entityId, from, to,
+                TaskStateRules.clamp(reason, 300), at, eventKey)
+        }
 
     override suspend fun invocation(invocationId: String) = backend.atomic { invocation(invocationId) }
 

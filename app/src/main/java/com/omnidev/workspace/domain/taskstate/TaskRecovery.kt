@@ -133,9 +133,16 @@ class TaskRecovery(private val store: TaskStateStore, private val now: () -> Lon
             return TransitionResult.Rejected("invocation is not eligible for reconciliation")
         }
         val at = now()
-        return store.transitionInvocation(invocationId, outcome,
+        store.recordEvent(taskId, "reconciliation", invocationId, invocation.status.name, "REQUESTED",
+            "user requested reconciliation to $outcome", at, "reconcile-request:$taskId:$invocationId:$outcome")
+        val result = store.transitionInvocation(invocationId, outcome,
             InvocationPatch(completedAt = at, verification = statement, isError = outcome != InvocationStatus.SUCCEEDED),
             at, "reconcile:$taskId:$invocationId:$outcome", "user reconciliation recorded")
+        store.recordEvent(taskId, "reconciliation", invocationId, invocation.status.name,
+            if (result == TransitionResult.Applied || result == TransitionResult.Duplicate) "ACCEPTED" else "REJECTED",
+            if (result is TransitionResult.Rejected) result.reason else "verified outcome recorded",
+            at, "reconcile-result:$taskId:$invocationId:$outcome")
+        return result
     }
 }
 

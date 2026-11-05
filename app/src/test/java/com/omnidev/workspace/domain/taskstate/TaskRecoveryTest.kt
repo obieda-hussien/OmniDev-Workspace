@@ -270,7 +270,9 @@ class TaskRecoveryTest {
         val visible = coordinator.tasksForSession(7L).single()
         assertEquals("t1", visible.taskId)
         assertEquals(TaskStatus.INTERRUPTED, visible.status)
-        assertEquals(1, visible.completedSteps)
+        assertEquals(0, visible.completedSteps) // a successful invocation is not P0 step-completion proof
+        assertEquals(1, visible.counts.succeeded)
+        assertEquals(1, visible.openSteps.size)
 
         val continuation = (coordinator.resume("t1") as TaskResumeResult.Ready).continuation
         assertEquals("t1", continuation.taskId)

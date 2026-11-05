@@ -98,6 +98,8 @@ class TaskRunRecorder(
                 // Do not perform a second state transition or create a second task.
                 val existing = store.task(taskId) ?: throw TaskStateException("claimed task disappeared before resume")
                 if (existing.status != TaskStatus.RUNNING) throw TaskStateException("resume claim is no longer active")
+                store.recordEvent(taskId, "resume", taskId, "CLAIMED", "RESUME_STARTED",
+                    "resumed run entered the normal agent pipeline", at, "resume-start:$runToken")
             } else {
                 // Backward-compatible P1 resume seam for existing internal callers. New UI resumes
                 // must use TaskContinuationCoordinator so competing claims are rejected atomically.
