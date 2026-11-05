@@ -316,7 +316,7 @@ class ChatViewModel(
     }
 
     /** Explicitly resumes the same task through AgentPipeline and its original P0 identity. */
-    fun resumePersistentTask(taskId: String) {
+    fun resumePersistentTask(taskId: String, additionalInstruction: String? = null) {
         val coordinator = taskRecovery ?: return
         if (_uiState.value.isProcessing || resumePreparationJob != null) return
 
@@ -376,8 +376,14 @@ class ChatViewModel(
                 preparationRunId = runId
                 val resumeMessage = ChatMessage(
                     role = MessageRole.USER,
-                    content = "Resume task: ${prepared.originalRequest.take(300)}",
-                    userInput = prepared.originalRequest,
+                    content = buildString {
+                        append("Resume task: ").append(prepared.originalRequest.take(300))
+                        if (!additionalInstruction.isNullOrBlank()) {
+                            append("\nAdditional instruction: ").append(additionalInstruction.trim().take(1_000))
+                        }
+                    },
+                    userInput = if (additionalInstruction.isNullOrBlank()) prepared.originalRequest
+                        else prepared.originalRequest + "\nAdditional instruction: " + additionalInstruction.trim().take(1_000),
                     userMode = OmniMode.AGENT.name,
                     userScopePath = scopePath
                 )
@@ -390,6 +396,8 @@ class ChatViewModel(
                 compositeToolManager?.currentSessionId = sessionId
                 _uiState.update { it.copy(
                     messages = it.messages + resumeMessage,
+                    inputText = if (additionalInstruction.isNullOrBlank()) it.inputText
+                        else if (it.inputText.trim() == additionalInstruction.trim()) "" else it.inputText,
                     activeMode = OmniMode.AGENT,
                     isProcessing = true,
                     canSteer = true,

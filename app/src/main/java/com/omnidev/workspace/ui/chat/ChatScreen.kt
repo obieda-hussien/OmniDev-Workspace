@@ -112,7 +112,7 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
                 recoveryTasks = state.recoveryTasks,
                 recoveryLoading = state.recoveryLoading,
                 recoveryError = state.recoveryError,
-                onResumeTask = viewModel::resumePersistentTask,
+                onResumeTask = { taskId, instruction -> viewModel.resumePersistentTask(taskId, instruction) },
                 onReconcileTask = viewModel::reconcileTaskInvocation,
                 onDismissRecoveryTask = viewModel::dismissTaskRecovery)
         }
@@ -137,7 +137,7 @@ internal fun ChatConversation(
     recoveryTasks: List<com.omnidev.workspace.domain.taskstate.TaskRecoverySummary> = emptyList(),
     recoveryLoading: Boolean = false,
     recoveryError: String? = null,
-    onResumeTask: (String) -> Unit = {},
+    onResumeTask: (String, String?) -> Unit = { _, _ -> },
     onReconcileTask: (String, String, com.omnidev.workspace.domain.taskstate.InvocationStatus, String) -> Unit = { _, _, _, _ -> },
     onDismissRecoveryTask: (String) -> Unit = {}
 ) {
@@ -186,7 +186,7 @@ internal fun ChatConversation(
                                 onClearError = onClearError, onModeDecision = onModeDecision, onBrowser = onBrowser,
                                 leadingContent = {
                                     TaskRecoverySection(recoveryTasks, recoveryLoading, recoveryError, !state.isProcessing,
-                                        onResumeTask, onReconcileTask, onDismissRecoveryTask)
+                                        onResumeTask, state.inputText, onReconcileTask, onDismissRecoveryTask)
                                 })
                         }
                         OmniAnimatedVisibility(!follow.following, Modifier.align(Alignment.BottomEnd).padding(12.dp)) {

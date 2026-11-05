@@ -20,7 +20,8 @@ internal fun TaskRecoverySection(
     loading: Boolean,
     error: String?,
     actionsEnabled: Boolean,
-    onResume: (String) -> Unit,
+    onResume: (String, String?) -> Unit,
+    additionalInstruction: String = "",
     onReconcile: (String, String, InvocationStatus, String) -> Unit,
     onDismiss: (String) -> Unit
 ) {
@@ -28,7 +29,7 @@ internal fun TaskRecoverySection(
     Column(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (tasks.isNotEmpty()) {
             Text("Task recovery", style = MaterialTheme.typography.titleMedium)
-            tasks.forEach { task -> TaskRecoveryCard(task, actionsEnabled, onResume, onReconcile, onDismiss) }
+            tasks.forEach { task -> TaskRecoveryCard(task, actionsEnabled, onResume, additionalInstruction, onReconcile, onDismiss) }
         }
         if (loading) Text("Checking saved task activity…", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -44,7 +45,8 @@ internal fun TaskRecoverySection(
 private fun TaskRecoveryCard(
     task: TaskRecoverySummary,
     actionsEnabled: Boolean,
-    onResume: (String) -> Unit,
+    onResume: (String, String?) -> Unit,
+    additionalInstruction: String,
     onReconcile: (String, String, InvocationStatus, String) -> Unit,
     onDismiss: (String) -> Unit
 ) {
@@ -83,7 +85,14 @@ private fun TaskRecoveryCard(
                 OutlinedButton(onClick = { expanded = !expanded }, enabled = actionsEnabled) {
                     Text(if (expanded) "Hide review" else "Review task")
                 }
-                if (task.canResume) Button(onClick = { onResume(task.taskId) }, enabled = actionsEnabled) { Text("Resume") }
+                if (task.canResume) {
+                    Button(onClick = { onResume(task.taskId, null) }, enabled = actionsEnabled) { Text("Resume") }
+                    if (additionalInstruction.isNotBlank()) {
+                        OutlinedButton(onClick = { onResume(task.taskId, additionalInstruction.trim()) }, enabled = actionsEnabled) {
+                            Text("Resume with draft")
+                        }
+                    }
+                }
                 else if (task.decision == RecoveryDecision.REQUIRES_RECONCILIATION) {
                     Text("Resume unavailable", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
                 }

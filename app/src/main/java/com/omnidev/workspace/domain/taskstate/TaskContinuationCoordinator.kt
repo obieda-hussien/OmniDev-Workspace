@@ -127,7 +127,7 @@ class TaskContinuationCoordinator(
      * Claims and normalizes the task atomically. No work is dispatched here; the caller must explicitly
      * launch the returned identity through AgentPipeline. Unknown side effects are rejected.
      */
-    suspend fun resume(taskId: String): TaskResumeResult {
+    suspend fun resume(taskId: String, additionalInstruction: String? = null): TaskResumeResult {
         TaskRecoveryBootstrap.awaitReady()
         val before = store.task(taskId) ?: return TaskResumeResult.Rejected("Task no longer exists.")
         val sessionId = before.sessionId ?: return TaskResumeResult.Rejected("This task is not linked to a chat session.")
@@ -135,8 +135,45 @@ class TaskContinuationCoordinator(
         return when (val result = store.claimForResume(taskId, now(), eventKey)) {
             is TaskResumeClaimResult.Rejected -> TaskResumeResult.Rejected(result.reason, result.decision)
             is TaskResumeClaimResult.Claimed -> {
-                val snapshot = result.claim.snapshot
-                val task = snapshot.task
+                var snapshot = result.claim.snapshot
+                var task = snapshot.task
+                val instruction = additionalInstruction?.trim()?.let(SensitiveObservationRedactor::redact)
+                    ?.take(1_000)?.takeIf { it.isNotBlank() }
+                if (instruction != null) {
+                    try {
+                        val revisionAt = now()
+                        val openKeys = snapshot.currentSteps.filter { !it.status.terminal }.map { it.key }
+                        val existing = snapshot.currentSteps.map { step ->
+                            NewStep(step.key, step.description, step.dependsOnKeys, step.expectedOutput, step.completionCondition)
+                        }
+                        val nextAcceptance = (snapshot.currentSteps.mapNotNull {
+                            it.key.removePrefix("A").toIntOrNull()
+                        }.maxOrNull() ?: 0) + 1
+                        val nextSteps = existing + NewStep(
+                            key = "A$nextAcceptance",
+                            description = "Additional user instruction: $instruction",
+                            dependsOnKeys = openKeys,
+                            expectedOutput = "The added instruction is completed and verified.",
+                            completionCondition = "P0 finish gate accepts this item with evidence"
+                        )
+                        val eventKey = "resume-objective:" + taskId + ":" + nextAcceptance + ":" + UUID.randomUUID()
+                        store.appendPlanRevision(taskId, nextSteps,
+                            "user added an instruction while resuming", revisionAt, eventKey)
+                            ?: throw TaskStateException("The additional instruction plan revision was not saved.")
+                        store.setObjective(taskId,
+                            (task.normalizedObjective.ifBlank { task.originalRequest } +
+                                "\nAdditional user instruction: " + instruction).take(2_000), revisionAt)
+                        snapshot = store.snapshot(taskId)
+                            ?: throw TaskStateException("Task disappeared while saving the new objective.")
+                        task = snapshot.task
+                    } catch (error: Exception) {
+                        store.releaseResumeClaim(taskId, result.claim.snapshot.task.currentCycle, now(),
+                            "resume-release-objective:" + taskId + ":" + UUID.randomUUID())
+                        return TaskResumeResult.Rejected(
+                            "The additional instruction could not be saved. The task remains available for recovery."
+                        )
+                    }
+                }
                 val criteria = snapshot.currentSteps.filter { it.key.matches(Regex("A[0-9]+")) }
                     .sortedBy { it.ordinal }.map { it.description }
                 val metadata = task.constraintsJson
@@ -156,7 +193,7 @@ class TaskContinuationCoordinator(
                     taskId = task.taskId,
                     sessionId = sessionId,
                     originalRequest = task.originalRequest,
-                    prompt = continuationPrompt(snapshot),
+                    prompt = continuationPrompt(snapshot, instruction),
                     identity = identity,
                     claimedCycle = task.currentCycle
                 ))
@@ -234,12 +271,16 @@ class TaskContinuationCoordinator(
         )
     }
 
-    private fun continuationPrompt(snapshot: TaskSnapshot): String = buildString {
+    private fun continuationPrompt(snapshot: TaskSnapshot, additionalInstruction: String? = null): String = buildString {
         appendLine("Continue the existing persistent task. This is a user-authorized resume, not a new task.")
         appendLine("Original request (preserve it exactly as the governing request):")
         appendLine(snapshot.task.originalRequest.take(4_000))
         appendLine("Latest objective:")
         appendLine(snapshot.task.normalizedObjective.ifBlank { snapshot.task.originalRequest }.take(2_000))
+        if (!additionalInstruction.isNullOrBlank()) {
+            appendLine("Additional user instruction for this continuation:")
+            appendLine(additionalInstruction)
+        }
         appendLine("Persisted plan revision: ${snapshot.latestPlan?.revision ?: snapshot.task.planRevision}.")
         appendLine("Verified completed steps:")
         snapshot.currentSteps.filter { it.status == StepStatus.COMPLETED }.forEach { appendLine("- ${it.key}: ${it.description.take(240)}") }

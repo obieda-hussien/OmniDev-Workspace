@@ -60,7 +60,7 @@ class TaskRecoverySectionTest {
                 TaskRecoverySection(
                     tasks = listOf(summary(true, RecoveryDecision.SAFE_TO_RESUME)),
                     loading = false, error = null, actionsEnabled = true,
-                    onResume = { resumed = it }, onReconcile = { _, _, _, _ -> }, onDismiss = {}
+                    onResume = { id, _ -> resumed = id }, onReconcile = { _, _, _, _ -> }, onDismiss = {}
                 )
             }
         }
@@ -70,13 +70,34 @@ class TaskRecoverySectionTest {
         compose.runOnIdle { assertEquals("task-42", resumed) }
     }
 
+    @Test fun draftInstructionOffersASeparateResumeAction() {
+        var resumed = ""
+        var instruction = ""
+        compose.setContent {
+            OmniDevTheme(dynamicColor = false) {
+                TaskRecoverySection(
+                    tasks = listOf(summary(true, RecoveryDecision.SAFE_TO_RESUME)),
+                    loading = false, error = null, actionsEnabled = true,
+                    onResume = { id, extra -> resumed = id; instruction = extra.orEmpty() },
+                    additionalInstruction = "Also add a regression test.",
+                    onReconcile = { _, _, _, _ -> }, onDismiss = {}
+                )
+            }
+        }
+        compose.onNodeWithText("Resume with draft").assertIsDisplayed().performClick()
+        compose.runOnIdle {
+            assertEquals("task-42", resumed)
+            assertEquals("Also add a regression test.", instruction)
+        }
+    }
+
     @Test fun unresolvedMutationHidesResumeAndRequiresVerificationBeforeReconciliation() {
         compose.setContent {
             OmniDevTheme(dynamicColor = false) {
                 TaskRecoverySection(
                     tasks = listOf(summary(false, RecoveryDecision.REQUIRES_RECONCILIATION)),
                     loading = false, error = null, actionsEnabled = true,
-                    onResume = {}, onReconcile = { _, _, _, _ -> }, onDismiss = {}
+                    onResume = { _, _ -> }, onReconcile = { _, _, _, _ -> }, onDismiss = {}
                 )
             }
         }

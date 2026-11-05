@@ -324,6 +324,31 @@ class TaskRecoveryTest {
         assertEquals("user follow-up", snapshot.latestPlan!!.reason)
     }
 
+    @Test fun `resume with an additional instruction records a new plan and preserves the original request`() = runBlocking {
+        val r = started(recorder())
+        r.requested(emptyList())
+        TaskRecovery(store, ::tick).recover("t1")
+        val original = store.task("t1")!!.originalRequest
+        val before = store.snapshot("t1")!!
+
+        val result = TaskContinuationCoordinator(store, ::tick).resume("t1", "Add a regression test for the repaired path.")
+        assertTrue(result is TaskResumeResult.Ready)
+        val continuation = (result as TaskResumeResult.Ready).continuation
+        val snapshot = store.snapshot("t1")!!
+
+        assertEquals("t1", continuation.taskId)
+        assertEquals("t1", continuation.identity.runId)
+        assertEquals(7L, continuation.sessionId)
+        assertEquals(original, continuation.originalRequest)
+        assertEquals(original, snapshot.task.originalRequest)
+        assertEquals(before.plans.size + 1, snapshot.plans.size)
+        assertTrue(snapshot.currentSteps.any { it.description.contains("Add a regression test") })
+        assertTrue(snapshot.task.normalizedObjective.contains("Add a regression test"))
+        assertTrue(continuation.identity.forceFinishProtocol)
+        assertEquals(before.cycles.size, snapshot.cycles.size)
+        assertEquals(TaskStatus.RUNNING, snapshot.task.status)
+    }
+
     @Test fun `cancelling a resumed run preserves the same task as interrupted with its new cycle`() = runBlocking {
         val first = started(recorder())
         first.requested(listOf(read("c1")))
