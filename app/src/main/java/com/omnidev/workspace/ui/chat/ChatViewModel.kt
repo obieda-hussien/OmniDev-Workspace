@@ -318,8 +318,7 @@ class ChatViewModel(
     /** Explicitly resumes the same task through AgentPipeline and its original P0 identity. */
     fun resumePersistentTask(taskId: String) {
         val coordinator = taskRecovery ?: return
-        if (_uiState.value.isProcessing) return
-        resumePreparationJob?.cancel()
+        if (_uiState.value.isProcessing || resumePreparationJob != null) return
 
         val preparation = viewModelScope.launch {
             var claimed: com.omnidev.workspace.domain.taskstate.TaskContinuation? = null
@@ -395,10 +394,7 @@ class ChatViewModel(
                 try {
                     chatRepository?.saveMessage(sessionId, resumeMessage)
                 } catch (error: Exception) {
-                    _uiState.update { state -> state.copy(
-                        messages = state.messages.filterNot { it.messageId == resumeMessage.messageId },
-                        recoveryError = "The resume request could not be saved to chat history."
-                    ) }
+                    _uiState.update { it.copy(recoveryError = "The resume request could not be saved to chat history.") }
                     return@launch
                 }
 
@@ -441,11 +437,10 @@ class ChatViewModel(
                     _uiState.update { it.copy(recoveryError = error.message?.take(240) ?: "The saved task could not be prepared for resume.") }
                 }
             } finally {
-                val unusedClaim = claimed
-                if (!handedOffToPipeline && unusedClaim != null) {
+                if (!handedOffToPipeline && claimed != null) {
                     try {
                         withContext(NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
-                            coordinator.releaseIfNotStarted(unusedClaim)
+                            coordinator.releaseIfNotStarted(claimed)
                         }
                     } catch (error: Exception) {
                         _uiState.update { it.copy(recoveryError = error.message?.take(240) ?: "The unused resume claim could not be released safely.") }
@@ -646,6 +641,10 @@ class ChatViewModel(
     }
 
     fun deleteSession(sessionId: Long) {
+        if (_uiState.value.currentSessionId == sessionId) {
+            resumePreparationJob?.cancel()
+            resumePreparationJob = null
+        }
         viewModelScope.launch {
             chatRepository?.deleteSession(sessionId)
             modePermissionStore.clearSession(sessionId)
@@ -668,6 +667,8 @@ class ChatViewModel(
     }
 
     fun deleteAllSessions() {
+        resumePreparationJob?.cancel()
+        resumePreparationJob = null
         viewModelScope.launch {
             modePermissionStore.clearSession(_uiState.value.currentSessionId)
             chatRepository?.deleteAllSessions()
@@ -688,6 +689,10 @@ class ChatViewModel(
     }
 
     fun deleteSelectedSessions(ids: Set<Long>) {
+        if (_uiState.value.currentSessionId in ids) {
+            resumePreparationJob?.cancel()
+            resumePreparationJob = null
+        }
         viewModelScope.launch {
             ids.forEach(modePermissionStore::clearSession)
             chatRepository?.deleteSelectedSessions(ids)
@@ -1149,8 +1154,6 @@ class ChatViewModel(
 
         activeRunId.incrementAndGet()
         currentSteering = null
-        resumePreparationJob?.cancel()
-        resumePreparationJob = null
         currentAgentJob?.cancel()
         currentAgentJob = null
         _uiState.update {
