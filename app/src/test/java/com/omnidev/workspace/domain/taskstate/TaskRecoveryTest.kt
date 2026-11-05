@@ -63,7 +63,7 @@ class TaskRecoveryTest {
         assertEquals(listOf("t1/t1:c1/c1"), out.plan.needsReconciliation)
     }
 
-    @Test fun `a later read does not reconcile an unresolved side effect; exact reconciliation is required`() = runBlocking {
+    @Test fun `a later read cannot reconcile an unresolved side effect and exact reconciliation is required`() = runBlocking {
         val r = started(recorder()); r.requested(listOf(patch("c1"))); r.gateRunning(patch("c1"))
         TaskRecovery(store, ::tick).recover("t1")
         val originalId = "t1/t1:c1/c1"
