@@ -325,7 +325,14 @@ class ChatViewModel(
             var handedOffToPipeline = false
             var preparationRunId: Long? = null
             try {
-                val result = withContext(kotlinx.coroutines.Dispatchers.IO) { coordinator.resume(taskId) }
+                // Complete the short persistent claim atomically with its handoff value. If the
+                // caller is cancelled while Room commits, claimed is already set so the outer
+                // NonCancellable finally can release an unstarted claim.
+                val result = withContext(NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
+                    coordinator.resume(taskId).also { outcome ->
+                        if (outcome is TaskResumeResult.Ready) claimed = outcome.continuation
+                    }
+                }
                 val prepared = when (result) {
                     is TaskResumeResult.Rejected -> {
                         _uiState.update { it.copy(recoveryError = result.reason) }
