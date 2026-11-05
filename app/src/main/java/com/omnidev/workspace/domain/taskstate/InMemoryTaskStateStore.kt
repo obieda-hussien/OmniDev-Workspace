@@ -64,8 +64,8 @@ class MemoryTaskStateBackend : TaskStateBackend {
         }
         override suspend fun hasEvent(taskId: String, key: String) = "$taskId|$key" in s.keys
         override suspend fun events(taskId: String, limit: Int, offset: Int) = s.events.filter { it.taskId == taskId }.drop(offset).take(limit)
-        override suspend fun tasksByStatus(statuses: Set<TaskStatus>, limit: Int) = s.tasks.values.filter { it.status in statuses }.sortedByDescending { it.updatedAt }.take(limit)
-        override suspend fun tasksForSession(sessionId: Long, limit: Int) = s.tasks.values.filter { it.sessionId == sessionId }.sortedByDescending { it.createdAt }.take(limit)
+        override suspend fun tasksByStatus(statuses: Set<TaskStatus>, limit: Int, offset: Int) = s.tasks.values.filter { it.status in statuses }.sortedWith(compareByDescending<TaskRecord> { it.updatedAt }.thenBy { it.taskId }).drop(offset).take(limit)
+        override suspend fun tasksForSession(sessionId: Long, limit: Int, offset: Int) = s.tasks.values.filter { it.sessionId == sessionId }.sortedWith(compareByDescending<TaskRecord> { it.createdAt }.thenBy { it.taskId }).drop(offset).take(limit)
     }
 
     override suspend fun <T> atomic(block: suspend TaskStateAccess.() -> T): T = lock.withLock {

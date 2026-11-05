@@ -166,6 +166,27 @@ data class TaskCounts(
     val stepsTotal: Int, val stepsCompleted: Int
 )
 
+/** Bounded list/detail projection. It deliberately excludes the full history of successful tool results. */
+data class TaskRecoverySnapshot(
+    val task: TaskRecord,
+    val latestPlan: PlanRevisionRecord?,
+    val currentSteps: List<StepRecord>,
+    val latestCycle: CycleRecord?,
+    val counts: TaskCounts,
+    /** Only pending/uncertain side effects are included; never the full invocation history. */
+    val unresolvedSideEffects: List<InvocationRecord>
+)
+
+data class TaskResumeClaim(
+    val snapshot: TaskSnapshot,
+    val recoveryPlan: RecoveryPlan
+)
+
+sealed class TaskResumeClaimResult {
+    data class Claimed(val claim: TaskResumeClaim) : TaskResumeClaimResult()
+    data class Rejected(val reason: String, val decision: RecoveryDecision? = null) : TaskResumeClaimResult()
+}
+
 data class TaskSnapshot(
     val task: TaskRecord,
     val plans: List<PlanRevisionRecord>,
@@ -201,11 +222,15 @@ interface TaskStateStore {
     suspend fun finalizeTask(taskId: String, status: TaskStatus, finish: FinishRecord, stepOutcomes: List<StepOutcome>, at: Long, eventKey: String): TransitionResult
 
     suspend fun snapshot(taskId: String): TaskSnapshot?
+    suspend fun recoverySnapshot(taskId: String): TaskRecoverySnapshot?
+    /** Atomically normalizes interrupted records and claims an eligible task for exactly one resume caller. */
+    suspend fun claimForResume(taskId: String, at: Long, eventKey: String): TaskResumeClaimResult
+    suspend fun invocation(invocationId: String): InvocationRecord?
     suspend fun invocations(taskId: String, limit: Int, offset: Int): List<InvocationRecord>
     suspend fun events(taskId: String, limit: Int, offset: Int): List<TransitionEvent>
     suspend fun counts(taskId: String): TaskCounts
-    suspend fun tasksByStatus(statuses: Set<TaskStatus>, limit: Int): List<TaskRecord>
-    suspend fun tasksForSession(sessionId: Long, limit: Int): List<TaskRecord>
+    suspend fun tasksByStatus(statuses: Set<TaskStatus>, limit: Int, offset: Int = 0): List<TaskRecord>
+    suspend fun tasksForSession(sessionId: Long, limit: Int, offset: Int = 0): List<TaskRecord>
     /** Side-effecting invocations whose outcome is not established (PENDING, RUNNING, INTERRUPTED or UNKNOWN). */
     suspend fun unresolvedSideEffects(taskId: String): List<InvocationRecord>
 }

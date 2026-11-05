@@ -34,8 +34,8 @@ interface TaskStateAccess {
     suspend fun hasEvent(taskId: String, key: String): Boolean
     suspend fun events(taskId: String, limit: Int, offset: Int): List<TransitionEvent>
 
-    suspend fun tasksByStatus(statuses: Set<TaskStatus>, limit: Int): List<TaskRecord>
-    suspend fun tasksForSession(sessionId: Long, limit: Int): List<TaskRecord>
+    suspend fun tasksByStatus(statuses: Set<TaskStatus>, limit: Int, offset: Int): List<TaskRecord>
+    suspend fun tasksForSession(sessionId: Long, limit: Int, offset: Int): List<TaskRecord>
 }
 
 interface TaskStateBackend {
