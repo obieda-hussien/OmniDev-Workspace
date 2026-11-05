@@ -19,6 +19,7 @@ import com.omnidev.workspace.domain.taskstate.StepCompletion
 import com.omnidev.workspace.domain.taskstate.StepOutcome
 import com.omnidev.workspace.domain.taskstate.StepStatus
 import com.omnidev.workspace.domain.taskstate.TaskStatus
+import com.omnidev.workspace.domain.taskstate.TaskRecovery
 import com.omnidev.workspace.domain.taskstate.TransitionResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async

@@ -317,7 +317,16 @@ class ChatViewModel(
         val coordinator = taskRecovery ?: return
         if (_uiState.value.isProcessing) return
         viewModelScope.launch {
-            val continuation = when (val result = withContext(kotlinx.coroutines.Dispatchers.IO) { coordinator.resume(taskId) }) {
+            val result = try {
+                withContext(kotlinx.coroutines.Dispatchers.IO) { coordinator.resume(taskId) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _uiState.update { it.copy(recoveryError = error.message?.take(240) ?: "The saved task could not be prepared for resume.") }
+                refreshTaskRecovery()
+                return@launch
+            }
+            val continuation = when (result) {
                 is TaskResumeResult.Rejected -> {
                     _uiState.update { it.copy(recoveryError = result.reason) }
                     refreshTaskRecovery()
