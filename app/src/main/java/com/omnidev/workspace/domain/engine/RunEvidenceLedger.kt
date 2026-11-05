@@ -43,6 +43,19 @@ class RunEvidenceLedger(
     @Synchronized
     fun size(): Int = entries.size
 
+    /**
+     * Restores evidence persisted by an earlier part of the SAME task when a run is resumed. Only entries
+     * the task store proved SUCCEEDED arrive as OK; failed, unknown and interrupted side effects arrive as
+     * ERROR and skipped ones as SKIPPED, so nothing uncertain can satisfy the finish gate.
+     */
+    @Synchronized
+    fun restore(restored: List<com.omnidev.workspace.domain.taskstate.ResumeEntry>) {
+        restored.forEach { e ->
+            seq += 1
+            entries += Entry(seq, e.tool, e.target, e.outcome, e.evidence, e.callId, EvidenceKinds.classify(e.tool))
+        }
+    }
+
     @Synchronized
     fun record(call: ToolCall, result: ToolCallResult) {
         val output = result.output
