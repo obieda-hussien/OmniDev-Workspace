@@ -248,6 +248,50 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         TaskResumeClaimResult.Claimed(TaskResumeClaim(claimed, recovery))
     }
 
+    override suspend fun recoverTask(taskId: String, at: Long): RecoveryOutcome? =
+        backend.atomic { applyRecovery(taskId, at) }
+
+    override suspend fun recoverIfStale(taskId: String, cutoff: Long, liveTaskIds: Set<String>, at: Long): RecoveryOutcome? =
+        backend.atomic {
+            if (taskId in liveTaskIds) return@atomic null
+            val current = task(taskId) ?: return@atomic null
+            if (current.status !in setOf(TaskStatus.CREATED, TaskStatus.RUNNING) || current.heartbeatAt >= cutoff) return@atomic null
+            applyRecovery(taskId, at)
+        }
+
+    private suspend fun TaskStateAccess.applyRecovery(taskId: String, at: Long): RecoveryOutcome? {
+        val currentTask = task(taskId) ?: return null
+        val snapshot = TaskSnapshot(currentTask, plans(taskId), steps(taskId), cycles(taskId), invocations(taskId))
+        val plan = TaskRecoveryPlanner.plan(snapshot)
+        for (move in plan.invocationTransitions) {
+            val current = invocation(move.invocationId) ?: continue
+            if (TaskStateRules.invocationTransition(current.status, move.to) != TransitionResult.Applied) continue
+            updateInvocation(current.copy(
+                status = move.to,
+                completedAt = if (move.to == InvocationStatus.CANCELLED) at else current.completedAt,
+                isError = current.isError || move.to == InvocationStatus.UNKNOWN || move.to == InvocationStatus.INTERRUPTED
+            ))
+            appendEvent(taskId, "invocation", current.invocationId, current.status.name, move.to.name,
+                move.reason, at, "recover:${current.invocationId}:${move.to}")
+        }
+        for (move in plan.stepTransitions) {
+            val current = step(move.stepId) ?: continue
+            if (TaskStateRules.stepTransition(current.status, move.to) != TransitionResult.Applied) continue
+            saveStep(current.copy(status = move.to, statusReason = TaskStateRules.clamp(move.reason, 300), updatedAt = at))
+            appendEvent(taskId, "step", current.stepId, current.status.name, move.to.name,
+                move.reason, at, "recover:${current.stepId}:${move.to}")
+        }
+        plan.taskStatus?.let { target ->
+            val latest = task(taskId) ?: return null
+            if (TaskStateRules.taskTransition(latest.status, target) == TransitionResult.Applied) {
+                updateTask(latest.copy(status = target, updatedAt = at))
+                appendEvent(taskId, "task", taskId, latest.status.name, target.name,
+                    "recovered: ${plan.decision}", at, "recover:$taskId:${snapshot.task.currentCycle}")
+            }
+        }
+        return RecoveryOutcome(taskId, plan, applied = true)
+    }
+
     override suspend fun invocation(invocationId: String) = backend.atomic { invocation(invocationId) }
 
     override suspend fun invocations(taskId: String, limit: Int, offset: Int) = backend.atomic { invocationsPage(taskId, limit, offset) }

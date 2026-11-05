@@ -85,6 +85,7 @@ class TaskContinuationCoordinator(
 ) {
     suspend fun tasksForSession(sessionId: Long, pageSize: Int = 30): List<TaskRecoverySummary> {
         require(pageSize > 0)
+        TaskRecoveryBootstrap.awaitReady()
         val records = ArrayList<TaskRecord>()
         var offset = 0
         val visible = setOf(TaskStatus.INTERRUPTED, TaskStatus.INCOMPLETE, TaskStatus.BLOCKED,

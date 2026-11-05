@@ -91,17 +91,7 @@ data class RecoveryOutcome(val taskId: String, val plan: RecoveryPlan, val appli
 /** Applies [TaskRecoveryPlanner] decisions. Every move is a guarded, idempotent transition, so recovery can itself be interrupted and re-run. */
 class TaskRecovery(private val store: TaskStateStore, private val now: () -> Long = System::currentTimeMillis) {
 
-    suspend fun recover(taskId: String): RecoveryOutcome? {
-        val snapshot = store.snapshot(taskId) ?: return null
-        val plan = TaskRecoveryPlanner.plan(snapshot)
-        val at = now()
-        plan.invocationTransitions.forEach { m ->
-            store.transitionInvocation(m.invocationId, m.to, InvocationPatch(completedAt = null), at, "recover:${m.invocationId}:${m.to}", m.reason)
-        }
-        plan.stepTransitions.forEach { m -> store.transitionStep(m.stepId, m.to, m.reason, at, "recover:${m.stepId}:${m.to}") }
-        plan.taskStatus?.let { store.transitionTask(taskId, it, "recovered: ${plan.decision}", at, "recover:$taskId:${snapshot.task.currentCycle}") }
-        return RecoveryOutcome(taskId, plan, applied = true)
-    }
+    suspend fun recover(taskId: String): RecoveryOutcome? = store.recoverTask(taskId, now())
 
     /** Startup/idle sweep: tasks that claim to be running but whose heartbeat is stale and that are not live in this process. */
     suspend fun recoverStale(staleAfterMs: Long, liveTaskIds: Set<String>, limit: Int = 50): List<RecoveryOutcome> {
@@ -118,10 +108,11 @@ class TaskRecovery(private val store: TaskStateStore, private val now: () -> Lon
             if (page.size < limit) break
             offset += page.size
         }
-        return candidates.asSequence()
-            .filter { it.taskId !in liveTaskIds && it.heartbeatAt < cutoff }
-            .mapNotNull { recover(it.taskId) }
-            .toList()
+        return candidates.mapNotNull { candidate ->
+            // The persisted status and heartbeat are rechecked inside the same transaction that
+            // marks it interrupted. A concurrent resume/heartbeat always wins or loses atomically.
+            store.recoverIfStale(candidate.taskId, cutoff, liveTaskIds, now())
+        }
     }
 
     /**

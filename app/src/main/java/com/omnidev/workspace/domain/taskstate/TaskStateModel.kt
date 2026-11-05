@@ -225,6 +225,10 @@ interface TaskStateStore {
     suspend fun recoverySnapshot(taskId: String): TaskRecoverySnapshot?
     /** Atomically normalizes interrupted records and claims an eligible task for exactly one resume caller. */
     suspend fun claimForResume(taskId: String, at: Long, eventKey: String): TaskResumeClaimResult
+    /** Atomically apply the recovery plan to a task after user cancellation or run completion. */
+    suspend fun recoverTask(taskId: String, at: Long): RecoveryOutcome?
+    /** Re-check status and heartbeat in the same transaction as recovery to avoid interrupting an active run. */
+    suspend fun recoverIfStale(taskId: String, cutoff: Long, liveTaskIds: Set<String>, at: Long): RecoveryOutcome?
     suspend fun invocation(invocationId: String): InvocationRecord?
     suspend fun invocations(taskId: String, limit: Int, offset: Int): List<InvocationRecord>
     suspend fun events(taskId: String, limit: Int, offset: Int): List<TransitionEvent>
