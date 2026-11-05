@@ -84,6 +84,10 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
 
     override suspend fun beginCycle(taskId: String, stepId: String?, at: Long, eventKey: String): CycleRecord = backend.atomic {
         val t = task(taskId) ?: throw TaskStateException("unknown task $taskId")
+        if (t.status in setOf(TaskStatus.INTERRUPTED, TaskStatus.BLOCKED, TaskStatus.AWAITING_APPROVAL,
+                TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED)) {
+            throw TaskStateException("cannot start a cycle while task is ${t.status}")
+        }
         if (hasEvent(taskId, eventKey)) cycle(TaskStateRules.cycleId(taskId, t.currentCycle))?.let { return@atomic it }
         val seq = t.currentCycle + 1
         val c = CycleRecord(TaskStateRules.cycleId(taskId, seq), taskId, seq, t.planRevision, stepId, at, null, "", "", "[]")
@@ -246,6 +250,18 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         val after = task(taskId) ?: return@atomic TaskResumeClaimResult.Rejected("Task disappeared after claim.")
         val claimed = TaskSnapshot(after, plans(taskId), steps(taskId), cycles(taskId), invocations(taskId))
         TaskResumeClaimResult.Claimed(TaskResumeClaim(claimed, recovery))
+    }
+
+    override suspend fun releaseResumeClaim(taskId: String, expectedCycle: Int, at: Long, eventKey: String): TransitionResult = backend.atomic {
+        val current = task(taskId) ?: return@atomic TransitionResult.Rejected("unknown task")
+        if (hasEvent(taskId, eventKey)) return@atomic TransitionResult.Duplicate
+        if (current.status != TaskStatus.RUNNING || current.currentCycle != expectedCycle) {
+            return@atomic TransitionResult.Rejected("resume already entered a new execution cycle or changed state")
+        }
+        updateTask(current.copy(status = TaskStatus.INTERRUPTED, updatedAt = at))
+        appendEvent(taskId, "task", taskId, TaskStatus.RUNNING.name, TaskStatus.INTERRUPTED.name,
+            "resume initialization failed before a new cycle started", at, eventKey)
+        TransitionResult.Applied
     }
 
     override suspend fun recoverTask(taskId: String, at: Long): RecoveryOutcome? =

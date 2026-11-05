@@ -149,11 +149,19 @@ class TaskContinuationCoordinator(
                     sessionId = sessionId,
                     originalRequest = task.originalRequest,
                     prompt = continuationPrompt(snapshot),
-                    identity = identity
+                    identity = identity,
+                    claimedCycle = task.currentCycle
                 ))
             }
         }
     }
+
+    /** Release only a claim that failed before any new cycle was committed. */
+    suspend fun releaseIfNotStarted(continuation: TaskContinuation): TransitionResult =
+        store.releaseResumeClaim(
+            continuation.taskId, continuation.claimedCycle, now(),
+            "resume-release:${continuation.taskId}:${continuation.claimedCycle}"
+        )
 
     private fun summarize(snapshot: TaskRecoverySnapshot): TaskRecoverySummary {
         val task = snapshot.task
