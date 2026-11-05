@@ -105,7 +105,8 @@ class TaskContinuationCoordinator(
             offset += page.size
         }
         val summaries = ArrayList<TaskRecoverySummary>(records.size)
-        records.asSequence().filter { it.status in visible }.forEach { record ->
+        for (record in records) {
+            if (record.status !in visible) continue
             store.recoverySnapshot(record.taskId)?.let { summaries += summarize(it) }
         }
         return summaries
