@@ -159,6 +159,97 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         TaskSnapshot(t, plans(taskId), steps(taskId), cycles(taskId), invocations(taskId))
     }
 
+    override suspend fun recoverySnapshot(taskId: String): TaskRecoverySnapshot? = backend.atomic {
+        val t = task(taskId) ?: return@atomic null
+        val plans = plans(taskId)
+        val latest = plans.maxByOrNull { it.revision }
+        val allSteps = steps(taskId)
+        val currentSteps = latest?.let { p -> allSteps.filter { it.planId == p.planId }.sortedBy { it.ordinal } }.orEmpty()
+        val statuses = invocationCounts(taskId)
+        val unresolved = listOf(InvocationStatus.PENDING, InvocationStatus.RUNNING, InvocationStatus.INTERRUPTED, InvocationStatus.UNKNOWN)
+            .sumOf { statuses[it] ?: 0 }
+        val counts = TaskCounts(
+            cycles = cycleCount(taskId),
+            invocations = statuses.values.sum(),
+            succeeded = statuses[InvocationStatus.SUCCEEDED] ?: 0,
+            failed = statuses[InvocationStatus.FAILED] ?: 0,
+            unresolved = unresolved,
+            stepsTotal = currentSteps.size,
+            stepsCompleted = currentSteps.count { it.status == StepStatus.COMPLETED }
+        )
+        TaskRecoverySnapshot(t, latest, currentSteps, cycles(taskId).maxByOrNull { it.seq }, counts, unresolvedSideEffects(taskId))
+    }
+
+    /**
+     * The recovery normalization and the RUNNING claim share one Room transaction. A second caller
+     * sees RUNNING and is rejected before it can alter the first caller's task state.
+     */
+    override suspend fun claimForResume(taskId: String, at: Long, eventKey: String): TaskResumeClaimResult = backend.atomic {
+        val initial = task(taskId) ?: return@atomic TaskResumeClaimResult.Rejected("Task no longer exists.")
+        if (initial.status != TaskStatus.INTERRUPTED && initial.status != TaskStatus.INCOMPLETE) {
+            val reason = when (initial.status) {
+                TaskStatus.RUNNING -> "This task is already running."
+                TaskStatus.COMPLETED -> "This task is already completed."
+                TaskStatus.FAILED, TaskStatus.CANCELLED -> "This task has permanently ended."
+                TaskStatus.BLOCKED -> "This task is blocked and needs user intervention."
+                TaskStatus.AWAITING_APPROVAL -> "This task is waiting for approval."
+                else -> "This task is not in a resumable state."
+            }
+            return@atomic TaskResumeClaimResult.Rejected(reason)
+        }
+        val before = TaskSnapshot(initial, plans(taskId), steps(taskId), cycles(taskId), invocations(taskId))
+        val recovery = TaskRecoveryPlanner.plan(before)
+
+        for (move in recovery.invocationTransitions) {
+            val current = invocation(move.invocationId) ?: continue
+            if (TaskStateRules.invocationTransition(current.status, move.to) == TransitionResult.Applied) {
+                val completedAt = if (move.to == InvocationStatus.CANCELLED) at else current.completedAt
+                updateInvocation(current.copy(status = move.to, completedAt = completedAt,
+                    isError = current.isError || move.to == InvocationStatus.UNKNOWN || move.to == InvocationStatus.INTERRUPTED))
+                appendEvent(taskId, "invocation", current.invocationId, current.status.name, move.to.name,
+                    move.reason, at, "resume-normalize:${eventKey}:${current.invocationId}:${move.to}")
+            }
+        }
+        for (move in recovery.stepTransitions) {
+            val current = step(move.stepId) ?: continue
+            if (TaskStateRules.stepTransition(current.status, move.to) == TransitionResult.Applied) {
+                saveStep(current.copy(status = move.to, statusReason = TaskStateRules.clamp(move.reason, 300), updatedAt = at))
+                appendEvent(taskId, "step", current.stepId, current.status.name, move.to.name,
+                    move.reason, at, "resume-normalize:${eventKey}:${current.stepId}:${move.to}")
+            }
+        }
+        recovery.taskStatus?.let { target ->
+            val current = task(taskId) ?: return@atomic TaskResumeClaimResult.Rejected("Task no longer exists.")
+            if (TaskStateRules.taskTransition(current.status, target) == TransitionResult.Applied) {
+                updateTask(current.copy(status = target, updatedAt = at))
+                appendEvent(taskId, "task", taskId, current.status.name, target.name,
+                    "normalized before user-requested resume", at, "resume-normalize:${eventKey}:task")
+            }
+        }
+        if (recovery.decision !in setOf(RecoveryDecision.SAFE_TO_RESUME, RecoveryDecision.SAFE_TO_RETRY)) {
+            return@atomic TaskResumeClaimResult.Rejected(
+                recovery.reasons.joinToString("; ").ifBlank { "Recovery policy requires user intervention." },
+                recovery.decision
+            )
+        }
+        val current = task(taskId) ?: return@atomic TaskResumeClaimResult.Rejected("Task no longer exists.")
+        if (current.status != TaskStatus.INTERRUPTED) {
+            return@atomic TaskResumeClaimResult.Rejected("The task changed while recovery was being prepared.")
+        }
+        val transition = TaskStateRules.taskTransition(current.status, TaskStatus.RUNNING)
+        if (transition != TransitionResult.Applied) {
+            return@atomic TaskResumeClaimResult.Rejected((transition as? TransitionResult.Rejected)?.reason ?: "Resume claim was already taken.")
+        }
+        updateTask(current.copy(status = TaskStatus.RUNNING, updatedAt = at, heartbeatAt = at))
+        appendEvent(taskId, "task", taskId, current.status.name, TaskStatus.RUNNING.name,
+            "user requested resume; exclusive claim acquired", at, eventKey)
+        val after = task(taskId) ?: return@atomic TaskResumeClaimResult.Rejected("Task disappeared after claim.")
+        val claimed = TaskSnapshot(after, plans(taskId), steps(taskId), cycles(taskId), invocations(taskId))
+        TaskResumeClaimResult.Claimed(TaskResumeClaim(claimed, recovery))
+    }
+
+    override suspend fun invocation(invocationId: String) = backend.atomic { invocation(invocationId) }
+
     override suspend fun invocations(taskId: String, limit: Int, offset: Int) = backend.atomic { invocationsPage(taskId, limit, offset) }
     override suspend fun events(taskId: String, limit: Int, offset: Int) = backend.atomic { events(taskId, limit, offset) }
 
@@ -171,7 +262,7 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
             st.size, st.count { it.status == StepStatus.COMPLETED })
     }
 
-    override suspend fun tasksByStatus(statuses: Set<TaskStatus>, limit: Int) = backend.atomic { tasksByStatus(statuses, limit) }
-    override suspend fun tasksForSession(sessionId: Long, limit: Int) = backend.atomic { tasksForSession(sessionId, limit) }
+    override suspend fun tasksByStatus(statuses: Set<TaskStatus>, limit: Int, offset: Int) = backend.atomic { tasksByStatus(statuses, limit, offset) }
+    override suspend fun tasksForSession(sessionId: Long, limit: Int, offset: Int) = backend.atomic { tasksForSession(sessionId, limit, offset) }
     override suspend fun unresolvedSideEffects(taskId: String) = backend.atomic { unresolvedSideEffects(taskId) }
 }

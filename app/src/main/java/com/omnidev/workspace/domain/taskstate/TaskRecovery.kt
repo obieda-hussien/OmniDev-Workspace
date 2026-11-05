@@ -1,6 +1,7 @@
 package com.omnidev.workspace.domain.taskstate
 
 import kotlinx.coroutines.launch
+import com.omnidev.workspace.domain.engine.SensitiveObservationRedactor
 
 enum class RecoveryDecision {
     ALREADY_COMPLETED, SAFE_TO_RESUME, SAFE_TO_RETRY, REQUIRES_RECONCILIATION, REQUIRES_USER_INTERVENTION, PERMANENTLY_FAILED
@@ -102,22 +103,46 @@ class TaskRecovery(private val store: TaskStateStore, private val now: () -> Lon
 
     /** Startup/idle sweep: tasks that claim to be running but whose heartbeat is stale and that are not live in this process. */
     suspend fun recoverStale(staleAfterMs: Long, liveTaskIds: Set<String>, limit: Int = 50): List<RecoveryOutcome> {
+        require(limit > 0) { "recovery page size must be positive" }
         val cutoff = now() - staleAfterMs
-        return store.tasksByStatus(setOf(TaskStatus.CREATED, TaskStatus.RUNNING), limit)
+        // Collect lightweight task rows before mutating any status. Offset pages therefore remain stable,
+        // and tasks beyond the first page cannot be skipped when earlier rows become INTERRUPTED.
+        val candidates = ArrayList<TaskRecord>()
+        var offset = 0
+        while (true) {
+            val page = store.tasksByStatus(setOf(TaskStatus.CREATED, TaskStatus.RUNNING), limit, offset)
+            if (page.isEmpty()) break
+            candidates += page
+            if (page.size < limit) break
+            offset += page.size
+        }
+        return candidates.asSequence()
             .filter { it.taskId !in liveTaskIds && it.heartbeatAt < cutoff }
             .mapNotNull { recover(it.taskId) }
+            .toList()
     }
 
     /**
      * Establishes the real outcome of an UNKNOWN/INTERRUPTED invocation. [verification] states how that was
      * established and is stored apart from the tool result, which never counts as verification by itself.
      */
-    suspend fun reconcile(invocationId: String, outcome: InvocationStatus, verification: String): TransitionResult {
-        require(outcome == InvocationStatus.SUCCEEDED || outcome == InvocationStatus.FAILED || outcome == InvocationStatus.CANCELLED) { "reconcile to a final outcome" }
-        if (verification.isBlank()) return TransitionResult.Rejected("reconciliation needs a verification statement")
+    suspend fun reconcile(taskId: String, invocationId: String, outcome: InvocationStatus, verification: String): TransitionResult {
+        require(outcome == InvocationStatus.SUCCEEDED || outcome == InvocationStatus.FAILED || outcome == InvocationStatus.CANCELLED) {
+            "reconcile to a final outcome"
+        }
+        val statement = SensitiveObservationRedactor.redact(verification.trim()).take(500)
+        if (statement.isBlank()) return TransitionResult.Rejected("reconciliation needs a verification statement")
+        val invocation = store.invocation(invocationId) ?: return TransitionResult.Rejected("unknown invocation")
+        if (invocation.taskId != taskId) return TransitionResult.Rejected("invocation does not belong to the selected task")
+        if (invocation.effect != Effect.SIDE_EFFECT) return TransitionResult.Rejected("only side-effecting invocations can be reconciled")
+        if (invocation.status == outcome && invocation.verification == statement) return TransitionResult.Duplicate
+        if (invocation.status !in setOf(InvocationStatus.UNKNOWN, InvocationStatus.INTERRUPTED)) {
+            return TransitionResult.Rejected("invocation is not eligible for reconciliation")
+        }
         val at = now()
-        return store.transitionInvocation(invocationId, outcome, InvocationPatch(completedAt = at, verification = verification, isError = outcome != InvocationStatus.SUCCEEDED),
-            at, "reconcile:$invocationId:$outcome", "reconciled")
+        return store.transitionInvocation(invocationId, outcome,
+            InvocationPatch(completedAt = at, verification = statement, isError = outcome != InvocationStatus.SUCCEEDED),
+            at, "reconcile:$taskId:$invocationId:$outcome", "user reconciliation recorded")
     }
 }
 
