@@ -304,6 +304,40 @@ class TaskRecoveryTest {
         assertEquals(2, coordinator.summary("t1")!!.counts.cycles)
     }
 
+    @Test fun `cancelling a resumed run preserves the same task as interrupted with its new cycle`() = runBlocking {
+        val first = started(recorder())
+        first.requested(listOf(read("c1")))
+        assertEquals(RunGate.Proceed, first.gateRunning(read("c1")))
+        first.completed(read("c1"), "initial state inspected", false, null)
+        TaskRecovery(store, ::tick).recover("t1")
+
+        val coordinator = TaskContinuationCoordinator(store, ::tick)
+        val continuation = (coordinator.resume("t1") as TaskResumeResult.Ready).continuation
+        val resumed = TaskRunRecorder(
+            store, continuation.taskId, continuation.sessionId, continuation.originalRequest,
+            continuation.identity.parentTaskId, continuation.identity.workerId,
+            continuation.identity.acceptance, true, effect,
+            SensitiveObservationRedactor::redact, ::tick,
+            constraintsJson = store.task("t1")!!.constraintsJson, resumeClaimed = true
+        )
+        resumed.start(continuation.prompt)
+        resumed.beginTurn()
+        resumed.requested(listOf(patch("c2")))
+        assertEquals(RunGate.Proceed, resumed.gateRunning(patch("c2")))
+        // Same finalization cleanup invoked by FinishRuntime when the AgentPipeline job is cancelled.
+        resumed.onFlowEnd()
+
+        val snapshot = store.snapshot("t1")!!
+        assertEquals("t1", snapshot.task.taskId)
+        assertEquals(7L, snapshot.task.sessionId)
+        assertEquals("edit Foo.kt and verify it", snapshot.task.originalRequest)
+        assertEquals(TaskStatus.INTERRUPTED, snapshot.task.status)
+        assertEquals(2, snapshot.task.currentCycle)
+        assertEquals(2, snapshot.cycles.size)
+        assertEquals(InvocationStatus.SUCCEEDED, snapshot.invocations.first { it.callId == "c1" }.status)
+        assertEquals(InvocationStatus.UNKNOWN, snapshot.invocations.first { it.callId == "c2" }.status)
+    }
+
     @Test fun `terminal and paused tasks get the right decision`() = runBlocking {
         store.createTask(NewTask("done", 1, "x", createdAt = 1)); store.transitionTask("done", TaskStatus.RUNNING, "g", 2, "a")
         store.finalizeTask("done", TaskStatus.COMPLETED, FinishRecord("completed", "ok", "d"), emptyList(), 3, "f")

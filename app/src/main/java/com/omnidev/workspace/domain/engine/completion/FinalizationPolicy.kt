@@ -28,9 +28,13 @@ data class FinalizationPolicy(
             toolsAvailable: Boolean,
             identity: RunIdentity = RunIdentity()
         ): FinalizationPolicy {
-            if (!toolsAvailable) return FinalizationPolicy(enforce = false, requireExecution = false)
+            // A resumed persistent task must retain P0 even when the current flavor/tool policy
+            // exposes no tools. The gate then reports an honest non-success instead of dropping
+            // the recorder and leaving the already-claimed task RUNNING.
+            if (!toolsAvailable && !identity.forceFinishProtocol)
+                return FinalizationPolicy(enforce = false, requireExecution = false)
             val actionTask = signals.executionIntent >= EXECUTION || signals.mutationIntent >= MUTATION
-            val enforce = isWorker || actionTask || identity.forceFinishProtocol
+            val enforce = identity.forceFinishProtocol || isWorker || (toolsAvailable && actionTask)
             val require = identity.requireExecution
                 ?: (isWorker || signals.mutationIntent >= MUTATION || signals.executionIntent >= STRONG_EXECUTION)
             return FinalizationPolicy(enforce, enforce && require,

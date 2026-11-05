@@ -149,6 +149,19 @@ class TaskStateEngineTest {
         assertEquals(0, store.counts("t1").cycles) // the claim does not create or overwrite an execution cycle
     }
 
+    @Test fun `completed failed and cancelled tasks cannot acquire a resume claim`() = runBlocking {
+        for (status in listOf(TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED)) {
+            val taskId = status.name.lowercase()
+            store.createTask(newTask(taskId))
+            store.transitionTask(taskId, TaskStatus.RUNNING, "run", 2_000, "run")
+            store.finalizeTask(taskId, status, FinishRecord(status.name.lowercase(), "finished", "digest"), emptyList(), 3_000, "finish")
+            val result = store.claimForResume(taskId, 4_000, "claim-$taskId")
+            assertTrue(result is TaskResumeClaimResult.Rejected)
+            assertEquals(status, store.task(taskId)!!.status)
+            assertEquals(0, store.counts(taskId).cycles)
+        }
+    }
+
     @Test fun `tasks are found by status and session`() = runBlocking {
         store.createTask(newTask("a")); store.createTask(newTask("b"))
         store.transitionTask("a", TaskStatus.RUNNING, "go", 5, "s")

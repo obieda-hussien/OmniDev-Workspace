@@ -156,6 +156,31 @@ class FinishProtocolTest {
         assertTrue(FinalizationPolicy.decide(chat, isWorker = true, toolsAvailable = true).enforce)
     }
 
+
+    @Test fun `a resumed persistent task retains its finish gate when tools are unavailable`() {
+        val resumed = RunIdentity(
+            runId = "task-resume",
+            requireExecution = true,
+            taskKind = TaskKind.IMPLEMENTATION,
+            forceFinishProtocol = true
+        )
+        val policy = FinalizationPolicy.decide(
+            signals(conversationalIntent = 0.9f),
+            isWorker = false,
+            toolsAvailable = false,
+            identity = resumed
+        )
+        assertTrue(policy.enforce)
+        assertTrue(policy.requireExecution)
+        assertTrue(policy.requireAction)
+        assertFalse(FinalizationPolicy.decide(
+            signals(conversationalIntent = 0.9f),
+            isWorker = false,
+            toolsAvailable = false,
+            identity = RunIdentity()
+        ).enforce)
+    }
+
     @Test fun `ordinary agent infers implementation requirements from mutation intent`() {
         val mutation = signals(executionIntent = 0.72f, mutationIntent = 0.48f)
         val runtime = FinishRuntime.create(null, "fix Foo.kt", mutation, false, true, "test-model", false)

@@ -95,7 +95,8 @@ class TaskContinuationCoordinator(
         val records = ArrayList<TaskRecord>()
         var offset = 0
         val visible = setOf(TaskStatus.INTERRUPTED, TaskStatus.INCOMPLETE, TaskStatus.BLOCKED,
-            TaskStatus.AWAITING_APPROVAL, TaskStatus.RUNNING, TaskStatus.COMPLETED)
+            TaskStatus.AWAITING_APPROVAL, TaskStatus.RUNNING, TaskStatus.COMPLETED,
+            TaskStatus.FAILED, TaskStatus.CANCELLED)
         while (true) {
             val page = store.tasksForSession(sessionId, pageSize, offset)
             if (page.isEmpty()) break
@@ -125,6 +126,7 @@ class TaskContinuationCoordinator(
      * launch the returned identity through AgentPipeline. Unknown side effects are rejected.
      */
     suspend fun resume(taskId: String): TaskResumeResult {
+        TaskRecoveryBootstrap.awaitReady()
         val before = store.task(taskId) ?: return TaskResumeResult.Rejected("Task no longer exists.")
         val sessionId = before.sessionId ?: return TaskResumeResult.Rejected("This task is not linked to a chat session.")
         val eventKey = "resume-claim:${UUID.randomUUID()}"
