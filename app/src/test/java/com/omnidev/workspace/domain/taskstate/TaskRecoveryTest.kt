@@ -273,6 +273,8 @@ class TaskRecoveryTest {
         assertEquals(0, visible.completedSteps) // a successful invocation is not P0 step-completion proof
         assertEquals(1, visible.counts.succeeded)
         assertEquals(1, visible.openSteps.size)
+        assertEquals(listOf("t1/t1:c1/read-before-resume"), visible.unresolvedInvocations.map { it.invocationId })
+        assertFalse(visible.unresolvedInvocations.single().requiresReconciliation)
 
         val continuation = (coordinator.resume("t1") as TaskResumeResult.Ready).continuation
         assertEquals("t1", continuation.taskId)
@@ -302,6 +304,19 @@ class TaskRecoveryTest {
         assertEquals("t1:c2", snapshot.cycles.last().cycleId)
         assertEquals(InvocationStatus.SUCCEEDED, snapshot.invocations.single().status)
         assertEquals(2, coordinator.summary("t1")!!.counts.cycles)
+    }
+
+    @Test fun `user follow up updates objective revision without replacing the original request`() = runBlocking {
+        val r = started(recorder())
+        r.requested(emptyList())
+        r.replan("user follow-up", "also add a regression test")
+        r.requested(emptyList())
+        val task = store.task("t1")!!
+        val snapshot = store.snapshot("t1")!!
+        assertEquals("edit Foo.kt and verify it", task.originalRequest)
+        assertEquals("also add a regression test", task.normalizedObjective)
+        assertEquals(2, snapshot.plans.size)
+        assertEquals("user follow-up", snapshot.latestPlan!!.reason)
     }
 
     @Test fun `cancelling a resumed run preserves the same task as interrupted with its new cycle`() = runBlocking {

@@ -89,6 +89,9 @@ private fun TaskRecoveryCard(
                 }
             }
             if (expanded) {
+                Text("Completed steps", style = MaterialTheme.typography.titleSmall)
+                if (task.completedStepDescriptions.isEmpty()) Text("No steps are recorded as completed.", style = MaterialTheme.typography.bodySmall)
+                task.completedStepDescriptions.forEach { Text("✓ $it", style = MaterialTheme.typography.bodySmall) }
                 Text("Remaining steps", style = MaterialTheme.typography.titleSmall)
                 if (task.openSteps.isEmpty()) Text("No unfinished steps are recorded.", style = MaterialTheme.typography.bodySmall)
                 task.openSteps.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
@@ -97,6 +100,8 @@ private fun TaskRecoveryCard(
                     task.unresolvedInvocations.forEach { invocation ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("${invocation.toolName} · ${invocation.status}", style = MaterialTheme.typography.bodyMedium)
+                            Text("Invocation: ${invocation.invocationId}", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (invocation.target.isNotBlank()) Text("Target: ${invocation.target}", style = MaterialTheme.typography.bodySmall)
                             if (invocation.resultSummary.isNotBlank()) Text(invocation.resultSummary, style = MaterialTheme.typography.bodySmall,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis)

@@ -15,6 +15,7 @@ data class TaskRecoverySummary(
     val planRevision: Int,
     val completedSteps: Int,
     val totalSteps: Int,
+    val completedStepDescriptions: List<String>,
     val openSteps: List<String>,
     val latestCycle: Int?,
     val latestActivityAt: Long,
@@ -220,6 +221,8 @@ class TaskContinuationCoordinator(
             planRevision = snapshot.latestPlan?.revision ?: task.planRevision,
             completedSteps = snapshot.counts.stepsCompleted,
             totalSteps = snapshot.counts.stepsTotal,
+            completedStepDescriptions = currentSteps.filter { it.status == StepStatus.COMPLETED }
+                .map { SensitiveObservationRedactor.redact(it.description).take(160) },
             openSteps = open,
             latestCycle = snapshot.latestCycle?.seq,
             latestActivityAt = maxOf(task.updatedAt, latestAt),

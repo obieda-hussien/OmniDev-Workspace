@@ -31,6 +31,7 @@ class TaskRecoverySectionTest {
         planRevision = 2,
         completedSteps = 1,
         totalSteps = 3,
+        completedStepDescriptions = listOf("Inspect the source file"),
         openSteps = listOf("Read the changed file", "Verify the result"),
         latestCycle = 4,
         latestActivityAt = 100L,
@@ -82,7 +83,9 @@ class TaskRecoverySectionTest {
         compose.onNodeWithText("Resume").assertDoesNotExist()
         compose.onNodeWithText("Reconciliation required before this task can safely continue.").assertIsDisplayed()
         compose.onNodeWithText("Review task").performClick()
+        compose.onNodeWithText("Inspect the source file").assertExists()
         compose.onNodeWithText("Reconcile this operation").performClick()
+        compose.onNodeWithText("Invocation: task-42/task-42:c3/call-9").assertExists()
         compose.onNodeWithText("Reconcile operation").assertIsDisplayed()
         compose.onNodeWithText("Record outcome").assertIsNotEnabled()
         compose.onNodeWithText("Verification statement").assertExists()
