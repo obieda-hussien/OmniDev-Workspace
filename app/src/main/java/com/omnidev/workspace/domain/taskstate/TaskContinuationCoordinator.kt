@@ -42,7 +42,9 @@ data class TaskContinuation(
     val sessionId: Long,
     val originalRequest: String,
     val prompt: String,
-    val identity: RunIdentity
+    val identity: RunIdentity,
+    /** Cycle counter at claim time; used to release only an unstarted claim. */
+    val claimedCycle: Int
 )
 
 sealed class TaskResumeResult {
@@ -101,9 +103,11 @@ class TaskContinuationCoordinator(
             if (page.size < pageSize) break
             offset += page.size
         }
-        return records.asSequence().filter { it.status in visible }.mapNotNull { record ->
-            store.recoverySnapshot(record.taskId)?.let(::summarize)
-        }.toList()
+        val summaries = ArrayList<TaskRecoverySummary>(records.size)
+        records.asSequence().filter { it.status in visible }.forEach { record ->
+            store.recoverySnapshot(record.taskId)?.let { summaries += summarize(it) }
+        }
+        return summaries
     }
 
     suspend fun summary(taskId: String): TaskRecoverySummary? =
