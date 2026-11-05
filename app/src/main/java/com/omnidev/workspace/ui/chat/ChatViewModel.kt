@@ -47,11 +47,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.util.UUID
 import com.omnidev.workspace.data.review.ChangeKind
 import com.omnidev.workspace.data.review.ChangeStatus
 import com.omnidev.workspace.data.review.SessionChangeLedger
 import java.util.concurrent.atomic.AtomicLong
+import com.omnidev.workspace.domain.taskstate.TaskStateStore
+import com.omnidev.workspace.domain.taskstate.TaskContinuationCoordinator
+import com.omnidev.workspace.domain.taskstate.TaskRecoverySummary
+import com.omnidev.workspace.domain.taskstate.TaskResumeResult
+import com.omnidev.workspace.domain.taskstate.InvocationStatus
+import com.omnidev.workspace.domain.taskstate.TransitionResult
+import com.omnidev.workspace.domain.engine.completion.RunIdentity
 
 /** A file selected by the user but not sent yet. */
 data class PendingAttachment(val uri: Uri, val displayName: String)
@@ -81,7 +90,10 @@ data class ChatUiState(
     val isGodModeEnabled: Boolean = false,
     val replyingTo: ChatMessage? = null,
     val chatSettings: com.omnidev.workspace.domain.model.ChatSettings =
-        com.omnidev.workspace.domain.model.ChatSettings()
+        com.omnidev.workspace.domain.model.ChatSettings(),
+    val recoveryTasks: List<TaskRecoverySummary> = emptyList(),
+    val recoveryLoading: Boolean = false,
+    val recoveryError: String? = null
 )
 
 /**
@@ -104,7 +116,8 @@ class ChatViewModel(
     private val autoHealBuildUseCase: com.omnidev.workspace.domain.engine.AutoHealBuildUseCase? = null,
     private val analyticsRepository: AnalyticsRepository? = null,
     private val compositeToolManager: CompositeToolManager? = null,
-    private val assistantWorkspace: String? = null
+    private val assistantWorkspace: String? = null,
+    taskStateStore: TaskStateStore? = null
 ) : ViewModel() {
 
     companion object {
@@ -238,8 +251,153 @@ class ChatViewModel(
 
     private var assistantConfirmationGate: com.omnidev.workspace.core.policy.ConfirmationGate? = null
 
+    private val taskRecovery = taskStateStore?.let(::TaskContinuationCoordinator)
+    private var recoveryLoadJob: Job? = null
+    private val dismissedRecoveryTasks = linkedSetOf<String>()
+
     /** Net per-session record of every file the agent changed; drives the review screen. */
     val changeLedger = SessionChangeLedger()
+
+    /** Reloads only bounded, redacted task summaries for the active chat session. */
+    fun refreshTaskRecovery() {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        val coordinator = taskRecovery ?: return
+        recoveryLoadJob?.cancel()
+        _uiState.update { it.copy(recoveryLoading = true, recoveryError = null) }
+        recoveryLoadJob = viewModelScope.launch {
+            try {
+                val summaries = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    coordinator.tasksForSession(sessionId)
+                }
+                if (_uiState.value.currentSessionId == sessionId) {
+                    _uiState.update { it.copy(
+                        recoveryTasks = summaries.filterNot { task -> task.taskId in dismissedRecoveryTasks },
+                        recoveryLoading = false,
+                        recoveryError = null
+                    ) }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (_uiState.value.currentSessionId == sessionId) {
+                    _uiState.update { it.copy(recoveryLoading = false,
+                        recoveryError = error.message?.take(240) ?: "Saved task recovery is unavailable.") }
+                }
+            }
+        }
+    }
+
+    /** Hides only the contextual notice. Persistent task history is never deleted. */
+    fun dismissTaskRecovery(taskId: String) {
+        dismissedRecoveryTasks += taskId
+        _uiState.update { it.copy(recoveryTasks = it.recoveryTasks.filterNot { task -> task.taskId == taskId }) }
+    }
+
+    fun reconcileTaskInvocation(taskId: String, invocationId: String, outcome: InvocationStatus, verification: String) {
+        val coordinator = taskRecovery ?: return
+        viewModelScope.launch {
+            try {
+                val result = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    coordinator.reconcile(taskId, invocationId, outcome, verification)
+                }
+                when (result) {
+                    TransitionResult.Applied, TransitionResult.Duplicate -> refreshTaskRecovery()
+                    is TransitionResult.Rejected -> _uiState.update { it.copy(recoveryError = result.reason) }
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                _uiState.update { it.copy(recoveryError = error.message?.take(240) ?: "Reconciliation could not be saved.") }
+            }
+        }
+    }
+
+    /** Explicitly resumes the same task through AgentPipeline and its original P0 identity. */
+    fun resumePersistentTask(taskId: String) {
+        val coordinator = taskRecovery ?: return
+        if (_uiState.value.isProcessing) return
+        viewModelScope.launch {
+            val continuation = when (val result = withContext(kotlinx.coroutines.Dispatchers.IO) { coordinator.resume(taskId) }) {
+                is TaskResumeResult.Rejected -> {
+                    _uiState.update { it.copy(recoveryError = result.reason) }
+                    refreshTaskRecovery()
+                    return@launch
+                }
+                is TaskResumeResult.Ready -> result.continuation
+            }
+            val sessionId = continuation.sessionId
+            if (_uiState.value.currentSessionId != sessionId) {
+                loadSession(sessionId)
+                try {
+                    withTimeout(10_000L) {
+                        uiState.first { it.currentSessionId == sessionId && !it.isProcessing }
+                    }
+                } catch (error: Exception) {
+                    withContext(kotlinx.coroutines.Dispatchers.IO) { coordinator.releaseIfNotStarted(continuation) }
+                    _uiState.update { it.copy(recoveryError = "Could not reopen the task's original conversation.") }
+                    refreshTaskRecovery()
+                    return@launch
+                }
+            }
+            val readyState = _uiState.value
+            val originalMessage = readyState.messages.lastOrNull { message ->
+                message.role == MessageRole.USER &&
+                    (message.userInput == continuation.originalRequest || message.content.contains(continuation.originalRequest))
+            }
+            val scopePath = originalMessage?.userScopePath ?: readyState.targetContext.orEmpty()
+            val runId = activeRunId.incrementAndGet()
+            val resumeMessage = ChatMessage(
+                role = MessageRole.USER,
+                content = "Resume task: ${continuation.originalRequest.take(300)}",
+                userInput = continuation.originalRequest,
+                userMode = OmniMode.AGENT.name,
+                userScopePath = scopePath
+            )
+            runHistory = readyState.messages
+            runOriginMessageId = resumeMessage.messageId
+            runFollowUpIds = linkedSetOf()
+            currentSteering = null
+            runSessionReady = CompletableDeferred(sessionId)
+            steeringSaveJob = null
+            modePermissionStore.setPreferredMode(OmniMode.AGENT)
+            compositeToolManager?.currentSessionId = sessionId
+            _uiState.update { it.copy(
+                messages = it.messages + resumeMessage,
+                activeMode = OmniMode.AGENT,
+                isProcessing = true,
+                canSteer = true,
+                agentStatus = "Resuming saved task…",
+                streamingContent = null,
+                errorMessage = null,
+                recoveryError = null
+            ) }
+            try {
+                chatRepository?.saveMessage(sessionId, resumeMessage)
+            } catch (error: Exception) {
+                _uiState.update { it.copy(recoveryError = "The resume request could not be saved to chat history.") }
+            }
+            currentAgentJob = viewModelScope.launch {
+                try {
+                    executeAgentMode(continuation.prompt, emptyList(), sessionId, scopePath,
+                        runId = runId, enableSteering = true, runIdentity = continuation.identity)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    if (activeRunId.get() == runId) {
+                        _uiState.update { it.copy(errorMessage = error.message ?: "The saved task could not be resumed.") }
+                    }
+                } finally {
+                    withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        coordinator.releaseIfNotStarted(continuation)
+                    }
+                    if (activeRunId.get() == runId) {
+                        currentSteering = null
+                        _uiState.update { it.copy(isProcessing = false, canSteer = false, agentStatus = null, streamingContent = null) }
+                    }
+                    refreshTaskRecovery()
+                }
+            }
+        }
+    }
 
     fun keepAllChanges() = viewModelScope.launch {
         changeLedger.keep(changeLedger.forSession(_uiState.value.currentSessionId ?: -1L).filter { it.status == ChangeStatus.PENDING }.map { it.id }.toSet())
@@ -345,6 +503,7 @@ class ChatViewModel(
         _uiState.update { it.copy(isProcessing = false, canSteer = false, streamingContent = null) }
         sessionObservation?.cancel()
         sessionObservation = viewModelScope.launch {
+            var loadedRecovery = false
             repo.observeMessages(sessionId).collectLatest { rows ->
                 if (_uiState.value.isProcessing) return@collectLatest
                 val observedRun = activeRunId.get()
@@ -360,6 +519,10 @@ class ChatViewModel(
                         errorMessage = null,
                         consoleEntries = emptyList()
                     )
+                }
+                if (!loadedRecovery) {
+                    loadedRecovery = true
+                    refreshTaskRecovery()
                 }
             }
         }
@@ -387,7 +550,10 @@ class ChatViewModel(
                 errorMessage = null,
                 streamingContent = null,
                 replyingTo = null,
-                isDrawerOpen = false
+                isDrawerOpen = false,
+                recoveryTasks = emptyList(),
+                recoveryLoading = false,
+                recoveryError = null
             )
         }
     }
@@ -1241,7 +1407,8 @@ class ChatViewModel(
         scopePath: String,
         modelRole: com.omnidev.workspace.data.model.ModelRole = com.omnidev.workspace.data.model.ModelRole.AGENT,
         runId: Long,
-        enableSteering: Boolean = true
+        enableSteering: Boolean = true,
+        runIdentity: RunIdentity? = null
     ) {
         if (enableSteering && currentSteering == null) {
             currentSteering = RunSteering()
@@ -1305,7 +1472,7 @@ class ChatViewModel(
                 else if (isLearnedTaskRequest(input)) setOf(IntentClassifier.ToolDomain.DEVICE_CONTROL) else emptySet(),
             preferredToolNames = if (assistantWorkspace == null) emptySet() else flavor.preferredToolNames,
             steering = control,
-            runIdentity = com.omnidev.workspace.domain.engine.completion.RunIdentity(sessionId = sessionId)
+            runIdentity = runIdentity ?: RunIdentity(sessionId = sessionId)
         ).collect { event ->
             handleAgentEvent(event, sessionId, runId)
             if (event is AgentEvent.Error) {
@@ -1724,6 +1891,7 @@ class ChatViewModel(
         val id = chatRepository?.createSession(firstMessage.take(50).ifBlank { "New conversation" }) ?: -1L
         compositeToolManager?.currentSessionId = id
         _uiState.update { it.copy(currentSessionId = id) }
+        refreshTaskRecovery()
         return id
     }
 
