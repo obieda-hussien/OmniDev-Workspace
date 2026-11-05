@@ -27,6 +27,7 @@ interface TaskStateAccess {
     suspend fun nextInvocationSeq(taskId: String): Long
     suspend fun insertInvocation(i: InvocationRecord): Boolean
     suspend fun updateInvocation(i: InvocationRecord)
+    suspend fun unresolvedInvocations(taskId: String): List<InvocationRecord>
     suspend fun unresolvedSideEffects(taskId: String): List<InvocationRecord>
 
     /** Appends a transition event once per (taskId, key). false when the key was already used. */

@@ -53,6 +53,9 @@ class MemoryTaskStateBackend : TaskStateBackend {
         override suspend fun nextInvocationSeq(taskId: String) = (invocations(taskId).maxOfOrNull { it.seq } ?: 0L) + 1
         override suspend fun insertInvocation(i: InvocationRecord): Boolean { if (s.invocations.containsKey(i.invocationId)) return false; write(); s.invocations[i.invocationId] = i; return true }
         override suspend fun updateInvocation(i: InvocationRecord) { write(); s.invocations[i.invocationId] = i }
+        override suspend fun unresolvedInvocations(taskId: String) = invocations(taskId).filter {
+            it.status in setOf(InvocationStatus.PENDING, InvocationStatus.RUNNING, InvocationStatus.INTERRUPTED, InvocationStatus.UNKNOWN)
+        }
         override suspend fun unresolvedSideEffects(taskId: String) = invocations(taskId).filter {
             it.effect == Effect.SIDE_EFFECT && it.status in setOf(InvocationStatus.PENDING, InvocationStatus.RUNNING, InvocationStatus.INTERRUPTED, InvocationStatus.UNKNOWN)
         }

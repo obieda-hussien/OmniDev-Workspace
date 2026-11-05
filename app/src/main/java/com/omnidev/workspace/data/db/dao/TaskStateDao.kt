@@ -45,6 +45,8 @@ interface TaskStateDao {
     @Query("SELECT invocationId, status FROM agent_task_invocations WHERE taskId = :taskId") suspend fun invocationStatuses(taskId: String): List<InvocationIdStatus>
     @Query("SELECT status, COUNT(*) AS n FROM agent_task_invocations WHERE taskId = :taskId GROUP BY status") suspend fun invocationCounts(taskId: String): List<StatusCount>
     @Query("SELECT COALESCE(MAX(seq), 0) FROM agent_task_invocations WHERE taskId = :taskId") suspend fun maxInvocationSeq(taskId: String): Long
+    @Query("SELECT * FROM agent_task_invocations WHERE taskId = :taskId AND status IN ('PENDING','RUNNING','INTERRUPTED','UNKNOWN') ORDER BY seq")
+    suspend fun unresolvedInvocations(taskId: String): List<TaskInvocationEntity>
     @Query("SELECT * FROM agent_task_invocations WHERE taskId = :taskId AND effect = 'SIDE_EFFECT' AND status IN ('PENDING','RUNNING','INTERRUPTED','UNKNOWN') ORDER BY seq")
     suspend fun unresolvedSideEffects(taskId: String): List<TaskInvocationEntity>
 

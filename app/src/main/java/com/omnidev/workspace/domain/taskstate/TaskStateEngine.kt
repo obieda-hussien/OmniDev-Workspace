@@ -183,7 +183,8 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
             stepsTotal = currentSteps.size,
             stepsCompleted = currentSteps.count { it.status == StepStatus.COMPLETED }
         )
-        TaskRecoverySnapshot(t, latest, currentSteps, cycles(taskId).maxByOrNull { it.seq }, counts, unresolvedSideEffects(taskId))
+        TaskRecoverySnapshot(t, latest, currentSteps, cycles(taskId).maxByOrNull { it.seq }, counts,
+            unresolvedInvocations(taskId), unresolvedSideEffects(taskId))
     }
 
     /**

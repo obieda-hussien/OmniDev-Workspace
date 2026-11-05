@@ -837,6 +837,10 @@ class ChatViewModel(
         }
 
     fun sendMessage() {
+        if (resumePreparationJob != null) {
+            _uiState.update { it.copy(recoveryError = "A saved task is being prepared. Cancel that action before sending another request.") }
+            return
+        }
         if (_uiState.value.isProcessing) submitSteering(_uiState.value.inputText, _uiState.value.pendingAttachments)
         else startMessage()
     }
@@ -904,6 +908,10 @@ class ChatViewModel(
     }
 
     private fun startMessage(replacing: LastChatTurn? = null, replacementText: String? = null) {
+        if (resumePreparationJob != null) {
+            _uiState.update { it.copy(recoveryError = "A saved task is being prepared. Cancel that action before starting another run.") }
+            return
+        }
         val deferredPreference = pendingPreferredMode
         if (deferredPreference != null && !_uiState.value.isProcessing) {
             pendingPreferredMode = null
@@ -1145,7 +1153,15 @@ class ChatViewModel(
     fun pauseLocalRoutine() { compositeToolManager?.learnedRoutineTool?.runner?.pause() }
 
     fun cancelCurrentRun() {
-        if (!_uiState.value.isProcessing) return
+        if (!_uiState.value.isProcessing) {
+            val preparation = resumePreparationJob ?: return
+            activeRunId.incrementAndGet()
+            resumePreparationJob = null
+            preparation.cancel()
+            _uiState.update { it.copy(recoveryLoading = false, agentStatus = null,
+                recoveryError = "Task resume cancelled before execution started.") }
+            return
+        }
         val state = _uiState.value
         val checkpoint = buildInterruptionCheckpointMessage(USER_STOPPED_MESSAGE, state)
         val status = checkpoint ?: buildRunStatusMessage(USER_STOPPED_MESSAGE)
@@ -1154,6 +1170,8 @@ class ChatViewModel(
 
         activeRunId.incrementAndGet()
         currentSteering = null
+        resumePreparationJob?.cancel()
+        resumePreparationJob = null
         currentAgentJob?.cancel()
         currentAgentJob = null
         _uiState.update {

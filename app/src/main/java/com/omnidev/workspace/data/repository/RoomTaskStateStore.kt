@@ -58,6 +58,7 @@ private class RoomAccess(private val dao: TaskStateDao) : TaskStateAccess {
     override suspend fun nextInvocationSeq(taskId: String) = dao.maxInvocationSeq(taskId) + 1
     override suspend fun insertInvocation(i: InvocationRecord) = dao.insertInvocation(i.toEntity()) != -1L
     override suspend fun updateInvocation(i: InvocationRecord) = dao.upsertInvocation(i.toEntity())
+    override suspend fun unresolvedInvocations(taskId: String) = dao.unresolvedInvocations(taskId).map { it.toRecord() }
     override suspend fun unresolvedSideEffects(taskId: String) = dao.unresolvedSideEffects(taskId).map { it.toRecord() }
 
     override suspend fun appendEvent(taskId: String, entityType: String, entityId: String, from: String, to: String, reason: String, at: Long, key: String) =

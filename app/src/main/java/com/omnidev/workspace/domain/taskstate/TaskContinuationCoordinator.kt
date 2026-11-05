@@ -190,8 +190,9 @@ class TaskContinuationCoordinator(
         }
         val currentSteps = snapshot.currentSteps
         val open = currentSteps.filter { !it.status.terminal }.map { SensitiveObservationRedactor.redact(it.description).take(160) }
-        val invocationSummaries = snapshot.unresolvedSideEffects.map { inv ->
-            val recon = inv.status == InvocationStatus.RUNNING || inv.status == InvocationStatus.INTERRUPTED || inv.status == InvocationStatus.UNKNOWN
+        val invocationSummaries = snapshot.unresolvedInvocations.map { inv ->
+            val uncertain = inv.status == InvocationStatus.RUNNING || inv.status == InvocationStatus.INTERRUPTED || inv.status == InvocationStatus.UNKNOWN
+            val recon = inv.effect == Effect.SIDE_EFFECT && uncertain
             RecoveryInvocationSummary(
                 invocationId = inv.invocationId,
                 toolName = inv.toolName.take(80),
@@ -200,8 +201,11 @@ class TaskContinuationCoordinator(
                 requestedAt = inv.startedAt ?: inv.requestedAt,
                 resultSummary = SensitiveObservationRedactor.redact(inv.resultSummary).take(180),
                 requiresReconciliation = recon,
-                reason = if (recon) "The original side effect may or may not have happened. A later read alone is not proof."
-                    else "The invocation was durably requested but never marked RUNNING; recovery will not treat it as executed."
+                reason = when {
+                    recon -> "The original side effect may or may not have happened. A later read alone is not proof."
+                    inv.effect == Effect.READ_ONLY && uncertain -> "This read-only operation was interrupted and can be safely repeated."
+                    else -> "The invocation was durably requested but never marked RUNNING; recovery will not treat it as executed."
+                }
             )
         }
         val latestAt = snapshot.latestCycle?.endedAt ?: snapshot.latestCycle?.startedAt ?: task.updatedAt

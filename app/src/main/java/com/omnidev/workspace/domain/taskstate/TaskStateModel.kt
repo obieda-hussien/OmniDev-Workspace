@@ -173,7 +173,9 @@ data class TaskRecoverySnapshot(
     val currentSteps: List<StepRecord>,
     val latestCycle: CycleRecord?,
     val counts: TaskCounts,
-    /** Only pending/uncertain side effects are included; never the full invocation history. */
+    /** All pending or interrupted invocations, read-only and side-effecting; no successful history. */
+    val unresolvedInvocations: List<InvocationRecord>,
+    /** Only pending/uncertain side effects are eligible for reconciliation or mutation blocking. */
     val unresolvedSideEffects: List<InvocationRecord>
 )
 
