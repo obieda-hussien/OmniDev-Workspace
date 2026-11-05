@@ -84,7 +84,9 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
 
     override suspend fun beginCycle(taskId: String, stepId: String?, at: Long, eventKey: String): CycleRecord = backend.atomic {
         val t = task(taskId) ?: throw TaskStateException("unknown task $taskId")
-        if (t.status in setOf(TaskStatus.INTERRUPTED, TaskStatus.BLOCKED, TaskStatus.AWAITING_APPROVAL,
+        val explicitlyReleased = t.status == TaskStatus.INTERRUPTED &&
+            hasEvent(taskId, "resume-release:$taskId:${t.currentCycle}")
+        if (explicitlyReleased || t.status in setOf(TaskStatus.BLOCKED, TaskStatus.AWAITING_APPROVAL,
                 TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED)) {
             throw TaskStateException("cannot start a cycle while task is ${t.status}")
         }

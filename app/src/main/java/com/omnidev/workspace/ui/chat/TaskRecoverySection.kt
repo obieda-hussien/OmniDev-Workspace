@@ -48,7 +48,7 @@ private fun TaskRecoveryCard(
     var expanded by rememberSaveable(task.taskId) { mutableStateOf(false) }
     var selectedInvocation by remember(task.taskId) { mutableStateOf<RecoveryInvocationSummary?>(null) }
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(task.status.name.replace('_', ' '), style = MaterialTheme.typography.labelLarge,

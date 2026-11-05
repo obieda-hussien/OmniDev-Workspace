@@ -36,6 +36,7 @@ import com.omnidev.workspace.domain.engine.SwarmEvent
 import com.omnidev.workspace.domain.engine.SwarmOrchestrator
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.map
@@ -331,8 +332,15 @@ class ChatViewModel(
                     withTimeout(10_000L) {
                         uiState.first { it.currentSessionId == sessionId && !it.isProcessing }
                     }
+                } catch (cancelled: CancellationException) {
+                    withContext(NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
+                        coordinator.releaseIfNotStarted(continuation)
+                    }
+                    throw cancelled
                 } catch (error: Exception) {
-                    withContext(kotlinx.coroutines.Dispatchers.IO) { coordinator.releaseIfNotStarted(continuation) }
+                    withContext(NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
+                        coordinator.releaseIfNotStarted(continuation)
+                    }
                     _uiState.update { it.copy(recoveryError = "Could not reopen the task's original conversation.") }
                     refreshTaskRecovery()
                     return@launch
@@ -386,7 +394,7 @@ class ChatViewModel(
                         _uiState.update { it.copy(errorMessage = error.message ?: "The saved task could not be resumed.") }
                     }
                 } finally {
-                    withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    withContext(NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
                         coordinator.releaseIfNotStarted(continuation)
                     }
                     if (activeRunId.get() == runId) {
