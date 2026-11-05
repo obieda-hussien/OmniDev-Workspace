@@ -72,7 +72,9 @@ object TaskRecoveryPlanner {
         }
         if (reconcile.isNotEmpty()) reasons += "unresolved side effects: ${reconcile.size}"
         if (retryable) reasons += "read-only calls can be repeated"
-        val taskStatus = if (task.status == TaskStatus.INTERRUPTED) null else TaskStatus.INTERRUPTED
+        // INCOMPLETE is directly resumable under the existing transition graph; do not force it
+        // through INTERRUPTED (which is intentionally not an allowed transition from INCOMPLETE).
+        val taskStatus = if (task.status == TaskStatus.INTERRUPTED || task.status == TaskStatus.INCOMPLETE) null else TaskStatus.INTERRUPTED
         return RecoveryPlan(decision, invocationMoves, stepMoves, taskStatus, firstOpenStep(snapshot), reconcile, reasons)
     }
 

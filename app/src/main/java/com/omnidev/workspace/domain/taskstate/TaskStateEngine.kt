@@ -233,7 +233,7 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
             )
         }
         val current = task(taskId) ?: return@atomic TaskResumeClaimResult.Rejected("Task no longer exists.")
-        if (current.status != TaskStatus.INTERRUPTED) {
+        if (current.status !in setOf(TaskStatus.INTERRUPTED, TaskStatus.INCOMPLETE)) {
             return@atomic TaskResumeClaimResult.Rejected("The task changed while recovery was being prepared.")
         }
         val transition = TaskStateRules.taskTransition(current.status, TaskStatus.RUNNING)

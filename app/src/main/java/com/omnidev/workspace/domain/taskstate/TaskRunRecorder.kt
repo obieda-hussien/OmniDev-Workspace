@@ -40,7 +40,11 @@ class TaskRunRecorder(
     private val clock: () -> Long = System::currentTimeMillis,
     private val schemaIdOf: (String) -> String = { it },
     /** Waits for the process-wide stale-task sweep before this run can create persistent state. */
-    private val awaitStartupRecovery: suspend () -> Unit = { TaskRecoveryBootstrap.awaitReady() }
+    private val awaitStartupRecovery: suspend () -> Unit = { TaskRecoveryBootstrap.awaitReady() },
+    /** P0 acceptance policy snapshot stored in the existing P1 constraintsJson column. */
+    private val constraintsJson: String = "{}",
+    /** The coordinator transitioned INTERRUPTED/INCOMPLETE -> RUNNING atomically before creating this recorder. */
+    private val resumeClaimed: Boolean = false
 ) {
     private val lock = Mutex()
     /** Own scope: persistence of the verdict must survive the run's coroutine being cancelled. */
@@ -85,12 +89,20 @@ class TaskRunRecorder(
             awaitStartupRecovery()
             val at = clock()
             if (!resumed) {
-                store.createTask(NewTask(taskId, sessionId, originalRequest, "", parentTaskId, workerId, "{}", at))
+                store.createTask(NewTask(taskId, sessionId, originalRequest, "", parentTaskId, workerId, constraintsJson, at))
                 if (objective.isNotBlank() && objective != originalRequest) store.setObjective(taskId, objective.take(2000), at)
                 store.transitionTask(taskId, TaskStatus.RUNNING, "run started", at, "start:$runToken")
                 store.appendPlanRevision(taskId, initialSteps(objective), "initial plan", at, "plan:initial")
+            } else if (resumeClaimed) {
+                // The user-facing coordinator already acquired the exclusive persistent claim.
+                // Do not perform a second state transition or create a second task.
+                val existing = store.task(taskId) ?: throw TaskStateException("claimed task disappeared before resume")
+                if (existing.status != TaskStatus.RUNNING) throw TaskStateException("resume claim is no longer active")
             } else {
-                store.transitionTask(taskId, TaskStatus.RUNNING, "run resumed", at, "start:$runToken")
+                // Backward-compatible P1 resume seam for existing internal callers. New UI resumes
+                // must use TaskContinuationCoordinator so competing claims are rejected atomically.
+                val result = store.transitionTask(taskId, TaskStatus.RUNNING, "run resumed", at, "start:$runToken")
+                if (result is TransitionResult.Rejected) throw TaskStateException(result.reason)
             }
             steps = store.snapshot(taskId)?.currentSteps.orEmpty()
         }
