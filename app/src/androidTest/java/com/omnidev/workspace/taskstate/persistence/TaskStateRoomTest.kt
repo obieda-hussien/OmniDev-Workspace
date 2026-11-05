@@ -19,6 +19,7 @@ import com.omnidev.workspace.domain.taskstate.StepCompletion
 import com.omnidev.workspace.domain.taskstate.StepOutcome
 import com.omnidev.workspace.domain.taskstate.StepStatus
 import com.omnidev.workspace.domain.taskstate.TaskStatus
+import com.omnidev.workspace.domain.taskstate.TaskRecovery
 import com.omnidev.workspace.domain.taskstate.TransitionResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -101,6 +102,41 @@ class TaskStateRoomTest {
             assertEquals("survive me", snap.task.originalRequest)
             assertEquals(TaskStatus.RUNNING, snap.task.status)
             assertEquals(InvocationStatus.RUNNING, snap.invocations.single().status)
+        } finally { db.close() }
+    }
+
+    @Test fun reconciliationAndResumeClaimSurviveDatabaseReopen() = runBlocking {
+        var db = Room.databaseBuilder(context, OmniDevDatabase::class.java, fileName).build()
+        val store = roomTaskStateStore(db)
+        store.createTask(NewTask("t1", 42L, "publish the requested change", createdAt = 1))
+        store.transitionTask("t1", TaskStatus.RUNNING, "run started", 2, "start")
+        store.beginCycle("t1", null, 3, "cycle-1")
+        store.recordInvocationIntent(inv("c1"))
+        store.transitionInvocation("t1/t1:c1/c1", InvocationStatus.RUNNING, InvocationPatch(startedAt = 4), 4, "running")
+        TaskRecovery(store).recover("t1")
+        assertEquals(InvocationStatus.UNKNOWN, store.invocation("t1/t1:c1/c1")!!.status)
+        val reconciled = com.omnidev.workspace.domain.taskstate.TaskRecovery(store).reconcile(
+            "t1", "t1/t1:c1/c1", InvocationStatus.CANCELLED,
+            "The exact destination was inspected and the resource was not created."
+        )
+        assertEquals(TransitionResult.Applied, reconciled)
+        db.close()
+
+        db = Room.databaseBuilder(context, OmniDevDatabase::class.java, fileName).build()
+        try {
+            val reopened = roomTaskStateStore(db)
+            val invocation = reopened.invocation("t1/t1:c1/c1")!!
+            assertEquals(InvocationStatus.CANCELLED, invocation.status)
+            assertEquals("The exact destination was inspected and the resource was not created.", invocation.verification)
+            assertEquals(42L, reopened.task("t1")!!.sessionId)
+            assertEquals(TaskStatus.INTERRUPTED, reopened.task("t1")!!.status)
+
+            val results = (1..12).map { i ->
+                async(Dispatchers.IO) { reopened.claimForResume("t1", 100L + i, "claim-$i") }
+            }.awaitAll()
+            assertEquals(1, results.count { it is com.omnidev.workspace.domain.taskstate.TaskResumeClaimResult.Claimed })
+            assertEquals(11, results.count { it is com.omnidev.workspace.domain.taskstate.TaskResumeClaimResult.Rejected })
+            assertEquals(TaskStatus.RUNNING, reopened.task("t1")!!.status)
         } finally { db.close() }
     }
 

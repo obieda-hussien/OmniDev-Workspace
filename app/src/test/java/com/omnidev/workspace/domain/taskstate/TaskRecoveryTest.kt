@@ -80,7 +80,7 @@ class TaskRecoveryTest {
         assertEquals(InvocationStatus.CANCELLED, status("c11", "t1:c2"))
 
         val verification = "Read-only inspection of /p/Foo.kt confirmed the original patch did not take effect."
-        val reconciled = TaskRecovery(store, ::tick).reconcile(originalId, InvocationStatus.CANCELLED, verification)
+        val reconciled = TaskRecovery(store, ::tick).reconcile("t1", originalId, InvocationStatus.CANCELLED, verification)
         assertEquals(TransitionResult.Applied, reconciled)
         val reconciledInvocation = store.snapshot("t1")!!.invocations.first { it.invocationId == originalId }
         assertEquals(InvocationStatus.CANCELLED, reconciledInvocation.status)
@@ -100,7 +100,7 @@ class TaskRecoveryTest {
         val invocationId = "t1/t1:c1/c1"
         val verification = "The provider confirmed the created resource by its exact ID."
         assertEquals(TransitionResult.Applied,
-            TaskRecovery(store, ::tick).reconcile(invocationId, InvocationStatus.SUCCEEDED, verification))
+            TaskRecovery(store, ::tick).reconcile("t1", invocationId, InvocationStatus.SUCCEEDED, verification))
         val restored = TaskRunRecorder.seedFrom(store.snapshot("t1")!!).single()
         assertEquals(RunEvidenceLedger.Outcome.OK, restored.outcome)
         assertEquals(verification, restored.evidence)
@@ -235,12 +235,171 @@ class TaskRecoveryTest {
         val r = started(recorder()); r.requested(listOf(patch("c1"))); r.gateRunning(patch("c1"))
         val rec = TaskRecovery(store, ::tick); rec.recover("t1")
         val id = "t1/t1:c1/c1"
-        assertTrue(rec.reconcile(id, InvocationStatus.SUCCEEDED, "") is TransitionResult.Rejected)
-        assertEquals(TransitionResult.Applied, rec.reconcile(id, InvocationStatus.SUCCEEDED, "read back /p/Foo.kt: patch present"))
+        assertTrue(rec.reconcile("t1", id, InvocationStatus.SUCCEEDED, "") is TransitionResult.Rejected)
+        assertTrue(rec.reconcile("wrong-task", id, InvocationStatus.SUCCEEDED, "verification") is TransitionResult.Rejected)
+        assertEquals(TransitionResult.Applied, rec.reconcile("t1", id, InvocationStatus.SUCCEEDED, "read back /p/Foo.kt: patch present"))
+        assertEquals(TransitionResult.Duplicate, rec.reconcile("t1", id, InvocationStatus.SUCCEEDED, "read back /p/Foo.kt: patch present"))
         val i = store.snapshot("t1")!!.invocations.single()
         assertEquals(InvocationStatus.SUCCEEDED, i.status)
         assertEquals("read back /p/Foo.kt: patch present", i.verification)
         assertEquals("", i.resultSummary)                                   // there never was a returned result
+    }
+
+    @Test fun `user continuation preserves task session policy evidence and starts a new cycle`() = runBlocking {
+        val originalIdentity = RunIdentity(
+            runId = "t1", acceptance = listOf("Foo.kt can be read back"),
+            requireExecution = true,
+            taskKind = com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION,
+            sessionId = 7L
+        )
+        val policy = FinalizationPolicy(enforce = true, requireExecution = true, requireAction = true)
+        val metadata = TaskResumeMetadata.encode(originalIdentity, policy)
+        val first = TaskRunRecorder(
+            store, "t1", 7L, "edit Foo.kt and verify it", null, null,
+            originalIdentity.acceptance, false, effect,
+            SensitiveObservationRedactor::redact, ::tick,
+            constraintsJson = metadata
+        )
+        first.start("edit Foo.kt"); first.beginTurn()
+        first.requested(listOf(read("read-before-resume"), read("read-interrupted")))
+        assertEquals(RunGate.Proceed, first.gateRunning(read("read-before-resume")))
+        assertEquals(RunGate.Proceed, first.gateRunning(read("read-interrupted")))
+        first.completed(read("read-before-resume"), "verified content", false, null)
+        TaskRecovery(store, ::tick).recover("t1")
+
+        val coordinator = TaskContinuationCoordinator(store, ::tick)
+        val visible = coordinator.tasksForSession(7L).single()
+        assertEquals("t1", visible.taskId)
+        assertEquals(TaskStatus.INTERRUPTED, visible.status)
+        assertEquals(0, visible.completedSteps) // a successful invocation is not P0 step-completion proof
+        assertEquals(1, visible.counts.succeeded)
+        assertEquals(1, visible.openSteps.size)
+        assertEquals(listOf("t1/t1:c1/read-interrupted"), visible.unresolvedInvocations.map { it.invocationId })
+        assertEquals(InvocationStatus.INTERRUPTED, visible.unresolvedInvocations.single().status)
+        assertFalse(visible.unresolvedInvocations.single().requiresReconciliation)
+
+        val continuation = (coordinator.resume("t1") as TaskResumeResult.Ready).continuation
+        assertEquals("t1", continuation.taskId)
+        assertEquals(7L, continuation.sessionId)
+        assertEquals("edit Foo.kt and verify it", continuation.originalRequest)
+        assertEquals("t1", continuation.identity.runId)
+        assertEquals(7L, continuation.identity.sessionId)
+        assertTrue(continuation.identity.forceFinishProtocol)
+        assertEquals(true, continuation.identity.requireExecution)
+        assertEquals(com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION, continuation.identity.taskKind)
+        assertEquals(RunEvidenceLedger.Outcome.OK,
+            continuation.identity.resume!!.single { it.callId == "read-before-resume" }.outcome)
+        assertEquals(RunEvidenceLedger.Outcome.SKIPPED,
+            continuation.identity.resume!!.single { it.callId == "read-interrupted" }.outcome)
+
+        val resumed = TaskRunRecorder(
+            store, continuation.taskId, continuation.sessionId, continuation.originalRequest,
+            continuation.identity.parentTaskId, continuation.identity.workerId,
+            continuation.identity.acceptance, true, effect,
+            SensitiveObservationRedactor::redact, ::tick,
+            constraintsJson = metadata, resumeClaimed = true
+        )
+        resumed.start(continuation.prompt); resumed.beginTurn(); resumed.requested(emptyList())
+        val snapshot = store.snapshot("t1")!!
+        assertEquals("edit Foo.kt and verify it", snapshot.task.originalRequest)
+        assertEquals(7L, snapshot.task.sessionId)
+        assertEquals(TaskStatus.RUNNING, snapshot.task.status)
+        assertEquals(2, snapshot.cycles.size)
+        assertEquals("t1:c1", snapshot.cycles.first().cycleId)
+        assertEquals("t1:c2", snapshot.cycles.last().cycleId)
+        assertEquals(InvocationStatus.SUCCEEDED, snapshot.invocations.first { it.callId == "read-before-resume" }.status)
+        assertEquals(InvocationStatus.INTERRUPTED, snapshot.invocations.first { it.callId == "read-interrupted" }.status)
+        assertEquals(2, coordinator.summary("t1")!!.counts.cycles)
+    }
+
+    @Test fun `user follow up updates objective revision without replacing the original request`() = runBlocking {
+        val r = started(recorder())
+        r.requested(emptyList())
+        r.replan("user follow-up", "also add a regression test")
+        r.requested(emptyList())
+        val task = store.task("t1")!!
+        val snapshot = store.snapshot("t1")!!
+        assertEquals("edit Foo.kt and verify it", task.originalRequest)
+        assertEquals("also add a regression test", task.normalizedObjective)
+        assertEquals(2, snapshot.plans.size)
+        assertEquals("user follow-up", snapshot.latestPlan!!.reason)
+    }
+
+    @Test fun `resume with an additional instruction records a new plan and preserves the original request`() = runBlocking {
+        val r = started(recorder())
+        r.requested(emptyList())
+        TaskRecovery(store, ::tick).recover("t1")
+        val original = store.task("t1")!!.originalRequest
+        val before = store.snapshot("t1")!!
+
+        val result = TaskContinuationCoordinator(store, ::tick).resume("t1", "Add a regression test for the repaired path.")
+        assertTrue(result is TaskResumeResult.Ready)
+        val continuation = (result as TaskResumeResult.Ready).continuation
+        val snapshot = store.snapshot("t1")!!
+
+        assertEquals("t1", continuation.taskId)
+        assertEquals("t1", continuation.identity.runId)
+        assertEquals(7L, continuation.sessionId)
+        assertEquals(original, continuation.originalRequest)
+        assertEquals(original, snapshot.task.originalRequest)
+        assertEquals(before.plans.size + 1, snapshot.plans.size)
+        assertTrue(snapshot.currentSteps.any { it.description.contains("Add a regression test") })
+        assertTrue(snapshot.task.normalizedObjective.contains("Add a regression test"))
+        assertTrue(continuation.identity.forceFinishProtocol)
+        assertEquals(before.cycles.size, snapshot.cycles.size)
+        assertEquals(TaskStatus.RUNNING, snapshot.task.status)
+    }
+
+    @Test fun `cancelling a resumed run preserves the same task as interrupted with its new cycle`() = runBlocking {
+        val first = started(recorder())
+        first.requested(listOf(read("c1")))
+        assertEquals(RunGate.Proceed, first.gateRunning(read("c1")))
+        first.completed(read("c1"), "initial state inspected", false, null)
+        TaskRecovery(store, ::tick).recover("t1")
+
+        val coordinator = TaskContinuationCoordinator(store, ::tick)
+        val continuation = (coordinator.resume("t1") as TaskResumeResult.Ready).continuation
+        val resumed = TaskRunRecorder(
+            store, continuation.taskId, continuation.sessionId, continuation.originalRequest,
+            continuation.identity.parentTaskId, continuation.identity.workerId,
+            continuation.identity.acceptance, true, effect,
+            SensitiveObservationRedactor::redact, ::tick,
+            constraintsJson = store.task("t1")!!.constraintsJson, resumeClaimed = true
+        )
+        resumed.start(continuation.prompt)
+        resumed.beginTurn()
+        resumed.requested(listOf(patch("c2")))
+        assertEquals(RunGate.Proceed, resumed.gateRunning(patch("c2")))
+        // Same finalization cleanup invoked by FinishRuntime when the AgentPipeline job is cancelled.
+        resumed.onFlowEnd()
+
+        val snapshot = store.snapshot("t1")!!
+        assertEquals("t1", snapshot.task.taskId)
+        assertEquals(7L, snapshot.task.sessionId)
+        assertEquals("edit Foo.kt and verify it", snapshot.task.originalRequest)
+        assertEquals(TaskStatus.INTERRUPTED, snapshot.task.status)
+        assertEquals(2, snapshot.task.currentCycle)
+        assertEquals(2, snapshot.cycles.size)
+        assertTrue(snapshot.cycles.all { it.endedAt != null })
+        assertEquals(InvocationStatus.SUCCEEDED, snapshot.invocations.first { it.callId == "c1" }.status)
+        assertEquals(InvocationStatus.UNKNOWN, snapshot.invocations.first { it.callId == "c2" }.status)
+    }
+
+    @Test fun `a blocked plan step prevents a task resume claim`() = runBlocking {
+        val r = started(recorder())
+        r.requested(emptyList())
+        val step = store.snapshot("t1")!!.currentSteps.single()
+        assertEquals(TransitionResult.Applied,
+            store.transitionStep(step.stepId, StepStatus.BLOCKED, "waiting for a user decision", tick(), "step-blocked"))
+        TaskRecovery(store, ::tick).recover("t1")
+
+        val coordinator = TaskContinuationCoordinator(store, ::tick)
+        val summary = coordinator.summary("t1")!!
+        assertEquals(RecoveryDecision.REQUIRES_USER_INTERVENTION, summary.decision)
+        assertFalse(summary.canResume)
+        val result = coordinator.resume("t1")
+        assertTrue(result is TaskResumeResult.Rejected)
+        assertEquals(TaskStatus.INTERRUPTED, store.task("t1")!!.status)
     }
 
     @Test fun `terminal and paused tasks get the right decision`() = runBlocking {
@@ -254,6 +413,17 @@ class TaskRecoveryTest {
         store.finalizeTask("wait", TaskStatus.AWAITING_APPROVAL, FinishRecord("awaiting_approval", "ok?", "d"), emptyList(), 3, "f")
         assertEquals(RecoveryDecision.REQUIRES_USER_INTERVENTION, TaskRecovery(store, ::tick).recover("wait")!!.plan.decision)
         assertEquals(TaskStatus.AWAITING_APPROVAL, store.task("wait")!!.status)   // untouched
+    }
+
+    @Test fun `startup sweep drains every stale task beyond the first recovery page`() = runBlocking {
+        repeat(125) { index ->
+            val taskId = "stale-$index"
+            val r = started(recorder(taskId))
+            r.requested(emptyList())
+        }
+        val swept = TaskRecovery(store, ::tick).recoverStale(staleAfterMs = 0L, liveTaskIds = emptySet(), limit = 17)
+        assertEquals(125, swept.size)
+        assertTrue((0 until 125).all { store.task("stale-$it")?.status == TaskStatus.INTERRUPTED })
     }
 
     @Test fun `startup sweep only touches stale tasks that are not live`() = runBlocking {

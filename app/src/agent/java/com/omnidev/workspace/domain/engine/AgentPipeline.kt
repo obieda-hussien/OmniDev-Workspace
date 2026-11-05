@@ -227,7 +227,7 @@ When improving: keep every other sentence, the structure, the language and the l
         val brainContext = try { brain?.buildFullContextEnrichment() } catch (_: Exception) { null }
         // Finish protocol: runtime-owned state, kept out of this lambda (see FinishRuntime).
         val evidenceLedger = FinishRuntime.create(runIdentity, routingObjective, taskSignals,
-            workerPersona != null || userMessage.contains("## Assigned Team Task"),
+            workerPersona != null || runIdentity?.workerId != null || userMessage.contains("## Assigned Team Task"),
             permittedDefinitions.isNotEmpty(), modelId, config.enableModelProfiles, taskStateStore, userMessage).ledger
         evidenceLedger.fin.attach(coroutineContext[kotlinx.coroutines.Job])
 

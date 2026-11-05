@@ -1,5 +1,7 @@
 package com.omnidev.workspace.domain.taskstate
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -131,6 +133,35 @@ class TaskStateEngineTest {
         assertEquals(1_200, c.invocations)
         assertEquals(1_200, c.unresolved)
         assertEquals(50, store.invocations("t1", 100, 1_150).size)             // pagination bounds the page, not the data
+    }
+
+    @Test fun `two concurrent resume requests produce exactly one persistent claimant`() = runBlocking {
+        store.createTask(newTask())
+        store.transitionTask("t1", TaskStatus.RUNNING, "run", 2_000, "run")
+        store.transitionTask("t1", TaskStatus.INTERRUPTED, "process died", 3_000, "dead")
+        val outcomes = kotlinx.coroutines.coroutineScope {
+            listOf(
+                async(kotlinx.coroutines.Dispatchers.Default) { store.claimForResume("t1", 4_000, "claim-a") },
+                async(kotlinx.coroutines.Dispatchers.Default) { store.claimForResume("t1", 4_001, "claim-b") }
+            ).awaitAll()
+        }
+        assertEquals(1, outcomes.count { it is TaskResumeClaimResult.Claimed })
+        assertEquals(1, outcomes.count { it is TaskResumeClaimResult.Rejected })
+        assertEquals(TaskStatus.RUNNING, store.task("t1")!!.status)
+        assertEquals(0, store.counts("t1").cycles) // the claim does not create or overwrite an execution cycle
+    }
+
+    @Test fun `completed failed and cancelled tasks cannot acquire a resume claim`() = runBlocking {
+        for (status in listOf(TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED)) {
+            val taskId = status.name.lowercase()
+            store.createTask(newTask(taskId))
+            store.transitionTask(taskId, TaskStatus.RUNNING, "run", 2_000, "run")
+            store.finalizeTask(taskId, status, FinishRecord(status.name.lowercase(), "finished", "digest"), emptyList(), 3_000, "finish")
+            val result = store.claimForResume(taskId, 4_000, "claim-$taskId")
+            assertTrue(result is TaskResumeClaimResult.Rejected)
+            assertEquals(status, store.task(taskId)!!.status)
+            assertEquals(0, store.counts(taskId).cycles)
+        }
     }
 
     @Test fun `tasks are found by status and session`() = runBlocking {

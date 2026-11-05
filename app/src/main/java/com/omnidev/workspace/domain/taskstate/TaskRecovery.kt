@@ -1,6 +1,7 @@
 package com.omnidev.workspace.domain.taskstate
 
 import kotlinx.coroutines.launch
+import com.omnidev.workspace.domain.engine.SensitiveObservationRedactor
 
 enum class RecoveryDecision {
     ALREADY_COMPLETED, SAFE_TO_RESUME, SAFE_TO_RETRY, REQUIRES_RECONCILIATION, REQUIRES_USER_INTERVENTION, PERMANENTLY_FAILED
@@ -37,6 +38,17 @@ object TaskRecoveryPlanner {
                     listOf(if (task.status == TaskStatus.AWAITING_APPROVAL) "waiting for user approval" else "blocked: needs user action"))
             else -> Unit
         }
+        val blockedSteps = snapshot.currentSteps.filter { it.status == StepStatus.BLOCKED }
+        if (blockedSteps.isNotEmpty()) {
+            val explanation = blockedSteps.joinToString("; ") { step ->
+                "${step.key}: " + step.statusReason.ifBlank { "user intervention is required" }
+            }.take(300)
+            return RecoveryPlan(
+                RecoveryDecision.REQUIRES_USER_INTERVENTION, emptyList(), emptyList(),
+                if (task.status == TaskStatus.INTERRUPTED || task.status == TaskStatus.INCOMPLETE) null else TaskStatus.INTERRUPTED,
+                blockedSteps.first().stepId, emptyList(), listOf("blocked plan step(s): $explanation")
+            )
+        }
 
         val invocationMoves = ArrayList<InvocationRecovery>()
         val reconcile = ArrayList<String>()
@@ -71,7 +83,9 @@ object TaskRecoveryPlanner {
         }
         if (reconcile.isNotEmpty()) reasons += "unresolved side effects: ${reconcile.size}"
         if (retryable) reasons += "read-only calls can be repeated"
-        val taskStatus = if (task.status == TaskStatus.INTERRUPTED) null else TaskStatus.INTERRUPTED
+        // INCOMPLETE is directly resumable under the existing transition graph; do not force it
+        // through INTERRUPTED (which is intentionally not an allowed transition from INCOMPLETE).
+        val taskStatus = if (task.status == TaskStatus.INTERRUPTED || task.status == TaskStatus.INCOMPLETE) null else TaskStatus.INTERRUPTED
         return RecoveryPlan(decision, invocationMoves, stepMoves, taskStatus, firstOpenStep(snapshot), reconcile, reasons)
     }
 
@@ -88,36 +102,58 @@ data class RecoveryOutcome(val taskId: String, val plan: RecoveryPlan, val appli
 /** Applies [TaskRecoveryPlanner] decisions. Every move is a guarded, idempotent transition, so recovery can itself be interrupted and re-run. */
 class TaskRecovery(private val store: TaskStateStore, private val now: () -> Long = System::currentTimeMillis) {
 
-    suspend fun recover(taskId: String): RecoveryOutcome? {
-        val snapshot = store.snapshot(taskId) ?: return null
-        val plan = TaskRecoveryPlanner.plan(snapshot)
-        val at = now()
-        plan.invocationTransitions.forEach { m ->
-            store.transitionInvocation(m.invocationId, m.to, InvocationPatch(completedAt = null), at, "recover:${m.invocationId}:${m.to}", m.reason)
-        }
-        plan.stepTransitions.forEach { m -> store.transitionStep(m.stepId, m.to, m.reason, at, "recover:${m.stepId}:${m.to}") }
-        plan.taskStatus?.let { store.transitionTask(taskId, it, "recovered: ${plan.decision}", at, "recover:$taskId:${snapshot.task.currentCycle}") }
-        return RecoveryOutcome(taskId, plan, applied = true)
-    }
+    suspend fun recover(taskId: String): RecoveryOutcome? = store.recoverTask(taskId, now())
 
     /** Startup/idle sweep: tasks that claim to be running but whose heartbeat is stale and that are not live in this process. */
     suspend fun recoverStale(staleAfterMs: Long, liveTaskIds: Set<String>, limit: Int = 50): List<RecoveryOutcome> {
+        require(limit > 0) { "recovery page size must be positive" }
         val cutoff = now() - staleAfterMs
-        return store.tasksByStatus(setOf(TaskStatus.CREATED, TaskStatus.RUNNING), limit)
-            .filter { it.taskId !in liveTaskIds && it.heartbeatAt < cutoff }
-            .mapNotNull { recover(it.taskId) }
+        // Collect lightweight task rows before mutating any status. Offset pages therefore remain stable,
+        // and tasks beyond the first page cannot be skipped when earlier rows become INTERRUPTED.
+        val candidates = ArrayList<TaskRecord>()
+        var offset = 0
+        while (true) {
+            val page = store.tasksByStatus(setOf(TaskStatus.CREATED, TaskStatus.RUNNING), limit, offset)
+            if (page.isEmpty()) break
+            candidates += page
+            if (page.size < limit) break
+            offset += page.size
+        }
+        return candidates.mapNotNull { candidate ->
+            // The persisted status and heartbeat are rechecked inside the same transaction that
+            // marks it interrupted. A concurrent resume/heartbeat always wins or loses atomically.
+            store.recoverIfStale(candidate.taskId, cutoff, liveTaskIds, now())
+        }
     }
 
     /**
      * Establishes the real outcome of an UNKNOWN/INTERRUPTED invocation. [verification] states how that was
      * established and is stored apart from the tool result, which never counts as verification by itself.
      */
-    suspend fun reconcile(invocationId: String, outcome: InvocationStatus, verification: String): TransitionResult {
-        require(outcome == InvocationStatus.SUCCEEDED || outcome == InvocationStatus.FAILED || outcome == InvocationStatus.CANCELLED) { "reconcile to a final outcome" }
-        if (verification.isBlank()) return TransitionResult.Rejected("reconciliation needs a verification statement")
+    suspend fun reconcile(taskId: String, invocationId: String, outcome: InvocationStatus, verification: String): TransitionResult {
+        require(outcome == InvocationStatus.SUCCEEDED || outcome == InvocationStatus.FAILED || outcome == InvocationStatus.CANCELLED) {
+            "reconcile to a final outcome"
+        }
+        val statement = SensitiveObservationRedactor.redact(verification.trim()).take(500)
+        if (statement.isBlank()) return TransitionResult.Rejected("reconciliation needs a verification statement")
+        val invocation = store.invocation(invocationId) ?: return TransitionResult.Rejected("unknown invocation")
+        if (invocation.taskId != taskId) return TransitionResult.Rejected("invocation does not belong to the selected task")
+        if (invocation.effect != Effect.SIDE_EFFECT) return TransitionResult.Rejected("only side-effecting invocations can be reconciled")
+        if (invocation.status == outcome && invocation.verification == statement) return TransitionResult.Duplicate
+        if (invocation.status !in setOf(InvocationStatus.UNKNOWN, InvocationStatus.INTERRUPTED)) {
+            return TransitionResult.Rejected("invocation is not eligible for reconciliation")
+        }
         val at = now()
-        return store.transitionInvocation(invocationId, outcome, InvocationPatch(completedAt = at, verification = verification, isError = outcome != InvocationStatus.SUCCEEDED),
-            at, "reconcile:$invocationId:$outcome", "reconciled")
+        store.recordEvent(taskId, "reconciliation", invocationId, invocation.status.name, "REQUESTED",
+            "user requested reconciliation to $outcome", at, "reconcile-request:$taskId:$invocationId:$outcome")
+        val result = store.transitionInvocation(invocationId, outcome,
+            InvocationPatch(completedAt = at, verification = statement, isError = outcome != InvocationStatus.SUCCEEDED),
+            at, "reconcile:$taskId:$invocationId:$outcome", "user reconciliation recorded")
+        store.recordEvent(taskId, "reconciliation", invocationId, invocation.status.name,
+            if (result == TransitionResult.Applied || result == TransitionResult.Duplicate) "ACCEPTED" else "REJECTED",
+            if (result is TransitionResult.Rejected) result.reason else "verified outcome recorded",
+            at, "reconcile-result:$taskId:$invocationId:$outcome")
+        return result
     }
 }
 

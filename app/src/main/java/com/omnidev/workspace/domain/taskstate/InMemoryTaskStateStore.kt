@@ -53,6 +53,9 @@ class MemoryTaskStateBackend : TaskStateBackend {
         override suspend fun nextInvocationSeq(taskId: String) = (invocations(taskId).maxOfOrNull { it.seq } ?: 0L) + 1
         override suspend fun insertInvocation(i: InvocationRecord): Boolean { if (s.invocations.containsKey(i.invocationId)) return false; write(); s.invocations[i.invocationId] = i; return true }
         override suspend fun updateInvocation(i: InvocationRecord) { write(); s.invocations[i.invocationId] = i }
+        override suspend fun unresolvedInvocations(taskId: String) = invocations(taskId).filter {
+            it.status in setOf(InvocationStatus.PENDING, InvocationStatus.RUNNING, InvocationStatus.INTERRUPTED, InvocationStatus.UNKNOWN)
+        }
         override suspend fun unresolvedSideEffects(taskId: String) = invocations(taskId).filter {
             it.effect == Effect.SIDE_EFFECT && it.status in setOf(InvocationStatus.PENDING, InvocationStatus.RUNNING, InvocationStatus.INTERRUPTED, InvocationStatus.UNKNOWN)
         }
@@ -64,8 +67,8 @@ class MemoryTaskStateBackend : TaskStateBackend {
         }
         override suspend fun hasEvent(taskId: String, key: String) = "$taskId|$key" in s.keys
         override suspend fun events(taskId: String, limit: Int, offset: Int) = s.events.filter { it.taskId == taskId }.drop(offset).take(limit)
-        override suspend fun tasksByStatus(statuses: Set<TaskStatus>, limit: Int) = s.tasks.values.filter { it.status in statuses }.sortedByDescending { it.updatedAt }.take(limit)
-        override suspend fun tasksForSession(sessionId: Long, limit: Int) = s.tasks.values.filter { it.sessionId == sessionId }.sortedByDescending { it.createdAt }.take(limit)
+        override suspend fun tasksByStatus(statuses: Set<TaskStatus>, limit: Int, offset: Int) = s.tasks.values.filter { it.status in statuses }.sortedWith(compareByDescending<TaskRecord> { it.updatedAt }.thenBy { it.taskId }).drop(offset).take(limit)
+        override suspend fun tasksForSession(sessionId: Long, limit: Int, offset: Int) = s.tasks.values.filter { it.sessionId == sessionId }.sortedWith(compareByDescending<TaskRecord> { it.createdAt }.thenBy { it.taskId }).drop(offset).take(limit)
     }
 
     override suspend fun <T> atomic(block: suspend TaskStateAccess.() -> T): T = lock.withLock {

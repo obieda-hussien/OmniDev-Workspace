@@ -11,6 +11,7 @@ import com.omnidev.workspace.domain.engine.SensitiveObservationRedactor
 import com.omnidev.workspace.domain.engine.ToolBatchPolicy
 import com.omnidev.workspace.domain.taskstate.Effect
 import com.omnidev.workspace.domain.taskstate.TaskRunRecorder
+import com.omnidev.workspace.domain.taskstate.TaskResumeMetadata
 import com.omnidev.workspace.domain.taskstate.TaskStateStore
 
 /**
@@ -121,7 +122,9 @@ class FinishRuntime private constructor(
                 TaskRunRecorder(store, identity.runId, identity.sessionId, originalRequest, identity.parentTaskId, identity.workerId, identity.acceptance,
                     resumed = identity.resume != null,
                     effectOf = { if (ToolBatchPolicy.isReadOnly(it)) Effect.READ_ONLY else Effect.SIDE_EFFECT },
-                    redact = SensitiveObservationRedactor::redact).also { it.start(goal) }
+                    redact = SensitiveObservationRedactor::redact,
+                    constraintsJson = TaskResumeMetadata.encode(identity, policy),
+                    resumeClaimed = identity.resumeClaimed).also { it.start(goal) }
             } else null
             val runtime = FinishRuntime(identity, profile, policy, ledger, state,
                 FinishGate(ledger, state, policy, identity, profile.maxFinishRejections), ToolCallIdentity(identity.runId), recorder)

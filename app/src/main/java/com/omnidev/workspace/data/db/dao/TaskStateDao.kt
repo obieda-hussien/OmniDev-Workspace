@@ -19,10 +19,10 @@ interface TaskStateDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertTask(t: AgentTaskEntity): Long
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertTask(t: AgentTaskEntity)
     @Query("SELECT * FROM agent_tasks WHERE taskId = :id") suspend fun task(id: String): AgentTaskEntity?
-    @Query("SELECT * FROM agent_tasks WHERE status IN (:statuses) ORDER BY updatedAt DESC LIMIT :limit")
-    suspend fun tasksByStatus(statuses: List<String>, limit: Int): List<AgentTaskEntity>
-    @Query("SELECT * FROM agent_tasks WHERE sessionId = :sessionId ORDER BY createdAt DESC LIMIT :limit")
-    suspend fun tasksForSession(sessionId: Long, limit: Int): List<AgentTaskEntity>
+    @Query("SELECT * FROM agent_tasks WHERE status IN (:statuses) ORDER BY updatedAt DESC, taskId ASC LIMIT :limit OFFSET :offset")
+    suspend fun tasksByStatus(statuses: List<String>, limit: Int, offset: Int): List<AgentTaskEntity>
+    @Query("SELECT * FROM agent_tasks WHERE sessionId = :sessionId ORDER BY createdAt DESC, taskId ASC LIMIT :limit OFFSET :offset")
+    suspend fun tasksForSession(sessionId: Long, limit: Int, offset: Int): List<AgentTaskEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertPlan(p: TaskPlanEntity)
     @Query("SELECT * FROM agent_task_plans WHERE taskId = :taskId ORDER BY revision") suspend fun plans(taskId: String): List<TaskPlanEntity>
@@ -45,6 +45,8 @@ interface TaskStateDao {
     @Query("SELECT invocationId, status FROM agent_task_invocations WHERE taskId = :taskId") suspend fun invocationStatuses(taskId: String): List<InvocationIdStatus>
     @Query("SELECT status, COUNT(*) AS n FROM agent_task_invocations WHERE taskId = :taskId GROUP BY status") suspend fun invocationCounts(taskId: String): List<StatusCount>
     @Query("SELECT COALESCE(MAX(seq), 0) FROM agent_task_invocations WHERE taskId = :taskId") suspend fun maxInvocationSeq(taskId: String): Long
+    @Query("SELECT * FROM agent_task_invocations WHERE taskId = :taskId AND status IN ('PENDING','RUNNING','INTERRUPTED','UNKNOWN') ORDER BY seq")
+    suspend fun unresolvedInvocations(taskId: String): List<TaskInvocationEntity>
     @Query("SELECT * FROM agent_task_invocations WHERE taskId = :taskId AND effect = 'SIDE_EFFECT' AND status IN ('PENDING','RUNNING','INTERRUPTED','UNKNOWN') ORDER BY seq")
     suspend fun unresolvedSideEffects(taskId: String): List<TaskInvocationEntity>
 

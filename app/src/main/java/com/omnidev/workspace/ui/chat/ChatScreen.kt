@@ -108,7 +108,13 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
                 onUpdateChatSettings = viewModel::updateChatSettings, onClearError = viewModel::clearError,
                 onModeDecision = { id, approval ->
                     if (approval == null) viewModel.denyExecutionMode(id) else viewModel.acceptExecutionMode(id, approval)
-                })
+                },
+                recoveryTasks = state.recoveryTasks,
+                recoveryLoading = state.recoveryLoading,
+                recoveryError = state.recoveryError,
+                onResumeTask = { taskId, instruction -> viewModel.resumePersistentTask(taskId, instruction) },
+                onReconcileTask = viewModel::reconcileTaskInvocation,
+                onDismissRecoveryTask = viewModel::dismissTaskRecovery)
         }
     }
 }
@@ -127,7 +133,13 @@ internal fun ChatConversation(
     onReply: (ChatMessage) -> Unit = {}, onDismissReply: () -> Unit = {}, onUpdateChatSettings: (ChatSettings) -> Unit = {},
     onEditLastUser: (String, String) -> Unit = { _, _ -> }, onRegenerateLast: (String) -> Unit = {},
     mentionLoader: suspend () -> List<com.omnidev.workspace.domain.engine.MentionCandidate> = { emptyList() },
-    onClearError: () -> Unit = {}, onModeDecision: (String, ModeSwitchPermissionStore.Approval?) -> Unit = { _, _ -> }
+    onClearError: () -> Unit = {}, onModeDecision: (String, ModeSwitchPermissionStore.Approval?) -> Unit = { _, _ -> },
+    recoveryTasks: List<com.omnidev.workspace.domain.taskstate.TaskRecoverySummary> = emptyList(),
+    recoveryLoading: Boolean = false,
+    recoveryError: String? = null,
+    onResumeTask: (String, String?) -> Unit = { _, _ -> },
+    onReconcileTask: (String, String, com.omnidev.workspace.domain.taskstate.InvocationStatus, String) -> Unit = { _, _, _, _ -> },
+    onDismissRecoveryTask: (String) -> Unit = {}
 ) {
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -171,7 +183,11 @@ internal fun ChatConversation(
                                 onSuggestion = { prompt -> onInputChanged(prompt); focusRequester.requestFocus(); keyboard?.show() },
                                 onReply = { onReply(it); focusRequester.requestFocus(); keyboard?.show() },
                                 onEditLastUser = onEditLastUser, onRegenerateLast = onRegenerateLast,
-                                onClearError = onClearError, onModeDecision = onModeDecision, onBrowser = onBrowser)
+                                onClearError = onClearError, onModeDecision = onModeDecision, onBrowser = onBrowser,
+                                leadingContent = {
+                                    TaskRecoverySection(recoveryTasks, recoveryLoading, recoveryError, !state.isProcessing,
+                                        onResumeTask, state.inputText, onReconcileTask, onDismissRecoveryTask)
+                                })
                         }
                         OmniAnimatedVisibility(!follow.following, Modifier.align(Alignment.BottomEnd).padding(12.dp)) {
                             SmallFloatingActionButton(onClick = { follow.resume() }, containerColor = MaterialTheme.colorScheme.secondaryContainer) {
