@@ -214,6 +214,7 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         val recovery = TaskRecoveryPlanner.plan(before)
         appendEvent(taskId, "recovery", taskId, "DISCOVERED", recovery.decision.name,
             recovery.reasons.joinToString("; ").take(300), at, "recovery-decision:$eventKey")
+        closeInterruptedCycles(taskId, at, "closed before explicit resume")
 
         for (move in recovery.invocationTransitions) {
             val current = invocation(move.invocationId) ?: continue
@@ -300,6 +301,7 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
             "recovery evaluation started", at, "recovery-discovered:$taskId:${currentTask.currentCycle}:${currentTask.status}")
         appendEvent(taskId, "recovery", taskId, "DISCOVERED", plan.decision.name,
             plan.reasons.joinToString("; ").take(300), at, "recovery-decision:$taskId:${currentTask.currentCycle}:${plan.decision}")
+        closeInterruptedCycles(taskId, at, "closed by task recovery")
         for (move in plan.invocationTransitions) {
             val current = invocation(move.invocationId) ?: continue
             if (TaskStateRules.invocationTransition(current.status, move.to) != TransitionResult.Applied) continue
@@ -327,6 +329,20 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
             }
         }
         return RecoveryOutcome(taskId, plan, applied = true)
+    }
+
+    /** Close every abandoned cycle once, inside the same recovery transaction. */
+    private suspend fun TaskStateAccess.closeInterruptedCycles(taskId: String, at: Long, reason: String) {
+        for (cycle in cycles(taskId)) {
+            if (cycle.endedAt != null) continue
+            saveCycle(cycle.copy(
+                endedAt = at,
+                outcome = "interrupted",
+                summary = TaskStateRules.clamp(reason, 600)
+            ))
+            appendEvent(taskId, "cycle", cycle.cycleId, "STARTED", "ENDED:interrupted",
+                reason, at, "recover-cycle:${cycle.cycleId}")
+        }
     }
 
     override suspend fun recordEvent(taskId: String, entityType: String, entityId: String, from: String, to: String, reason: String, at: Long, eventKey: String) =

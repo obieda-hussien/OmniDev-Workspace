@@ -125,8 +125,10 @@ class TaskRunRecorder(
         queue {
             val at = clock()
             // Keep the user's original request immutable; update only the interpreted objective and append a revision.
-            store.setObjective(taskId, objective.take(2000), at)
-            store.appendPlanRevision(taskId, initialSteps(objective), reason, at, "plan:$runToken:${reason.hashCode()}:$turn")
+            val revision = store.appendPlanRevision(
+                taskId, initialSteps(objective), reason, at, "plan:$runToken:${reason.hashCode()}:$turn"
+            )
+            if (revision != null) store.setObjective(taskId, objective.take(2000), at)
             steps = store.snapshot(taskId)?.currentSteps.orEmpty()
         }
     }

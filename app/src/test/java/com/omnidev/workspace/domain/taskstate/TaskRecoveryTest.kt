@@ -354,6 +354,7 @@ class TaskRecoveryTest {
         assertEquals(TaskStatus.INTERRUPTED, snapshot.task.status)
         assertEquals(2, snapshot.task.currentCycle)
         assertEquals(2, snapshot.cycles.size)
+        assertTrue(snapshot.cycles.all { it.endedAt != null })
         assertEquals(InvocationStatus.SUCCEEDED, snapshot.invocations.first { it.callId == "c1" }.status)
         assertEquals(InvocationStatus.UNKNOWN, snapshot.invocations.first { it.callId == "c2" }.status)
     }
