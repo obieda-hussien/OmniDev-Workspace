@@ -261,8 +261,9 @@ class TaskRecoveryTest {
             constraintsJson = metadata
         )
         first.start("edit Foo.kt"); first.beginTurn()
-        first.requested(listOf(read("read-before-resume")))
+        first.requested(listOf(read("read-before-resume"), read("read-interrupted")))
         assertEquals(RunGate.Proceed, first.gateRunning(read("read-before-resume")))
+        assertEquals(RunGate.Proceed, first.gateRunning(read("read-interrupted")))
         first.completed(read("read-before-resume"), "verified content", false, null)
         TaskRecovery(store, ::tick).recover("t1")
 
@@ -273,7 +274,8 @@ class TaskRecoveryTest {
         assertEquals(0, visible.completedSteps) // a successful invocation is not P0 step-completion proof
         assertEquals(1, visible.counts.succeeded)
         assertEquals(1, visible.openSteps.size)
-        assertEquals(listOf("t1/t1:c1/read-before-resume"), visible.unresolvedInvocations.map { it.invocationId })
+        assertEquals(listOf("t1/t1:c1/read-interrupted"), visible.unresolvedInvocations.map { it.invocationId })
+        assertEquals(InvocationStatus.INTERRUPTED, visible.unresolvedInvocations.single().status)
         assertFalse(visible.unresolvedInvocations.single().requiresReconciliation)
 
         val continuation = (coordinator.resume("t1") as TaskResumeResult.Ready).continuation
@@ -285,7 +287,10 @@ class TaskRecoveryTest {
         assertTrue(continuation.identity.forceFinishProtocol)
         assertEquals(true, continuation.identity.requireExecution)
         assertEquals(com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION, continuation.identity.taskKind)
-        assertEquals(RunEvidenceLedger.Outcome.OK, continuation.identity.resume!!.single().outcome)
+        assertEquals(RunEvidenceLedger.Outcome.OK,
+            continuation.identity.resume!!.single { it.callId == "read-before-resume" }.outcome)
+        assertEquals(RunEvidenceLedger.Outcome.SKIPPED,
+            continuation.identity.resume!!.single { it.callId == "read-interrupted" }.outcome)
 
         val resumed = TaskRunRecorder(
             store, continuation.taskId, continuation.sessionId, continuation.originalRequest,
