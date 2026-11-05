@@ -49,7 +49,6 @@ object TaskRecoveryPlanner {
                 blockedSteps.first().stepId, emptyList(), listOf("blocked plan step(s): $explanation")
             )
         }
-        }
 
         val invocationMoves = ArrayList<InvocationRecovery>()
         val reconcile = ArrayList<String>()
