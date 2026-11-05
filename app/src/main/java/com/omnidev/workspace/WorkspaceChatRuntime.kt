@@ -156,7 +156,8 @@ object WorkspaceChatRuntime {
                     autoHealBuildUseCase = autoHealBuildUseCase,
                     analyticsRepository = analyticsRepository,
                     compositeToolManager = toolManager,
-                    assistantWorkspace = if (assistant) java.io.File(applicationContext.filesDir, "assistant_workspace").apply { mkdirs() }.absolutePath else null
+                    assistantWorkspace = if (assistant) java.io.File(applicationContext.filesDir, "assistant_workspace").apply { mkdirs() }.absolutePath else null,
+                    taskStateStore = taskStateStore
                 )
             }
         })[ChatViewModel::class.java]
