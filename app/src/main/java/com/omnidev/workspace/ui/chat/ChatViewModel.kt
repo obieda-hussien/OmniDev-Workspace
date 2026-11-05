@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 import com.omnidev.workspace.data.review.ChangeKind
 import com.omnidev.workspace.data.review.ChangeStatus
@@ -145,6 +146,8 @@ class ChatViewModel(
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
     private val activeRunId = AtomicLong(0L)
     @Volatile private var currentAgentJob: Job? = null
+    @Volatile private var resumePreparationJob: Job? = null
+    private var resumeTargetSessionId: Long? = null
     private var sessionObservation: Job? = null
     private var attachmentImportJob: Job? = null
     private var stoppedRunSaveJob: Job? = null
@@ -316,106 +319,148 @@ class ChatViewModel(
     fun resumePersistentTask(taskId: String) {
         val coordinator = taskRecovery ?: return
         if (_uiState.value.isProcessing) return
-        viewModelScope.launch {
-            val result = try {
-                withContext(kotlinx.coroutines.Dispatchers.IO) { coordinator.resume(taskId) }
+        resumePreparationJob?.cancel()
+
+        val preparation = viewModelScope.launch {
+            var claimed: com.omnidev.workspace.domain.taskstate.TaskContinuation? = null
+            var handedOffToPipeline = false
+            var preparationRunId: Long? = null
+            try {
+                val result = withContext(kotlinx.coroutines.Dispatchers.IO) { coordinator.resume(taskId) }
+                val prepared = when (result) {
+                    is TaskResumeResult.Rejected -> {
+                        _uiState.update { it.copy(recoveryError = result.reason) }
+                        refreshTaskRecovery()
+                        return@launch
+                    }
+                    is TaskResumeResult.Ready -> result.continuation
+                }
+                claimed = prepared
+                val sessionId = prepared.sessionId
+
+                if (_uiState.value.currentSessionId != sessionId) {
+                    resumeTargetSessionId = sessionId
+                    try {
+                        loadSession(sessionId)
+                    } finally {
+                        resumeTargetSessionId = null
+                    }
+                    val opened = withTimeoutOrNull(10_000L) {
+                        uiState.first { it.currentSessionId == sessionId && !it.isProcessing }
+                    }
+                    if (opened == null) {
+                        _uiState.update { it.copy(recoveryError = "Could not reopen the task's original conversation.") }
+                        return@launch
+                    }
+                }
+                val readyState = _uiState.value
+                if (readyState.currentSessionId != sessionId) {
+                    _uiState.update { it.copy(recoveryError = "The original conversation changed before the task could resume.") }
+                    return@launch
+                }
+                val originalMessage = readyState.messages.lastOrNull { message ->
+                    message.role == MessageRole.USER && (
+                        message.userInput == prepared.originalRequest ||
+                            message.content.contains(prepared.originalRequest) ||
+                            prepared.originalRequest.startsWith(message.userInput?.takeIf { it.isNotBlank() } ?: message.content)
+                    )
+                }
+                val scopePath = originalMessage?.userScopePath ?: readyState.targetContext.orEmpty()
+                val runId = activeRunId.incrementAndGet()
+                preparationRunId = runId
+                val resumeMessage = ChatMessage(
+                    role = MessageRole.USER,
+                    content = "Resume task: ${prepared.originalRequest.take(300)}",
+                    userInput = prepared.originalRequest,
+                    userMode = OmniMode.AGENT.name,
+                    userScopePath = scopePath
+                )
+                runHistory = readyState.messages
+                runOriginMessageId = resumeMessage.messageId
+                runFollowUpIds = linkedSetOf()
+                currentSteering = null
+                runSessionReady = CompletableDeferred(sessionId)
+                steeringSaveJob = null
+                compositeToolManager?.currentSessionId = sessionId
+                _uiState.update { it.copy(
+                    messages = it.messages + resumeMessage,
+                    activeMode = OmniMode.AGENT,
+                    isProcessing = true,
+                    canSteer = true,
+                    agentStatus = "Resuming saved task…",
+                    streamingContent = null,
+                    errorMessage = null,
+                    recoveryError = null
+                ) }
+                try {
+                    chatRepository?.saveMessage(sessionId, resumeMessage)
+                } catch (error: Exception) {
+                    _uiState.update { state -> state.copy(
+                        messages = state.messages.filterNot { it.messageId == resumeMessage.messageId },
+                        recoveryError = "The resume request could not be saved to chat history."
+                    ) }
+                    return@launch
+                }
+
+                // A user can cancel or switch sessions while the request is being saved.
+                // Never dispatch the pipeline after that intent.
+                if (runId != activeRunId.get() || _uiState.value.currentSessionId != sessionId) {
+                    _uiState.update { it.copy(recoveryError = "Task resume was cancelled before execution started.") }
+                    return@launch
+                }
+                currentAgentJob = viewModelScope.launch {
+                    try {
+                        executeAgentMode(prepared.prompt, emptyList(), sessionId, scopePath,
+                            runId = runId, enableSteering = true, runIdentity = prepared.identity)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        if (activeRunId.get() == runId) {
+                            _uiState.update { it.copy(errorMessage = error.message ?: "The saved task could not be resumed.") }
+                        }
+                    } finally {
+                        try {
+                            withContext(NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
+                                coordinator.releaseIfNotStarted(prepared)
+                            }
+                        } catch (error: Exception) {
+                            _uiState.update { it.copy(recoveryError = error.message?.take(240) ?: "The resume claim could not be finalized safely.") }
+                        }
+                        if (activeRunId.get() == runId) {
+                            currentSteering = null
+                            _uiState.update { it.copy(isProcessing = false, canSteer = false, agentStatus = null, streamingContent = null) }
+                        }
+                        refreshTaskRecovery()
+                    }
+                }
+                handedOffToPipeline = true
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                _uiState.update { it.copy(recoveryError = error.message?.take(240) ?: "The saved task could not be prepared for resume.") }
+                if (preparationRunId == null || activeRunId.get() == preparationRunId) {
+                    _uiState.update { it.copy(recoveryError = error.message?.take(240) ?: "The saved task could not be prepared for resume.") }
+                }
+            } finally {
+                val unusedClaim = claimed
+                if (!handedOffToPipeline && unusedClaim != null) {
+                    try {
+                        withContext(NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
+                            coordinator.releaseIfNotStarted(unusedClaim)
+                        }
+                    } catch (error: Exception) {
+                        _uiState.update { it.copy(recoveryError = error.message?.take(240) ?: "The unused resume claim could not be released safely.") }
+                    }
+                }
+                if (!handedOffToPipeline && preparationRunId == activeRunId.get()) {
+                    _uiState.update { it.copy(isProcessing = false, canSteer = false, agentStatus = null, streamingContent = null) }
+                }
+                if (resumePreparationJob === kotlinx.coroutines.currentCoroutineContext()[Job]) {
+                    resumePreparationJob = null
+                }
                 refreshTaskRecovery()
-                return@launch
-            }
-            val continuation = when (result) {
-                is TaskResumeResult.Rejected -> {
-                    _uiState.update { it.copy(recoveryError = result.reason) }
-                    refreshTaskRecovery()
-                    return@launch
-                }
-                is TaskResumeResult.Ready -> result.continuation
-            }
-            val sessionId = continuation.sessionId
-            if (_uiState.value.currentSessionId != sessionId) {
-                loadSession(sessionId)
-                try {
-                    withTimeout(10_000L) {
-                        uiState.first { it.currentSessionId == sessionId && !it.isProcessing }
-                    }
-                } catch (cancelled: CancellationException) {
-                    withContext(NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
-                        coordinator.releaseIfNotStarted(continuation)
-                    }
-                    throw cancelled
-                } catch (error: Exception) {
-                    withContext(NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
-                        coordinator.releaseIfNotStarted(continuation)
-                    }
-                    _uiState.update { it.copy(recoveryError = "Could not reopen the task's original conversation.") }
-                    refreshTaskRecovery()
-                    return@launch
-                }
-            }
-            val readyState = _uiState.value
-            val originalMessage = readyState.messages.lastOrNull { message ->
-                message.role == MessageRole.USER && (
-                    message.userInput == continuation.originalRequest ||
-                        message.content.contains(continuation.originalRequest) ||
-                        continuation.originalRequest.startsWith(message.userInput?.takeIf { it.isNotBlank() } ?: message.content)
-                    )
-            }
-            val scopePath = originalMessage?.userScopePath ?: readyState.targetContext.orEmpty()
-            val runId = activeRunId.incrementAndGet()
-            val resumeMessage = ChatMessage(
-                role = MessageRole.USER,
-                content = "Resume task: ${continuation.originalRequest.take(300)}",
-                userInput = continuation.originalRequest,
-                userMode = OmniMode.AGENT.name,
-                userScopePath = scopePath
-            )
-            runHistory = readyState.messages
-            runOriginMessageId = resumeMessage.messageId
-            runFollowUpIds = linkedSetOf()
-            currentSteering = null
-            runSessionReady = CompletableDeferred(sessionId)
-            steeringSaveJob = null
-            compositeToolManager?.currentSessionId = sessionId
-            _uiState.update { it.copy(
-                messages = it.messages + resumeMessage,
-                activeMode = OmniMode.AGENT,
-                isProcessing = true,
-                canSteer = true,
-                agentStatus = "Resuming saved task…",
-                streamingContent = null,
-                errorMessage = null,
-                recoveryError = null
-            ) }
-            try {
-                chatRepository?.saveMessage(sessionId, resumeMessage)
-            } catch (error: Exception) {
-                _uiState.update { it.copy(recoveryError = "The resume request could not be saved to chat history.") }
-            }
-            currentAgentJob = viewModelScope.launch {
-                try {
-                    executeAgentMode(continuation.prompt, emptyList(), sessionId, scopePath,
-                        runId = runId, enableSteering = true, runIdentity = continuation.identity)
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (error: Exception) {
-                    if (activeRunId.get() == runId) {
-                        _uiState.update { it.copy(errorMessage = error.message ?: "The saved task could not be resumed.") }
-                    }
-                } finally {
-                    withContext(NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
-                        coordinator.releaseIfNotStarted(continuation)
-                    }
-                    if (activeRunId.get() == runId) {
-                        currentSteering = null
-                        _uiState.update { it.copy(isProcessing = false, canSteer = false, agentStatus = null, streamingContent = null) }
-                    }
-                    refreshTaskRecovery()
-                }
             }
         }
+        resumePreparationJob = preparation
     }
 
     fun keepAllChanges() = viewModelScope.launch {
@@ -503,6 +548,10 @@ class ChatViewModel(
     fun setMode(mode: OmniMode) {
         if (!OmniMode.permitted(mode)) return
         if (_uiState.value.activeMode == mode) return
+        if (resumePreparationJob != null && !_uiState.value.isProcessing) {
+            resumePreparationJob?.cancel()
+            resumePreparationJob = null
+        }
         if (_uiState.value.isProcessing) {
             cancelCurrentRun()
             _uiState.update { it.copy(errorMessage = null) }
@@ -512,6 +561,10 @@ class ChatViewModel(
     }
 
     fun loadSession(sessionId: Long) {
+        if (resumePreparationJob != null && resumeTargetSessionId != sessionId) {
+            resumePreparationJob?.cancel()
+            resumePreparationJob = null
+        }
         attachmentImportJob?.cancel()
         _uiState.update { it.copy(isImportingAttachments = false) }
         val repo = chatRepository ?: return
@@ -559,6 +612,8 @@ class ChatViewModel(
         sessionObservation?.cancel()
         activeRunId.incrementAndGet()
         currentSteering = null
+        resumePreparationJob?.cancel()
+        resumePreparationJob = null
         currentAgentJob?.cancel()
         currentAgentJob = null
         _uiState.update {
@@ -1094,6 +1149,8 @@ class ChatViewModel(
 
         activeRunId.incrementAndGet()
         currentSteering = null
+        resumePreparationJob?.cancel()
+        resumePreparationJob = null
         currentAgentJob?.cancel()
         currentAgentJob = null
         _uiState.update {
