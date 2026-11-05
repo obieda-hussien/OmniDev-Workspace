@@ -42,11 +42,13 @@ import kotlinx.coroutines.launch
 import com.omnidev.workspace.ui.companion.ChatCompanionHost
 import com.omnidev.workspace.ui.companion.companionViewport
 import com.omnidev.workspace.ui.companion.companionActivity
+import com.omnidev.workspace.ui.lifecycle.rememberHostResumed
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, onOpenBrowser: () -> Unit = {}) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val hostResumed = rememberHostResumed()
     val context = LocalContext.current
     val drawer = rememberDrawerState(if (state.isDrawerOpen) DrawerValue.Open else DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -57,7 +59,8 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
     val allActions by viewModel.changeLedger.actions.collectAsStateWithLifecycle()
     val actionCount = remember(allActions, sessionKey) { allActions.count { it.sessionKey == sessionKey } }
     var showReview by rememberSaveable { mutableStateOf(false) }
-    if (showReview) ChangeReviewDialog(viewModel.changeLedger, sessionKey, onDismiss = { showReview = false })
+    LaunchedEffect(hostResumed) { if (!hostResumed) showReview = false }
+    if (hostResumed && showReview) ChangeReviewDialog(viewModel.changeLedger, sessionKey, onDismiss = { showReview = false })
     LaunchedEffect(state.isDrawerOpen) { if (state.isDrawerOpen) drawer.open() else drawer.close() }
     LaunchedEffect(drawer.currentValue) { viewModel.setDrawerOpen(drawer.isOpen) }
     val directoryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->

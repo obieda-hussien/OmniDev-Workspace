@@ -25,6 +25,7 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import androidx.webkit.WebViewRenderProcess
 import androidx.webkit.WebViewRenderProcessClient
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Human-facing Chrome client for WebViews shown in Browser Viewer.
@@ -73,8 +74,8 @@ internal class BrowserChromeClient(
                         view: WebView,
                         renderer: WebViewRenderProcess?
                     ) {
-                        if (!activity.isUsable() || rendererDialog?.isShowing == true) return
-                        rendererDialog = AlertDialog.Builder(activity)
+                        if (!BrowserDialogSafety.isUsable(activity, view) || rendererDialog != null) return
+                        val dialog = AlertDialog.Builder(activity)
                             .setTitle("Page isn't responding")
                             .setMessage("The WebView renderer stopped responding. You can wait or reload the page without closing the tab.")
                             .setPositiveButton("Reload") { _, _ ->
@@ -83,17 +84,20 @@ internal class BrowserChromeClient(
                             }
                             .setNegativeButton("Wait", null)
                             .create()
-                            .also { dialog ->
-                                dialog.setOnDismissListener { rendererDialog = null }
-                                dialog.show()
-                            }
+                        dialog.setOnDismissListener {
+                            if (rendererDialog === dialog) rendererDialog = null
+                        }
+                        rendererDialog = dialog
+                        BrowserDialogSafety.show(activity, dialog, view, onUnavailable = {
+                            if (rendererDialog === dialog) rendererDialog = null
+                        })
                     }
 
                     override fun onRenderProcessResponsive(
                         view: WebView,
                         renderer: WebViewRenderProcess?
                     ) {
-                        rendererDialog?.dismiss()
+                        BrowserDialogSafety.dismiss(rendererDialog)
                         rendererDialog = null
                     }
                 }
@@ -107,13 +111,16 @@ internal class BrowserChromeClient(
         message: String?,
         result: JsResult?
     ): Boolean {
-        if (!activity.isUsable()) return false
-        AlertDialog.Builder(activity)
+        val settled = AtomicBoolean(false)
+        val confirm = { if (settled.compareAndSet(false, true)) runCatching { result?.confirm() } }
+        val cancel = { if (settled.compareAndSet(false, true)) runCatching { result?.cancel() } }
+        val dialog = AlertDialog.Builder(activity)
             .setTitle(siteLabel(url))
             .setMessage(message.orEmpty())
-            .setPositiveButton("OK") { _, _ -> result?.confirm() }
-            .setOnCancelListener { result?.cancel() }
-            .show()
+            .setPositiveButton("OK") { _, _ -> confirm() }
+            .setOnCancelListener { cancel() }
+            .create()
+        BrowserDialogSafety.show(activity, dialog, view, onUnavailable = { cancel() })
         return true
     }
 
@@ -123,14 +130,17 @@ internal class BrowserChromeClient(
         message: String?,
         result: JsResult?
     ): Boolean {
-        if (!activity.isUsable()) return false
-        AlertDialog.Builder(activity)
+        val settled = AtomicBoolean(false)
+        val confirm = { if (settled.compareAndSet(false, true)) runCatching { result?.confirm() } }
+        val cancel = { if (settled.compareAndSet(false, true)) runCatching { result?.cancel() } }
+        val dialog = AlertDialog.Builder(activity)
             .setTitle(siteLabel(url))
             .setMessage(message.orEmpty())
-            .setPositiveButton("OK") { _, _ -> result?.confirm() }
-            .setNegativeButton("Cancel") { _, _ -> result?.cancel() }
-            .setOnCancelListener { result?.cancel() }
-            .show()
+            .setPositiveButton("OK") { _, _ -> confirm() }
+            .setNegativeButton("Cancel") { _, _ -> cancel() }
+            .setOnCancelListener { cancel() }
+            .create()
+        BrowserDialogSafety.show(activity, dialog, view, onUnavailable = { cancel() })
         return true
     }
 
@@ -141,20 +151,25 @@ internal class BrowserChromeClient(
         defaultValue: String?,
         result: JsPromptResult?
     ): Boolean {
-        if (!activity.isUsable()) return false
         val input = EditText(activity).apply {
             setText(defaultValue.orEmpty())
             setSelection(text.length)
             setSingleLine(false)
         }
-        AlertDialog.Builder(activity)
+        val settled = AtomicBoolean(false)
+        val confirm = { if (settled.compareAndSet(false, true)) runCatching {
+            result?.confirm(input.text.toString())
+        } }
+        val cancel = { if (settled.compareAndSet(false, true)) runCatching { result?.cancel() } }
+        val dialog = AlertDialog.Builder(activity)
             .setTitle(siteLabel(url))
             .setMessage(message.orEmpty())
             .setView(input)
-            .setPositiveButton("OK") { _, _ -> result?.confirm(input.text.toString()) }
-            .setNegativeButton("Cancel") { _, _ -> result?.cancel() }
-            .setOnCancelListener { result?.cancel() }
-            .show()
+            .setPositiveButton("OK") { _, _ -> confirm() }
+            .setNegativeButton("Cancel") { _, _ -> cancel() }
+            .setOnCancelListener { cancel() }
+            .create()
+        BrowserDialogSafety.show(activity, dialog, view, onUnavailable = { cancel() })
         return true
     }
 
@@ -165,7 +180,7 @@ internal class BrowserChromeClient(
         fileChooserParams: FileChooserParams?
     ): Boolean {
         val callback = filePathCallback ?: return false
-        if (!activity.isUsable()) {
+        if (!BrowserDialogSafety.isUsable(activity, webView)) {
             callback.onReceiveValue(null)
             return true
         }
@@ -189,13 +204,17 @@ internal class BrowserChromeClient(
     ): Boolean {
         val parent = view ?: return false
         val message = resultMsg ?: return false
-        if (!isUserGesture || !activity.isUsable()) return false
+        if (!isUserGesture || !BrowserDialogSafety.isUsable(activity, parent)) return false
 
         val transport = message.obj as? WebView.WebViewTransport ?: return false
         val popup = WebView(activity)
         var transferred = false
 
         fun transfer(url: String?): Boolean {
+            if (!BrowserDialogSafety.isUsable(activity, parent)) {
+                runCatching { popup.stopLoading(); popup.destroy() }
+                return false
+            }
             val target = url?.takeIf {
                 it.startsWith("http://") || it.startsWith("https://")
             } ?: return false
@@ -238,12 +257,18 @@ internal class BrowserChromeClient(
 
     override fun onPermissionRequest(request: PermissionRequest?) {
         request ?: return
-        if (!activity.isUsable()) {
-            request.deny()
+        if (!BrowserDialogSafety.isUsable(activity)) {
+            denyPermissionRequest(request)
             return
         }
+        synchronized(permissionLock) { pendingPermissionRequests.add(request) }
 
         activity.runOnUiThread {
+            if (!isPermissionRequestPending(request) || !BrowserDialogSafety.isUsable(activity)) {
+                finishPermissionRequest(request)
+                denyPermissionRequest(request)
+                return@runOnUiThread
+            }
             val requested = request.resources.toSet()
             val androidPermissions = buildList {
                 if (PermissionRequest.RESOURCE_VIDEO_CAPTURE in requested && !hasPermission(Manifest.permission.CAMERA)) {
@@ -255,7 +280,8 @@ internal class BrowserChromeClient(
             }
 
             if (androidPermissions.isNotEmpty()) {
-                request.deny()
+                finishPermissionRequest(request)
+                denyPermissionRequest(request)
                 ActivityCompat.requestPermissions(
                     activity,
                     androidPermissions.distinct().toTypedArray(),
@@ -279,7 +305,8 @@ internal class BrowserChromeClient(
             }
 
             if (allowedResources.isEmpty()) {
-                request.deny()
+                finishPermissionRequest(request)
+                denyPermissionRequest(request)
                 Toast.makeText(activity, "Unsupported website permission request blocked", Toast.LENGTH_SHORT).show()
                 return@runOnUiThread
             }
@@ -293,29 +320,54 @@ internal class BrowserChromeClient(
                 }
             }.distinct().joinToString(" and ")
 
-            AlertDialog.Builder(activity)
+            val dialog = AlertDialog.Builder(activity)
                 .setTitle("Allow website access?")
                 .setMessage("${request.origin.host ?: request.origin} wants to use your $labels.")
                 .setPositiveButton("Allow") { _, _ ->
-                    request.grant(allowedResources.toTypedArray())
+                    if (finishPermissionRequest(request)) {
+                        runCatching { request.grant(allowedResources.toTypedArray()) }
+                    }
                 }
-                .setNegativeButton("Block") { _, _ -> request.deny() }
-                .setOnCancelListener { request.deny() }
-                .show()
+                .setNegativeButton("Block") { _, _ ->
+                    if (finishPermissionRequest(request)) denyPermissionRequest(request)
+                }
+                .setOnCancelListener {
+                    if (finishPermissionRequest(request)) denyPermissionRequest(request)
+                }
+                .create()
+            synchronized(permissionLock) {
+                if (request in pendingPermissionRequests) pendingPermissionDialogs[request] = dialog
+            }
+            BrowserDialogSafety.show(activity, dialog, onUnavailable = {
+                if (finishPermissionRequest(request)) denyPermissionRequest(request)
+            })
         }
     }
 
-    override fun onPermissionRequestCanceled(request: PermissionRequest?) = Unit
+    override fun onPermissionRequestCanceled(request: PermissionRequest?) {
+        request?.let { finishPermissionRequest(it) }
+    }
 
     override fun onGeolocationPermissionsShowPrompt(
         origin: String?,
         callback: GeolocationPermissions.Callback?
     ) {
-        if (callback == null || !activity.isUsable()) return
+        if (callback == null) return
+        val settled = AtomicBoolean(false)
+        val allow = {
+            if (settled.compareAndSet(false, true)) runCatching { callback.invoke(origin, true, false) }
+        }
+        val deny = {
+            if (settled.compareAndSet(false, true)) runCatching { callback.invoke(origin, false, false) }
+        }
+        if (!BrowserDialogSafety.isUsable(activity)) {
+            deny()
+            return
+        }
         val granted = hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) ||
             hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
         if (!granted) {
-            callback.invoke(origin, false, false)
+            deny()
             ActivityCompat.requestPermissions(
                 activity,
                 arrayOf(
@@ -328,19 +380,42 @@ internal class BrowserChromeClient(
             return
         }
 
-        AlertDialog.Builder(activity)
+        val dialog = AlertDialog.Builder(activity)
             .setTitle("Allow website location?")
             .setMessage("${origin.orEmpty()} wants to access your location for this session.")
-            .setPositiveButton("Allow") { _, _ -> callback.invoke(origin, true, false) }
-            .setNegativeButton("Block") { _, _ -> callback.invoke(origin, false, false) }
-            .setOnCancelListener { callback.invoke(origin, false, false) }
-            .show()
+            .setPositiveButton("Allow") { _, _ -> allow() }
+            .setNegativeButton("Block") { _, _ -> deny() }
+            .setOnCancelListener { deny() }
+            .create()
+        BrowserDialogSafety.show(activity, dialog, onUnavailable = { deny() })
     }
 
     override fun onGeolocationPermissionsHidePrompt() = Unit
 
     override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
         return false
+    }
+
+    private val permissionLock = Any()
+    // Keep each native request alive until it is granted, denied, or cancelled by WebView.
+    // The collection is bounded by outstanding page prompts and cleared by every terminal path.
+    private val pendingPermissionRequests = mutableSetOf<PermissionRequest>()
+    private val pendingPermissionDialogs = mutableMapOf<PermissionRequest, AlertDialog>()
+
+    private fun isPermissionRequestPending(request: PermissionRequest): Boolean =
+        synchronized(permissionLock) { request in pendingPermissionRequests }
+
+    private fun finishPermissionRequest(request: PermissionRequest): Boolean {
+        val dialog = synchronized(permissionLock) {
+            if (!pendingPermissionRequests.remove(request)) return false
+            pendingPermissionDialogs.remove(request)
+        }
+        BrowserDialogSafety.dismiss(dialog)
+        return true
+    }
+
+    private fun denyPermissionRequest(request: PermissionRequest) {
+        runCatching { request.deny() }
     }
 
     private fun hasPermission(permission: String): Boolean =
@@ -351,6 +426,4 @@ internal class BrowserChromeClient(
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
             ?: "Website"
-
-    private fun Activity.isUsable(): Boolean = !isFinishing && !isDestroyed
 }

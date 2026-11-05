@@ -48,3 +48,16 @@ Usage/cost accounting remains active, with no run-budget denominator. Exact dupl
 ## Verification
 
 Regression coverage includes stall deduplication/recovery/debugger behavior, long-history compaction without stored-history mutation, useful work beyond old run ceilings, same-response provider continuation/repetition/cancellation, non-serialized UI prefixes, private diagnostic file/console visibility, and ignoring obsolete Lite sync preferences. Android CI owns resolved dependency checks, flavor compilation/unit tests, API 30 UI tests, lint and release assembly. A physical Infinix/OEM device soak test is still required to validate the reported hours-apart behavior.
+
+
+## Android 11 browser-dialog and R8 service-loader crash guards
+
+Browser-owned native dialogs must pass through `BrowserDialogSafety`. The gate checks that the hosting Activity is
+resumed, its decor still has an attached window token, and the originating WebView (when supplied) remains attached.
+A late JS/permission/renderer callback cancels its pending WebView request instead of attempting to add a stale window.
+`BadTokenException` and invalid-window-state races are contained at this boundary.
+
+The release pipeline also builds the private Admin release locally (it is not uploaded as a public artifact) and
+checks its R8 mapping for the exact class names and public zero-argument constructors used by Kotlin Coroutines'
+Android `FastServiceLoader`. This verifies the reflection-only entrypoints that ordinary debug compilation cannot
+validate.

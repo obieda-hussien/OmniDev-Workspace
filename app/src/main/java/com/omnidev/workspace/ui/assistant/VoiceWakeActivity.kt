@@ -15,6 +15,7 @@ import com.omnidev.workspace.ui.components.SettingsPageTabs
 import com.omnidev.workspace.ui.components.SettingsDisclosure
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.omnidev.workspace.ui.lifecycle.rememberHostResumed
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,6 +58,7 @@ class VoiceWakeActivity : ComponentActivity() {
 @Composable
 private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val hostResumed = rememberHostResumed()
     val state by model.state.collectAsStateWithLifecycle()
     val status by LocalWakeService.status.collectAsStateWithLifecycle()
     val listStates = listOf(rememberLazyListState(), rememberLazyListState(), rememberLazyListState())
@@ -77,7 +79,8 @@ private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -
         return false
     }
     LaunchedEffect(refresh, status) { model.refresh() }
-    if (confirmDelete != null) {
+    LaunchedEffect(hostResumed) { if (!hostResumed) confirmDelete = null }
+    if (hostResumed && confirmDelete != null) {
         val deletion = confirmDelete!!
         AlertDialog(onDismissRequest = { confirmDelete = null }, title = { Text(if (deletion == "profile") "Delete wake profile?" else "Remove speech language?") },
             text = { Text(if (deletion == "profile") "You will need to train your wake phrase again. Downloaded speech languages will stay installed."

@@ -76,6 +76,7 @@ import com.omnidev.workspace.ui.components.SettingsEmptyState
 import com.omnidev.workspace.ui.components.SettingsSearchField
 import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniIconButton
+import com.omnidev.workspace.ui.lifecycle.rememberHostResumed
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,8 +86,10 @@ fun DebugScreen(
     onNavigateBack: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val hostResumed = rememberHostResumed()
     val context = LocalContext.current
     var showConfirmClear by remember { mutableStateOf(false) }
+    LaunchedEffect(hostResumed) { if (!hostResumed) showConfirmClear = false }
     var deviceInfoExpanded by rememberSaveable { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -193,7 +196,7 @@ fun DebugScreen(
     }
 
     // Confirm clear dialog
-    if (showConfirmClear) {
+    if (hostResumed && showConfirmClear) {
         AlertDialog(
             onDismissRequest = { showConfirmClear = false },
             icon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },

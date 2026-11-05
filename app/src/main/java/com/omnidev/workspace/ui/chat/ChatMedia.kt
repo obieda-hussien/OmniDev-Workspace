@@ -49,6 +49,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.omnidev.workspace.data.chatmedia.*
 import com.omnidev.workspace.data.model.*
+import com.omnidev.workspace.ui.lifecycle.rememberHostResumed
 import kotlinx.coroutines.*
 
 /** VoiceInteractionSession has no Activity result registry; its host supplies a real picker bridge. */
@@ -95,11 +96,18 @@ private data class MediaCardSnapshot(val job: MediaJob? = null, val actual: Atta
 internal fun ChatMediaCard(original: AttachmentMeta) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val hostResumed = rememberHostResumed()
     val scope = rememberCoroutineScope()
     var busy by remember(original.uri) { mutableStateOf(false) }
     var viewer by remember(original.uri) { mutableStateOf(false) }
     var menu by remember(original.uri) { mutableStateOf(false) }
     var actionError by remember(original.uri) { mutableStateOf<String?>(null) }
+    LaunchedEffect(hostResumed) {
+        if (!hostResumed) {
+            viewer = false
+            menu = false
+        }
+    }
     val isJob = original.uri.startsWith("omni-media-job:")
     val snapshot by produceState(MediaCardSnapshot(actual = if (isJob) null else original, loaded = !isJob), original.uri, lifecycle) {
         if (isJob) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -249,7 +257,7 @@ internal fun ChatMediaCard(original: AttachmentMeta) {
             }
         }
     }
-    if (viewer && snapshot.actual != null) ChatMediaViewer(meta) { viewer = false }
+    if (hostResumed && viewer && snapshot.actual != null) ChatMediaViewer(meta) { viewer = false }
 }
 
 private fun mediaFileSize(bytes: Long): String = if (bytes >= 1024 * 1024) "%.1f MB".format(java.util.Locale.ROOT, bytes / (1024f * 1024f)) else "${(bytes / 1024).coerceAtLeast(1)} KB"
