@@ -329,7 +329,7 @@ class ChatViewModel(
                 // caller is cancelled while Room commits, claimed is already set so the outer
                 // NonCancellable finally can release an unstarted claim.
                 val result = withContext(NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
-                    coordinator.resume(taskId).also { outcome ->
+                    coordinator.resume(taskId, additionalInstruction).also { outcome ->
                         if (outcome is TaskResumeResult.Ready) claimed = outcome.continuation
                     }
                 }
