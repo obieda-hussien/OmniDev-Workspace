@@ -23,7 +23,7 @@ class TaskRunRecorderTest {
     private fun recorder(acceptance: List<String> = emptyList()) =
         TaskRunRecorder(store, "t1", 7L, "edit Foo.kt", null, null, acceptance, false, effect, SensitiveObservationRedactor::redact, { ++clock })
     private fun read(id: String) = ToolCall(id, "read_file", mapOf("path" to "/p/Foo.kt"))
-    private fun patch(id: String) = ToolCall(id, "patch_file_content", mapOf("path" to "/p/Foo.kt", "content" to "x"))
+    private fun patch(id: String, content: String = "x") = ToolCall(id, "patch_file_content", mapOf("path" to "/p/Foo.kt", "content" to content))
 
     /** Runs the P0 gate over a ledger mirroring the recorder's calls, to obtain a genuine verdict. */
     private fun verdict(vararg steps: Pair<ToolCall, String>): GateResult.Publish {
@@ -92,7 +92,7 @@ class TaskRunRecorderTest {
 
     @Test fun `a returned result is not verification and a failed call is recorded as failed`() = runBlocking {
         val r = recorder(); r.start("g"); r.beginTurn()
-        r.requested(listOf(patch("c1"), patch("c2"))); r.gateRunning(patch("c1")); r.gateRunning(patch("c2"))
+        r.requested(listOf(patch("c1"), patch("c2", "distinct payload"))); r.gateRunning(patch("c1")); r.gateRunning(patch("c2", "distinct payload"))
         r.completed(patch("c1"), "patched", false, null)
         r.completed(patch("c2"), "disk full", true, "IO_ERROR")
         val inv = store.snapshot("t1")!!.invocations
