@@ -219,10 +219,13 @@ class TaskContinuationCoordinator(
             TaskStatus.BLOCKED -> RecoveryDecision.REQUIRES_USER_INTERVENTION to listOf("Task is blocked and needs user action.")
             TaskStatus.AWAITING_APPROVAL -> RecoveryDecision.REQUIRES_USER_INTERVENTION to listOf("Task is waiting for an approval decision.")
             TaskStatus.RUNNING -> RecoveryDecision.REQUIRES_USER_INTERVENTION to listOf("Task is still marked RUNNING; it cannot be resumed concurrently.")
-            TaskStatus.INTERRUPTED, TaskStatus.INCOMPLETE -> if (uncertain.isNotEmpty()) {
-                RecoveryDecision.REQUIRES_RECONCILIATION to listOf("One or more side effects have an unknown outcome.")
-            } else {
-                RecoveryDecision.SAFE_TO_RESUME to listOf("No unresolved side effect requires reconciliation.")
+            TaskStatus.INTERRUPTED, TaskStatus.INCOMPLETE -> when {
+                uncertain.isNotEmpty() ->
+                    RecoveryDecision.REQUIRES_RECONCILIATION to listOf("One or more side effects have an unknown outcome.")
+                snapshot.currentSteps.any { it.status == StepStatus.BLOCKED } ->
+                    RecoveryDecision.REQUIRES_USER_INTERVENTION to listOf("A blocked plan step needs user intervention before continuation.")
+                else ->
+                    RecoveryDecision.SAFE_TO_RESUME to listOf("No unresolved side effect requires reconciliation.")
             }
             else -> RecoveryDecision.REQUIRES_USER_INTERVENTION to listOf("Task is not ready for recovery.")
         }

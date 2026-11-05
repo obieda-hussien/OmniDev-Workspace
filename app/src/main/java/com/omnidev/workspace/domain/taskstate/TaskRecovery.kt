@@ -38,6 +38,18 @@ object TaskRecoveryPlanner {
                     listOf(if (task.status == TaskStatus.AWAITING_APPROVAL) "waiting for user approval" else "blocked: needs user action"))
             else -> Unit
         }
+        val blockedSteps = snapshot.currentSteps.filter { it.status == StepStatus.BLOCKED }
+        if (blockedSteps.isNotEmpty()) {
+            val explanation = blockedSteps.joinToString("; ") { step ->
+                "${step.key}: " + step.statusReason.ifBlank { "user intervention is required" }
+            }.take(300)
+            return RecoveryPlan(
+                RecoveryDecision.REQUIRES_USER_INTERVENTION, emptyList(), emptyList(),
+                if (task.status == TaskStatus.INTERRUPTED || task.status == TaskStatus.INCOMPLETE) null else TaskStatus.INTERRUPTED,
+                blockedSteps.first().stepId, emptyList(), listOf("blocked plan step(s): $explanation")
+            )
+        }
+        }
 
         val invocationMoves = ArrayList<InvocationRecovery>()
         val reconcile = ArrayList<String>()

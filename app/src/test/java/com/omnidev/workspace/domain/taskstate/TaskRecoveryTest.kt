@@ -384,6 +384,23 @@ class TaskRecoveryTest {
         assertEquals(InvocationStatus.UNKNOWN, snapshot.invocations.first { it.callId == "c2" }.status)
     }
 
+    @Test fun `a blocked plan step prevents a task resume claim`() = runBlocking {
+        val r = started(recorder())
+        r.requested(emptyList())
+        val step = store.snapshot("t1")!!.currentSteps.single()
+        assertEquals(TransitionResult.Applied,
+            store.transitionStep(step.stepId, StepStatus.BLOCKED, "waiting for a user decision", tick(), "step-blocked"))
+        TaskRecovery(store, ::tick).recover("t1")
+
+        val coordinator = TaskContinuationCoordinator(store, ::tick)
+        val summary = coordinator.summary("t1")!!
+        assertEquals(RecoveryDecision.REQUIRES_USER_INTERVENTION, summary.decision)
+        assertFalse(summary.canResume)
+        val result = coordinator.resume("t1")
+        assertTrue(result is TaskResumeResult.Rejected)
+        assertEquals(TaskStatus.INTERRUPTED, store.task("t1")!!.status)
+    }
+
     @Test fun `terminal and paused tasks get the right decision`() = runBlocking {
         store.createTask(NewTask("done", 1, "x", createdAt = 1)); store.transitionTask("done", TaskStatus.RUNNING, "g", 2, "a")
         store.finalizeTask("done", TaskStatus.COMPLETED, FinishRecord("completed", "ok", "d"), emptyList(), 3, "f")
