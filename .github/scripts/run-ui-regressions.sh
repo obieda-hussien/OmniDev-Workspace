@@ -55,7 +55,7 @@ bash .github/scripts/gradle-with-retry.sh --no-daemon --max-workers 1 \
   :app:connectedLiteDebugAndroidTest \
   -Pkotlin.incremental=false \
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
-  -Pandroid.testInstrumentationRunnerArguments.package=com.omnidev.workspace.ui,com.omnidev.workspace.taskstate.persistence || ui_test_status=$?
+  -Pandroid.testInstrumentationRunnerArguments.package=com.omnidev.workspace.ui,com.omnidev.workspace.ui.chat,com.omnidev.workspace.taskstate.persistence || ui_test_status=$?
 
 # Android 11 restricts shell access to Android/data. Export private test captures
 # as the debuggable Lite app's UID; no shared-storage or root permission is needed.

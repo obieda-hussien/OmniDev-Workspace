@@ -245,6 +245,63 @@ class TaskRecoveryTest {
         assertEquals("", i.resultSummary)                                   // there never was a returned result
     }
 
+    @Test fun `user continuation preserves task session policy evidence and starts a new cycle`() = runBlocking {
+        val originalIdentity = RunIdentity(
+            runId = "t1", acceptance = listOf("Foo.kt can be read back"),
+            requireExecution = true,
+            taskKind = com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION,
+            sessionId = 7L
+        )
+        val policy = FinalizationPolicy(enforce = true, requireExecution = true, requireAction = true)
+        val metadata = TaskResumeMetadata.encode(originalIdentity, policy)
+        val first = TaskRunRecorder(
+            store, "t1", 7L, "edit Foo.kt and verify it", null, null,
+            originalIdentity.acceptance, false, effect,
+            SensitiveObservationRedactor::redact, ::tick,
+            constraintsJson = metadata
+        )
+        first.start("edit Foo.kt"); first.beginTurn()
+        first.requested(listOf(read("read-before-resume")))
+        assertEquals(RunGate.Proceed, first.gateRunning(read("read-before-resume")))
+        first.completed(read("read-before-resume"), "verified content", false, null)
+        TaskRecovery(store, ::tick).recover("t1")
+
+        val coordinator = TaskContinuationCoordinator(store, ::tick)
+        val visible = coordinator.tasksForSession(7L).single()
+        assertEquals("t1", visible.taskId)
+        assertEquals(TaskStatus.INTERRUPTED, visible.status)
+        assertEquals(1, visible.completedSteps)
+
+        val continuation = (coordinator.resume("t1") as TaskResumeResult.Ready).continuation
+        assertEquals("t1", continuation.taskId)
+        assertEquals(7L, continuation.sessionId)
+        assertEquals("edit Foo.kt and verify it", continuation.originalRequest)
+        assertEquals("t1", continuation.identity.runId)
+        assertEquals(7L, continuation.identity.sessionId)
+        assertTrue(continuation.identity.forceFinishProtocol)
+        assertEquals(true, continuation.identity.requireExecution)
+        assertEquals(com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION, continuation.identity.taskKind)
+        assertEquals(RunEvidenceLedger.Outcome.OK, continuation.identity.resume!!.single().outcome)
+
+        val resumed = TaskRunRecorder(
+            store, continuation.taskId, continuation.sessionId, continuation.originalRequest,
+            continuation.identity.parentTaskId, continuation.identity.workerId,
+            continuation.identity.acceptance, true, effect,
+            SensitiveObservationRedactor::redact, ::tick,
+            constraintsJson = metadata, resumeClaimed = true
+        )
+        resumed.start(continuation.prompt); resumed.beginTurn(); resumed.requested(emptyList())
+        val snapshot = store.snapshot("t1")!!
+        assertEquals("edit Foo.kt and verify it", snapshot.task.originalRequest)
+        assertEquals(7L, snapshot.task.sessionId)
+        assertEquals(TaskStatus.RUNNING, snapshot.task.status)
+        assertEquals(2, snapshot.cycles.size)
+        assertEquals("t1:c1", snapshot.cycles.first().cycleId)
+        assertEquals("t1:c2", snapshot.cycles.last().cycleId)
+        assertEquals(InvocationStatus.SUCCEEDED, snapshot.invocations.single().status)
+        assertEquals(2, coordinator.summary("t1")!!.counts.cycles)
+    }
+
     @Test fun `terminal and paused tasks get the right decision`() = runBlocking {
         store.createTask(NewTask("done", 1, "x", createdAt = 1)); store.transitionTask("done", TaskStatus.RUNNING, "g", 2, "a")
         store.finalizeTask("done", TaskStatus.COMPLETED, FinishRecord("completed", "ok", "d"), emptyList(), 3, "f")
