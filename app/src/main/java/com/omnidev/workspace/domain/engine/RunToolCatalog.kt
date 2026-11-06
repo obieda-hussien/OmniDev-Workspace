@@ -122,15 +122,17 @@ class RunToolCatalog(
 
     fun discover(query: String): ToolExecutionResult {
         // A model that calls discovery without a query (common with small models) is helped, not rejected:
-        // fall back to the run objective, which is what the automatic retrieval already uses.
+        // Fall back to the same active step/latest objective used by automatic retrieval.
         val effectiveQuery = query.take(2_000).ifBlank { focus?.query ?: currentObjective }
         if (effectiveQuery.isBlank()) return ToolExecutionResult("Use a concrete task or exact tool name as query.", true,
             classification = "INVALID_TOOL_ARGUMENTS")
-        val matches = search(effectiveQuery, SEARCH_SIZE)
+        val matches = search(effectiveQuery, SEARCH_SIZE,
+            focusedDomains = if (query.isBlank()) focus?.domains.orEmpty() else emptySet())
         if (matches.isEmpty()) return ToolExecutionResult("No registered tool matched. Describe the needed operation differently; do not invent tool names.")
         load(matches)
         val visible = matches.filter { isLoaded(it.name) }
-        if (visible.isEmpty()) return ToolExecutionResult(
+        val exact = catalog.firstOrNull { it.name == effectiveQuery.trim() }
+        if (visible.isEmpty() || exact != null && !isLoaded(exact.name)) return ToolExecutionResult(
             "Matching registered schemas exceed this model's tool-surface budget. Use a model with a larger context or a narrower exact tool query. No action executed.",
             true, classification = "TOOL_SCHEMA_BUDGET")
         return ToolExecutionResult(buildString {

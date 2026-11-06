@@ -51,6 +51,13 @@ class ToolSurfaceTest {
         assertEquals(restore(registry).definitions(), restore(registry.reversed()).definitions())
     }
 
+    @Test fun `blank discovery retains validated step domain when wording has no lexical match`() {
+        val catalog = RunToolCatalog(registry, "other objective")
+        catalog.prepare("other objective", activeStep = ToolSurfaceFocus("p1", "S1", "unknown-language-term",
+            setOf(IntentClassifier.ToolDomain.WEB_SEARCH)))
+        assertTrue(catalog.discover("").output.contains("web_search:"))
+    }
+
     @Test fun `seeded registry permutations produce deterministic bounded surfaces`() {
         val random = Random(4401)
         val budget = ToolSurfaceBudget(maxTools = 5, maxSchemaChars = 2_500)
@@ -69,7 +76,7 @@ class ToolSurfaceTest {
         val huge = ToolDefinition("large_tool", "Large operation", (1..80).map {
             ToolParameter("required_$it", "string", "Required value", required = true)
         })
-        val catalog = RunToolCatalog(listOf(huge), "large_tool", budget = ToolSurfaceBudget(maxSchemaChars = 1_500))
+        val catalog = RunToolCatalog(listOf(huge, tool("fallback")), "large_tool", budget = ToolSurfaceBudget(maxSchemaChars = 1_500))
         val result = catalog.discover("large_tool")
         assertTrue(result.isError)
         assertEquals("TOOL_SCHEMA_BUDGET", result.classification)
