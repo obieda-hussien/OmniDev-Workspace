@@ -126,6 +126,12 @@ class TeamCompletionProtocolTest {
         assertTrue(TeamCompletionProtocol.toolFreeAllowed("Explain Kotlin"))
         assertFalse(TeamCompletionProtocol.toolFreeAllowed("Edit source.kt and verify the change"))
         assertFalse(TeamCompletionProtocol.toolFreeAllowed("Research current Android documentation"))
+        assertFalse(TeamCompletionProtocol.toolFreeAllowed("Read file"))
+        assertFalse(TeamCompletionProtocol.toolFreeAllowed("Read file?"))
+        assertFalse(TeamCompletionProtocol.toolFreeAllowed("Inspect source?"))
+        assertFalse(TeamCompletionProtocol.toolFreeAllowed("Inspect repository source"))
+        assertFalse(TeamCompletionProtocol.toolFreeAllowed("Verify source outputs"))
+        assertTrue(TeamCompletionProtocol.toolFreeAllowed("Summarize the supplied context"))
     }
     @Test fun `serialized research is analysis while runtime mutation promotion requires action`() {
         val read = SwarmTask("research", "Research Android documentation", parallelSafe = false, needsConnectedTools = true)

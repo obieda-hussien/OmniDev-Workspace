@@ -91,10 +91,14 @@ class TeamCompletionProtocol(val runId: String, val revision: Long, private val 
     }
 
     companion object {
+        private val selfContained = Regex("(?i)(?<![\\p{L}\\p{N}_])(?:" +
+            (com.omnidev.workspace.domain.engine.IntentClassifier.CHAT_PHRASES.map { Regex.escape(it.text) } +
+                listOf("summarize", "summarise", "synthesize", "synthesise")).joinToString("|") + ")(?![\\p{L}\\p{N}_])")
+
         fun toolFreeAllowed(objective: String): Boolean {
             val s = com.omnidev.workspace.domain.engine.IntentClassifier.analyze(objective)
-            return s.mutationIntent < .16f && s.executionIntent < .34f && s.deviceIntent < .15f &&
-                s.researchIntent < .35f && s.verificationIntent < .4f
+            return selfContained.containsMatchIn(objective) && s.mutationIntent < .16f &&
+                s.executionIntent < .34f && s.deviceIntent < .15f && s.researchIntent == 0f && s.verificationIntent < .4f
         }
 
         fun digest(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
