@@ -59,6 +59,9 @@ class TeamCompletionProtocolTest {
             assertFalse(r.observer.review(forged, "Observed source").accepted)
         }
         assertTrue(r.observer.review(report, "Observed source").accepted)
+        val unverified = r.observer.review(report.copy(verified = false), "Observed source")
+        assertFalse(unverified.accepted)
+        assertEquals(FinishStatus.INCOMPLETE, unverified.status)
     }
     @Test fun `foreign run worker revision and attempt are rejected`() {
         val t = task(); val p = TeamCompletionProtocol("team", 1, listOf(t))

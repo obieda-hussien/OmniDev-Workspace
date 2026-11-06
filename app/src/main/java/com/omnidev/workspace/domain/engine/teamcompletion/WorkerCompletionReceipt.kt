@@ -53,7 +53,8 @@ class WorkerCompletionObserver(private val assignment: WorkerAssignment) {
     }
 
     fun review(report: CompletionReport?, output: String): WorkerReceipt {
-        fun rejected(code: String, status: FinishStatus = FinishStatus.INCOMPLETE) = WorkerReceipt(assignment, status,
+        fun rejected(code: String, status: FinishStatus = FinishStatus.INCOMPLETE) = WorkerReceipt(assignment,
+            status.takeUnless { it == FinishStatus.COMPLETED } ?: FinishStatus.INCOMPLETE,
             false, SensitiveObservationRedactor.redact(code).take(300), report?.ledgerDigest.orEmpty(), TeamCompletionProtocol.digest(output), observed.size)
         terminal?.let { return rejected("RUNTIME_INTERVENTION_REQUIRED", it) }
         if (report == null) return rejected("MISSING_P0_REPORT")
