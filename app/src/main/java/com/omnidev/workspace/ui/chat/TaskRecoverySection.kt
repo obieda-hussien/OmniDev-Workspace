@@ -158,7 +158,7 @@ private fun ReconcileInvocationDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Task: $taskId", style = MaterialTheme.typography.bodySmall)
-                Text("Invocation: ${invocation.invocationId}", style = MaterialTheme.typography.bodySmall)
+                Text("Operation: ${invocation.invocationId}", style = MaterialTheme.typography.bodySmall)
                 Text("${invocation.toolName} · ${invocation.status}", style = MaterialTheme.typography.bodyMedium)
                 Text("Choose only an outcome you have independently established.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
