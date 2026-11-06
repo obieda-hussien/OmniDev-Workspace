@@ -73,6 +73,12 @@ object TaskResumeMetadata {
         append("}")
     }
 
+    fun withAcceptance(raw: String, items: List<String>): String {
+        val original = runCatching { Json.parseToJsonElement(raw).jsonObject }.getOrElse { throw TaskStateException("INVALID_RESUME_METADATA") }
+        val merged = (acceptance(raw).orEmpty() + items.map(PlanningPrivacy::safe)).distinct().take(8)
+        return JsonObject(original + ("p3Acceptance" to JsonArray(merged.map(::JsonPrimitive)))).toString()
+    }
+
     fun acceptance(raw: String): List<String>? = runCatching {
         (Json.parseToJsonElement(raw).jsonObject["p3Acceptance"] as? JsonArray)?.map { it.jsonPrimitive.content }?.take(8)
     }.getOrNull()
@@ -192,8 +198,12 @@ class TaskContinuationCoordinator(
                         )
                     }
                 }
-                val criteria = TaskResumeMetadata.acceptance(task.constraintsJson) ?: snapshot.currentSteps.filter { it.key.matches(Regex("A[0-9]+")) }
+                val legacyCriteria = snapshot.currentSteps.filter { it.key.matches(Regex("A[0-9]+")) }
                     .sortedBy { it.ordinal }.map { it.description }
+                val storedCriteria = TaskResumeMetadata.acceptance(task.constraintsJson)
+                val criteria = if (PlanCodec.metadata(snapshot.latestPlan?.metadataJson.orEmpty()) != null)
+                    storedCriteria ?: legacyCriteria
+                else (storedCriteria.orEmpty() + legacyCriteria).distinct()
                 val metadata = task.constraintsJson
                 val identity = RunIdentity(
                     runId = task.taskId,

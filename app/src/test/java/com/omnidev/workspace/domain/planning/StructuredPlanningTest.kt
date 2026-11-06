@@ -302,4 +302,46 @@ class StructuredPlanningTest {
         assertEquals("PLAN_GENERATION_INVALID", coordinator.diagnostic)
     }
 
+    @Test fun `legacy draft acceptance remains in P0 policy after structured conversion` () = runBlocking {
+        val store = started()
+        store.appendPlanRevision("task", listOf(NewStep("S1", "Read source", expectedOutput = "Source", completionCondition = "Read it")), "initial", 3, "initial")
+        store.preserveAcceptance("task", emptyList(), 4)
+        TaskRecovery(store).recover("task")
+        val result = TaskContinuationCoordinator(store).resume("task", "Also inspect the tests") as TaskResumeResult.Ready
+        assertTrue(result.continuation.identity.acceptance.any { it.contains("Also inspect the tests") })
+        store.preserveAcceptance("task", result.continuation.identity.acceptance, 5)
+        assertTrue(TaskResumeMetadata.acceptance(store.task("task")!!.constraintsJson)!!.any { it.contains("Also inspect the tests") })
+        val original = TaskResumeMetadata.encode(RunIdentity(taskKind = TaskKind.IMPLEMENTATION, acceptance = listOf("Base check")),
+            FinalizationPolicy(true, true, requireAction = true))
+        val merged = TaskResumeMetadata.withAcceptance(original, listOf("Additional check"))
+        assertEquals(true, TaskResumeMetadata.requireExecution(merged))
+        assertEquals(TaskKind.IMPLEMENTATION, TaskResumeMetadata.taskKind(merged))
+        assertEquals(listOf("Base check", "Additional check"), TaskResumeMetadata.acceptance(merged))
+    }
+
+    @Test fun `execution failure creates an adaptive revision without completing the failed attempt` () = runBlocking {
+        val store = started(); val original = plan(); persist(store, original)
+        val active = store.snapshot("task")!!.currentSteps.first()
+        val cycle = store.beginCycle("task", active.stepId, 4, "cycle")
+        store.recordInvocationIntent(NewInvocation("failed", "failed", "task", cycle.cycleId, active.stepId, "read_file", "schema", "{}", "h", Effect.READ_ONLY, "k", requestedAt = 5))
+        store.transitionInvocation("failed", InvocationStatus.RUNNING, InvocationPatch(), 6, "running")
+        store.transitionInvocation("failed", InvocationStatus.FAILED, InvocationPatch(isError = true), 7, "failed")
+        store.transitionStep(active.stepId, StepStatus.FAILED, "Read unavailable", 8, "step-failed")
+        var calls = 0
+        val coordinator = TaskPlanningCoordinator(store, "task", StructuredPlanGenerator { input, _ ->
+            calls++; assertTrue(input.reason.startsWith("Execution failure")); assertFalse(input.recentFailures.isEmpty())
+            PlanGeneration(original.copy(summary = "Use another source", steps = original.steps.map {
+                if (it.key == "S1") it.copy(description = "Inspect an alternate source") else it
+            }), 11, "")
+        }, listOf("CORE"), emptyList(), emptyList())
+        assertEquals(11, coordinator.prepare(null))
+        val after = store.snapshot("task")!!
+        assertEquals(2, after.plans.size)
+        assertTrue(after.latestPlan!!.reason.startsWith("Execution failure"))
+        assertEquals(StepStatus.READY, after.currentSteps.first().status)
+        assertEquals(StepStatus.SKIPPED, after.steps.first { it.stepId == active.stepId }.status)
+        assertEquals(InvocationStatus.FAILED, store.invocation("failed")!!.status)
+        assertEquals(0, coordinator.prepare(null)); assertEquals(1, calls)
+    }
+
 }

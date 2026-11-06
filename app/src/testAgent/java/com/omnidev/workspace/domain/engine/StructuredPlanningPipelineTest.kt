@@ -80,11 +80,13 @@ class StructuredPlanningPipelineTest {
             PlannedStep("S2", "Repair source and verify content", listOf("S1"), "Fixed source", "Read back fixed content",
                 StepPolicy(listOf("CORE"), ProofKind.READ_BACK, contains = "fixed"))
         ))
-        val objective = "- Inspect the source\n- Repair the source\n- Verify the requested content"
+        val objective = "- Read source.kt\n- Edit source.kt to fix the crash\n- Read back and verify the changed file"
+        assertTrue(FinalizationPolicy.decide(IntentClassifier.analyze(objective), false, true).enforce)
         fun call(id: String, name: String, vararg args: Pair<String, String>) = CompletionResponse("", listOf(ToolCall(id, name, args.toMap())))
         suspend fun proposal(key: String): CompletionResponse {
             val snap = store.snapshot("resume-plan")!!
-            val stepId = snap.currentSteps.first { it.key == key }.stepId
+            val stepId = (snap.currentSteps.firstOrNull { it.key == key }
+                ?: error("Missing active plan key " + key + "; saved keys=" + snap.currentSteps.map { it.key })).stepId
             return call("complete-$key", TaskPlanningCoordinator.COMPLETE, "step_key" to key, "evidence_ids" to
                 PlanCodec.json.encodeToString(snap.invocations.filter { it.stepId == stepId }.map { it.invocationId }))
         }
@@ -99,7 +101,9 @@ class StructuredPlanningPipelineTest {
             }
         }, config = config, taskStateStore = store).execute(objective, modelId = "gpt-4o-mini", scopePath = "/tmp",
             preferredToolNames = setOf("read_file", "patch_file_content"), runIdentity = RunIdentity(runId = "resume-plan", sessionId = 7)).toList()
-        assertEquals(FinishStatus.INCOMPLETE, first.filterIsInstance<AgentEvent.FinalAnswer>().single().completion!!.status)
+        val paused = first.filterIsInstance<AgentEvent.FinalAnswer>().singleOrNull()
+        assertNotNull("Initial persistent run failed: " + first.filterIsInstance<AgentEvent.Error>().joinToString { it.message.take(240) }, paused)
+        assertEquals(FinishStatus.INCOMPLETE, paused!!.completion!!.status)
         withTimeout(10_000) { while (store.task("resume-plan")?.status != TaskStatus.INCOMPLETE) delay(10) }
         val before = store.snapshot("resume-plan")!!
         val originalProof = before.currentSteps.first().evidenceInvocationIds
@@ -118,7 +122,9 @@ class StructuredPlanningPipelineTest {
             }
         }, config = config, taskStateStore = store).execute(resumed.prompt, modelId = "gpt-4o-mini", scopePath = "/tmp",
             preferredToolNames = setOf("read_file", "patch_file_content"), runIdentity = resumed.identity).toList()
-        assertTrue(events.filterIsInstance<AgentEvent.FinalAnswer>().single().completion!!.verified)
+        val completed = events.filterIsInstance<AgentEvent.FinalAnswer>().singleOrNull()
+        assertNotNull("Resumed run failed: " + events.filterIsInstance<AgentEvent.Error>().joinToString { it.message.take(240) }, completed)
+        assertTrue(completed!!.completion!!.verified)
         withTimeout(10_000) { while (store.task("resume-plan")?.status != TaskStatus.COMPLETED) delay(10) }
         val after = store.snapshot("resume-plan")!!
         assertEquals(1, planningCalls); assertEquals(1, after.plans.size)

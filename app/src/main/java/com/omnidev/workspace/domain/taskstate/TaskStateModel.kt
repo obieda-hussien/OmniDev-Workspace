@@ -207,6 +207,7 @@ interface TaskStateStore {
     suspend fun createTask(task: NewTask): Boolean
     suspend fun task(taskId: String): TaskRecord?
     suspend fun transitionTask(taskId: String, to: TaskStatus, reason: String, at: Long, eventKey: String): TransitionResult
+    suspend fun preserveAcceptance(taskId: String, acceptance: List<String>, at: Long)
     suspend fun heartbeat(taskId: String, at: Long)
     suspend fun setObjective(taskId: String, normalizedObjective: String, at: Long)
 

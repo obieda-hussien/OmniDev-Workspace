@@ -25,6 +25,11 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         r
     }
 
+    override suspend fun preserveAcceptance(taskId: String, acceptance: List<String>, at: Long) = backend.atomic {
+        task(taskId)?.let { t -> updateTask(t.copy(constraintsJson = TaskResumeMetadata.withAcceptance(t.constraintsJson, acceptance), updatedAt = at)) }
+        Unit
+    }
+
     override suspend fun heartbeat(taskId: String, at: Long) = backend.atomic {
         task(taskId)?.let { updateTask(it.copy(heartbeatAt = at, updatedAt = maxOf(it.updatedAt, at))) }
         Unit

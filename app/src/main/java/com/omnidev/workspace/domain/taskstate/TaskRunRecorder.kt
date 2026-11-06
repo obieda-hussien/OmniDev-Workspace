@@ -111,6 +111,7 @@ class TaskRunRecorder(
                 val result = store.transitionTask(taskId, TaskStatus.RUNNING, "run resumed", at, "start:$runToken")
                 if (result is TransitionResult.Rejected) throw TaskStateException(result.reason)
             }
+            if (resumed) store.preserveAcceptance(taskId, acceptance, at)
             steps = store.snapshot(taskId)?.currentSteps.orEmpty()
         }
     }
