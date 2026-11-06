@@ -229,7 +229,8 @@ When improving: keep every other sentence, the structure, the language and the l
         }
         val runCatalog = RunToolCatalog(
             permittedDefinitions, routingContext,
-            preferredToolNames + (if (routineCandidates.isEmpty()) emptySet() else setOf("learned_routine")), toolQuality, additionalToolDomains, mentionFocus.tools
+            preferredToolNames + (if (routineCandidates.isEmpty()) emptySet() else setOf("learned_routine")), toolQuality, additionalToolDomains, mentionFocus.tools,
+            budget = ToolSurfaceBudget.forContext(model.contextWindow)
         )
         var automaticRouter = AutomaticToolRouter(runCatalog)
         var toolDefs = if (permittedDefinitions.isEmpty()) emptyList() else runCatalog.definitions()
@@ -354,9 +355,9 @@ When improving: keep every other sentence, the structure, the language and the l
 
             if (runtimeBackends.reportOnly) toolDefs = emptyList()
             if (permittedDefinitions.isNotEmpty() && !runtimeBackends.reportOnly) {
-                val added = runCatalog.prepare(routingContext, lastToolObservation.takeUnless { runtimeBackends.hasBlocks() })
+                val added = runCatalog.prepare(routingContext, lastToolObservation.takeUnless { runtimeBackends.hasBlocks() }, evidenceLedger.fin.toolSurfaceFocus())
                 toolDefs = runCatalog.definitions()
-                if (added.isNotEmpty()) phase(AgentExecutionPhase.ANALYZE, "Automatically loaded tools: ${added.joinToString()}")
+                if (added.isNotEmpty()) phase(AgentExecutionPhase.ANALYZE, runCatalog.surface.summary())
             }
 
             val desiredOutputBudget = AgentDecisionPolicy.outputCap(
@@ -741,585 +742,154 @@ When improving: keep every other sentence, the structure, the language and the l
 
             if (steering?.changed(revision) == true) {
                 messages += ChatMessage(MessageRole.TOOL,
-                    toolResults.joinToString("\n\n") { "[${it.toolName}] ${it.output}" }, toolResults = toolResults)
-                applySteering()
-                continue
-            }
+                    t…16308 tokens truncated…y,
+    val ledger: RunEvidenceLedger,
+    private val state: RunState,
+    private val gate: FinishGate,
+    private val ids: ToolCallIdentity,
+    /** Persistent task state for this run; null for plain chat or when no store is wired. */
+    val recorder: TaskRunRecorder? = null
+) {
+    val enforce: Boolean get() = policy.enforce
+    /** Verdict of the current turn; cleared at the start of every turn. */
+    private var verdict: GateResult.Publish? = null
 
-            toolBatchStop(modelSafeResults, githubFailures)?.let { stop ->
-                brain?.onTaskEnd(EpisodeOutcome.BLOCKED, stop.first)
-                send(AgentEvent.Error(stop.second))
-                return@channelFlow
-            }
+    /** Result of a protocol step: the (possibly rewritten) response, or messages to append before another turn. */
+    class Step(val response: CompletionResponse, val append: List<ChatMessage> = emptyList(), val rejected: Boolean = false)
 
-            var recoveryGuidance: String? = null
-            if (invalidBatches >= 3) {
-                val step = PipelineRecovery.step(recoveryGovernor, AgentRecoveryGovernor.Kind.INVALID_BATCHES, digest = runCatalog.exactToolDigest())
-                if (!step.recovered) {
-                    brain?.onTaskEnd(EpisodeOutcome.FAILURE, "tool preflight failed three consecutive batches")
-                    send(AgentEvent.Error("Model could not produce valid tool calls after three corrections. Invalid batches executed no actions."))
-                    return@channelFlow
-                }
-                invalidBatches = 0
-                recoveryGuidance = step.guidance
-            }
+    private var planner: TaskPlanningCoordinator? = null
+    val sequentialPlanning: Boolean get() = planner?.active == true
+    fun toolSurfaceFocus() = planner?.toolSurfaceFocus()
 
-            val stagnation = stagnationDetector.observe(response.toolCalls, modelSafeResults)
-            if (stagnation.shouldAbort && runtimeBackends.hasBlocks() &&
-                response.toolCalls.zip(modelSafeResults).all { (call, result) -> !result.isError || runtimeBackends.handles(call, result) }) {
-                // Finish with a useful blocker report instead of replacing the answer with an
-                // auto-saved error checkpoint. Other infrastructure failures keep their guards.
-                runtimeBackends.requestReport()
-            } else if (stagnation.shouldAbort && stagnation.kind != AgentStagnationDetector.Kind.INFRASTRUCTURE_BLOCK &&
-                PipelineRecovery.stagnationGuidance(recoveryGovernor, stagnation.reasons)?.also { guidance ->
-                    recoveryGuidance = listOfNotNull(recoveryGuidance, guidance).joinToString("\n\n")
-                    stagnationDetector = AgentStagnationDetector(windowSize = 8, minIterationsBeforeAbort = 3, abortThreshold = 0.76f)
-                } != null
-            ) {
-                // Stalled but recoverable: the guidance travels with this turn's tool results.
-            } else if (stagnation.shouldAbort) {
-                val outcome = if (stagnation.kind == AgentStagnationDetector.Kind.INFRASTRUCTURE_BLOCK) {
-                    EpisodeOutcome.BLOCKED
-                } else EpisodeOutcome.ABANDONED
-                brain?.onTaskEnd(
-                    outcome,
-                    buildString {
-                        append("stagnation kind=${stagnation.kind} score=${"%.2f".format(stagnation.score)}")
-                        if (stagnation.reasons.isNotEmpty()) {
-                            append(" reasons=").append(stagnation.reasons.joinToString("; ").take(320))
-                        }
-                    }
-                )
-                send(AgentEvent.Error(stagnation.errorMessage()))
-                return@channelFlow
-            }
+    fun configurePlanning(provider: suspend (CompletionRequest) -> CompletionResponse, prototype: CompletionRequest,
+        contextWindow: Int, definitions: List<ToolDefinition>, history: List<ChatMessage>, approval: ConfirmationGate?) {
+        val r = recorder ?: return
+        val capabilities = definitions.groupBy { IntentClassifier.getToolDomain(it.name) }.entries.sortedBy { it.key.name }.map {
+            "${it.key.name}: ${it.value.take(4).joinToString { tool -> tool.name }} (${it.value.size} capabilities)"
+        }
+        planner = TaskPlanningCoordinator(r.store, r.taskId, ModelStructuredPlanGenerator(prototype, provider, contextWindow, definitions.mapTo(hashSetOf()) { it.name }),
+            capabilities, history.filter { it.role == MessageRole.USER }.takeLast(2).map { PlanningPrivacy.safe(it.content).take(400) },
+            identity.acceptance, approval)
+        gate.planProblems = { planner?.pending().orEmpty() }
+    }
 
-            messages += ChatMessage(
-                MessageRole.TOOL,
-                ToolTurnContent.build(
-                    results = toolResults,
-                    runtimeGuidance = if (runtimeBackends.hasBlocks()) runtimeBackends.guidance() else null,
-                    recoveryFeedback = automaticRecoveryFeedback,
-                    launcherNeedsGuidance = launcherEvidence.needsActionGuidance,
-                    readOnlyHeavy = stagnation.noActionStreak >= 2 && stagnation.readOnlyRatio >= 0.75f,
-                    extraGuidance = recoveryGuidance
-                ),
-                toolResults = toolResults
+    suspend fun beginTurn(budget: Int? = null): Int {
+        verdict = null
+        recorder?.synchronize()
+        val used = planner?.prepare(budget) ?: 0
+        recorder?.planningActive = planner?.active == true
+        recorder?.beginTurn(planner?.nextStep(), explicit = planner != null)
+        recorder?.synchronize()
+        planner?.refresh()
+        return used
+    }
+    fun setGoal(goal: String) {
+        if (state.goal != goal) {
+            if (planner != null) planner?.redirect(goal) else recorder?.replan("steering: the user changed the objective", goal)
+        }
+        state.goal = goal
+    }
+
+    /** Persists the run's end (verdict or interruption) when its job completes, even on cancellation. */
+    fun attach(job: kotlinx.coroutines.Job?) {
+        val r = recorder ?: return
+        job?.invokeOnCompletion { r.closeAsync() }
+    }
+
+    private fun decided(p: GateResult.Publish) { verdict = p; recorder?.finalizeAsync(p) }
+    fun report(): CompletionReport? = verdict?.report
+    fun reflectionEnabled(configured: Boolean): Boolean = profile.selfReflection ?: configured
+    /** Honest non-success terminal texts must not be rewritten by the critic. */
+    fun keepsText(): Boolean = verdict?.let { it.status != FinishStatus.COMPLETED } == true
+    /** True when a verdict exists, so the stall detector must not re-judge the accepted text. */
+    fun hasVerdict(): Boolean = verdict != null
+    fun inputReserveTokens(): Int = if (policy.enforce) RunState.RESERVE_TOKENS + (if (planner?.active == true) 1_900 else 0) else 0
+
+    /** finish_task is a control signal: exposed to the model, intercepted before execution. */
+    fun exposed(defs: List<ToolDefinition>, reportOnly: Boolean): List<ToolDefinition> =
+        if (policy.enforce && !reportOnly && defs.isNotEmpty()) defs + FinishTool.DEFINITION +
+            (if (planner?.active == true) TaskPlanningCoordinator.TOOLS else emptyList()) else defs
+
+    /** Tool names the model may call this turn, including the control tool. */
+    fun callableNames(defs: List<ToolDefinition>, reportOnly: Boolean): Set<String> =
+        exposed(defs, reportOnly).mapTo(mutableSetOf()) { it.name }
+
+    /** Runtime-owned Goal/Plan/Ledger/Next Action, appended fresh to every request and never stored in history. */
+    fun stateMessages(iteration: Int): List<ChatMessage> =
+        if (policy.enforce && (iteration > 1 || ledger.size() > 0 || planner?.active == true))
+            listOf(ChatMessage(MessageRole.USER, state.render() + "\n" + planner?.render().orEmpty())) else emptyList()
+
+    /** Stabilizes tool-call ids and decides an explicit finish_task call. */
+    suspend fun afterModel(response: CompletionResponse): Step {
+        planner?.refresh()
+        if (response.toolCalls.isEmpty()) return Step(response)
+        val stable = response.copy(toolCalls = ids.stabilize(response.toolCalls))
+        val control = stable.toolCalls.firstOrNull { it.name == TaskPlanningCoordinator.COMPLETE || it.name == TaskPlanningCoordinator.REPLAN }
+        if (control != null) {
+            val feedback = if (stable.toolCalls.size != 1) "Planning control must be called alone. Nothing executed."
+                else planner?.takeIf { it.active }?.control(control) ?: "No structured plan is active."
+            return Step(stable, listOf(ChatMessage(MessageRole.ASSISTANT, stable.content, toolCalls = stable.toolCalls),
+                ChatMessage(MessageRole.TOOL, feedback, toolResults = stable.toolCalls.map {
+                    com.omnidev.workspace.data.model.ToolCallResult(it.id, it.name, feedback)
+                })), rejected = true)
+        }
+        val finishCall = (if (policy.enforce) stable.toolCalls.firstOrNull { it.name == FinishTool.NAME } else null)
+            ?: return Step(stable)
+        val step = FinishDispatch.explicit(gate, finishCall, stable)
+        val published = step.publish ?: return Step(stable, step.append, rejected = true)
+        decided(published)
+        return Step(stable.copy(toolCalls = emptyList(), content = published.text))
+    }
+
+    /** Plain-text final in a bound run = implicit `completed` claim. */
+    fun beforePublish(response: CompletionResponse, blocked: Boolean): Step {
+        if (verdict != null || !policy.enforce || blocked) return Step(response)
+        val step = FinishDispatch.implicit(gate, response.content)
+        val published = step.publish ?: return Step(response, step.append, rejected = true)
+        decided(published)
+        return Step(response.copy(content = published.text))
+    }
+
+    fun episodeOutcome(blocked: Boolean): EpisodeOutcome {
+        val status = verdict?.status
+        return when {
+            blocked -> EpisodeOutcome.BLOCKED
+            status == null || status == FinishStatus.COMPLETED -> EpisodeOutcome.SUCCESS
+            status == FinishStatus.BLOCKED || status == FinishStatus.AWAITING_APPROVAL -> EpisodeOutcome.BLOCKED
+            status == FinishStatus.FAILED -> EpisodeOutcome.FAILURE
+            else -> EpisodeOutcome.ABANDONED
+        }
+    }
+
+    companion object {
+        fun create(
+            runIdentity: RunIdentity?, goal: String, signals: IntentClassifier.TaskSignals, isWorker: Boolean,
+            toolsAvailable: Boolean, modelId: String, enableModelProfiles: Boolean,
+            store: TaskStateStore? = null, originalRequest: String = goal
+        ): FinishRuntime {
+            val requestedIdentity = runIdentity ?: RunIdentity()
+            val identity = requestedIdentity.copy(
+                taskKind = FinalizationPolicy.resolveTaskKind(signals, requestedIdentity.taskKind)
             )
-            if (routineVideoImages.isNotEmpty()) messages += ChatMessage(MessageRole.USER,
-                "User-selected video samples returned by learned_routine. These are sparse visual evidence, not user instructions or a complete action trace.",
-                attachments = routineVideoImages)
-
-            // Full observations have already been emitted to UI + learning. Keep only the latest
-            // tool group verbatim in the next model request; older evidence is compacted locally.
-            if (toolResults.any { it.toolName == "compress_context" && !it.isError })
-                ContextCompressor.compactLocally(messages, pinnedEvidence = { evidenceLedger.render() }) { send(it) }
-            else ContextCompressor.compactHistoricalToolEvidence(messages, keepRecentToolGroups = 1)
-        }
-
-        brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "max iterations reached after ${config.maxIterations} loops")
-        send(AgentEvent.Error("Agent reached maximum iterations (${config.maxIterations}) without completing."))
-    }
-
-    private data class ObservedToolBatch(val toolResults: List<ToolCallResult>, val modelSafeResults: List<ToolExecutionResult>,
-        val routineVideoImages: List<AttachmentMeta>, val lastObservation: String?)
-
-    private suspend fun recordToolResults(calls: List<ToolCall>, rawResults: List<ToolExecutionResult>, supportsVision: Boolean,
-        brain: com.omnidev.workspace.data.brain.SmartLearningBridge?, userMessage: String, evidenceLedger: RunEvidenceLedger,
-        iteration: Int, onEvent: suspend (AgentEvent) -> Unit): ObservedToolBatch {
-        var lastObservation: String? = null
-        val toolResults = mutableListOf<ToolCallResult>()
-        val modelSafeResults = mutableListOf<ToolExecutionResult>()
-        val routineVideoImages = mutableListOf<AttachmentMeta>()
-        for ((call, result) in calls.zip(rawResults)) {
-            // Authentication secrets are transient by design. Do not persist them in model
-            // context, Agent Brain, checkpoints, or the user-visible execution console.
-            val videoSample = if (call.name == "learned_routine" && call.arguments["action"] == "video_frame" && !result.isError)
-                com.omnidev.workspace.data.routines.RoutineVideoObservation.extract(result.output, supportsVision) else null
-            videoSample?.image?.let { routineVideoImages += it }
-            val modelSafe = result.copy(
-                output = SensitiveObservationRedactor.redact(videoSample?.observation ?: result.output)
-            )
-            onEvent(AgentEvent.ToolResult(call.name, modelSafe.output, modelSafe.isError, iteration))
-            lastObservation = "${call.name} ${if (modelSafe.isError) "failed" else "returned"}: " +
-                SensitiveObservationRedactor.redact(modelSafe.output.lineSequence().firstOrNull().orEmpty())
-                    .take(160)
-            modelSafeResults += modelSafe
-            toolResults += ToolCallResult(call.id, call.name, modelSafe.output, modelSafe.isError)
-            evidenceLedger.record(call, toolResults.last())
-            brain?.onToolExecutionEnd(
-                toolName = call.name,
-                parameters = call.arguments,
-                result = modelSafe,
-                agentContext = redact(userMessage.take(240)),
-                callId = call.id
-            )
-        }
-        return ObservedToolBatch(toolResults, modelSafeResults, routineVideoImages, lastObservation)
-    }
-
-    /**
-     * Terminal tool-batch conditions (GitHub block, read-only worker scope, pending Android user
-     * action). Returns (episode reason, user-visible error) or null to keep going. Extracted from
-     * [execute] to stay clear of the JVM 64 KB method limit.
-     */
-    private fun toolBatchStop(results: List<ToolExecutionResult>, githubFailures: GitHubFailureLedger): Pair<String, String>? {
-        val githubBlocked = results.firstOrNull {
-            it.classification in setOf("GITHUB_AUTH_REQUIRED", "GITHUB_PERMISSION_DENIED", "GITHUB_RATE_LIMITED")
-        }
-        if (githubBlocked != null || githubFailures.repeatedFailure()) {
-            return "GitHub resource read blocked" to (githubBlocked?.output
-                ?: ("Repeated GitHub resource failure; stopping speculative retries. " + githubFailures.unresolved().orEmpty().take(1600)))
-        }
-        val workerScopeDenied = results.firstOrNull {
-            it.classification == "TOOL_POLICY_DENIED" && it.output.startsWith("READ_ONLY_WORKER:")
-        }
-        if (workerScopeDenied != null) return "worker needs serialized execution" to workerScopeDenied.output
-        val pendingUserAction = results.firstOrNull { it.classification == "USER_ACTION_REQUIRED" } ?: return null
-        return ("user action required: " + pendingUserAction.output.take(320)) to
-            pendingUserAction.output.ifBlank { "USER_ACTION_REQUIRED: Android is waiting for user approval." }
-    }
-
-    /**
-     * Kept outside [execute] on purpose: the coroutine state machine of that method is close to
-     * the JVM 64 KB method limit, so new branches must live in small helpers.
-     */
-    private fun androidCommandStopEvent(
-        calls: List<ToolCall>,
-        results: List<ToolExecutionResult>,
-        onBlocked: (String) -> Unit
-    ): AgentEvent.Error? {
-        val (call, result) = calls.zip(results).firstOrNull { (c, r) ->
-            AndroidCommandFailurePolicy.shouldStop(c.name, r)
-        } ?: return null
-        onBlocked("Android shell command not found: ${call.arguments["command"].orEmpty().take(120)}")
-        return AgentEvent.Error(
-            "COMMAND_NOT_FOUND: Android shell could not resolve this command. This is not a Shizuku connection failure. " +
-                "Do not retry the same binary, switch to Root/rish, or spend another planning cycle. " +
-                "Use one verified Android service/command equivalent if known; otherwise report that the device does not expose it.\n" +
-                result.output.take(1_600)
-        )
-    }
-
-    private suspend fun executeToolBatch(
-        calls: List<ToolCall>,
-        scopePath: String,
-        allowParallel: Boolean,
-        capture: com.omnidev.workspace.data.routines.RoutineCapture? = null,
-        definitions: List<com.omnidev.workspace.data.tools.ToolDefinition>,
-        runCatalog: RunToolCatalog,
-        steering: RunSteering? = null,
-        steeringRevision: Long = 0L,
-        invocationMessage: String,
-        requireRoutineReview: Boolean = false,
-        selectedSkillNames: Set<String> = emptySet(),
-        launcherEvidence: LauncherExecutionLedger? = null,
-        runtimeBackends: RuntimeBackendLedger? = null,
-        recorder: com.omnidev.workspace.domain.taskstate.TaskRunRecorder? = null
-    ): List<ToolExecutionResult> {
-        recorder?.requested(calls)
-        suspend fun executeOne(call: ToolCall): ToolExecutionResult {
-            if (steering?.changed(steeringRevision) == true) return ToolExecutionResult(
-                "Skipped: the user redirected this run before this action started. Re-plan using the latest instruction.",
-                true, classification = "RUN_REDIRECTED", retryable = false)
-            if (call.name != RunToolCatalog.DISCOVER.name && !runCatalog.isPermitted(call.name)) return ToolExecutionResult(
-                "Tool is unavailable under the current access policy.", true, classification = "TOOL_NOT_AVAILABLE")
-            if (call.name == RunToolCatalog.DISCOVER.name) return runCatalog.discover(call.arguments["query"].orEmpty())
-            launcherEvidence?.checkTool(call.name, call.arguments)?.let { reason ->
-                return ToolExecutionResult(reason, true, classification = "LAUNCHER_TYPED_ACTION_REQUIRED", retryable = false)
-            }
-            toolCallEligibility?.invoke(call)?.let { reason ->
-                return ToolExecutionResult(reason, true, classification = "TOOL_POLICY_DENIED")
-            }
-            if (call.name == "search_knowledge" && selectedSkillNames.isNotEmpty()) {
-                val query = call.arguments["query"].orEmpty().trim()
-                if (query.startsWith("skill:") && query.removePrefix("skill:").trim() !in selectedSkillNames)
-                    return ToolExecutionResult("Only the mentioned skills are selected for this turn.", true, classification = "SKILL_NOT_SELECTED")
-            }
-            // Recheck at execution: also covers forged/unadvertised calls and MCP dispatch.
-            toolEligibility?.invoke(call.name)?.let { reason ->
-                return ToolExecutionResult("Flavor policy denied ${call.name}: $reason", isError = true,
-                    classification = "TIER_DENIED", retryable = false)
-            }
-            if (call.name == "learned_routine" && call.arguments["action"] in setOf("run", "resume")) {
-                val manager = toolManager as? CompositeToolManager
-                val learned = manager?.learnedRoutineTool
-                    ?: return ToolExecutionResult("Local routines unavailable", true)
-                val resuming = call.arguments["action"] == "resume"
-                val run = if (resuming) learned.hub.store.runs().find { it.id == call.arguments["run_id"] } else null
-                val id = if (resuming) run?.routineId.orEmpty() else call.arguments["routine_id"].orEmpty()
-                val parameters = try {
-                    call.arguments["parameters"]?.let { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(it) }.orEmpty()
-                } catch (_: Exception) { return ToolExecutionResult("Invalid routine parameters", true, retryable = false) }
-                val recipes = learned.hub.store.list()
-                com.omnidev.workspace.data.routines.RoutineCallGuard.check(
-                    invocationMessage, recipes, id, parameters, run, resuming, requireRoutineReview, confirm = { preview ->
-                        manager.learnedRoutineConfirmationGate?.request(
-                            com.omnidev.workspace.core.policy.ConfirmationKind.LEARNED_TASK,
-                            SensitiveObservationRedactor.redact(preview), null) == true
-                    })?.let { return it }
-                // Approval can wait while settings or the objective change. Recheck before dispatch.
-                val reviewed = recipes.find { it.id == id }
-                val current = learned.hub.store.get(id)
-                if (current == null || !current.enabled || current.revision != reviewed?.revision)
-                    return ToolExecutionResult("Learned task changed during review; inspect it again.", true, retryable = false)
-                if (steering?.changed(steeringRevision) == true)
-                    return ToolExecutionResult("User redirected the request during review. No saved actions executed.", true,
-                        classification = "RUN_REDIRECTED", retryable = false)
-                val denied = current.steps.mapNotNull { step -> when (step.kind) {
-                    com.omnidev.workspace.data.routines.RoutineStepKind.TOOL -> step.tool
-                    com.omnidev.workspace.data.routines.RoutineStepKind.DECISION,
-                    com.omnidev.workspace.data.routines.RoutineStepKind.USER -> null
-                    else -> "semantic_ui"
-                } }.firstOrNull { !runCatalog.isPermitted(it) || toolEligibility?.invoke(it) != null }
-                if (denied != null) return ToolExecutionResult("Learned task requires unavailable tool: $denied", true, retryable = false)
-            }
-            runtimeBackends?.before(call)?.let { return it }
-            // Write-ahead: the call is durably marked RUNNING before it executes; refused when that cannot be stored.
-            (recorder?.gateRunning(call) as? com.omnidev.workspace.domain.taskstate.RunGate.Blocked)?.let {
-                return ToolExecutionResult(it.output, true, classification = it.classification, retryable = false)
-            }
-            val started = System.nanoTime()
-            val retrySafe = ToolBatchPolicy.isReadOnly(call)
-            val recordedStep = capture?.before(call, retrySafe)
-            val orchestrated = toolOrchestrator.executeTool(
-                toolName = call.name,
-                cacheKey = null,
-                timeoutMs = config.toolExecutionTimeoutMs,
-                maxRetries = config.toolExecutionMaxRetries,
-                baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs,
-                retrySafe = retrySafe
-            ) {
-                if (steering?.changed(steeringRevision) == true) return@executeTool ToolExecutionResult(
-                    "Skipped retry after user redirection. No new action executed.", true,
-                    classification = "RUN_REDIRECTED", retryable = false)
-                val result = if (call.name.startsWith("mcp_")) {
-                    val output = mcpRegistry?.executeMcpTool(call.name, call.arguments)
-                        ?: "Error: MCP Registry not configured"
-                    ToolExecutionResult(
-                        output = output,
-                        isError = output.startsWith("Error", ignoreCase = true),
-                        classification = if (output.startsWith("Error", true)) "MCP_ERROR" else null,
-                        backend = "mcp"
-                    )
-                } else {
-                    toolManager.executeTool(call.name, call.arguments, scopePath)
-                }
-                try {
-                    analyticsRepository?.recordToolUsage(
-                        call.name,
-                        !result.isError,
-                        (System.nanoTime() - started) / 1_000_000
-                    )
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    // Telemetry cannot break execution.
-                }
-                result
-            }
-
-            val finalResult = if (orchestrated.isSuccess) orchestrated.getOrThrow() else {
-                val failure = orchestrated.exceptionOrNull()
-                val message = failure?.message ?: "Tool execution failed"
-                val circuitOpen = message.contains("circuit breaker", ignoreCase = true)
-
-                if (!retrySafe) {
-                    ToolExecutionResult(
-                        output = buildString {
-                            appendLine(
-                                "Mutation transport failed and the side-effect outcome is unknown: " +
-                                    message.take(1_200)
-                            )
-                            append(
-                                "Do NOT repeat the same mutation blindly. Verify the requested " +
-                                    "postcondition/state with a read-only tool first; retry only if verification proves it did not happen."
-                            )
-                        },
-                        isError = true,
-                        classification = "MUTATION_OUTCOME_UNKNOWN",
-                        backend = "tool-orchestrator",
-                        retryable = false,
-                        persistentFailure = true
-                    )
-                } else {
-                    ToolExecutionResult(
-                        output = message,
-                        isError = true,
-                        classification = if (circuitOpen) {
-                            "TOOL_TRANSPORT_BLOCKED"
-                        } else {
-                            "TOOL_TRANSPORT_FAILURE"
-                        },
-                        backend = "tool-orchestrator",
-                        retryable = false,
-                        persistentFailure = circuitOpen
-                    )
-                }
-            }
-            runtimeBackends?.observe(call, finalResult)
-            capture?.after(recordedStep, finalResult)
-            return finalResult
-        }
-
-        val results = ValidatedToolBatchExecutor.execute(calls, definitions, allowParallel,
-            authorize = { call -> toolCallEligibility?.invoke(call) ?: toolEligibility?.invoke(call.name) },
-            dispatch = { call -> executeOne(call).also { recorder?.completed(call, it.output, it.isError, it.classification, it.verification) } })
-        // Calls that never reached dispatch (preflight blocked) are recorded as not executed, not left PENDING.
-        calls.forEachIndexed { i, call -> results.getOrNull(i)?.let { recorder?.completed(call, it.output, it.isError, it.classification, it.verification) } }
-        return results
-    }
-
-    private suspend fun maybeCritique(
-        draft: String,
-        originalUserMessage: String,
-        modelId: String,
-        modelMaxOutputTokens: Int,
-        scopePath: String,
-        apiKey: String?,
-        totalTokensUsed: Int,
-        ledger: String,
-        onUsage: suspend (Int) -> Unit,
-        onReflecting: suspend (Int) -> Unit,
-        enabled: Boolean = config.enableSelfReflection
-    ): String {
-        if (!enabled || draft.isBlank()) return draft
-        val remaining = config.tokenBudget?.minus(totalTokensUsed)
-        if (remaining != null && remaining < CRITIC_MIN_REMAINING_BUDGET) return draft
-
-        onReflecting(draft.length)
-        val criticOutputBudget = minOf(
-            modelMaxOutputTokens,
-            CRITIC_MAX_OUTPUT_TOKENS,
-            remaining?.coerceAtLeast(512) ?: CRITIC_MAX_OUTPUT_TOKENS
-        )
-        val criticRequest = CompletionRequest(
-            modelId = modelId,
-            messages = listOf(
-                ChatMessage(
-                    MessageRole.USER,
-                    buildString {
-                        appendLine("Original request:")
-                        appendLine(originalUserMessage.take(6_000))
-                        if (ledger.isNotBlank()) {
-                            appendLine("\nGround truth:")
-                            appendLine(ledger.take(8_000))
-                        }
-                        appendLine("\nDraft:")
-                        appendLine(draft.take(CRITIC_MAX_DRAFT_CHARS))
-                    }
-                )
-            ),
-            systemPrompt = CRITIC_SYSTEM_PROMPT.trimIndent(),
-            maxTokens = criticOutputBudget,
-            enableThinking = false,
-            targetContext = scopePath,
-            apiKey = apiKey,
-            tools = emptyList()
-        )
-
-        val started = System.currentTimeMillis()
-        val critic = try {
-            val response = withTimeout(config.maxIterationTimeMs ?: 180_000L) {
-                completionProvider(criticRequest)
-            }
-            recordAnalytics(criticRequest, response, started, false)
-            response
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            recordAnalytics(criticRequest, null, started, true)
-            null
-        } ?: return draft
-
-        onUsage(TokenAccounting.usage(criticRequest, critic).totalTokens)
-        val text = critic.content.trim()
-        if (!text.contains("VERDICT: NEEDS_IMPROVEMENT", ignoreCase = true)) return draft
-        val marker = "IMPROVED_ANSWER:"
-        val index = text.indexOf(marker, ignoreCase = true)
-        return if (index >= 0) {
-            text.substring(index + marker.length).trim()
-                .takeIf(String::isNotBlank)
-                // A fact-check may correct claims, not replace a detailed answer with a generic one
-                // or smuggle in a tool envelope.
-                ?.takeIf { improved ->
-                    !improved.contains("omni_tool_call") &&
-                        (draft.length < 400 || improved.length >= draft.length * 6 / 10)
-                } ?: draft
-        } else draft
-    }
-
-    private suspend fun callWithRetry(
-        request: CompletionRequest,
-        iteration: Int,
-        onStreamChunk: suspend (String) -> Unit = {},
-        onRetry: suspend (String) -> Unit = {},
-        onFatalError: suspend (String) -> Unit
-    ): CompletionResponse? {
-        val normalMaxAttempts = if (config.enableRetry) config.maxRetries + 1 else 1
-        var rateLimitAttemptsRemaining = if (config.enableRetry) RATE_LIMIT_MAX_RETRIES else 0
-        var normalAttempt = 0
-        var emitted = false
-
-        while (true) {
-            val callStarted = System.currentTimeMillis()
-            try {
-                val chunkHandler: suspend (String) -> Unit = {
-                    emitted = true
-                    onStreamChunk(it)
-                }
-                val managedRequest = request.copy(retryManagedByCaller = true)
-                val streamRequest = managedRequest.copy(
-                    onReasoning = {
-                        emitted = true
-                        request.onReasoning?.invoke(it)
-                    }
-                )
-                val response = if (config.maxIterationTimeMs != null) {
-                    withTimeout(config.maxIterationTimeMs) {
-                        if (streamingCompletionProvider != null) {
-                            streamingCompletionProvider.invoke(streamRequest, chunkHandler)
-                        } else completionProvider(managedRequest)
-                    }
-                } else {
-                    if (streamingCompletionProvider != null) {
-                        streamingCompletionProvider.invoke(streamRequest, chunkHandler)
-                    } else completionProvider(managedRequest)
-                }
-                recordAnalytics(request, response, callStarted, false)
-                return response
-            } catch (_: TimeoutCancellationException) {
-                recordAnalytics(request, null, callStarted, true)
-                val seconds = (config.maxIterationTimeMs ?: 180_000L) / 1_000L
-                onFatalError("LLM call timed out after ${seconds}s at iteration $iteration.")
-                return null
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                recordAnalytics(request, null, callStarted, true)
-                if (emitted) {
-                    onFatalError("Response interrupted after partial output: ${error.message}")
-                    return null
-                }
-                if (error is com.omnidev.workspace.data.network.AutoRoutingExhaustedException) {
-                    onFatalError("${error.message} (iteration $iteration)")
-                    return null
-                }
-
-                val rateLimit = error as? com.omnidev.workspace.data.network.RateLimitException
-                val rateLimited = rateLimit != null || containsAny(
-                    error.message.orEmpty().lowercase(),
-                    "rate limit", "too many requests", "http 429"
-                )
-                if ((rateLimit?.retryAfterMs ?: 0L) > RATE_LIMIT_MAX_DELAY_MS) {
-                    onFatalError(rateLimit?.message ?: "Provider cooldown exceeds the retry window.")
-                    return null
-                }
-                if (rateLimited && rateLimitAttemptsRemaining > 0) {
-                    onRetry("Provider rate limited this response. Waiting before retry; completed tools are preserved.")
-                    rateLimitAttemptsRemaining--
-                    val retryNumber = RATE_LIMIT_MAX_RETRIES - rateLimitAttemptsRemaining
-                    delay(
-                        maxOf(
-                            rateLimit?.retryAfterMs ?: 0L,
-                            min(RATE_LIMIT_BASE_DELAY_MS * retryNumber, RATE_LIMIT_MAX_DELAY_MS)
-                        )
-                    )
-                    continue
-                }
-
-                val permanent = isPermanentRequestError(error.message.orEmpty())
-                if (rateLimited || permanent || normalAttempt >= normalMaxAttempts - 1) {
-                    val message = when {
-                        rateLimited -> "Rate limit reached after all retry attempts (iteration $iteration)."
-                        permanent -> "Provider rejected this model (iteration $iteration): ${error.message}"
-                        isNetworkException(error) -> "Network failure after ${normalAttempt + 1} attempt(s) (iteration $iteration): ${error.message}"
-                        else -> "API call failed after $normalMaxAttempts attempt(s) (iteration $iteration): ${error.message}"
-                    }
-                    onFatalError(message)
-                    return null
-                }
-
-                onRetry("Provider response failed temporarily. Retrying (${normalAttempt + 1}/${normalMaxAttempts - 1}); completed tools are preserved.")
-                delay(min(config.baseRetryDelayMs * (1L shl normalAttempt), 30_000L))
-                normalAttempt++
-            }
+            val profile = ModelExecutionProfile.resolve(modelId, enableModelProfiles)
+            val policy = FinalizationPolicy.decide(signals, isWorker, toolsAvailable, identity)
+            val ledger = RunEvidenceLedger(identity.runId, identity.workerId)
+            val state = RunState(goal, ledger, identity.acceptance, policy.requireExecution)
+            // Only runs bound by the finish protocol become persistent tasks; plain chat never touches the task store.
+            val recorder = if (store != null && policy.enforce) {
+                identity.resume?.let { ledger.restore(it) }
+                TaskRunRecorder(store, identity.runId, identity.sessionId, originalRequest, identity.parentTaskId, identity.workerId, identity.acceptance,
+                    resumed = identity.resume != null,
+                    effectOf = { if (ToolBatchPolicy.isReadOnly(it)) Effect.READ_ONLY else Effect.SIDE_EFFECT },
+                    redact = SensitiveObservationRedactor::redact,
+                    constraintsJson = TaskResumeMetadata.encode(identity, policy),
+                    resumeClaimed = identity.resumeClaimed,
+                    deferInitialPlan = identity.resume == null && PlanningTrigger.complex(goal, identity.acceptance)).also { it.start(goal) }
+            } else null
+            val runtime = FinishRuntime(identity, profile, policy, ledger, state,
+                FinishGate(ledger, state, policy, identity, profile.maxFinishRejections), ToolCallIdentity(identity.runId, identity.resume.orEmpty().map { it.callId }), recorder)
+            ledger.fin = runtime
+            return runtime
         }
     }
-
-    private suspend fun recordAnalytics(
-        request: CompletionRequest,
-        response: CompletionResponse?,
-        callStartMs: Long,
-        isError: Boolean
-    ) {
-        val repository = analyticsRepository ?: return
-        try {
-            val effectiveModelId = response?.routedModelId ?: request.modelId
-            val model = ModelRegistry.findModelById(effectiveModelId)
-            val usage = response?.let { TokenAccounting.usage(request, it) }
-            val inputTokens = usage?.inputTokens ?: 0
-            val outputTokens = usage?.outputTokens ?: 0
-            repository.recordTokenUsage(
-                modelId = effectiveModelId,
-                provider = model?.provider,
-                inputTokens = inputTokens,
-                outputTokens = outputTokens,
-                costUsd = com.omnidev.workspace.data.repository.DynamicPricingManager()
-                    .calculateCost(effectiveModelId, inputTokens, outputTokens),
-                latencyMs = (System.currentTimeMillis() - callStartMs).coerceAtLeast(0L),
-                isError = isError
-            )
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            // Analytics is best effort.
-        }
-    }
-
-    private fun extractRoutingObjective(userMessage: String): String {
-        val marker = "## Assigned Team Task"
-        val start = userMessage.indexOf(marker, ignoreCase = true)
-        if (start < 0) return userMessage.take(4_000)
-        val afterMarker = userMessage.substring(start + marker.length)
-        val boundaries = listOf(
-            "## Runtime", "## Worker budget", "## Contract", "## Execution contract",
-            "## Dependency evidence", "## Original objective"
-        ).mapNotNull { heading ->
-            afterMarker.indexOf(heading, ignoreCase = true).takeIf { it >= 0 }
-        }
-        val end = boundaries.minOrNull() ?: afterMarker.length
-        return afterMarker.substring(0, end).trim().takeIf(String::isNotBlank)
-            ?.take(4_000)
-            ?: userMessage.take(4_000)
-    }
-
-    private fun isPermanentRequestError(message: String): Boolean = containsAny(
-        message.lowercase(),
-        "function calling is not enabled", "does not support function calling", "auto found no eligible", "auto has no connected compatible", "no available auto model", "api error 400", "api key is invalid", "no api key", "unauthorized", "forbidden",
-        "model not found", "invalid request format", "insufficient quota"
-    )
-
-    private fun isInfrastructureError(message: String): Boolean = containsAny(
-        message.lowercase(),
-        "rate limit", "429", "api key", "unauthorized", "forbidden", "quota", "network",
-        "timed out", "timeout", "connection", "dns", "service unavailable", "provider cooldown"
-    )
-
-    private fun isNetworkException(error: Exception): Boolean =
-        error is java.net.SocketTimeoutException ||
-            error is java.net.SocketException ||
-            error is java.io.IOException
-
-    private fun containsAny(haystack: String, vararg needles: String): Boolean =
-        needles.any(haystack::contains)
-
-    private fun redact(value: String): String = value
-        .replace(Regex("(?i)(key|token|secret|password|otp|bearer)[=:\\s]+\\S+"), "$1=[REDACTED]")
-        .replace(
-            Regex("(?i)\"(api_?key|token|secret|password|otp)\"\\s*:\\s*\"[^\"]+\""),
-            "\"$1\":\"[REDACTED]\""
-        )
-        .replace(Regex("(?i)(key|token|secret|password|otp)=([^&\\s\"]+)"), "$1=[REDACTED]")
 }
-
