@@ -68,6 +68,10 @@ class RunToolCatalog(
 
     fun loadCandidates(candidates: List<ToolDefinition>) = load(candidates.take(SEARCH_SIZE))
 
+    /** Pin the whole submitted batch together so loading one call cannot evict another. */
+    fun loadForExecution(names: List<String>) = load(names.distinct().take(ToolCallPreflight.MAX_BATCH_SIZE)
+        .mapNotNull { name -> catalog.firstOrNull { it.name == name } })
+
     private fun load(matches: List<ToolDefinition>) {
         matches.filter { isPermitted(it.name) }.asReversed().forEach { tool ->
             demanded.remove(tool.name); demanded.add(tool.name)

@@ -22,6 +22,8 @@ Discovery and verification may replace a mentioned schema under budget pressure.
 
 Native and text-only providers receive the same selected contracts. Exact permitted calls can still load on demand before `ToolCallPreflight`, which validates the original registered argument contract. Unknown, disabled and flavor-denied tools cannot be restored by hints or discovery. Execution-time eligibility, existing confirmations, scope validation, retries and backend routing remain unchanged.
 
+Execution preparation pins all permitted tools in the submitted batch together, up to the existing eight-call limit. Loading a missing schema cannot evict another advertised call from that same batch, including observation-only or earlier discovery matches. A batch that genuinely exceeds the schema budget remains blocked by preflight before execution.
+
 ## Recovery, evidence and diagnostics
 
 The surface is derived state, reconstructed from the persisted P3 plan and P2 current execution cycle. No schema cache or selected-tool list needs persistence, and restoring it makes no planning/model request. Replanning changes the revision identity and expires old discovery hints. It never clears unresolved side effects or changes completed evidence.

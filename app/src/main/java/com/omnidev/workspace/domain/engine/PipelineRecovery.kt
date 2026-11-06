@@ -106,14 +106,13 @@ internal object PipelineRecovery {
 
     /**
      * Loads permitted tools the model named but that were not exposed yet, so the strict argument contract
-     * validates and executes the call in this step. Returns [current] untouched when nothing was loaded.
+     * validates and executes the call in this step. Pin the submitted batch together before rebuilding.
+     * Returns [current] untouched when no submitted permitted tool needs loading.
      */
     fun loadOnDemand(calls: List<ToolCall>, current: List<ToolDefinition>, catalog: RunToolCatalog): List<ToolDefinition> {
-        var loaded = false
-        for (name in calls.map { it.name }.distinct()) {
-            if (current.none { it.name == name } && catalog.ensureLoaded(name)) loaded = true
-        }
-        return if (loaded) catalog.definitions() else current
+        if (calls.none { call -> current.none { it.name == call.name } && catalog.isPermitted(call.name) }) return current
+        catalog.loadForExecution(calls.map { it.name })
+        return catalog.definitions()
     }
 
     /** A successful, non-discovery tool result is real progress: it starts a fresh recovery episode. */

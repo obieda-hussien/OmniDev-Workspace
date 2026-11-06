@@ -122,6 +122,30 @@ class ToolSurfaceTest {
         assertTrue(ToolCallPreflight(defs).checkBatch(calls).all { it == null })
     }
 
+    @Test fun `on demand batch retains an observation only advertised schema`() {
+        val catalog = RunToolCatalog(registry, "web_search")
+        val observed = registry.first { !catalog.isLoaded(it.name) }
+        catalog.prepare("web_search", observed.name)
+        assertEquals(ToolSurfaceSource.OBSERVATION, catalog.surface.entries.single { it.name == observed.name }.source)
+        val missing = registry.first { !catalog.isLoaded(it.name) }
+        val calls = listOf(observed, missing).mapIndexed { i, tool -> ToolCall("call_$i", tool.name, mapOf("query" to "value")) }
+        val defs = PipelineRecovery.loadOnDemand(calls, catalog.definitions(), catalog)
+        assertTrue(ToolCallPreflight(defs).checkBatch(calls).all { it == null })
+    }
+
+    @Test fun `submitted batches replace old discovery hints while respecting hard budgets`() {
+        val catalog = RunToolCatalog(registry, "web_search", budget = ToolSurfaceBudget(maxTools = 8))
+        (90..97).forEach { catalog.ensureLoaded("lookup_$it") }
+        val calls = listOf(90, 98, 99, 100, 80, 81, 82, 83).map { ToolCall("call_$it", "lookup_$it", mapOf("query" to "value")) }
+        val defs = PipelineRecovery.loadOnDemand(calls, catalog.definitions(), catalog)
+        assertTrue(ToolCallPreflight(defs).checkBatch(calls).all { it == null })
+        assertTrue(defs.size <= 9)
+        val constrained = RunToolCatalog(registry, "web_search", budget = ToolSurfaceBudget(maxTools = 1))
+        val refused = PipelineRecovery.loadOnDemand(calls.take(2), constrained.definitions(), constrained)
+        assertEquals(2, refused.size)
+        assertTrue(ToolCallPreflight(refused).checkBatch(calls.take(2)).all { it != null })
+    }
+
     @Test fun `diagnostics contain only operational counts and registry metadata`() {
         val catalog = RunToolCatalog(registry, "secret-objective")
         catalog.prepare("password=secret", "private-result", focus("S1", "private-step"))
