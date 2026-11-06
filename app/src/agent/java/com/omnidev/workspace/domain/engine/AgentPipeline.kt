@@ -680,7 +680,7 @@ When improving: keep every other sentence, the structure, the language and the l
             send(AgentEvent.PhaseChanged(AgentExecutionPhase.IMPLEMENT, actionUpdate))
 
             response.toolCalls.forEach { call ->
-                send(AgentEvent.ToolExecution(call.name, call.arguments, iteration))
+                send(AgentEvent.ToolExecution(call.name, call.arguments, iteration, call.id))
                 brain?.onToolExecutionStart(call.name, call.id)
             }
 
@@ -841,13 +841,14 @@ When improving: keep every other sentence, the structure, the language and the l
             val modelSafe = result.copy(
                 output = SensitiveObservationRedactor.redact(videoSample?.observation ?: result.output)
             )
-            onEvent(AgentEvent.ToolResult(call.name, modelSafe.output, modelSafe.isError, iteration))
             lastObservation = "${call.name} ${if (modelSafe.isError) "failed" else "returned"}: " +
                 SensitiveObservationRedactor.redact(modelSafe.output.lineSequence().firstOrNull().orEmpty())
                     .take(160)
             modelSafeResults += modelSafe
             toolResults += ToolCallResult(call.id, call.name, modelSafe.output, modelSafe.isError)
             evidenceLedger.record(call, toolResults.last())
+            onEvent(AgentEvent.ToolResult(call.name, modelSafe.output, modelSafe.isError, iteration,
+                evidenceLedger.snapshot().last(), modelSafe.classification))
             brain?.onToolExecutionEnd(
                 toolName = call.name,
                 parameters = call.arguments,
