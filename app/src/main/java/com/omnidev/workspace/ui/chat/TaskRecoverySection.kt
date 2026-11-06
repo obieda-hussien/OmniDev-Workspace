@@ -100,7 +100,12 @@ private fun TaskRecoveryCard(
             if (expanded) {
                 Text("Completed steps", style = MaterialTheme.typography.titleSmall)
                 if (task.completedStepDescriptions.isEmpty()) Text("No steps are recorded as completed.", style = MaterialTheme.typography.bodySmall)
-                task.completedStepDescriptions.forEach { Text("✓ $it", style = MaterialTheme.typography.bodySmall) }
+                task.completedStepDescriptions.forEach { description ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("✓", style = MaterialTheme.typography.bodySmall)
+                        Text(description, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
                 Text("Remaining steps", style = MaterialTheme.typography.titleSmall)
                 if (task.openSteps.isEmpty()) Text("No unfinished steps are recorded.", style = MaterialTheme.typography.bodySmall)
                 task.openSteps.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
@@ -153,7 +158,7 @@ private fun ReconcileInvocationDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Task: $taskId", style = MaterialTheme.typography.bodySmall)
-                Text("Operation: ${invocation.invocationId}", style = MaterialTheme.typography.bodySmall)
+                Text("Invocation: ${invocation.invocationId}", style = MaterialTheme.typography.bodySmall)
                 Text("${invocation.toolName} · ${invocation.status}", style = MaterialTheme.typography.bodyMedium)
                 Text("Choose only an outcome you have independently established.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
