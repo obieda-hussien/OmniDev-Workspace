@@ -36,13 +36,15 @@ class ModelStructuredPlanGenerator(
         val payload = PlanCodec.json.encodeToString(input)
         if (payload.length > 24_000) return PlanGeneration(null, 0, "PLANNING_CONTEXT_LIMIT")
         repeat(2) {
-            val request = prototype.copy(messages = listOf(ChatMessage(MessageRole.USER, payload + feedback)),
+            val draft = prototype.copy(messages = listOf(ChatMessage(MessageRole.USER, payload + feedback)),
                 systemPrompt = SYSTEM, tools = null, enableThinking = false, onReasoning = null,
                 maxTokens = minOf(prototype.maxTokens, 2_400), retryManagedByCaller = true)
-            val inputTokens = TokenAccounting.estimateInputTokens(request)
+            val inputTokens = TokenAccounting.estimateInputTokens(draft)
             val remaining = budget?.minus(spent)
-            if (inputTokens + request.maxTokens > contextWindow || (remaining != null && inputTokens + request.maxTokens > remaining))
-                return PlanGeneration(null, spent, "PLANNING_TOKEN_BUDGET")
+            val outputBudget = minOf(draft.maxTokens, contextWindow - inputTokens - 128,
+                remaining?.minus(inputTokens) ?: Int.MAX_VALUE)
+            if (outputBudget < 384) return PlanGeneration(null, spent, "PLANNING_TOKEN_BUDGET")
+            val request = draft.copy(maxTokens = outputBudget)
             val response = try { complete(request) } catch (c: CancellationException) { throw c } catch (_: Exception) {
                 return PlanGeneration(null, spent + inputTokens, "PLANNING_PROVIDER_UNAVAILABLE")
             }

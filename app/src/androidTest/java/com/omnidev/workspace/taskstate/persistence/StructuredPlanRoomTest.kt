@@ -68,4 +68,38 @@ class StructuredPlanRoomTest {
             assertEquals("S2", TaskExecutionScheduler.schedule(migrated.currentSteps).next!!.key)
         } finally { db.close(); context.deleteDatabase(name) }
     }
+    @Test fun interruptedCycleRestoresItsStepAndResumeAdvancesOnlyTheCycle() = runBlocking {
+        val name = "p3-cycle-restart.db"
+        context.deleteDatabase(name)
+        var db = Room.databaseBuilder(context, OmniDevDatabase::class.java, name).build()
+        try {
+            val store = roomTaskStateStore(db)
+            store.createTask(NewTask("task", 7, "Read source", createdAt = 1))
+            store.transitionTask("task", TaskStatus.RUNNING, "start", 2, "start")
+            val p = plan()
+            store.appendPlanRevision("task", p.steps.map { it.newStep() }, "initial", 3, "plan", PlanCodec.metadata(p, "Read source"), 0)
+            val active = store.snapshot("task")!!.currentSteps.first()
+            val cycle = store.beginCycle("task", active.stepId, 4, "cycle")
+            store.transitionStep(active.stepId, StepStatus.RUNNING, "read started", 5, "step-running")
+            store.recordInvocationIntent(NewInvocation("interrupted-read", "read", "task", cycle.cycleId, active.stepId,
+                "read_file", "schema", "{}", "h", Effect.READ_ONLY, "k", requestedAt = 6))
+            store.transitionInvocation("interrupted-read", InvocationStatus.RUNNING, InvocationPatch(), 7, "running")
+            db.close()
+            db = Room.databaseBuilder(context, OmniDevDatabase::class.java, name).build()
+            val reopened = roomTaskStateStore(db)
+            assertEquals(active.stepId, reopened.task("task")!!.currentStepId)
+            TaskRecovery(reopened).recover("task")
+            assertEquals(InvocationStatus.INTERRUPTED, reopened.invocation("interrupted-read")!!.status)
+            val claim = reopened.claimForResume("task", 10, "resume") as TaskResumeClaimResult.Claimed
+            assertEquals(1, claim.claim.snapshot.task.planRevision)
+            val next = TaskExecutionScheduler.schedule(claim.claim.snapshot.currentSteps).next!!
+            assertEquals(active.stepId, next.stepId)
+            val continued = reopened.beginCycle("task", next.stepId, 11, "continued")
+            assertEquals(2, continued.seq)
+            assertEquals(next.stepId, continued.stepId)
+            assertEquals(1, reopened.snapshot("task")!!.plans.size)
+            assertEquals(1, reopened.snapshot("task")!!.invocations.size)
+        } finally { db.close(); context.deleteDatabase(name) }
+    }
+
 }

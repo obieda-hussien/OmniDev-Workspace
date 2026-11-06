@@ -73,4 +73,59 @@ class StructuredPlanningPipelineTest {
         assertEquals(1, calls); assertNull(store.task("chat"))
         assertNull(events.filterIsInstance<AgentEvent.FinalAnswer>().single().completion)
     }
+    @Test fun `P2 resume runs the same structured plan without a second planning request`() = runBlocking {
+        val store = InMemoryTaskStateStore(); val tools = Tools(); var planningCalls = 0
+        val p = StructuredPlan("Repair source", "Inspect then repair and read back", emptyList(), listOf(
+            PlannedStep("S1", "Inspect source", emptyList(), "Current source", "Read source", StepPolicy(listOf("CORE"))),
+            PlannedStep("S2", "Repair source and verify content", listOf("S1"), "Fixed source", "Read back fixed content",
+                StepPolicy(listOf("CORE"), ProofKind.READ_BACK, contains = "fixed"))
+        ))
+        val objective = "- Inspect the source\n- Repair the source\n- Verify the requested content"
+        fun call(id: String, name: String, vararg args: Pair<String, String>) = CompletionResponse("", listOf(ToolCall(id, name, args.toMap())))
+        suspend fun proposal(key: String): CompletionResponse {
+            val snap = store.snapshot("resume-plan")!!
+            val stepId = snap.currentSteps.first { it.key == key }.stepId
+            return call("complete-$key", TaskPlanningCoordinator.COMPLETE, "step_key" to key, "evidence_ids" to
+                PlanCodec.json.encodeToString(snap.invocations.filter { it.stepId == stepId }.map { it.invocationId }))
+        }
+        var round = 0
+        val first = AgentPipeline(tools, completionProvider = { req ->
+            if (req.systemPrompt?.startsWith("OMNI_STRUCTURED_PLAN_V1") == true) {
+                planningCalls++; CompletionResponse(PlanCodec.json.encodeToString(p))
+            } else when (++round) {
+                1 -> call("old-read", "read_file", "path" to "/tmp/source.kt")
+                2 -> proposal("S1")
+                else -> call("pause", FinishTool.NAME, "status" to "incomplete", "summary" to "Inspection done, repair still pending")
+            }
+        }, config = config, taskStateStore = store).execute(objective, modelId = "gpt-4o-mini", scopePath = "/tmp",
+            preferredToolNames = setOf("read_file", "patch_file_content"), runIdentity = RunIdentity(runId = "resume-plan", sessionId = 7)).toList()
+        assertEquals(FinishStatus.INCOMPLETE, first.filterIsInstance<AgentEvent.FinalAnswer>().single().completion!!.status)
+        withTimeout(10_000) { while (store.task("resume-plan")?.status != TaskStatus.INCOMPLETE) delay(10) }
+        val before = store.snapshot("resume-plan")!!
+        val originalProof = before.currentSteps.first().evidenceInvocationIds
+        assertEquals(StepStatus.COMPLETED, before.currentSteps.first().status)
+        val resumed = (TaskContinuationCoordinator(store).resume("resume-plan") as TaskResumeResult.Ready).continuation
+        round = 0
+        val events = AgentPipeline(tools, completionProvider = { req ->
+            if (req.systemPrompt?.startsWith("OMNI_STRUCTURED_PLAN_V1") == true) {
+                planningCalls++; CompletionResponse(PlanCodec.json.encodeToString(p))
+            } else when (++round) {
+                1 -> call("resumed-patch", "patch_file_content", "path" to "/tmp/source.kt", "content" to "fixed")
+                2 -> call("old-read", "read_file", "path" to "/tmp/source.kt")
+                3 -> proposal("S2")
+                else -> call("finish", FinishTool.NAME, "status" to "completed", "summary" to "Repaired and verified",
+                    "evidence" to store.snapshot("resume-plan")!!.invocations.joinToString(",") { it.callId })
+            }
+        }, config = config, taskStateStore = store).execute(resumed.prompt, modelId = "gpt-4o-mini", scopePath = "/tmp",
+            preferredToolNames = setOf("read_file", "patch_file_content"), runIdentity = resumed.identity).toList()
+        assertTrue(events.filterIsInstance<AgentEvent.FinalAnswer>().single().completion!!.verified)
+        withTimeout(10_000) { while (store.task("resume-plan")?.status != TaskStatus.COMPLETED) delay(10) }
+        val after = store.snapshot("resume-plan")!!
+        assertEquals(1, planningCalls); assertEquals(1, after.plans.size)
+        assertEquals(originalProof, after.currentSteps.first().evidenceInvocationIds)
+        assertEquals(objective, after.task.originalRequest); assertEquals(7L, after.task.sessionId)
+        assertEquals(1, after.invocations.count { it.callId == "old-read" })
+        assertTrue(after.cycles.size > before.cycles.size)
+    }
+
 }

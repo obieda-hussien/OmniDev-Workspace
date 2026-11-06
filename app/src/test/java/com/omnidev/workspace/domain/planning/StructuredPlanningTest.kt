@@ -276,4 +276,30 @@ class StructuredPlanningTest {
         assertTrue(PlanValidator.validate(unavailable, availableTools = setOf("read_file")).issues.any { it.code == "CHECK_TOOL_UNAVAILABLE" })
     }
 
+    @Test fun `small context window admits a valid plan with a reduced output allowance`() = runBlocking {
+        val input = PlanningInput("objective", "original", listOf("Keep existing data"), emptyList(), listOf("CORE"))
+        val prototype = CompletionRequest("test", emptyList(), maxTokens = 2400)
+        val sample = prototype.copy(messages = listOf(ChatMessage(MessageRole.USER, PlanCodec.json.encodeToString(input))),
+            systemPrompt = ModelStructuredPlanGenerator.SYSTEM, tools = null, enableThinking = false)
+        val window = com.omnidev.workspace.domain.engine.TokenAccounting.estimateInputTokens(sample) + 700 + 128
+        var called = false
+        val generator = ModelStructuredPlanGenerator(prototype, { req ->
+            called = true; assertEquals(700, req.maxTokens)
+            CompletionResponse(PlanCodec.json.encodeToString(plan(listOf(step("S1")))))
+        }, window)
+        assertNotNull(generator.generate(input, null).plan)
+        assertTrue(called)
+    }
+
+    @Test fun `model supplied completion metadata never enters persistence`() = runBlocking {
+        val store = started()
+        val raw = PlanCodec.json.encodeToString(plan()).dropLast(1) + ",\"status\":\"COMPLETED\"}"
+        val generator = ModelStructuredPlanGenerator(CompletionRequest("test", emptyList()), { CompletionResponse(raw) }, 32000)
+        val coordinator = TaskPlanningCoordinator(store, "task", generator, listOf("CORE"), emptyList(), emptyList())
+        coordinator.prepare(null)
+        assertTrue(store.snapshot("task")!!.plans.isEmpty())
+        assertNull(coordinator.nextStep())
+        assertEquals("PLAN_GENERATION_INVALID", coordinator.diagnostic)
+    }
+
 }
