@@ -41,6 +41,8 @@ class TeamCompletionProtocolTest {
     @Test fun `missing legacy report never passes even with actual successful tools`() {
         val r = Rig(WorkerAssignment("team", 0, task(), 1)); r.result()
         assertFalse(r.observer.review(null, "I finished").accepted)
+        assertFalse(WorkerEvidenceReview.review(null, "inspect", emptyList(), true, true).accepted)
+        assertFalse(WorkerEvidenceReview.review(null, "explain", emptyList(), false, false).accepted)
     }
     @Test fun `discovery is retained for audit but cannot prove execution through P0`() {
         val r = Rig(WorkerAssignment("team", 0, task(), 1))

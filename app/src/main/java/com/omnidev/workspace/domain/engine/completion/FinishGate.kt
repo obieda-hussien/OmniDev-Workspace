@@ -110,9 +110,9 @@ object WorkerEvidenceReview {
         observedOkByTool: Map<String, Int>? = null
     ): Review {
         if (report == null) {
-            // Old/unprotected path: accept only when the worker really ran tools, as before it was checked by prose alone.
-            return if (!requireExecution || legacyToolEvidencePresent) Review(true, null)
-            else Review(false, "worker returned no completion report and no tool evidence")
+            return Review(false, if (legacyToolEvidencePresent)
+                "worker returned no completion report; legacy observations are not completion proof"
+            else "worker returned no completion report")
         }
         if (report.status != FinishStatus.COMPLETED) {
             val terminal = report.status.takeIf { it != FinishStatus.INCOMPLETE }
