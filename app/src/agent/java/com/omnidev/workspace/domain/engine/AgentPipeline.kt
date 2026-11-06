@@ -229,7 +229,8 @@ When improving: keep every other sentence, the structure, the language and the l
         }
         val runCatalog = RunToolCatalog(
             permittedDefinitions, routingContext,
-            preferredToolNames + (if (routineCandidates.isEmpty()) emptySet() else setOf("learned_routine")), toolQuality, additionalToolDomains, mentionFocus.tools
+            preferredToolNames + (if (routineCandidates.isEmpty()) emptySet() else setOf("learned_routine")), toolQuality, additionalToolDomains, mentionFocus.tools,
+            budget = ToolSurfaceBudget.forContext(model.contextWindow)
         )
         var automaticRouter = AutomaticToolRouter(runCatalog)
         var toolDefs = if (permittedDefinitions.isEmpty()) emptyList() else runCatalog.definitions()
@@ -354,9 +355,9 @@ When improving: keep every other sentence, the structure, the language and the l
 
             if (runtimeBackends.reportOnly) toolDefs = emptyList()
             if (permittedDefinitions.isNotEmpty() && !runtimeBackends.reportOnly) {
-                val added = runCatalog.prepare(routingContext, lastToolObservation.takeUnless { runtimeBackends.hasBlocks() })
+                val added = runCatalog.prepare(routingContext, lastToolObservation.takeUnless { runtimeBackends.hasBlocks() }, evidenceLedger.fin.toolSurfaceFocus())
                 toolDefs = runCatalog.definitions()
-                if (added.isNotEmpty()) phase(AgentExecutionPhase.ANALYZE, "Automatically loaded tools: ${added.joinToString()}")
+                if (added.isNotEmpty()) phase(AgentExecutionPhase.ANALYZE, runCatalog.surface.summary())
             }
 
             val desiredOutputBudget = AgentDecisionPolicy.outputCap(

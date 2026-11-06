@@ -30,6 +30,22 @@ class TaskPlanningCoordinator(
 
     fun redirect(objective: String) { redirect = PlanningPrivacy.safe(objective); discovery = "User redirected the objective" }
     suspend fun refresh() { snapshot = store.snapshot(taskId) }
+
+    /** Use only the runtime-selected step of the latest revision, including after P2 resume. */
+    fun toolSurfaceFocus(): com.omnidev.workspace.domain.engine.ToolSurfaceFocus? {
+        val s = snapshot ?: return null
+        if (s.task.status != TaskStatus.RUNNING) return null
+        val plan = s.latestPlan ?: return null
+        val step = s.currentSteps.firstOrNull { it.stepId == s.task.currentStepId } ?: return null
+        val cycle = s.cycles.lastOrNull { it.seq == s.task.currentCycle } ?: return null
+        if (!TaskExecutionScheduler.valid(StepExecutionContext(taskId, plan.planId, step.stepId, cycle.cycleId), s)) return null
+        val policy = PlanCodec.metadata(plan.metadataJson)?.policies?.get(step.key)
+        return com.omnidev.workspace.domain.engine.ToolSurfaceFocus(plan.planId, step.key,
+            listOf(step.description, step.expectedOutput, step.completionCondition).joinToString(" ").take(2_000),
+            policy?.domains.orEmpty().mapNotNull { value ->
+                com.omnidev.workspace.domain.engine.IntentClassifier.ToolDomain.entries.firstOrNull { it.name == value }
+            }.toSet(), policy?.checkTool.orEmpty())
+    }
     fun pending(): List<String> = if (!active) emptyList() else snapshot?.let { s ->
         s.currentSteps.filter { it.status != StepStatus.COMPLETED }.map { "Unverified plan step ${it.key}" } +
             s.invocations.filter { it.effect == Effect.SIDE_EFFECT && !it.status.final }.map { "Unresolved operation ${it.invocationId}" } +
