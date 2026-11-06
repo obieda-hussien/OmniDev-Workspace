@@ -47,7 +47,7 @@ Structured tool batches are sequential. A failed invocation marks its active ste
 Each persisted cycle binds a runtime-owned active step. `TaskRunRecorder` assigns intents from that immutable context,
 not the first unfinished step at result time. The store checks task, cycle and current revision ownership; fabricated
 step ids fail before insertion. Discovery calls stay unassigned and cannot prove a step. Tool retries remain in the
-same context. Historical provider call ids are reserved during P2 resume so new calls cannot impersonate old evidence.
+same context. Historical provider call ids are reserved during P2 resume so new calls cannot impersonate old evidence. Command evidence also restores its mutation/action kind and file target from the persisted sanitized input; UNKNOWN outcomes still restore as errors.
 
 The model proposes `complete_plan_step` alone with the active key and exact persistent invocation ids. It cannot set
 a status. `StepEvidenceEvaluator` scopes P0 `FinishVerifier` to the assigned invocations, then enforces typed checks:

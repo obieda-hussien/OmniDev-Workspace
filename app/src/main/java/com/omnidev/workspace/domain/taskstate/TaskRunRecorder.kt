@@ -2,6 +2,7 @@ package com.omnidev.workspace.domain.taskstate
 
 import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.domain.engine.RunEvidenceLedger
+import com.omnidev.workspace.domain.engine.completion.EvidenceKinds
 import com.omnidev.workspace.domain.engine.completion.AcceptanceCriterion
 import com.omnidev.workspace.domain.engine.completion.FinishStatus
 import com.omnidev.workspace.domain.engine.completion.GateResult
@@ -362,10 +363,17 @@ class TaskRunRecorder(
             val evidence = inv.verification.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().take(140)
                 .ifBlank { inv.resultSummary.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().take(140) }
                 .ifBlank { "restored: ${inv.status}" }
-            ResumeEntry(inv.callId, inv.toolName, pathOf(inv.inputSanitized)?.let { "path=$it" }.orEmpty(), outcome, evidence)
+            val arguments = runCatching {
+                kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(inv.inputSanitized)
+            }.getOrDefault(emptyMap())
+            val target = arguments["path"] ?: arguments["filePath"] ?: arguments["directory"]
+                ?: EvidenceKinds.explicitMutationTarget(inv.toolName, arguments) ?: EvidenceKinds.commandTarget(inv.toolName, arguments)
+            ResumeEntry(inv.callId, inv.toolName, target?.let { "path=$it" }.orEmpty(), outcome, evidence,
+                EvidenceKinds.classify(inv.toolName, arguments))
         }
     }
 }
 
 /** One restored ledger entry. UNKNOWN and interrupted side effects return as ERROR so they block completion, as they do in-process. */
-data class ResumeEntry(val callId: String, val tool: String, val target: String, val outcome: RunEvidenceLedger.Outcome, val evidence: String)
+data class ResumeEntry(val callId: String, val tool: String, val target: String, val outcome: RunEvidenceLedger.Outcome, val evidence: String,
+    val kind: EvidenceKinds.Kind = EvidenceKinds.classify(tool))

@@ -344,4 +344,32 @@ class StructuredPlanningTest {
         assertEquals(0, coordinator.prepare(null)); assertEquals(1, calls)
     }
 
+    @Test fun resumedCommandRetainsKindAndTargetButUnknownStillBlocks() = runBlocking {
+        val store = started(); persist(store)
+        val active = store.snapshot("task")!!.currentSteps.first()
+        val cycle = store.beginCycle("task", active.stepId, 4, "cycle")
+        store.recordInvocationIntent(NewInvocation("command", "command", "task", cycle.cycleId, active.stepId, "run_terminal", "schema",
+            TaskRunRecorder.canonical(mapOf("command" to "printf fixed > /tmp/source.kt")), "hash", Effect.SIDE_EFFECT, "k", requestedAt = 5))
+        store.transitionInvocation("command", InvocationStatus.RUNNING, InvocationPatch(), 6, "running")
+        store.transitionInvocation("command", InvocationStatus.SUCCEEDED, InvocationPatch(resultSummary = "written"), 7, "done")
+        val snapshot = store.snapshot("task")!!
+        val restored = TaskRunRecorder.seedFrom(snapshot).single()
+        assertEquals(EvidenceKinds.Kind.MUTATION, restored.kind)
+        assertEquals("path=/tmp/source.kt", restored.target)
+        fun ledger(entries: List<ResumeEntry>): com.omnidev.workspace.domain.engine.RunEvidenceLedger {
+            return com.omnidev.workspace.domain.engine.RunEvidenceLedger("task").also {
+                it.restore(entries)
+                it.record(ToolCall("check", "read_file", mapOf("path" to "/tmp/source.kt")),
+                    ToolCallResult("check", "read_file", "fixed"))
+            }
+        }
+        val verified = ledger(listOf(restored))
+        assertTrue(FinishVerifier.evaluate(VerificationContext("task", null, verified.snapshot(), true, requireAction = true),
+            FinishRequest(FinishStatus.COMPLETED, "Written and read back")).accepted)
+        val unknown = snapshot.copy(invocations = snapshot.invocations.map { it.copy(status = InvocationStatus.UNKNOWN, isError = true) })
+        val uncertain = ledger(TaskRunRecorder.seedFrom(unknown))
+        assertFalse(FinishVerifier.evaluate(VerificationContext("task", null, uncertain.snapshot(), true, requireAction = true),
+            FinishRequest(FinishStatus.COMPLETED, "A later read is not reconciliation")).accepted)
+    }
+
 }
