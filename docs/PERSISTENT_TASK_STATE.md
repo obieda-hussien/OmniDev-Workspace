@@ -1,7 +1,7 @@
 # Persistent task state
 
 Agent runs bound by the [finish protocol](FINISH_PROTOCOL.md) are stored in the existing Room database
-(`OmniDevDatabase`, version 18) so that a run can be inspected and resumed from what really happened, not
+(`OmniDevDatabase`, version 19; P1 tables introduced in version 18) so that a run can be inspected and resumed from what really happened, not
 from reconstructed chat history. Plain chat never touches these tables.
 
 ## Four layers that are never interchangeable
@@ -100,3 +100,9 @@ Reconciliation verification is restored into the P0 ledger; a confirmed non-exec
 already recorded as successful is also blocked from accidental duplicate execution.
 Startup recovery is a readiness barrier: new agent task persistence waits for the previous-process sweep to finish,
 and a failed sweep remains visible and prevents mutation execution.
+
+## Structured planning (P3)
+
+See [structured planning](STRUCTURED_PLANNING.md) for validated JSON plans, dependency scheduling, cycle-owned
+step attribution, typed output checks, adaptive revisions and recovery. Version 19 adds only plan metadata;
+the six P1 tables and shared Room/memory engine remain authoritative. P0 remains the final task completion gate.

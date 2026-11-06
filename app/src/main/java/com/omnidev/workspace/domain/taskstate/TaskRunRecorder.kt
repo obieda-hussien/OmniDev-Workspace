@@ -141,8 +141,8 @@ class TaskRunRecorder(
     }
 
     private fun initialSteps(objective: String): List<NewStep> =
-        if (acceptance.isNotEmpty()) acceptance.mapIndexed { i, text -> NewStep("A${i + 1}", redact(text).take(300), expectedOutput = "Evidence of: ${redact(text).take(120)}", completionCondition = "P0 finish gate accepts this item with evidence") }
-        else listOf(NewStep("S1", "Complete the objective: ${redact(objective).replace(Regex("\\s+"), " ").take(300)}", expectedOutput = "Verified result of the requested objective", completionCondition = "P0 finish gate accepts completion"))
+        if (acceptance.isNotEmpty()) acceptance.mapIndexed { i, text -> NewStep("A${i + 1}", com.omnidev.workspace.domain.planning.PlanningPrivacy.safe(text).take(300), expectedOutput = "Evidence of: ${com.omnidev.workspace.domain.planning.PlanningPrivacy.safe(text).take(120)}", completionCondition = "P0 finish gate accepts this item with evidence") }
+        else listOf(NewStep("S1", "Complete the objective: ${com.omnidev.workspace.domain.planning.PlanningPrivacy.safe(objective).replace(Regex("\\s+"), " ").take(300)}", expectedOutput = "Verified result of the requested objective", completionCondition = "P0 finish gate accepts completion"))
 
     private fun nextStepId(): String? = com.omnidev.workspace.domain.planning.TaskExecutionScheduler.schedule(steps).next?.stepId
 

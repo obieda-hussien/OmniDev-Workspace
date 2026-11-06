@@ -43,22 +43,21 @@ class FinishRuntime private constructor(
     private var planner: TaskPlanningCoordinator? = null
     val sequentialPlanning: Boolean get() = planner?.active == true
 
-    suspend fun configurePlanning(provider: suspend (CompletionRequest) -> CompletionResponse, prototype: CompletionRequest,
+    fun configurePlanning(provider: suspend (CompletionRequest) -> CompletionResponse, prototype: CompletionRequest,
         contextWindow: Int, definitions: List<ToolDefinition>, history: List<ChatMessage>, approval: ConfirmationGate?) {
         val r = recorder ?: return
-        r.synchronize()
         val capabilities = definitions.groupBy { IntentClassifier.getToolDomain(it.name) }.entries.sortedBy { it.key.name }.map {
             "${it.key.name}: ${it.value.take(4).joinToString { tool -> tool.name }} (${it.value.size} capabilities)"
         }
         planner = TaskPlanningCoordinator(r.store, r.taskId, ModelStructuredPlanGenerator(prototype, provider, contextWindow, definitions.mapTo(hashSetOf()) { it.name }),
             capabilities, history.filter { it.role == MessageRole.USER }.takeLast(2).map { PlanningPrivacy.safe(it.content).take(400) },
             identity.acceptance, approval)
-        planner?.refresh()
         gate.planProblems = { planner?.pending().orEmpty() }
     }
 
     suspend fun beginTurn(budget: Int? = null): Int {
         verdict = null
+        recorder?.synchronize()
         val used = planner?.prepare(budget) ?: 0
         recorder?.planningActive = planner?.active == true
         recorder?.beginTurn(planner?.nextStep(), explicit = planner != null)
@@ -125,8 +124,7 @@ class FinishRuntime private constructor(
     }
 
     /** Plain-text final in a bound run = implicit `completed` claim. */
-    suspend fun beforePublish(response: CompletionResponse, blocked: Boolean): Step {
-        planner?.refresh()
+    fun beforePublish(response: CompletionResponse, blocked: Boolean): Step {
         if (verdict != null || !policy.enforce || blocked) return Step(response)
         val step = FinishDispatch.implicit(gate, response.content)
         val published = step.publish ?: return Step(response, step.append, rejected = true)
