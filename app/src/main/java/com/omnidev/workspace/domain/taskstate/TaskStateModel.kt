@@ -211,7 +211,7 @@ interface TaskStateStore {
     suspend fun setObjective(taskId: String, normalizedObjective: String, at: Long)
 
     /** Atomically supersedes the current revision and creates the next one. Returns null when [eventKey] was already applied. */
-    suspend fun appendPlanRevision(taskId: String, steps: List<NewStep>, reason: String, at: Long, eventKey: String, metadataJson: String = "", expectedRevision: Int? = null): PlanRevisionRecord?
+    suspend fun appendPlanRevision(taskId: String, steps: List<NewStep>, reason: String, at: Long, eventKey: String, metadataJson: String = "", expectedRevision: Int? = null, runtimeObjective: String? = null): PlanRevisionRecord?
     suspend fun transitionStep(stepId: String, to: StepStatus, reason: String, at: Long, eventKey: String, completion: StepCompletion? = null): TransitionResult
 
     suspend fun beginCycle(taskId: String, stepId: String?, at: Long, eventKey: String): CycleRecord

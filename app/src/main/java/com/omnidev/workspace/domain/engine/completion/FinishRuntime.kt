@@ -50,7 +50,7 @@ class FinishRuntime private constructor(
         val capabilities = definitions.groupBy { IntentClassifier.getToolDomain(it.name) }.entries.sortedBy { it.key.name }.map {
             "${it.key.name}: ${it.value.take(4).joinToString { tool -> tool.name }} (${it.value.size} capabilities)"
         }
-        planner = TaskPlanningCoordinator(r.store, r.taskId, ModelStructuredPlanGenerator(prototype, provider, contextWindow),
+        planner = TaskPlanningCoordinator(r.store, r.taskId, ModelStructuredPlanGenerator(prototype, provider, contextWindow, definitions.mapTo(hashSetOf()) { it.name }),
             capabilities, history.filter { it.role == MessageRole.USER }.takeLast(2).map { PlanningPrivacy.safe(it.content).take(400) },
             identity.acceptance, approval)
         planner?.refresh()

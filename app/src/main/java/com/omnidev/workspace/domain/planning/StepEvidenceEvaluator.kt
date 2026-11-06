@@ -38,6 +38,15 @@ object StepEvidenceEvaluator {
             (policy.checkTool.isBlank() || it.toolName == policy.checkTool) &&
             (policy.contains.isBlank() || it.resultSummary.contains(policy.contains)) }
         if (checks.isEmpty()) return "OUTPUT_CHECK_NOT_MET"
+        if (policy.proof == ProofKind.READ_BACK) {
+            val mutations = refs.filter { it.kind == EvidenceKinds.Kind.MUTATION && it.outcome == RunEvidenceLedger.Outcome.OK }
+            if (mutations.isEmpty() || effects.any { effect -> mutations.none { it.callId == effect.invocationId } }) return "FILE_READ_BACK_REQUIRED"
+            if (mutations.any { mutation ->
+                    val path = EvidenceKinds.pathOf(mutation.target)
+                    path == null || checks.none { check -> refs.any { ref -> ref.callId == check.invocationId &&
+                        ref.kind == EvidenceKinds.Kind.READ && ref.seq > mutation.seq && EvidenceKinds.pathOf(ref.target) == path } }
+                }) return "CONTENT_READ_BACK_REQUIRED"
+        }
         if (policy.proof != ProofKind.READ_RESULT) {
             if (policy.contains.isBlank()) return "CONTENT_PREDICATE_REQUIRED"
             val lastEffect = effects.maxOfOrNull { it.seq } ?: return "ACTION_EVIDENCE_REQUIRED"

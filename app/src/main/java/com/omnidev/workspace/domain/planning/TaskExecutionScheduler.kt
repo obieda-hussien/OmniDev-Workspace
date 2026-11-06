@@ -35,6 +35,8 @@ object TaskExecutionScheduler {
 
     fun valid(context: StepExecutionContext, snapshot: TaskSnapshot): Boolean =
         context.taskId == snapshot.task.taskId && context.planId == snapshot.latestPlan?.planId &&
-            snapshot.cycles.any { it.cycleId == context.cycleId && it.stepId == context.stepId && it.endedAt == null } &&
+            snapshot.task.currentStepId == context.stepId && snapshot.cycles.any {
+                it.cycleId == context.cycleId && it.seq == snapshot.task.currentCycle && it.stepId == context.stepId && it.endedAt == null
+            } &&
             schedule(snapshot.currentSteps).next?.stepId == context.stepId
 }

@@ -27,7 +27,8 @@ fun interface StructuredPlanGenerator { suspend fun generate(input: PlanningInpu
 class ModelStructuredPlanGenerator(
     private val prototype: CompletionRequest,
     private val complete: suspend (CompletionRequest) -> CompletionResponse,
-    private val contextWindow: Int
+    private val contextWindow: Int,
+    private val availableTools: Set<String>? = null
 ) : StructuredPlanGenerator {
     override suspend fun generate(input: PlanningInput, budget: Int?): PlanGeneration {
         var spent = 0
@@ -48,7 +49,7 @@ class ModelStructuredPlanGenerator(
             spent += TokenAccounting.usage(request, response).totalTokens
             val plan = if (response.toolCalls.isEmpty() && response.content.length <= PlanCodec.MAX_JSON)
                 runCatching { PlanCodec.json.decodeFromString<StructuredPlan>(WholeResponseEnvelope.normalize(response.content)) }.getOrNull() else null
-            val validation = plan?.let { PlanValidator.validate(it, input.mandatoryConstraints) }
+            val validation = plan?.let { PlanValidator.validate(it, input.mandatoryConstraints, availableTools) }
             if (validation?.valid == true) return PlanGeneration(validation.normalized, spent, "")
             feedback = "\nValidation errors: ${validation?.diagnostic() ?: "MALFORMED_JSON"}. Return a corrected JSON object only."
         }

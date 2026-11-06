@@ -42,7 +42,7 @@ object PlanValidator {
         return result
     }
 
-    fun validate(plan: StructuredPlan, mandatory: List<String> = emptyList()): PlanValidation {
+    fun validate(plan: StructuredPlan, mandatory: List<String> = emptyList(), availableTools: Set<String>? = null): PlanValidation {
         val errors = graph(plan.steps.map { it.newStep() }).toMutableList()
         fun text(value: String, max: Int, code: String, index: Int? = null) {
             if (value.isBlank() || value.length > max) errors += PlanIssue(code, index)
@@ -60,12 +60,13 @@ object PlanValidator {
             text(s.completionCondition, 600, "COMPLETION_CONDITION", i)
             val semanticKey = s.description.lowercase().filter(Char::isLetterOrDigit)
             if (!descriptions.add(semanticKey)) errors += PlanIssue("DUPLICATE_STEP", i)
-            if (s.policy.domains.size > 4 || s.policy.domains.distinct().size != s.policy.domains.size ||
+            if (s.policy.domains.isEmpty() || s.policy.domains.size > 4 || s.policy.domains.distinct().size != s.policy.domains.size ||
                 s.policy.domains.any { d -> IntentClassifier.ToolDomain.entries.none { it.name == d } }) errors += PlanIssue("INVALID_DOMAIN", i)
             if (s.policy.approvalKind != null && ConfirmationKind.entries.none { it.name == s.policy.approvalKind }) errors += PlanIssue("INVALID_APPROVAL", i)
             if (s.policy.contains.length > 200 || !PlanningPrivacy.allowed(s.policy.contains)) errors += PlanIssue("INVALID_PREDICATE", i)
             if (s.policy.proof != ProofKind.READ_RESULT && s.policy.contains.isBlank()) errors += PlanIssue("CHECK_PREDICATE_REQUIRED", i)
             if (s.policy.checkTool.length > 100 || (s.policy.checkTool.isNotBlank() && !Regex("[A-Za-z0-9_.-]+").matches(s.policy.checkTool))) errors += PlanIssue("INVALID_CHECK_TOOL", i)
+            if (availableTools != null && s.policy.checkTool.isNotBlank() && s.policy.checkTool !in availableTools) errors += PlanIssue("CHECK_TOOL_UNAVAILABLE", i)
             if (s.policy.proof == ProofKind.INDEPENDENT_CHECK && s.policy.checkTool.isBlank()) errors += PlanIssue("CHECK_TOOL_REQUIRED", i)
         }
         if (errors.isNotEmpty()) return PlanValidation(null, errors.distinct().take(32))

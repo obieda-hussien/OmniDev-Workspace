@@ -70,7 +70,7 @@ object PlanCodec {
 /** Plan context and diagnostics never contain raw observations, credentials or command payloads. */
 object PlanningPrivacy {
     private val email = Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")
-    private val number = Regex("(?<![A-Za-z0-9])\\+?[0-9][0-9 ()-]{7,}[0-9](?![A-Za-z0-9])")
+    private val number = Regex("(?<![A-Za-z0-9])(?:\\+[1-9][0-9]{9,14}|0[0-9]{10})(?![A-Za-z0-9])")
     private val opaqueSecret = Regex("(?:gh[pousr]_[A-Za-z0-9]+|sk-[A-Za-z0-9_-]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY)")
     private val payload = Regex("(?im)(?:\\$\\(|&&|```|^\\s*(?:curl|wget|bash|powershell|rm|python[0-9]?)\\s+|https?://[^/\\s]+@)")
     fun safe(text: String) = SensitiveObservationRedactor.redact(text).replace(email, "[private address]")

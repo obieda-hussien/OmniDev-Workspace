@@ -64,7 +64,8 @@ class TaskPlanningCoordinator(
             diagnostic = "UNRESOLVED_SIDE_EFFECT"; return 0
         }
         attempts++
-        val mandatory = (metadata?.constraints.orEmpty() + PlanningTrigger.constraints(goal, acceptance)).distinct()
+        val mandatory = (metadata?.constraints.orEmpty() + PlanningTrigger.constraints(goal, acceptance) +
+            PlanningTrigger.constraints(s.task.originalRequest, acceptance)).distinct()
         val input = PlanningInput(PlanningPrivacy.safe(goal), PlanningPrivacy.safe(s.task.originalRequest).take(2_000), mandatory,
             conversation, capabilities, metadata?.let { PlanCodec.restore(it, s.currentSteps) } ?: s.latestPlan?.let {
                 StructuredPlan(PlanningPrivacy.safe(goal).take(2_000), "Existing saved plan", mandatory, s.currentSteps.map { step ->
@@ -77,7 +78,6 @@ class TaskPlanningCoordinator(
         val result = replanner.revise(s, input, budget)
         diagnostic = result.diagnostic
         if (result.diagnostic.isBlank()) {
-            if (redirect != null) store.setObjective(taskId, goal, clock())
             redirect = null; discovery = null
         }
         refresh()
@@ -95,6 +95,8 @@ class TaskPlanningCoordinator(
         val kind = policy?.approvalKind?.let { ConfirmationKind.valueOf(it) }
         if (kind != null && !store.eventRecorded(taskId, "p3-approval:${step.stepId}")) {
             val accepted = approval?.request(kind, "Task plan: ${step.description}\nExpected: ${step.expectedOutput}\nCheck: ${step.completionCondition}", null) == true
+            val afterReview = store.snapshot(taskId)
+            if (afterReview?.latestPlan?.planId != s.latestPlan?.planId || afterReview?.task?.status != TaskStatus.RUNNING) return null
             if (!accepted) {
                 store.transitionStep(step.stepId, StepStatus.BLOCKED, "Awaiting existing policy approval", clock(), "approval-block:${step.stepId}")
                 store.transitionTask(taskId, TaskStatus.AWAITING_APPROVAL, "Plan step needs approval", clock(), "approval-task:${step.stepId}")

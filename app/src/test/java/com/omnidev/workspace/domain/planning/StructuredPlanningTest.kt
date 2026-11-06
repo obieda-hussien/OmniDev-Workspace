@@ -21,11 +21,11 @@ class StructuredPlanningTest {
     private suspend fun persist(store: TaskStateStore, plan: StructuredPlan = plan(), revision: Int = 0): PlanRevisionRecord? =
         store.appendPlanRevision("task", plan.steps.map { it.newStep() }, "initial", 3, "plan-$revision-${plan.hashCode()}",
             PlanCodec.metadata(plan, "Inspect the source"), revision)
-    private suspend fun read(store: TaskStateStore, step: StepRecord?, call: String, output: String = "class Source", effect: Effect = Effect.READ_ONLY): String {
+    private suspend fun read(store: TaskStateStore, step: StepRecord?, call: String, output: String = "class Source", effect: Effect = Effect.READ_ONLY, path: String = "/tmp/source.kt"): String {
         val cycle = store.beginCycle("task", step?.stepId, 4, "cycle-$call")
         val id = "task/${cycle.cycleId}/$call"
         store.recordInvocationIntent(NewInvocation(id, call, "task", cycle.cycleId, step?.stepId,
-            if (effect == Effect.READ_ONLY) "read_file" else "patch_file_content", "schema", "{\"path\":\"/tmp/source.kt\"}", "hash", effect, call, requestedAt = 5))
+            if (effect == Effect.READ_ONLY) "read_file" else "patch_file_content", "schema", PlanCodec.json.encodeToString(mapOf("path" to path)), "hash", effect, call, requestedAt = 5))
         store.transitionInvocation(id, InvocationStatus.RUNNING, InvocationPatch(startedAt = 6), 6, "run-$call")
         store.transitionInvocation(id, InvocationStatus.SUCCEEDED, InvocationPatch(resultSummary = output, completedAt = 7), 7, "done-$call")
         return id
@@ -227,4 +227,53 @@ class StructuredPlanningTest {
         assertFalse(verdict.accepted)
         assertEquals("STEP_NOT_ACTIVE", coordinator.control(ToolCall("fake", TaskPlanningCoordinator.COMPLETE, mapOf("step_key" to "S2", "evidence_ids" to "[]"))))
     }
+    @Test fun `content from another path cannot stand in for the mutated file`() = runBlocking {
+        val store = started()
+        persist(store, plan(listOf(step("S1").copy(policy = StepPolicy(listOf("CORE"), ProofKind.READ_BACK, contains = "fixed")))))
+        val active = store.snapshot("task")!!.currentSteps.single()
+        val write = read(store, active, "write", "accepted", Effect.SIDE_EFFECT)
+        val stale = read(store, active, "stale-content", "old content")
+        val unrelated = read(store, active, "unrelated", "fixed", path = "/tmp/another.kt")
+        assertEquals("CONTENT_READ_BACK_REQUIRED", StepEvidenceEvaluator.evaluate(store.snapshot("task")!!, active,
+            StepCompletion(listOf(write, stale, unrelated))))
+    }
+
+    @Test fun `late calls from an earlier open cycle are rejected`() = runBlocking {
+        val store = started(); persist(store)
+        val active = store.snapshot("task")!!.currentSteps.first()
+        val earlier = store.beginCycle("task", active.stepId, 4, "earlier")
+        store.beginCycle("task", active.stepId, 5, "current")
+        val intent = NewInvocation("late", "late", "task", earlier.cycleId, active.stepId, "read_file", "schema", "{}", "h", Effect.READ_ONLY, "k", requestedAt = 6)
+        try { store.recordInvocationIntent(intent); fail("late cycle accepted") } catch (_: TaskStateException) { }
+        assertNull(store.invocation("late"))
+    }
+
+    @Test fun `existing approval gate is required and accepted review is scoped to revision`() = runBlocking {
+        val store = started()
+        val p = plan(listOf(step("S1").copy(policy = StepPolicy(listOf("CORE"), approvalKind = "SHIZUKU_COMMAND"))))
+        persist(store, p)
+        var approvals = 0
+        val gate = com.omnidev.workspace.core.policy.ConfirmationGate { _, _, _ -> approvals++; true }
+        val generator = StructuredPlanGenerator { _, _ -> error("unexpected planning") }
+        val first = TaskPlanningCoordinator(store, "task", generator, emptyList(), emptyList(), emptyList(), gate)
+        val stepId = first.nextStep()
+        assertNotNull(stepId); first.nextStep(); assertEquals(1, approvals)
+        persist(store, p.copy(summary = "Updated review"), 1)
+        assertNotEquals(stepId, first.nextStep()); assertEquals(2, approvals)
+        val deniedStore = started(); persist(deniedStore, p)
+        val denied = TaskPlanningCoordinator(deniedStore, "task", generator, emptyList(), emptyList(), emptyList())
+        assertNull(denied.nextStep())
+        assertEquals(TaskStatus.AWAITING_APPROVAL, deniedStore.task("task")!!.status)
+        assertEquals(StepReadiness.AWAITING_APPROVAL,
+            TaskExecutionScheduler.schedule(deniedStore.snapshot("task")!!.currentSteps, true).steps.single().state)
+    }
+
+    @Test fun `store refuses task completion before the structured plan is verified`() = runBlocking {
+        val store = started(); persist(store)
+        assertTrue(store.finalizeTask("task", TaskStatus.COMPLETED, FinishRecord("completed", "claim", "digest"), emptyList(), 5, "finish") is TransitionResult.Rejected)
+        assertEquals(TaskStatus.RUNNING, store.task("task")!!.status)
+        val unavailable = plan(listOf(step("S1").copy(policy = StepPolicy(listOf("CORE"), ProofKind.INDEPENDENT_CHECK, "fake_checker", "confirmed"))))
+        assertTrue(PlanValidator.validate(unavailable, availableTools = setOf("read_file")).issues.any { it.code == "CHECK_TOOL_UNAVAILABLE" })
+    }
+
 }

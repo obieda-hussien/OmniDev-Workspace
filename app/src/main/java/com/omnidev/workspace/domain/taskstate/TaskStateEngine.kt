@@ -36,7 +36,7 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         Unit
     }
 
-    override suspend fun appendPlanRevision(taskId: String, steps: List<NewStep>, reason: String, at: Long, eventKey: String, metadataJson: String, expectedRevision: Int?): PlanRevisionRecord? = backend.atomic {
+    override suspend fun appendPlanRevision(taskId: String, steps: List<NewStep>, reason: String, at: Long, eventKey: String, metadataJson: String, expectedRevision: Int?, runtimeObjective: String?): PlanRevisionRecord? = backend.atomic {
         val t = task(taskId) ?: throw TaskStateException("unknown task $taskId")
         if (hasEvent(taskId, eventKey)) return@atomic null
         if (expectedRevision != null && t.planRevision != expectedRevision) throw TaskStateException("STALE_PLAN_REVISION")
@@ -57,7 +57,9 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
                 PlannedStep(it.key, it.description, it.dependsOnKeys, it.expectedOutput, it.completionCondition, metadata.policies.getValue(it.key))
             })
             val priorMetadata = PlanCodec.metadata(previous?.metadataJson.orEmpty())
-            val validation = PlanValidator.validate(proposed, priorMetadata?.constraints.orEmpty())
+            val mandatory = (priorMetadata?.constraints.orEmpty() + PlanningTrigger.constraints(t.originalRequest,
+                TaskResumeMetadata.acceptance(t.constraintsJson).orEmpty())).distinct()
+            val validation = PlanValidator.validate(proposed, mandatory)
             if (!validation.valid) throw TaskStateException(validation.diagnostic())
             if (validation.normalized!!.steps.map { it.key } != steps.map { it.key }) throw TaskStateException("NON_TOPOLOGICAL_PLAN")
             val completed = previousSteps.filter { it.status == StepStatus.COMPLETED }
@@ -88,7 +90,7 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
                 s.expectedOutput, s.completionCondition, status, if (carried != null) "carried from revision ${previous?.revision}" else "",
                 carried?.evidenceInvocationIds.orEmpty(), carried?.nonToolJustification.orEmpty(), at, at))
         }
-        updateTask(t.copy(planRevision = revision, currentStepId = null, updatedAt = at))
+        updateTask(t.copy(planRevision = revision, currentStepId = null, normalizedObjective = runtimeObjective ?: t.normalizedObjective, updatedAt = at))
         appendEvent(taskId, "plan", planId, "r${revision - 1}", "r$revision", reason, at, eventKey)
         record
     }
@@ -156,6 +158,8 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         invocation.stepId?.let { id ->
             val active = step(id) ?: throw TaskStateException("UNKNOWN_INVOCATION_STEP")
             val cycle = cycle(invocation.cycleId) ?: throw TaskStateException("UNKNOWN_INVOCATION_CYCLE")
+            val owner = task(invocation.taskId) ?: throw TaskStateException("UNKNOWN_INVOCATION_TASK")
+            if (cycle.seq != owner.currentCycle || owner.currentStepId != id) throw TaskStateException("STALE_INVOCATION_CYCLE")
             if (active.taskId != invocation.taskId || active.planId != plans(invocation.taskId).maxByOrNull { it.revision }?.planId ||
                 cycle.taskId != invocation.taskId || cycle.stepId != id || cycle.endedAt != null)
                 throw TaskStateException("INVALID_INVOCATION_CONTEXT")

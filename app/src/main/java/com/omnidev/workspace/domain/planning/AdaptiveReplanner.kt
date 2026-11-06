@@ -17,7 +17,7 @@ class AdaptiveReplanner(private val store: TaskStateStore, private val generator
         val metadata = PlanCodec.metadata(plan, input.objective)
         return try {
             val saved = store.appendPlanRevision(snapshot.task.taskId, plan.steps.map { it.newStep() }, input.reason.take(240), clock(),
-                "p3-plan:${snapshot.task.planRevision}:${TaskRunRecorder.sha(metadata)}", metadata, snapshot.task.planRevision)
+                "p3-plan:${snapshot.task.planRevision}:${TaskRunRecorder.sha(metadata)}", metadata, snapshot.task.planRevision, input.objective)
             ReplanResult(generated.tokens, saved != null)
         } catch (c: kotlinx.coroutines.CancellationException) { throw c } catch (_: TaskStateException) {
             // Error details may originate in providers/storage; do not publish their raw text.
