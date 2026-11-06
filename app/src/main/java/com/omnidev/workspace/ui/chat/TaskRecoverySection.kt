@@ -28,7 +28,7 @@ internal fun TaskRecoverySection(
     if (tasks.isEmpty() && !loading && error.isNullOrBlank()) return
     Column(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (tasks.isNotEmpty()) {
-            Text("Task recovery", style = MaterialTheme.typography.titleMedium)
+            Text("Task progress and recovery", style = MaterialTheme.typography.titleMedium)
             tasks.forEach { task -> TaskRecoveryCard(task, actionsEnabled, onResume, additionalInstruction, onReconcile, onDismiss) }
         }
         if (loading) Text("Checking saved task activity…", style = MaterialTheme.typography.bodySmall,
@@ -97,7 +97,9 @@ private fun TaskRecoveryCard(
                     Text("Resume unavailable", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
                 }
             }
+            task.plan?.activeKey?.let { Text("Active step: $it", style = MaterialTheme.typography.labelLarge) }
             if (expanded) {
+                task.plan?.let { TaskPlanDetails(it) }
                 Text("Completed steps", style = MaterialTheme.typography.titleSmall)
                 if (task.completedStepDescriptions.isEmpty()) Text("No steps are recorded as completed.", style = MaterialTheme.typography.bodySmall)
                 task.completedStepDescriptions.forEach { description ->

@@ -2,6 +2,7 @@ package com.omnidev.workspace.domain.taskstate
 
 import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.domain.engine.RunEvidenceLedger
+import com.omnidev.workspace.domain.engine.completion.EvidenceKinds
 import com.omnidev.workspace.domain.engine.completion.AcceptanceCriterion
 import com.omnidev.workspace.domain.engine.completion.FinishStatus
 import com.omnidev.workspace.domain.engine.completion.GateResult
@@ -27,7 +28,7 @@ sealed class RunGate {
  * write-ahead mark of a side-effecting call is awaited and, if it cannot be stored, the call does not run.
  */
 class TaskRunRecorder(
-    private val store: TaskStateStore,
+    internal val store: TaskStateStore,
     val taskId: String,
     private val sessionId: Long?,
     private val originalRequest: String,
@@ -44,7 +45,8 @@ class TaskRunRecorder(
     /** P0 acceptance policy snapshot stored in the existing P1 constraintsJson column. */
     private val constraintsJson: String = "{}",
     /** The coordinator transitioned INTERRUPTED/INCOMPLETE -> RUNNING atomically before creating this recorder. */
-    private val resumeClaimed: Boolean = false
+    private val resumeClaimed: Boolean = false,
+    private val deferInitialPlan: Boolean = false
 ) {
     private val lock = Mutex()
     /** Own scope: persistence of the verdict must survive the run's coroutine being cancelled. */
@@ -54,6 +56,10 @@ class TaskRunRecorder(
     private val runToken = UUID.randomUUID().toString().take(8)
     private var turn = 0
     private var cycleId: String? = null
+    private var activeStepId: String? = null
+    private val stepByCall = HashMap<String, String?>()
+    var planningActive: Boolean = false
+        internal set
     private var cycleNotes = StringBuilder()
     private var steps: List<StepRecord> = emptyList()
     private val invocationByCall = HashMap<String, String>()
@@ -92,7 +98,7 @@ class TaskRunRecorder(
                 store.createTask(NewTask(taskId, sessionId, originalRequest, "", parentTaskId, workerId, constraintsJson, at))
                 if (objective.isNotBlank() && objective != originalRequest) store.setObjective(taskId, objective.take(2000), at)
                 store.transitionTask(taskId, TaskStatus.RUNNING, "run started", at, "start:$runToken")
-                store.appendPlanRevision(taskId, initialSteps(objective), "initial plan", at, "plan:initial")
+                if (!deferInitialPlan) store.appendPlanRevision(taskId, initialSteps(objective), "initial plan", at, "plan:initial")
             } else if (resumeClaimed) {
                 // The user-facing coordinator already acquired the exclusive persistent claim.
                 // Do not perform a second state transition or create a second task.
@@ -106,15 +112,18 @@ class TaskRunRecorder(
                 val result = store.transitionTask(taskId, TaskStatus.RUNNING, "run resumed", at, "start:$runToken")
                 if (result is TransitionResult.Rejected) throw TaskStateException(result.reason)
             }
+            if (resumed) store.preserveAcceptance(taskId, acceptance, at)
             steps = store.snapshot(taskId)?.currentSteps.orEmpty()
         }
     }
 
-    fun beginTurn() {
+    fun beginTurn(selectedStepId: String? = null, explicit: Boolean = false) {
         val n = ++turn
         queue {
             endOpenCycle("continued")
-            val c = store.beginCycle(taskId, nextStepId(), clock(), "cycle:$runToken:$n")
+            steps = store.snapshot(taskId)?.currentSteps.orEmpty()
+            val c = store.beginCycle(taskId, if (explicit) selectedStepId else nextStepId(), clock(), "cycle:$runToken:$n")
+            activeStepId = c.stepId
             cycleId = c.cycleId
             cycleNotes = StringBuilder()
         }
@@ -134,13 +143,12 @@ class TaskRunRecorder(
     }
 
     private fun initialSteps(objective: String): List<NewStep> =
-        if (acceptance.isNotEmpty()) acceptance.mapIndexed { i, text -> NewStep("A${i + 1}", text.take(300), expectedOutput = "Evidence of: ${text.take(120)}", completionCondition = "P0 finish gate accepts this item with evidence") }
-        else listOf(NewStep("S1", "Complete the objective: ${objective.replace(Regex("\\s+"), " ").take(300)}", completionCondition = "P0 finish gate accepts completion"))
+        if (acceptance.isNotEmpty()) acceptance.mapIndexed { i, text -> NewStep("A${i + 1}", com.omnidev.workspace.domain.planning.PlanningPrivacy.safe(text).take(300), expectedOutput = "Evidence of: ${com.omnidev.workspace.domain.planning.PlanningPrivacy.safe(text).take(120)}", completionCondition = "P0 finish gate accepts this item with evidence") }
+        else listOf(NewStep("S1", "Complete the objective: ${com.omnidev.workspace.domain.planning.PlanningPrivacy.safe(objective).replace(Regex("\\s+"), " ").take(300)}", expectedOutput = "Verified result of the requested objective", completionCondition = "P0 finish gate accepts completion"))
 
-    private fun nextStepId(): String? {
-        val done = steps.filter { it.status == StepStatus.COMPLETED }.map { it.key }.toSet()
-        return steps.firstOrNull { !it.status.terminal && it.dependsOnKeys.all { d -> d in done } }?.stepId
-    }
+    private fun nextStepId(): String? = com.omnidev.workspace.domain.planning.TaskExecutionScheduler.schedule(steps).next?.stepId
+
+    suspend fun synchronize() = lock.withLock { flush() }
 
     private suspend fun endOpenCycle(outcome: String) {
         val open = cycleId ?: return
@@ -153,14 +161,16 @@ class TaskRunRecorder(
     suspend fun requested(calls: List<ToolCall>) = lock.withLock {
         flush()
         val cycle = cycleId ?: return@withLock
-        val stepId = nextStepId()
+        val stepId = activeStepId
         calls.forEach { call ->
             val effect = effectOf(call)
             val args = canonical(call.arguments)
             val invocationId = "$taskId/$cycle/${call.id}"
             invocationByCall[call.id] = invocationId
+            val attributedStep = stepId.takeUnless { call.name == "discover_tools" }
+            stepByCall[call.id] = attributedStep
             safely {
-                store.recordInvocationIntent(NewInvocation(invocationId, call.id, taskId, cycle, stepId, call.name, schemaIdOf(call.name),
+                store.recordInvocationIntent(NewInvocation(invocationId, call.id, taskId, cycle, attributedStep, call.name, schemaIdOf(call.name),
                     redact(args).take(MAX_INPUT_CHARS), sha(args), effect, sha("$taskId|${call.name}|$args"), requestedAt = clock()))
             }
         }
@@ -177,10 +187,21 @@ class TaskRunRecorder(
         val invocationId = invocationByCall[call.id]
         if (invocationId == null) {
             // Missing intent/cycle means the task state was not durably initialized. Never fail open for mutations.
-            return@withLock if (effect == Effect.SIDE_EFFECT) RunGate.Blocked(
+            return@withLock if (effect == Effect.SIDE_EFFECT || planningActive) RunGate.Blocked(
                 "The action was not executed because its task and invocation records are unavailable. Persistence/recovery must succeed first.",
                 "PERSISTENCE_UNAVAILABLE"
             ) else RunGate.Proceed
+        }
+        if (planningActive && call.name != "discover_tools") {
+            val snapshot = safely { store.snapshot(taskId) }
+            val sid = stepByCall[call.id]
+            val active = snapshot?.currentSteps?.firstOrNull { it.stepId == sid }
+            val context = active?.let { com.omnidev.workspace.domain.planning.StepExecutionContext(taskId, it.planId, it.stepId, cycleId.orEmpty()) }
+            if (snapshot == null || context == null || !com.omnidev.workspace.domain.planning.TaskExecutionScheduler.valid(context, snapshot) ||
+                snapshot.task.status != TaskStatus.RUNNING)
+                return@withLock RunGate.Blocked("No dependency-ready active step owns this call. Nothing was executed.", "PLAN_STEP_NOT_READY")
+            if (snapshot.invocations.any { it.invocationId != invocationId && it.effect == Effect.SIDE_EFFECT && it.status in setOf(InvocationStatus.RUNNING, InvocationStatus.UNKNOWN, InvocationStatus.INTERRUPTED) })
+                return@withLock RunGate.Blocked("An unresolved operation requires exact P2 reconciliation. Nothing was executed.", "PRIOR_MUTATION_OUTCOME_UNKNOWN")
         }
         if (effect == Effect.SIDE_EFFECT) {
             val key = sha("$taskId|${call.name}|${canonical(call.arguments)}")
@@ -207,13 +228,13 @@ class TaskRunRecorder(
             "The action was not executed because its RUNNING transition was not durably applied. Nothing was executed.",
             "PERSISTENCE_UNAVAILABLE")
         running += call.id
-        nextStepId()?.let { sid ->
+        stepByCall[call.id]?.let { sid ->
             if (stepStarted.add(sid)) safely { store.transitionStep(sid, StepStatus.RUNNING, "first action started", clock(), "stepstart:$runToken:$sid") }
         }
         RunGate.Proceed
     }
 
-    suspend fun completed(call: ToolCall, output: String, isError: Boolean, classification: String?) = lock.withLock {
+    suspend fun completed(call: ToolCall, output: String, isError: Boolean, classification: String?, verification: String? = null) = lock.withLock {
         val invocationId = invocationByCall[call.id] ?: return@withLock
         if (!done.add(call.id)) return@withLock
         val safe = redact(output)
@@ -227,7 +248,10 @@ class TaskRunRecorder(
         safely {
             store.transitionInvocation(invocationId, status, InvocationPatch(completedAt = clock(), resultSummary = head, resultHash = sha(safe),
                 resultTruncated = safe.length > MAX_RESULT_CHARS, resultChars = safe.length, isError = isError || status != InvocationStatus.SUCCEEDED,
-                errorDetail = if (isError) safe.take(500) else "", classification = classification.orEmpty()), clock(), "done:$invocationId", status.name)
+                errorDetail = if (isError) safe.take(500) else "", classification = classification.orEmpty(), verification = verification?.let(redact)), clock(), "done:$invocationId", status.name)
+        }
+        if (planningActive && status == InvocationStatus.FAILED) stepByCall[call.id]?.let { sid ->
+            safely { store.transitionStep(sid, StepStatus.FAILED, "Tool execution invalidated the active step", clock(), "step-failed:$invocationId") }
         }
         cycleNotes.append(call.name).append(if (status == InvocationStatus.SUCCEEDED) " ok. " else " ${status.name.lowercase()}. ")
         safely { store.heartbeat(taskId, clock()) }
@@ -284,12 +308,13 @@ class TaskRunRecorder(
 
     private fun stepOutcomes(snapshot: TaskSnapshot, report: com.omnidev.workspace.domain.engine.completion.CompletionReport, status: TaskStatus): List<StepOutcome> {
         val open = snapshot.currentSteps.filter { !it.status.terminal }
+        if (status == TaskStatus.COMPLETED && planningActive) return emptyList()
         if (status == TaskStatus.COMPLETED) {
             val byCall = snapshot.invocations.associateBy { it.callId }
             val runtimeIds = report.criteria.filter { it.criterion.source == AcceptanceCriterion.Source.RUNTIME && it.met }.flatMap { it.evidenceIds }
             return open.map { step ->
                 val ids = if (step.key.startsWith("A")) report.criteria.firstOrNull { it.criterion.id == step.key && it.met }?.evidenceIds.orEmpty() else runtimeIds
-                val proof = ids.mapNotNull { byCall[it]?.takeIf { inv -> inv.status == InvocationStatus.SUCCEEDED }?.invocationId }
+                val proof = ids.mapNotNull { byCall[it]?.takeIf { inv -> inv.status == InvocationStatus.SUCCEEDED && inv.stepId == step.stepId }?.invocationId }
                 StepOutcome(step.stepId, StepStatus.COMPLETED, "accepted by the finish gate",
                     if (proof.isNotEmpty()) StepCompletion(proof) else StepCompletion(nonToolJustification = "finish gate accepted without tool evidence: the task did not require execution"))
             }
@@ -316,7 +341,7 @@ class TaskRunRecorder(
         /** Classifications of results that were produced without the tool ever executing. */
         val NEVER_RAN = setOf("TOOL_NOT_AVAILABLE", "TOOL_POLICY_DENIED", "TIER_DENIED", "RUN_REDIRECTED", "SKILL_NOT_SELECTED",
             "LAUNCHER_TYPED_ACTION_REQUIRED", "TOOL_NOT_EXPOSED", "INVALID_TOOL_ARGUMENTS", "BATCH_PREFLIGHT_BLOCKED", "INVALID_TOOL_BATCH",
-            "PRIOR_MUTATION_OUTCOME_UNKNOWN", "DUPLICATE_SIDE_EFFECT_ALREADY_SUCCEEDED", "PERSISTENCE_UNAVAILABLE")
+            "PRIOR_MUTATION_OUTCOME_UNKNOWN", "DUPLICATE_SIDE_EFFECT_ALREADY_SUCCEEDED", "PERSISTENCE_UNAVAILABLE", "PLAN_STEP_NOT_READY")
 
         private val SENSITIVE_KEY = Regex("(?i)(pass(word|wd)?|secret|token|api[_-]?key|authorization|credential|otp|\\bpin\\b|private[_-]?key)")
         /** Stable, key-sorted JSON of the arguments with credential-like values masked; used for storage and hashing. */
@@ -338,10 +363,17 @@ class TaskRunRecorder(
             val evidence = inv.verification.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().take(140)
                 .ifBlank { inv.resultSummary.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().take(140) }
                 .ifBlank { "restored: ${inv.status}" }
-            ResumeEntry(inv.callId, inv.toolName, pathOf(inv.inputSanitized)?.let { "path=$it" }.orEmpty(), outcome, evidence)
+            val arguments = runCatching {
+                kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(inv.inputSanitized)
+            }.getOrDefault(emptyMap())
+            val target = arguments["path"] ?: arguments["filePath"] ?: arguments["directory"]
+                ?: EvidenceKinds.explicitMutationTarget(inv.toolName, arguments) ?: EvidenceKinds.commandTarget(inv.toolName, arguments)
+            ResumeEntry(inv.callId, inv.toolName, target?.let { "path=$it" }.orEmpty(), outcome, evidence,
+                EvidenceKinds.classify(inv.toolName, arguments))
         }
     }
 }
 
 /** One restored ledger entry. UNKNOWN and interrupted side effects return as ERROR so they block completion, as they do in-process. */
-data class ResumeEntry(val callId: String, val tool: String, val target: String, val outcome: RunEvidenceLedger.Outcome, val evidence: String)
+data class ResumeEntry(val callId: String, val tool: String, val target: String, val outcome: RunEvidenceLedger.Outcome, val evidence: String,
+    val kind: EvidenceKinds.Kind = EvidenceKinds.classify(tool))

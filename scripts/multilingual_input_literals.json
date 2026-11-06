@@ -1,4 +1,8 @@
 {
+  "app/src/advanced/java/com/omnidev/workspace/ui/settings/IntegrationsScreen.kt": {
+    "sha256": "cf8f375cf898520f9a32368190ecb5629a60a9a6650da9f4401eeccc383f6e3a",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
   "app/src/main/java/com/omnidev/workspace/data/assistant/AssistantActionPolicy.kt": {
     "sha256": "563ffc4a4722ca358ca4cc20e2332ed63169e43cb89d5b290993bef33ba284b2",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
@@ -83,6 +87,10 @@
     "sha256": "ec436b948a42a19b4dd87344aad896a00ad42720d7d2a82a409842382ce10d06",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/LauncherExecutionLedger.kt": {
+    "sha256": "4bf2d95a4387dbd72119f6171e52412d7371f32c4c03dc03ae868c16eb9a6dc2",
+    "purpose": "Functional Arabic input matching for Launcher execution intent and negation; never display prose."
+  },
   "app/src/main/java/com/omnidev/workspace/domain/engine/RunToolCatalog.kt": {
     "sha256": "264d3a2072eb22e53a317a1d944213f7f9e194d6c78bf660acbb7193f67a36af",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
@@ -99,20 +107,16 @@
     "sha256": "256d506c826cb48eb16f5728a0a727acbaa8b4362762b25bd31a7cc6db4f8696",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   },
-  "app/src/main/java/com/omnidev/workspace/ui/settings/SettingsCatalog.kt": {
-    "sha256": "326546fae5f661806d1ce238f531f205dd3f7ff5027ff3bab1bf93e75bf1d59b",
-    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
-  },
-  "app/src/advanced/java/com/omnidev/workspace/ui/settings/IntegrationsScreen.kt": {
-    "sha256": "cf8f375cf898520f9a32368190ecb5629a60a9a6650da9f4401eeccc383f6e3a",
-    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
-  },
-  "app/src/main/java/com/omnidev/workspace/domain/engine/LauncherExecutionLedger.kt": {
-    "sha256": "4bf2d95a4387dbd72119f6171e52412d7371f32c4c03dc03ae868c16eb9a6dc2",
-    "purpose": "Functional Arabic input matching for Launcher execution intent and negation; never display prose."
-  },
   "app/src/main/java/com/omnidev/workspace/domain/engine/UnfulfilledPromiseDetector.kt": {
     "sha256": "0b41f32354147eb493629da63296c00aa52979a90475088080e69aa824ad6a8c",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/planning/StructuredPlan.kt": {
+    "sha256": "ded03f56d699efdaa36bf6d29d70f4fb1bd99d23681a7eda3618b5ed5eccc39b",
+    "purpose": "Recognize explicit Arabic user constraints during planning; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/ui/settings/SettingsCatalog.kt": {
+    "sha256": "326546fae5f661806d1ce238f531f205dd3f7ff5027ff3bab1bf93e75bf1d59b",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   }
 }

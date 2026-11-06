@@ -1,5 +1,7 @@
 package com.omnidev.workspace.domain.taskstate
 
+import com.omnidev.workspace.domain.planning.*
+
 /** The single implementation of the store's rules, over any [TaskStateBackend] (Room, in-memory). */
 class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
 
@@ -23,6 +25,11 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         r
     }
 
+    override suspend fun preserveAcceptance(taskId: String, acceptance: List<String>, at: Long) = backend.atomic {
+        task(taskId)?.let { t -> updateTask(t.copy(constraintsJson = TaskResumeMetadata.withAcceptance(t.constraintsJson, acceptance), updatedAt = at)) }
+        Unit
+    }
+
     override suspend fun heartbeat(taskId: String, at: Long) = backend.atomic {
         task(taskId)?.let { updateTask(it.copy(heartbeatAt = at, updatedAt = maxOf(it.updatedAt, at))) }
         Unit
@@ -34,14 +41,40 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         Unit
     }
 
-    override suspend fun appendPlanRevision(taskId: String, steps: List<NewStep>, reason: String, at: Long, eventKey: String): PlanRevisionRecord? = backend.atomic {
+    override suspend fun appendPlanRevision(taskId: String, steps: List<NewStep>, reason: String, at: Long, eventKey: String, metadataJson: String, expectedRevision: Int?, runtimeObjective: String?): PlanRevisionRecord? = backend.atomic {
         val t = task(taskId) ?: throw TaskStateException("unknown task $taskId")
         if (hasEvent(taskId, eventKey)) return@atomic null
+        if (expectedRevision != null && t.planRevision != expectedRevision) throw TaskStateException("STALE_PLAN_REVISION")
+        val graphErrors = PlanValidator.graph(steps)
+        if (graphErrors.isNotEmpty()) throw TaskStateException(graphErrors.first().code)
+        val metadata = if (metadataJson.isBlank()) null else (PlanCodec.metadata(metadataJson)
+            ?: throw TaskStateException("INVALID_PLAN_METADATA"))
         val plans = plans(taskId)
         val revision = (plans.maxOfOrNull { it.revision } ?: 0) + 1
         val previous = plans.lastOrNull()
         val allSteps = steps(taskId)
         val previousSteps = previous?.let { p -> allSteps.filter { it.planId == p.planId } }.orEmpty()
+        if (metadata != null) {
+            if (t.status != TaskStatus.RUNNING && t.status != TaskStatus.CREATED) throw TaskStateException("TASK_NOT_PLANNABLE")
+            if (unresolvedSideEffects(taskId).isNotEmpty()) throw TaskStateException("UNRESOLVED_SIDE_EFFECT")
+            if (metadata.policies.keys != steps.map { it.key }.toSet()) throw TaskStateException("INVALID_STEP_POLICY_KEYS")
+            val proposed = StructuredPlan(metadata.objective, metadata.summary, metadata.constraints, steps.map {
+                PlannedStep(it.key, it.description, it.dependsOnKeys, it.expectedOutput, it.completionCondition, metadata.policies.getValue(it.key))
+            })
+            val priorMetadata = PlanCodec.metadata(previous?.metadataJson.orEmpty())
+            val mandatory = (priorMetadata?.constraints.orEmpty() + PlanningTrigger.constraints(t.originalRequest,
+                TaskResumeMetadata.acceptance(t.constraintsJson).orEmpty())).distinct()
+            val validation = PlanValidator.validate(proposed, mandatory)
+            if (!validation.valid) throw TaskStateException(validation.diagnostic())
+            if (validation.normalized!!.steps.map { it.key } != steps.map { it.key }) throw TaskStateException("NON_TOPOLOGICAL_PLAN")
+            val completed = previousSteps.filter { it.status == StepStatus.COMPLETED }
+            if (completed.any { old -> steps.none { TaskStateRules.carriedOver(listOf(old), it) != null } ||
+                    priorMetadata?.policies?.get(old.key)?.let { it != metadata.policies[old.key] } == true })
+                throw TaskStateException("COMPLETED_WORK_CHANGED")
+            if (previous?.metadataJson == metadataJson && previousSteps.map {
+                    NewStep(it.key, it.description, it.dependsOnKeys, it.expectedOutput, it.completionCondition)
+                } == steps) return@atomic null
+        } else if (previous?.metadataJson?.isNotBlank() == true) throw TaskStateException("STRUCTURED_METADATA_REQUIRED")
         if (previous != null) {
             savePlan(previous.copy(supersededAt = at))
             // Explicit, recorded supersession: nothing in the old revision is rewritten silently.
@@ -51,7 +84,7 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
             }
         }
         val planId = TaskStateRules.planId(taskId, revision)
-        val record = PlanRevisionRecord(planId, taskId, revision, TaskStateRules.clamp(reason, 300), at, null)
+        val record = PlanRevisionRecord(planId, taskId, revision, TaskStateRules.clamp(reason, 300), at, null, metadataJson)
         savePlan(record)
         val byKey = HashMap<String, StepStatus>()
         steps.forEachIndexed { index, s ->
@@ -62,7 +95,7 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
                 s.expectedOutput, s.completionCondition, status, if (carried != null) "carried from revision ${previous?.revision}" else "",
                 carried?.evidenceInvocationIds.orEmpty(), carried?.nonToolJustification.orEmpty(), at, at))
         }
-        updateTask(t.copy(planRevision = revision, updatedAt = at))
+        updateTask(t.copy(planRevision = revision, currentStepId = null, normalizedObjective = runtimeObjective ?: t.normalizedObjective, updatedAt = at))
         appendEvent(taskId, "plan", planId, "r${revision - 1}", "r$revision", reason, at, eventKey)
         record
     }
@@ -72,6 +105,18 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         if (hasEvent(s.taskId, eventKey)) return@atomic TransitionResult.Duplicate
         val r = TaskStateRules.stepTransition(s.status, to)
         if (r != TransitionResult.Applied) return@atomic r
+        val currentPlan = plans(s.taskId).maxByOrNull { it.revision }
+        if (currentPlan?.metadataJson?.isNotBlank() == true) {
+            if (s.planId != currentPlan.planId) return@atomic TransitionResult.Rejected("STALE_STEP")
+            val snapshot = TaskSnapshot(task(s.taskId)!!, plans(s.taskId), steps(s.taskId), cycles(s.taskId), invocations(s.taskId))
+            if (to == StepStatus.RUNNING && TaskExecutionScheduler.schedule(snapshot.currentSteps).next?.stepId != stepId)
+                return@atomic TransitionResult.Rejected("DEPENDENCIES_NOT_READY")
+            if (to == StepStatus.COMPLETED) {
+                if (s.dependsOnKeys.any { key -> snapshot.currentSteps.none { it.key == key && it.status == StepStatus.COMPLETED } })
+                    return@atomic TransitionResult.Rejected("DEPENDENCIES_NOT_READY")
+                StepEvidenceEvaluator.evaluate(snapshot, s, completion)?.let { return@atomic TransitionResult.Rejected(it) }
+            }
+        }
         if (to == StepStatus.COMPLETED) {
             TaskStateRules.completionProof(invocationStatuses(s.taskId), completion)?.let { return@atomic TransitionResult.Rejected(it) }
         }
@@ -91,6 +136,13 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
             throw TaskStateException("cannot start a cycle while task is ${t.status}")
         }
         if (hasEvent(taskId, eventKey)) cycle(TaskStateRules.cycleId(taskId, t.currentCycle))?.let { return@atomic it }
+        if (stepId != null) {
+            val active = step(stepId) ?: throw TaskStateException("UNKNOWN_ACTIVE_STEP")
+            if (active.taskId != taskId || active.planId != plans(taskId).maxByOrNull { it.revision }?.planId)
+                throw TaskStateException("STALE_ACTIVE_STEP")
+            if (TaskExecutionScheduler.schedule(steps(taskId).filter { it.planId == active.planId }).next?.stepId != stepId)
+                throw TaskStateException("DEPENDENCIES_NOT_READY")
+        }
         val seq = t.currentCycle + 1
         val c = CycleRecord(TaskStateRules.cycleId(taskId, seq), taskId, seq, t.planRevision, stepId, at, null, "", "", "[]")
         saveCycle(c)
@@ -108,6 +160,15 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
     }
 
     override suspend fun recordInvocationIntent(invocation: NewInvocation): Boolean = backend.atomic {
+        invocation.stepId?.let { id ->
+            val active = step(id) ?: throw TaskStateException("UNKNOWN_INVOCATION_STEP")
+            val cycle = cycle(invocation.cycleId) ?: throw TaskStateException("UNKNOWN_INVOCATION_CYCLE")
+            val owner = task(invocation.taskId) ?: throw TaskStateException("UNKNOWN_INVOCATION_TASK")
+            if (cycle.seq != owner.currentCycle || owner.currentStepId != id) throw TaskStateException("STALE_INVOCATION_CYCLE")
+            if (active.taskId != invocation.taskId || active.planId != plans(invocation.taskId).maxByOrNull { it.revision }?.planId ||
+                cycle.taskId != invocation.taskId || cycle.stepId != id || cycle.endedAt != null)
+                throw TaskStateException("INVALID_INVOCATION_CONTEXT")
+        }
         val inserted = insertInvocation(InvocationRecord(invocation.invocationId, invocation.callId, invocation.taskId, invocation.cycleId, invocation.stepId,
             invocation.toolName, invocation.schemaId, invocation.inputSanitized, invocation.inputHash, invocation.effect, invocation.idempotencyKey,
             invocation.attempt, invocation.retryOfInvocationId, InvocationStatus.PENDING, invocation.requestedAt, null, null, "", "", false, 0,
@@ -137,6 +198,10 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
         if (hasEvent(taskId, eventKey)) return@atomic TransitionResult.Duplicate
         val r = TaskStateRules.taskTransition(t.status, status)
         if (r != TransitionResult.Applied) return@atomic r
+        val latest = plans(taskId).maxByOrNull { it.revision }
+        if (status == TaskStatus.COMPLETED && latest?.metadataJson?.isNotBlank() == true &&
+            (steps(taskId).any { it.planId == latest.planId && it.status != StepStatus.COMPLETED } || unresolvedSideEffects(taskId).isNotEmpty()))
+            return@atomic TransitionResult.Rejected("PLAN_NOT_VERIFIED")
         // Validate every step first: a rejected proof leaves the whole finalization unapplied.
         val statuses = invocationStatuses(taskId)
         val planned = ArrayList<Pair<StepRecord, StepOutcome>>()
@@ -350,6 +415,8 @@ class TaskStateEngine(private val backend: TaskStateBackend) : TaskStateStore {
             if (task(taskId) == null) false else appendEvent(taskId, entityType, entityId, from, to,
                 TaskStateRules.clamp(reason, 300), at, eventKey)
         }
+
+    override suspend fun eventRecorded(taskId: String, eventKey: String) = backend.atomic { hasEvent(taskId, eventKey) }
 
     override suspend fun invocation(invocationId: String) = backend.atomic { invocation(invocationId) }
 

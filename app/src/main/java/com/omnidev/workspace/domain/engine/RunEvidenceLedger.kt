@@ -52,7 +52,7 @@ class RunEvidenceLedger(
     fun restore(restored: List<com.omnidev.workspace.domain.taskstate.ResumeEntry>) {
         restored.forEach { e ->
             seq += 1
-            entries += Entry(seq, e.tool, e.target, e.outcome, e.evidence, e.callId, EvidenceKinds.classify(e.tool))
+            entries += Entry(seq, e.tool, e.target, e.outcome, e.evidence, e.callId, e.kind)
         }
     }
 

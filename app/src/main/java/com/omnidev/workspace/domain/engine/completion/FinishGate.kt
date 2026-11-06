@@ -21,6 +21,7 @@ class FinishGate(
     private val identity: RunIdentity,
     private val maxRejections: Int = policy.maxRejections
 ) {
+    internal var planProblems: () -> List<String> = { emptyList() }
     var rejections = 0
         private set
     var malformed = 0
@@ -30,7 +31,7 @@ class FinishGate(
     private fun context() = VerificationContext(
         runId = identity.runId, workerId = identity.workerId, evidence = ledger.snapshot(),
         requireExecution = policy.requireExecution, taskCriteria = state.taskCriteria,
-        requireAction = policy.requireAction
+        requireAction = policy.requireAction, planProblems = planProblems()
     )
 
     fun explicit(call: ToolCall, streamedText: String): GateResult {

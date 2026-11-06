@@ -9,6 +9,9 @@ import com.omnidev.workspace.domain.engine.IntentClassifier
 import com.omnidev.workspace.domain.engine.RunEvidenceLedger
 import com.omnidev.workspace.domain.engine.SensitiveObservationRedactor
 import com.omnidev.workspace.domain.engine.ToolBatchPolicy
+import com.omnidev.workspace.domain.planning.*
+import com.omnidev.workspace.data.model.CompletionRequest
+import com.omnidev.workspace.core.policy.ConfirmationGate
 import com.omnidev.workspace.domain.taskstate.Effect
 import com.omnidev.workspace.domain.taskstate.TaskRunRecorder
 import com.omnidev.workspace.domain.taskstate.TaskResumeMetadata
@@ -37,9 +40,35 @@ class FinishRuntime private constructor(
     /** Result of a protocol step: the (possibly rewritten) response, or messages to append before another turn. */
     class Step(val response: CompletionResponse, val append: List<ChatMessage> = emptyList(), val rejected: Boolean = false)
 
-    fun beginTurn() { verdict = null; recorder?.beginTurn() }
+    private var planner: TaskPlanningCoordinator? = null
+    val sequentialPlanning: Boolean get() = planner?.active == true
+
+    fun configurePlanning(provider: suspend (CompletionRequest) -> CompletionResponse, prototype: CompletionRequest,
+        contextWindow: Int, definitions: List<ToolDefinition>, history: List<ChatMessage>, approval: ConfirmationGate?) {
+        val r = recorder ?: return
+        val capabilities = definitions.groupBy { IntentClassifier.getToolDomain(it.name) }.entries.sortedBy { it.key.name }.map {
+            "${it.key.name}: ${it.value.take(4).joinToString { tool -> tool.name }} (${it.value.size} capabilities)"
+        }
+        planner = TaskPlanningCoordinator(r.store, r.taskId, ModelStructuredPlanGenerator(prototype, provider, contextWindow, definitions.mapTo(hashSetOf()) { it.name }),
+            capabilities, history.filter { it.role == MessageRole.USER }.takeLast(2).map { PlanningPrivacy.safe(it.content).take(400) },
+            identity.acceptance, approval)
+        gate.planProblems = { planner?.pending().orEmpty() }
+    }
+
+    suspend fun beginTurn(budget: Int? = null): Int {
+        verdict = null
+        recorder?.synchronize()
+        val used = planner?.prepare(budget) ?: 0
+        recorder?.planningActive = planner?.active == true
+        recorder?.beginTurn(planner?.nextStep(), explicit = planner != null)
+        recorder?.synchronize()
+        planner?.refresh()
+        return used
+    }
     fun setGoal(goal: String) {
-        if (state.goal != goal) recorder?.replan("steering: the user changed the objective", goal)
+        if (state.goal != goal) {
+            if (planner != null) planner?.redirect(goal) else recorder?.replan("steering: the user changed the objective", goal)
+        }
         state.goal = goal
     }
 
@@ -56,11 +85,12 @@ class FinishRuntime private constructor(
     fun keepsText(): Boolean = verdict?.let { it.status != FinishStatus.COMPLETED } == true
     /** True when a verdict exists, so the stall detector must not re-judge the accepted text. */
     fun hasVerdict(): Boolean = verdict != null
-    fun inputReserveTokens(): Int = if (policy.enforce) RunState.RESERVE_TOKENS else 0
+    fun inputReserveTokens(): Int = if (policy.enforce) RunState.RESERVE_TOKENS + (if (planner?.active == true) 1_900 else 0) else 0
 
     /** finish_task is a control signal: exposed to the model, intercepted before execution. */
     fun exposed(defs: List<ToolDefinition>, reportOnly: Boolean): List<ToolDefinition> =
-        if (policy.enforce && !reportOnly && defs.isNotEmpty()) defs + FinishTool.DEFINITION else defs
+        if (policy.enforce && !reportOnly && defs.isNotEmpty()) defs + FinishTool.DEFINITION +
+            (if (planner?.active == true) TaskPlanningCoordinator.TOOLS else emptyList()) else defs
 
     /** Tool names the model may call this turn, including the control tool. */
     fun callableNames(defs: List<ToolDefinition>, reportOnly: Boolean): Set<String> =
@@ -68,12 +98,23 @@ class FinishRuntime private constructor(
 
     /** Runtime-owned Goal/Plan/Ledger/Next Action, appended fresh to every request and never stored in history. */
     fun stateMessages(iteration: Int): List<ChatMessage> =
-        if (policy.enforce && (iteration > 1 || ledger.size() > 0)) listOf(ChatMessage(MessageRole.USER, state.render())) else emptyList()
+        if (policy.enforce && (iteration > 1 || ledger.size() > 0 || planner?.active == true))
+            listOf(ChatMessage(MessageRole.USER, state.render() + "\n" + planner?.render().orEmpty())) else emptyList()
 
     /** Stabilizes tool-call ids and decides an explicit finish_task call. */
-    fun afterModel(response: CompletionResponse): Step {
+    suspend fun afterModel(response: CompletionResponse): Step {
+        planner?.refresh()
         if (response.toolCalls.isEmpty()) return Step(response)
         val stable = response.copy(toolCalls = ids.stabilize(response.toolCalls))
+        val control = stable.toolCalls.firstOrNull { it.name == TaskPlanningCoordinator.COMPLETE || it.name == TaskPlanningCoordinator.REPLAN }
+        if (control != null) {
+            val feedback = if (stable.toolCalls.size != 1) "Planning control must be called alone. Nothing executed."
+                else planner?.takeIf { it.active }?.control(control) ?: "No structured plan is active."
+            return Step(stable, listOf(ChatMessage(MessageRole.ASSISTANT, stable.content, toolCalls = stable.toolCalls),
+                ChatMessage(MessageRole.TOOL, feedback, toolResults = stable.toolCalls.map {
+                    com.omnidev.workspace.data.model.ToolCallResult(it.id, it.name, feedback)
+                })), rejected = true)
+        }
         val finishCall = (if (policy.enforce) stable.toolCalls.firstOrNull { it.name == FinishTool.NAME } else null)
             ?: return Step(stable)
         val step = FinishDispatch.explicit(gate, finishCall, stable)
@@ -124,10 +165,11 @@ class FinishRuntime private constructor(
                     effectOf = { if (ToolBatchPolicy.isReadOnly(it)) Effect.READ_ONLY else Effect.SIDE_EFFECT },
                     redact = SensitiveObservationRedactor::redact,
                     constraintsJson = TaskResumeMetadata.encode(identity, policy),
-                    resumeClaimed = identity.resumeClaimed).also { it.start(goal) }
+                    resumeClaimed = identity.resumeClaimed,
+                    deferInitialPlan = identity.resume == null && PlanningTrigger.complex(goal, identity.acceptance)).also { it.start(goal) }
             } else null
             val runtime = FinishRuntime(identity, profile, policy, ledger, state,
-                FinishGate(ledger, state, policy, identity, profile.maxFinishRejections), ToolCallIdentity(identity.runId), recorder)
+                FinishGate(ledger, state, policy, identity, profile.maxFinishRejections), ToolCallIdentity(identity.runId, identity.resume.orEmpty().map { it.callId }), recorder)
             ledger.fin = runtime
             return runtime
         }

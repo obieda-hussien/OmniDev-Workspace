@@ -7,9 +7,9 @@ import com.omnidev.workspace.data.model.ToolCall
  * are usable; blank or repeated ids (some OpenAI-compatible Gemini responses) get a runtime id. The
  * same normalized call is stored in history and used for its result, so provider pairing stays valid.
  */
-class ToolCallIdentity(runId: String) {
+class ToolCallIdentity(runId: String, historicalIds: List<String> = emptyList()) {
     private val prefix = "call_" + runId.filter { it.isLetterOrDigit() }.takeLast(8).ifBlank { "run" }
-    private val used = HashSet<String>()
+    private val used = HashSet<String>(historicalIds)
     private var counter = 0
 
     @Synchronized

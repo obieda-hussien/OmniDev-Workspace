@@ -24,7 +24,7 @@ Paths below start at `app/src/main/java/com/omnidev/workspace/`.
 | Mode decisions | `domain/engine/` | `IntentClassifier`, `AdaptiveModeRouter`, `ModeOutcomeLearner` |
 | Tools | `data/tools/`, `core/tools/` | `CompositeToolManager`, `TierToolGate`, `RepoContextTools` |
 | Code context | `data/repo/` | `RepoIndexer`, `RepoContextEngine`, `LocalCodeRetriever` |
-| Storage | `data/db/`, `data/repository/` | `OmniDevDatabase` (Room v17) and DAOs |
+| Storage | `data/db/`, `data/repository/` | `OmniDevDatabase` (Room v19) and DAOs |
 | Models and networking | `data/model/`, `data/network/`, `registry/` | Model request configuration and completions |
 | Build capabilities | `core/policy/`, `core/privileged/`, `app/src/<flavor>/` | Policies, manifest overrides and privileged execution |
 
@@ -36,7 +36,7 @@ Paths below start at `app/src/main/java/com/omnidev/workspace/`.
 
 ## Storage and evidence retrieval
 
-Room v17 stores chats, system knowledge, execution logs, memories, repository symbols, scheduled tasks and shared memory. Chat recall uses original messages and source IDs; see [recall limits](CHAT_HISTORY_RECALL.md). Code retrieval indexes a selected scope and returns local snippets with file/line references. A retrieved snippet does not prove that the rest of a file is irrelevant.
+Room v19 stores chats, system knowledge, execution logs, memories, repository symbols, scheduled tasks and shared memory. Chat recall uses original messages and source IDs; see [recall limits](CHAT_HISTORY_RECALL.md). Code retrieval indexes a selected scope and returns local snippets with file/line references. A retrieved snippet does not prove that the rest of a file is irrelevant.
 
 ## Flavors and privileged integrations
 

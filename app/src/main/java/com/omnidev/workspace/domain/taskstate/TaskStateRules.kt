@@ -40,7 +40,8 @@ object TaskStateRules {
 
     /** New revision steps inherit COMPLETED only for an identical key and description, with the old proof. */
     fun carriedOver(previous: List<StepRecord>, step: NewStep): StepRecord? =
-        previous.firstOrNull { it.key == step.key && it.description == step.description && it.status == StepStatus.COMPLETED }
+        previous.firstOrNull { it.key == step.key && it.description == step.description && it.dependsOnKeys == step.dependsOnKeys &&
+            it.expectedOutput == step.expectedOutput && it.completionCondition == step.completionCondition && it.status == StepStatus.COMPLETED }
 
     fun initialStatus(step: NewStep, byKey: Map<String, StepStatus>): StepStatus =
         if (step.dependsOnKeys.all { byKey[it] == StepStatus.COMPLETED }) StepStatus.READY else StepStatus.PENDING

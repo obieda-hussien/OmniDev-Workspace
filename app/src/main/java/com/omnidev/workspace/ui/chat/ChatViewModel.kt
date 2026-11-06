@@ -1722,6 +1722,7 @@ class ChatViewModel(
 
     private suspend fun handleAgentEvent(event: AgentEvent, sessionId: Long, runId: Long) {
         if (runId != activeRunId.get()) return
+        if (event is AgentEvent.Thinking || event is AgentEvent.ToolResult) refreshTaskRecovery()
         when (event) {
             is AgentEvent.SteeringApplied -> steeringApplied(event.revision)
             is AgentEvent.Started -> _uiState.update { it.copy(agentStatus = "Agent started...") }

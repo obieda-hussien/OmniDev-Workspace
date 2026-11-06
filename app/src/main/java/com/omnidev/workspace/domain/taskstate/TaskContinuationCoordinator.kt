@@ -1,5 +1,9 @@
 package com.omnidev.workspace.domain.taskstate
 
+import com.omnidev.workspace.domain.planning.*
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.*
+
 import com.omnidev.workspace.domain.engine.SensitiveObservationRedactor
 import com.omnidev.workspace.domain.engine.completion.RunIdentity
 import com.omnidev.workspace.domain.engine.completion.TaskKind
@@ -23,7 +27,8 @@ data class TaskRecoverySummary(
     val unresolvedInvocations: List<RecoveryInvocationSummary>,
     val decision: RecoveryDecision,
     val reasons: List<String>,
-    val canResume: Boolean
+    val canResume: Boolean,
+    val plan: TaskPlanSummary? = null
 )
 
 data class RecoveryInvocationSummary(
@@ -63,8 +68,20 @@ object TaskResumeMetadata {
         append(policy.requireExecution.toString())
         append(",\"taskKind\":\"")
         append(identity.taskKind.name)
-        append("\"}}")
+        append("\"},\"p3Acceptance\":")
+        append(Json.encodeToString(identity.acceptance.map(PlanningPrivacy::safe).take(8)))
+        append("}")
     }
+
+    fun withAcceptance(raw: String, items: List<String>): String {
+        val original = runCatching { Json.parseToJsonElement(raw).jsonObject }.getOrElse { throw TaskStateException("INVALID_RESUME_METADATA") }
+        val merged = (acceptance(raw).orEmpty() + items.map(PlanningPrivacy::safe)).distinct().take(8)
+        return JsonObject(original + ("p3Acceptance" to JsonArray(merged.map(::JsonPrimitive)))).toString()
+    }
+
+    fun acceptance(raw: String): List<String>? = runCatching {
+        (Json.parseToJsonElement(raw).jsonObject["p3Acceptance"] as? JsonArray)?.map { it.jsonPrimitive.content }?.take(8)
+    }.getOrNull()
 
     fun requireExecution(raw: String): Boolean? =
         Regex("\"requireExecution\"\\s*:\\s*(true|false|null)", RegexOption.IGNORE_CASE)
@@ -142,6 +159,12 @@ class TaskContinuationCoordinator(
                 if (instruction != null) {
                     try {
                         val revisionAt = now()
+                        if (PlanCodec.metadata(snapshot.latestPlan?.metadataJson.orEmpty()) != null) {
+                            store.setObjective(taskId, PlanningPrivacy.safe(task.normalizedObjective.ifBlank { task.originalRequest } +
+                                "\nAdditional user instruction: " + instruction), revisionAt)
+                            store.recordEvent(taskId, "planning", taskId, "SAVED", "USER_REDIRECT", "User added a resume instruction", revisionAt,
+                                "p3-resume-redirect:" + UUID.randomUUID())
+                        } else {
                         val openKeys = snapshot.currentSteps.filter { !it.status.terminal }.map { it.key }
                         val existing = snapshot.currentSteps.map { step ->
                             NewStep(step.key, step.description, step.dependsOnKeys, step.expectedOutput, step.completionCondition)
@@ -163,6 +186,7 @@ class TaskContinuationCoordinator(
                         store.setObjective(taskId,
                             (task.normalizedObjective.ifBlank { task.originalRequest } +
                                 "\nAdditional user instruction: " + instruction).take(2_000), revisionAt)
+                        }
                         snapshot = store.snapshot(taskId)
                             ?: throw TaskStateException("Task disappeared while saving the new objective.")
                         task = snapshot.task
@@ -174,8 +198,12 @@ class TaskContinuationCoordinator(
                         )
                     }
                 }
-                val criteria = snapshot.currentSteps.filter { it.key.matches(Regex("A[0-9]+")) }
+                val legacyCriteria = snapshot.currentSteps.filter { it.key.matches(Regex("A[0-9]+")) }
                     .sortedBy { it.ordinal }.map { it.description }
+                val storedCriteria = TaskResumeMetadata.acceptance(task.constraintsJson)
+                val criteria = if (PlanCodec.metadata(snapshot.latestPlan?.metadataJson.orEmpty()) != null)
+                    storedCriteria ?: legacyCriteria
+                else (storedCriteria.orEmpty() + legacyCriteria).distinct()
                 val metadata = task.constraintsJson
                 val identity = RunIdentity(
                     runId = task.taskId,
@@ -270,7 +298,8 @@ class TaskContinuationCoordinator(
             unresolvedInvocations = invocationSummaries,
             decision = decisionAndReasons.first,
             reasons = decisionAndReasons.second,
-            canResume = resumable
+            canResume = resumable,
+            plan = TaskPlanSummary.from(snapshot)
         )
     }
 
