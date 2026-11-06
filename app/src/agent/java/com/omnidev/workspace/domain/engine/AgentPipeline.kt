@@ -230,6 +230,11 @@ When improving: keep every other sentence, the structure, the language and the l
             workerPersona != null || runIdentity?.workerId != null || userMessage.contains("## Assigned Team Task"),
             permittedDefinitions.isNotEmpty(), modelId, config.enableModelProfiles, taskStateStore, userMessage).ledger
         evidenceLedger.fin.attach(coroutineContext[kotlinx.coroutines.Job])
+        evidenceLedger.fin.configurePlanning(completionProvider,
+            CompletionRequest(modelId, emptyList(), apiKey = resolvedApiKey, maxTokens = minOf(model.maxOutputTokens, 2_400),
+                targetContext = scopePath, autoRouteRole = autoRouteRole), model.contextWindow, toolDefs, conversationHistory,
+            (toolManager as? CompositeToolManager)?.confirmationGate)
+
 
         val systemPrompt = AgentPromptCompiler.compile(
             tier = model.tier,
@@ -310,7 +315,7 @@ When improving: keep every other sentence, the structure, the language and the l
         while (iteration < config.maxIterations) {
             applySteering()
             iteration++
-            evidenceLedger.fin.beginTurn()
+            totalTokensUsed += evidenceLedger.fin.beginTurn(config.tokenBudget?.minus(totalTokensUsed))
             val recoveryNote = pendingRecoveryNote
             if (recoveryNote != null) {
                 pendingRecoveryNote = null
@@ -673,7 +678,7 @@ When improving: keep every other sentence, the structure, the language and the l
             val rawResults = executeToolBatch(
                 calls = response.toolCalls,
                 scopePath = scopePath,
-                allowParallel = config.enableParallelToolExecution,
+                allowParallel = config.enableParallelToolExecution && !evidenceLedger.fin.sequentialPlanning,
                 capture = capture,
                 definitions = toolDefs,
                 runCatalog = runCatalog,
@@ -1033,9 +1038,9 @@ When improving: keep every other sentence, the structure, the language and the l
 
         val results = ValidatedToolBatchExecutor.execute(calls, definitions, allowParallel,
             authorize = { call -> toolCallEligibility?.invoke(call) ?: toolEligibility?.invoke(call.name) },
-            dispatch = { call -> executeOne(call).also { recorder?.completed(call, it.output, it.isError, it.classification) } })
+            dispatch = { call -> executeOne(call).also { recorder?.completed(call, it.output, it.isError, it.classification, it.verification) } })
         // Calls that never reached dispatch (preflight blocked) are recorded as not executed, not left PENDING.
-        calls.forEachIndexed { i, call -> results.getOrNull(i)?.let { recorder?.completed(call, it.output, it.isError, it.classification) } }
+        calls.forEachIndexed { i, call -> results.getOrNull(i)?.let { recorder?.completed(call, it.output, it.isError, it.classification, it.verification) } }
         return results
     }
 

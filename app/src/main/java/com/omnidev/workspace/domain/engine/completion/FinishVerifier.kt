@@ -58,7 +58,8 @@ data class VerificationContext(
     val requireExecution: Boolean,
     /** Task acceptance items; they are numbered A1..An in order. */
     val taskCriteria: List<String> = emptyList(),
-    val requireAction: Boolean = false
+    val requireAction: Boolean = false,
+    val planProblems: List<String> = emptyList()
 )
 
 data class Evaluation(
@@ -78,6 +79,11 @@ object FinishVerifier {
         }
 
         val results = ArrayList<CriterionResult>()
+        if (ctx.planProblems.isNotEmpty()) {
+            results += CriterionResult(AcceptanceCriterion("R5", "Structured plan steps verified", AcceptanceCriterion.Source.RUNTIME), false,
+                reason = "Unverified dependency plan")
+            problems += ctx.planProblems.take(24)
+        }
         val byId = HashMap<String, EvidenceRef>()
         ctx.evidence.forEach { ref -> byId[ref.citeId] = ref; byId["#" + ref.seq] = ref }
 

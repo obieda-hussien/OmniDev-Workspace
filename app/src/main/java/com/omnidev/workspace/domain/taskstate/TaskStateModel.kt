@@ -109,7 +109,7 @@ data class NewStep(
 
 data class PlanRevisionRecord(
     val planId: String, val taskId: String, val revision: Int, val reason: String,
-    val createdAt: Long, val supersededAt: Long?
+    val createdAt: Long, val supersededAt: Long?, val metadataJson: String = ""
 )
 
 data class StepRecord(
@@ -211,7 +211,7 @@ interface TaskStateStore {
     suspend fun setObjective(taskId: String, normalizedObjective: String, at: Long)
 
     /** Atomically supersedes the current revision and creates the next one. Returns null when [eventKey] was already applied. */
-    suspend fun appendPlanRevision(taskId: String, steps: List<NewStep>, reason: String, at: Long, eventKey: String): PlanRevisionRecord?
+    suspend fun appendPlanRevision(taskId: String, steps: List<NewStep>, reason: String, at: Long, eventKey: String, metadataJson: String = "", expectedRevision: Int? = null): PlanRevisionRecord?
     suspend fun transitionStep(stepId: String, to: StepStatus, reason: String, at: Long, eventKey: String, completion: StepCompletion? = null): TransitionResult
 
     suspend fun beginCycle(taskId: String, stepId: String?, at: Long, eventKey: String): CycleRecord
@@ -235,6 +235,7 @@ interface TaskStateStore {
     suspend fun recoverIfStale(taskId: String, cutoff: Long, liveTaskIds: Set<String>, at: Long): RecoveryOutcome?
     /** Append a bounded operational event without changing task state. */
     suspend fun recordEvent(taskId: String, entityType: String, entityId: String, from: String, to: String, reason: String, at: Long, eventKey: String): Boolean
+    suspend fun eventRecorded(taskId: String, eventKey: String): Boolean
     suspend fun invocation(invocationId: String): InvocationRecord?
     suspend fun invocations(taskId: String, limit: Int, offset: Int): List<InvocationRecord>
     suspend fun events(taskId: String, limit: Int, offset: Int): List<TransitionEvent>

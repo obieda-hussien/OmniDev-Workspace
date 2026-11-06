@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.db.entities
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -39,7 +40,8 @@ data class TaskPlanEntity(
     val revision: Int,
     val reason: String,
     val createdAt: Long,
-    val supersededAt: Long?
+    val supersededAt: Long?,
+    @ColumnInfo(defaultValue = "''") val metadataJson: String = ""
 )
 
 @Entity(

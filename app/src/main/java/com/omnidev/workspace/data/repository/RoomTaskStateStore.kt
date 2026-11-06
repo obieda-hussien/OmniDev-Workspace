@@ -38,8 +38,8 @@ private class RoomAccess(private val dao: TaskStateDao) : TaskStateAccess {
     override suspend fun insertTask(t: TaskRecord) = dao.insertTask(t.toEntity()) != -1L
     override suspend fun updateTask(t: TaskRecord) = dao.upsertTask(t.toEntity())
 
-    override suspend fun plans(taskId: String) = dao.plans(taskId).map { PlanRevisionRecord(it.planId, it.taskId, it.revision, it.reason, it.createdAt, it.supersededAt) }
-    override suspend fun savePlan(p: PlanRevisionRecord) = dao.upsertPlan(TaskPlanEntity(p.planId, p.taskId, p.revision, p.reason, p.createdAt, p.supersededAt))
+    override suspend fun plans(taskId: String) = dao.plans(taskId).map { PlanRevisionRecord(it.planId, it.taskId, it.revision, it.reason, it.createdAt, it.supersededAt, it.metadataJson) }
+    override suspend fun savePlan(p: PlanRevisionRecord) = dao.upsertPlan(TaskPlanEntity(p.planId, p.taskId, p.revision, p.reason, p.createdAt, p.supersededAt, p.metadataJson))
 
     override suspend fun steps(taskId: String) = dao.steps(taskId).map { it.toRecord() }
     override suspend fun step(stepId: String) = dao.step(stepId)?.toRecord()
