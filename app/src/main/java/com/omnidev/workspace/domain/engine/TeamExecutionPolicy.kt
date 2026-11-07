@@ -93,6 +93,8 @@ object TeamExecutionPolicy {
                     dependencies = (existing.dependencies + candidate.dependencies).distinct(),
                     needsConnectedTools = existing.needsConnectedTools || candidate.needsConnectedTools,
                     parallelSafe = existing.parallelSafe && candidate.parallelSafe,
+                    acceptance = (existing.acceptance + candidate.acceptance).distinct(),
+                    toolFree = existing.toolFree && candidate.toolFree,
                     requiredPersona = existing.requiredPersona.ifBlank { candidate.requiredPersona }
                 )
             }

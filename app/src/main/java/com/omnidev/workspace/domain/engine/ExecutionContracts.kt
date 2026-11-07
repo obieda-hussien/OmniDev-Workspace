@@ -48,13 +48,16 @@ sealed class AgentEvent {
     data class ToolExecution(
         val toolName: String,
         val arguments: Map<String, String>,
-        val iteration: Int
+        val iteration: Int,
+        val callId: String = ""
     ) : AgentEvent()
     data class ToolResult(
         val toolName: String,
         val output: String,
         val isError: Boolean,
-        val iteration: Int
+        val iteration: Int,
+        val evidence: com.omnidev.workspace.domain.engine.completion.EvidenceRef? = null,
+        val classification: String? = null
     ) : AgentEvent()
     data class TokenUsageUpdate(
         val iterationTokens: Int,

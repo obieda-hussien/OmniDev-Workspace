@@ -286,36 +286,15 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
         return ExecutionResult(final)
     }
 
+    /** A lost coordinator cannot reconstruct exact attempt ownership from a prose checkpoint. */
+    @Suppress("UNUSED_PARAMETER")
     private suspend fun executeSwarm(
         runtime: AgentRuntime,
         resumePrompt: String,
         scope: String,
         onEvent: suspend (SwarmEvent) -> Unit
-    ): ExecutionResult {
-        val orchestrator = runtime.settingsRepository.observeModelIdForRole(ModelRole.SWARM_ORCHESTRATOR).first()
-        val worker = runtime.settingsRepository.observeModelIdForRole(ModelRole.SWARM_WORKER).first()
-        var final = ""
-        var error: String? = null
-        runtime.swarmOrchestrator.execute(
-            userMessage = resumePrompt,
-            orchestratorModelId = orchestrator,
-            workerModelId = worker,
-            scopePath = scope,
-            enableDeepThinking = runtime.settingsRepository.observeDeepThinking().first(),
-            godModeEnabled = runtime.settingsRepository.observeGodMode().first(),
-            userContext = runtime.settingsRepository.observeUserPromptContext().first()
-        ).collect { event ->
-            when (event) {
-                is SwarmEvent.Completed -> final = event.summary
-                is SwarmEvent.Error -> error = event.message
-                else -> Unit
-            }
-            onEvent(event)
-        }
-        error?.let { throw IllegalStateException(it) }
-        if (final.isBlank()) throw IllegalStateException("Swarm ended without a final response.")
-        return ExecutionResult(final)
-    }
+    ): ExecutionResult = throw IllegalStateException(
+        "Team execution was interrupted. Review the saved worker observations before starting a new Team run; unfinished attempts are not automatically replayed.")
 
     private suspend fun resolveScope(runtime: AgentRuntime, run: BackgroundChatRun): String {
         if (run.scopePath.isNotBlank()) return run.scopePath

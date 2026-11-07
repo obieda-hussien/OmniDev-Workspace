@@ -94,12 +94,13 @@ object FinishVerifier {
             when {
                 ref.runId != ctx.runId || ref.workerId != ctx.workerId -> "$raw (belongs to another run)"
                 ref.outcome != Outcome.OK -> "$raw (${ref.tool} ended ${ref.outcome.name}, not OK)"
+                ref.tool == "discover_tools" -> "$raw (discovery is not execution evidence)"
                 else -> null
             }
         }
         if (invalid.isNotEmpty()) problems += "invalid evidence: " + invalid.joinToString("; ")
 
-        val ok = ctx.evidence.filter { it.outcome == Outcome.OK && it.runId == ctx.runId && it.workerId == ctx.workerId }
+        val ok = ctx.evidence.filter { it.outcome == Outcome.OK && it.runId == ctx.runId && it.workerId == ctx.workerId && it.tool != "discover_tools" }
 
         // 2. Runtime-owned baseline criteria.
         if (ctx.requireExecution) {
