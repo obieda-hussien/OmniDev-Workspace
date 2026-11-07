@@ -15,7 +15,7 @@ class RunState(
     private val requireExecution: Boolean = false
 ) {
     @Volatile var goal: String = goal
-    private val acceptance = acceptance.map { it.trim() }.filter { it.isNotBlank() }.take(8)
+    private val acceptance = acceptance.map { it.trim() }.filter { it.isNotBlank() }
     @Volatile private var declared: List<CriterionClaim> = emptyList()
     @Volatile private var lastRejection: String? = null
 

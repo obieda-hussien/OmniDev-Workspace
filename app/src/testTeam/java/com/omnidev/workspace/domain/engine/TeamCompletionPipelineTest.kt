@@ -13,7 +13,8 @@ class TeamCompletionPipelineTest {
         val paths = mutableListOf<String>()
         override fun getToolDefinitions() = listOf(
             ToolDefinition("read_file", "Read source", listOf(ToolParameter("path", "string", "Path"))),
-            ToolDefinition("write_file", "Write source", listOf(ToolParameter("path", "string", "Path"))))
+            ToolDefinition("write_file", "Write source", listOf(ToolParameter("path", "string", "Path"))),
+            ToolDefinition("run_terminal", "Run build tests", listOf(ToolParameter("command", "string", "Command"))))
         override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
             executed += name
             paths += arguments["path"].orEmpty()
@@ -84,6 +85,35 @@ class TeamCompletionPipelineTest {
         val done = team.execute("Explain Kotlin", "gpt-4o-mini", "gpt-4o-mini", "/tmp").toList().filterIsInstance<SwarmEvent.Completed>().single()
         assertTrue(done.completion!!.verified); assertEquals(0, done.completion!!.workers.single().evidenceCount)
         assertEquals("Kotlin explanation", done.summary); assertEquals(2, calls)
+    }
+
+    @Test fun `execution directive runs serially and accepts real build command proof`() = runTest {
+        val tools = Tools()
+        val team = SwarmOrchestrator(tools, completionProvider = { r -> when {
+            r.systemPrompt.orEmpty().contains("Omni Team Orchestrator") -> CompletionResponse(
+                """[{"id":"tests","description":"Run the unit tests","parallelSafe":true}]""")
+            r.messages.any { it.toolResults.isNotEmpty() } -> CompletionResponse("Unit test command completed")
+            else -> CompletionResponse("", listOf(ToolCall("test", "run_terminal", mapOf("command" to "./gradlew test"))))
+        } })
+        val events = team.execute("Run the unit tests", "gpt-4o-mini", "gpt-4o-mini", "/tmp").toList()
+        assertFalse(events.filterIsInstance<SwarmEvent.PlanCompleted>().single().tasks.single().parallelSafe)
+        assertTrue(events.filterIsInstance<SwarmEvent.Completed>().single().completion!!.verified)
+        assertEquals(listOf("run_terminal"), tools.executed)
+    }
+
+    @Test fun `serial execution task cannot complete through a successful read alone`() = runTest {
+        val tools = Tools()
+        val team = SwarmOrchestrator(tools, completionProvider = { r -> when {
+            r.systemPrompt.orEmpty().contains("Omni Team Orchestrator") -> CompletionResponse(
+                """[{"id":"tests","description":"Run the unit tests","parallelSafe":false}]""")
+            r.messages.any { it.toolResults.isNotEmpty() } -> CompletionResponse("All unit tests passed")
+            else -> CompletionResponse("", listOf(ToolCall("read", "read_file", mapOf("path" to "/tmp/tests.kt"))))
+        } })
+        val done = team.execute("Run the unit tests", "gpt-4o-mini", "gpt-4o-mini", "/tmp").toList()
+            .filterIsInstance<SwarmEvent.Completed>().single()
+        assertFalse(done.completion!!.verified)
+        assertEquals(0, done.tasksCompleted)
+        assertEquals(setOf("read_file"), tools.executed.toSet())
     }
 
     @Test fun `planner cannot claim an implementation completed through a tool free explanation`() = runTest {

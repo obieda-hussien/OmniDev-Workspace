@@ -37,7 +37,7 @@ class TeamCompletionProtocol(val runId: String, val revision: Long, private val 
         require(task.dependencies.all { receipts[it]?.accepted == true })
         require(receipts[task.id]?.accepted != true)
         val promoted = tasks.single { it.id == task.id }.parallelSafe && !task.parallelSafe
-        val kind = if (!task.toolFree && (promoted || com.omnidev.workspace.domain.engine.IntentClassifier.analyze(task.description).mutationIntent >= .16f))
+        val kind = if (!task.toolFree && (promoted || requiresAction(task.description)))
             com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION else com.omnidev.workspace.domain.engine.completion.TaskKind.ANALYSIS
         val assignment = WorkerAssignment(runId, revision, task, (active[task.id]?.attempt ?: 0) + 1, kind)
         active[task.id] = assignment
@@ -91,13 +91,20 @@ class TeamCompletionProtocol(val runId: String, val revision: Long, private val 
     }
 
     companion object {
+        // Imperative execution is distinct from reading test/build reports or researching how to run them.
+        private val executionDirective = Regex("(?i)(?:^|[|:;\\n]|\\b(?:and|then)\\s+)(?:\\s*(?:goal|steps|please|first|next|now)[:\\s]+)*\\s*(?:run|execute|compile|build|lint|benchmark|launch|invoke|test|start|stop|send|شغل|شغّل|نفذ|نفّذ|اختبر)(?![\\p{L}\\p{N}_])")
+
+        fun requiresAction(objective: String): Boolean =
+            com.omnidev.workspace.domain.engine.IntentClassifier.analyze(objective).mutationIntent >= .16f ||
+                executionDirective.containsMatchIn(objective)
+
         private val selfContained = Regex("(?i)(?<![\\p{L}\\p{N}_])(?:" +
             (com.omnidev.workspace.domain.engine.IntentClassifier.CHAT_PHRASES.map { Regex.escape(it.text) } +
                 listOf("summarize", "summarise", "synthesize", "synthesise")).joinToString("|") + ")(?![\\p{L}\\p{N}_])")
 
         fun toolFreeAllowed(objective: String): Boolean {
             val s = com.omnidev.workspace.domain.engine.IntentClassifier.analyze(objective)
-            return selfContained.containsMatchIn(objective) && s.mutationIntent < .16f &&
+            return !requiresAction(objective) && selfContained.containsMatchIn(objective) && s.mutationIntent < .16f &&
                 s.executionIntent < .34f && s.deviceIntent < .15f && s.researchIntent == 0f && s.verificationIntent < .4f
         }
 

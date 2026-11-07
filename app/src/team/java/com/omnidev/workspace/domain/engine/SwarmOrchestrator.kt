@@ -256,7 +256,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         val bounded = boundPlan(normalized, userMessage)
         val runtimeCandidate = bounded.map { task ->
             val runtime = TeamExecutionPolicy.classify(task)
-            task.copy(parallelSafe = runtime.effectiveParallelSafe,
+            task.copy(parallelSafe = runtime.effectiveParallelSafe && !TeamCompletionProtocol.requiresAction(task.description),
                 toolFree = task.toolFree && TeamCompletionProtocol.toolFreeAllowed(task.description) &&
                     (revision > 0 || !bounded.all { it.toolFree } || TeamCompletionProtocol.toolFreeAllowed(rootObjective)))
         }
@@ -289,7 +289,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         // Expose runtime truth, not planner claims, to UI/adaptive routing.
         send(SwarmEvent.PlanCompleted(runtimeTasks))
 
-        val protocol = TeamCompletionProtocol(teamRunId, revision, runtimeTasks, revision == 0L && IntentClassifier.analyze(rootObjective).mutationIntent >= .16f)
+        val protocol = TeamCompletionProtocol(teamRunId, revision, runtimeTasks, revision == 0L && TeamCompletionProtocol.requiresAction(rootObjective))
         val completed = linkedMapOf<String, String>()
         val completedToolEvidence = linkedMapOf<String, String>()
         val failed = linkedMapOf<String, String>()

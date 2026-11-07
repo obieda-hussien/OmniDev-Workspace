@@ -5,7 +5,7 @@ import com.omnidev.workspace.domain.engine.completion.*
 
 /** One runtime-created attempt. A retry, redirect or different team cannot reuse its proof. */
 data class WorkerAssignment(val teamRunId: String, val revision: Long, val task: SwarmTask, val attempt: Int,
-    val kind: TaskKind = if (IntentClassifier.analyze(task.description).mutationIntent >= .16f && !task.toolFree)
+    val kind: TaskKind = if (TeamCompletionProtocol.requiresAction(task.description) && !task.toolFree)
         TaskKind.IMPLEMENTATION else TaskKind.ANALYSIS) {
     val identity = RunIdentity(runId = "$teamRunId:r$revision:${task.id}:a$attempt", workerId = task.id,
         acceptance = task.acceptance, requireExecution = !task.toolFree,

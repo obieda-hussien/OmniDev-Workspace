@@ -151,6 +151,44 @@ class TeamCompletionProtocolTest {
         assertFalse(report.verified)
         assertTrue(report.problems.contains("ORIGINAL_OBJECTIVE_REQUIRES_VERIFIED_ACTION"))
     }
+    @Test fun `execution objectives require a real action while reading test reports does not`() {
+        for (command in listOf("./gradlew test", "./gradlew --no-daemon :app:testDebugUnitTest", "mvn test", "python3 -m pytest"))
+            assertEquals(command, EvidenceKinds.Kind.ACTION, EvidenceKinds.classify("run_terminal", mapOf("command" to command)))
+        assertEquals(EvidenceKinds.Kind.READ, EvidenceKinds.classify("run_terminal", mapOf("command" to "cat /tmp/tests.log")))
+        assertEquals(EvidenceKinds.Kind.OTHER, EvidenceKinds.classify("run_terminal", mapOf("command" to "echo './gradlew test'")))
+        for (description in listOf("Run the unit tests", "Execute the validation command", "Please compile the project", "Inspect source and then run tests", "GOAL: Build the APK", "شغل الاختبارات")) {
+            assertTrue(description, TeamCompletionProtocol.requiresAction(description))
+            val t = SwarmTask("execute", description, parallelSafe = false)
+            val p = TeamCompletionProtocol("team", 0, listOf(t), requireAction = true)
+            val r = Rig(p.begin(t)); assertEquals(TaskKind.IMPLEMENTATION, r.a.kind)
+            r.result()
+            assertTrue(r.gate.implicit("All tests passed") is GateResult.Reject)
+            r.result("command", "run_terminal", "Tests passed", args = mapOf("command" to "./gradlew test"))
+            val receipt = r.receipt(); assertTrue(receipt.accepted)
+            assertTrue(p.accept(receipt, "Observed source")); assertTrue(p.finish(emptySet(), emptySet()).verified)
+        }
+        for (description in listOf("Read test output", "Inspect build reports", "Research how to run tests")) {
+            assertFalse(description, TeamCompletionProtocol.requiresAction(description))
+            val t = SwarmTask("read", description, parallelSafe = false)
+            assertEquals(TaskKind.ANALYSIS, TeamCompletionProtocol("team", 0, listOf(t)).begin(t).kind)
+        }
+    }
+    @Test fun `all merged acceptance items survive P0 reporting and coordinator review`() {
+        val duplicates = (0..2).map { i -> task("read$i").copy(description = "Inspect source definitions",
+            acceptance = (1..3).map { "Inspect definition ${i * 3 + it}" }) }
+        val t = TeamExecutionPolicy.normalizePlan(duplicates).tasks.single()
+        assertEquals(9, t.acceptance.size)
+        val p = TeamCompletionProtocol("team", 0, listOf(t)); val r = Rig(p.begin(t)); val evidence = r.result()
+        assertEquals(t.acceptance, r.state.taskCriteria)
+        fun finish(count: Int) = r.gate.explicit(ToolCall("finish", FinishTool.NAME, mapOf(
+            "status" to "completed", "summary" to "Observed source", "criteria" to
+                (1..count).joinToString("\n") { "A$it => ${evidence.citeId}" })), "")
+        assertTrue(finish(8) is GateResult.Reject)
+        val report = (finish(9) as GateResult.Publish).report
+        assertEquals(9, report.criteria.count { it.criterion.source == AcceptanceCriterion.Source.TASK })
+        val receipt = r.observer.review(report, "Observed source"); assertTrue(receipt.accepted)
+        assertTrue(p.accept(receipt, "Observed source")); assertTrue(p.finish(emptySet(), emptySet()).verified)
+    }
     @Test fun `reports contain operational digests without user output paths or arguments`() {
         val t = task(); val p = TeamCompletionProtocol("team", 0, listOf(t)); val r = Rig(p.begin(t)); r.result()
         p.accept(r.receipt(), "Observed source"); val report = p.finish(emptySet(), emptySet())

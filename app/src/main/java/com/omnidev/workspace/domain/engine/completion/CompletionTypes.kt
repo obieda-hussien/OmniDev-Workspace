@@ -146,6 +146,9 @@ object EvidenceKinds {
     private val MUTATING_COMMAND = Regex(
         """(?is)(?:^|[;&|]\s*)(?:sudo\s+)?(?:tee|touch|mkdir|rmdir|rm|mv|cp|install|truncate|patch)\b|(?:sed|perl)\s+-i\b|\bgit\s+(?:apply|checkout|merge|cherry-pick|reset|revert|clean)\b|\b(?:write_text|write_bytes|unlink|mkdir|remove|rename|replace)\s*\(|\bopen\s*\([^)]*,\s*['"][wax]|(?<!>)>(?!>)"""
     )
+    private val BUILD_TEST_COMMAND = Regex(
+        """(?im)(?:^|[;&|]\s*)(?:\./)?(?:gradlew?|mvnw?)\s+(?:[^\s;&|]+\s+)*:?(?:[A-Za-z0-9_-]+:)*(?:test[A-Za-z0-9_]*|compile[A-Za-z0-9_]*|assemble[A-Za-z0-9_]*|build|lint[A-Za-z0-9_]*|check)(?=\s|$|[;&|])|(?:^|[;&|]\s*)(?:python[23]?\s+-m\s+)?pytest(?=\s|$|[;&|])"""
+    )
     private val READ_ONLY_COMMAND = Regex(
         """(?is)(?:^|[;&|]\s*)(?:cd\s+[^;&|]+\s*(?:&&|;)\s*)?(?:pwd|ls|find|cat|head|tail|grep|rg|stat|file|wc|git\s+(?:status|diff|log|show|branch|rev-parse))\b|\b(?:read_text|read_bytes|exists|is_file|is_dir)\s*\(|\bopen\s*\([^)]*,\s*['"]r"""
     )
@@ -182,7 +185,7 @@ object EvidenceKinds {
             .joinToString("\n") { it.value.take(20_000) }
         return when {
             MUTATING_COMMAND.containsMatchIn(command) -> Kind.MUTATION
-            SYSTEM_ACTION_COMMAND.containsMatchIn(command) -> Kind.ACTION
+            SYSTEM_ACTION_COMMAND.containsMatchIn(command) || BUILD_TEST_COMMAND.containsMatchIn(command) -> Kind.ACTION
             READ_ONLY_COMMAND.containsMatchIn(command) -> Kind.READ
             else -> Kind.OTHER
         }
