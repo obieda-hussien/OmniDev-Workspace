@@ -52,6 +52,9 @@ jobs:
       - name: Self-test Gradle failure annotations
         run: python3 scripts/test_ci_failure_annotations.py
 
+      - name: Self-test pipeline result aggregation
+        run: python3 scripts/test_ci_pipeline_summary.py
+
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
@@ -656,17 +659,13 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Write summary
-        run: |
-          {
-            echo "# Android CI #${{ github.run_number }}"
-            echo ""
-            echo "| Stage | Result |"
-            echo "|---|---|"
-            echo "| Run Quality | ${{ needs.run-quality.result }} |"
-            echo "| Lint | ${{ needs.lint.result }} |"
-            echo "| Tests | ${{ needs.tests.result }} |"
-            echo "| UI regression tests | ${{ needs.ui-instrumentation.result }} |"
-            echo "| Release APK | ${{ needs.release-apk.result }} |"
-            echo "| Private Admin Telegram | ${{ needs.admin-release-telegram.result }} |"
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Write summary and enforce stage results
+        env:
+          PIPELINE_NEEDS_JSON: ${{ toJSON(needs) }}
+          ALLOW_SKIPPED_PIPELINE: ${{ github.repository != 'obieda-hussien/OmniDev-Workspace' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+        run: python3 scripts/ci_pipeline_summary.py
