@@ -17,6 +17,9 @@ updates:
     # Core 1.19 needs API 37 and AGP 9; the current runtime baseline is API 36.
     # Toolchain major upgrades need an explicit migration and separate validation.
     ignore:
+      # OkHttp 5.5+ requires API 37; revisit with the Android toolchain migration.
+      - dependency-name: "com.squareup.okhttp3:*"
+        versions: [">=5.5"]
       - dependency-name: "androidx.core:*"
         versions: [">=1.18"]
       - dependency-name: "gradle-wrapper"
