@@ -6,6 +6,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WorkerRecoveryPlannerTest {
+    @Test fun `exhausted no progress is not replayed from scratch`() {
+        assertFalse(WorkerRecoveryPlanner.shouldRetry("WORKER_NO_PROGRESS: Worker announced work without performing it.", false, false))
+    }
     @Test fun `a plain failure is retried`() {
         assertTrue(WorkerRecoveryPlanner.shouldRetry("Worker ended without a final response.", false, false))
     }

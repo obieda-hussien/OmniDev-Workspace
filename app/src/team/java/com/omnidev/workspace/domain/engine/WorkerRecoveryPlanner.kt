@@ -14,6 +14,7 @@ internal object WorkerRecoveryPlanner {
 
     fun shouldRetry(error: String?, redirected: Boolean, requiresSerialReplan: Boolean): Boolean {
         if (error == null || redirected || requiresSerialReplan) return false
+        if (error.startsWith("WORKER_NO_PROGRESS:")) return false
         // Running out of tokens is not fixed by trying again from scratch.
         return !error.contains("token budget", ignoreCase = true) && !error.contains("budget exhausted", ignoreCase = true)
     }

@@ -10,10 +10,15 @@ object BrowserToolPolicy {
         "wait_for_network_idle", "wait_ms", "wait_for_url_change", "screenshot", "extract_links", "extract_table",
         "extract_meta", "extract_text", "extract_json"
     )
+    val allActions = liteActions + setOf(
+        "destroy", "execute_js", "get_cookies", "set_cookie", "clear_cookies", "get_local_storage",
+        "set_local_storage", "clear_local_storage", "set_user_agent", "inject_css", "inject_js_persistent",
+        "get_network_log", "set_block_domains", "set_min_readiness_score"
+    )
     val mutations = setOf("click", "type_text", "fill_form", "submit_form", "select_option", "clear_input")
     fun allowed(tier: String, action: String) = when (tier) {
         "LITE" -> action.lowercase(java.util.Locale.ROOT) in liteActions
-        "NORM", "PRO", "OEM", "ADMIN" -> true
+        "NORM", "PRO", "OEM", "ADMIN" -> action.lowercase(java.util.Locale.ROOT) in allActions
         else -> false
     }
 }

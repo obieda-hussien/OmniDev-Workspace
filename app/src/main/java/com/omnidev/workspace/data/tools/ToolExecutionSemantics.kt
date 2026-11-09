@@ -43,6 +43,15 @@ object ToolExecutionSemantics {
         val persistent: Boolean = false
     )
 
+    /** UI telemetry is not observation content and cannot turn an empty result into evidence. */
+    fun observationBody(output: String): String = output.trimStart().let {
+        if (it.startsWith(TELEMETRY_PREFIX)) it.substringAfter('\n', "") else it
+    }
+
+    fun isEmptyObservation(output: String): Boolean = observationBody(output).trim().let {
+        it.isEmpty() || it == "(no output)" || it.startsWith("NO_MATCHES")
+    }
+
     fun normalize(toolName: String, result: ToolExecutionResult): ToolExecutionResult {
         val normalized = when {
             result.isError -> {

@@ -14,6 +14,19 @@ class AutomaticToolRouterTest {
         """{"omni_operation":{"intent":"$intent","arguments":$args}}"""
     )
 
+    @Test fun `exact discovery operation accepts its optional query without semantic ambiguity`() {
+        val router = AutomaticToolRouter(RunToolCatalog(tools, "messages"))
+        val c = router.adapt(proposal("discover_tools"), emptySet()).toolCalls.single()
+        assertEquals("discover_tools", c.name); assertTrue(c.arguments.isEmpty()); assertNull(c.argumentError)
+        assertNull(ToolCallPreflight(listOf(RunToolCatalog.DISCOVER)).check(c))
+    }
+    @Test fun `exact exposed finish control reaches P0 and unexposed control cannot be invented`() {
+        val router = AutomaticToolRouter(RunToolCatalog(tools, "messages"))
+        val r = proposal("finish_task", """{"status":"blocked","summary":"No runtime"}""")
+        val c = router.adapt(r, setOf("finish_task")).toolCalls.single()
+        assertEquals("finish_task", c.name); assertNull(c.argumentError)
+        assertNotNull(router.adapt(r, emptySet()).toolCalls.single().argumentError)
+    }
     @Test fun `unique operation becomes a real proposal with unchanged arguments`() {
         val catalog = RunToolCatalog(tools, "messages")
         val call = AutomaticToolRouter(catalog).adapt(proposal("Search messages", """{"query":"Ahmed"}"""), setOf("message_lookup")).toolCalls.single()

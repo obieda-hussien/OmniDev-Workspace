@@ -73,7 +73,7 @@ class WorkerCompletionObserver(private val assignment: WorkerAssignment) {
     }
 
     companion object {
-        private val SAFE_DENIALS = setOf("TOOL_POLICY_DENIED", "TIER_DENIED", "TOOL_NOT_AVAILABLE", "TOOL_NOT_EXPOSED",
+        private val SAFE_DENIALS = setOf("TOOL_DEPENDENCY_MISSING", "TOOL_POLICY_DENIED", "TIER_DENIED", "TOOL_NOT_AVAILABLE", "TOOL_NOT_EXPOSED",
             "INVALID_TOOL_ARGUMENTS", "INVALID_TOOL_BATCH", "BATCH_PREFLIGHT_BLOCKED", "RUN_REDIRECTED")
     }
 }

@@ -198,6 +198,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             messages = listOf(ChatMessage(MessageRole.USER, userMessage)),
             systemPrompt = buildString {
                 appendLine(ORCHESTRATOR_SYSTEM_PROMPT.trimIndent())
+                appendLine(ExecutionEnvironmentContext.guidance(rootObjective))
                 appendLine(mentionFocus.prompt())
                 appendLine(focusContext)
                 appendLine(profileContext)
@@ -433,7 +434,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             }
             // A worker that only announced work (the agent loop marks this explicitly) did not do its task.
             if (taskError == null && taskResult.startsWith(WorkerRecoveryPlanner.INCOMPLETE_PREFIX)) {
-                taskError = "Worker announced work without performing it."
+                taskError = "WORKER_NO_PROGRESS: Worker announced work without performing it."
             }
             val receipt = observer.review(completionReport, taskResult)
             if (taskError == null && !receipt.accepted) {
@@ -455,7 +456,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 requiresSerialReplan = task.parallelSafe && error.startsWith("READ_ONLY_WORKER:") &&
                     TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
                 toolEvidence = toolEvidence,
-                noRetry = reviewTerminal != null || observer.unsafeToRetry,
+                noRetry = reviewTerminal != null || observer.unsafeToRetry ||
+                    completionReport?.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE,
                 receipt = receipt
             )
         }
@@ -525,18 +527,22 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 break
             }
 
-            val blocked = remaining.filter { task ->
-                task.dependencies.any { dependency -> dependency in failed || dependency in skipped }
-            }
-            blocked.forEach { task ->
-                remaining.remove(task)
-                val dependencies = task.dependencies.filter { it in failed || it in skipped }
-                val reason = "Blocked by failed/skipped dependency: $dependencies"
-                skipped[task.id] = reason
-                if (dependencies.any { it in infrastructureFailed || it in infrastructureSkipped }) {
-                    infrastructureSkipped += task.id
+            // Propagate failure through every dependent before judging readiness; a blocked chain is not a cycle.
+            while (true) {
+                val blocked = remaining.filter { task ->
+                    task.dependencies.any { dependency -> dependency in failed || dependency in skipped }
                 }
-                send(SwarmEvent.TaskSkipped(task, reason))
+                if (blocked.isEmpty()) break
+                blocked.forEach { task ->
+                    remaining.remove(task)
+                    val dependencies = task.dependencies.filter { it in failed || it in skipped }
+                    val reason = "Blocked by failed/skipped dependency: $dependencies"
+                    skipped[task.id] = reason
+                    if (dependencies.any { it in infrastructureFailed || it in infrastructureSkipped }) {
+                        infrastructureSkipped += task.id
+                    }
+                    send(SwarmEvent.TaskSkipped(task, reason))
+                }
             }
 
             val ready = remaining.filter { task ->
@@ -701,6 +707,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
     ): String = buildString {
         appendLine("## Assigned Team Task")
         appendLine(task.description)
+        appendLine(ExecutionEnvironmentContext.guidance(originalObjective))
         if (task.acceptance.isNotEmpty()) {
             appendLine("\n## Acceptance (finish_task must prove each with ledger ids: 'A1 => id1,id2')")
             task.acceptance.forEachIndexed { index, item -> appendLine("A${index + 1}. ${item.take(300)}") }

@@ -122,5 +122,9 @@
   "app/src/main/java/com/omnidev/workspace/domain/engine/teamcompletion/TeamCompletionProtocol.kt": {
     "purpose": "Functional execution-directive input matching; never display prose.",
     "sha256": "a1a22046efbdb44dd1c79cef74ee47a32685bf5a5f0996f3a5323b39ada6d76a"
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/ExecutionEnvironmentContext.kt": {
+    "sha256": "04f4f1e61e6757f07bb82275618a7885244e1baafdf62aa0b63177df1ec5f799",
+    "purpose": "Functional GitHub repository input matching; never display prose."
   }
 }

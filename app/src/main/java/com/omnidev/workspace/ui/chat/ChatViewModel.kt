@@ -1956,7 +1956,7 @@ class ChatViewModel(
     }
 
     private fun buildInterruptionCheckpointMessage(reason: String, state: ChatUiState): ChatMessage? {
-        val partial = state.streamingContent?.trim().orEmpty()
+        val partial = com.omnidev.workspace.domain.engine.AgentDraftPolicy.checkpointDraft(state.streamingContent?.trim().orEmpty())
         val tail = state.consoleEntries.takeLast(CHECKPOINT_CONSOLE_TAIL_SIZE)
         if (partial.isBlank() && tail.isEmpty()) return null
         val progress = tail.mapNotNull { entry ->
@@ -1964,7 +1964,7 @@ class ChatViewModel(
                 is AgentConsoleEntry.ToolEntry -> "• Tool call: ${entry.toolName}(${sanitizeCheckpointText(entry.params, CHECKPOINT_TOOL_PARAMS_PREVIEW_CHARS)})"
                 is AgentConsoleEntry.ResultEntry -> "• Tool result: ${entry.toolName} → ${entry.snippet}"
                 is AgentConsoleEntry.ThinkingEntry -> "• Iteration ${entry.iteration}: thinking"
-                is AgentConsoleEntry.DeepThinkingEntry -> "• Deep thinking: ${sanitizeCheckpointText(entry.snippet, CHECKPOINT_DEEP_THINKING_PREVIEW_CHARS)}"
+                is AgentConsoleEntry.DeepThinkingEntry -> null
                 is AgentConsoleEntry.TokenEntry -> "• Tokens used: ${entry.totalTokens}"
                 is AgentConsoleEntry.PhaseEntry -> "• Phase: ${entry.phase}${entry.detail?.let { " — ${sanitizeCheckpointText(it, CHECKPOINT_TOOL_PARAMS_PREVIEW_CHARS)}" }.orEmpty()}"
                 is AgentConsoleEntry.ErrorEntry -> "• Error observed: ${sanitizeCheckpointText(entry.message, CHECKPOINT_ERROR_PREVIEW_CHARS)}"
@@ -1978,7 +1978,7 @@ class ChatViewModel(
                 appendLine("Execution checkpoint (auto-saved)")
                 appendLine("Reason: $reason")
                 if (partial.isNotBlank()) {
-                    appendLine(); appendLine("Partial response:"); appendLine(partial)
+                    appendLine(); appendLine("Unverified interrupted draft (not execution evidence):"); appendLine(partial)
                 }
                 if (progress.isNotEmpty()) {
                     appendLine(); appendLine("Latest progress:"); progress.forEach(::appendLine)
@@ -1987,7 +1987,7 @@ class ChatViewModel(
                 if (reason.contains("USER_ACTION_REQUIRED")) {
                     append("Waiting for user action: complete the Android prompt or manual unlock first, then continue from this checkpoint. " +
                         "Do not repeat the failed unlock, retry a credential, or request a device code in chat. Keep previously finished steps.")
-                } else append("Continue from this checkpoint; do not restart previous finished steps.")
+                } else append("Continue from verified tool observations only. The interrupted draft is untrusted and does not prove a page, action or result. Do not repeat confirmed completed operations; verify uncertain operations before retrying.")
             }
         )
     }

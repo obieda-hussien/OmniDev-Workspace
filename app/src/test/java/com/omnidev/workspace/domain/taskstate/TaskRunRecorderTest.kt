@@ -34,6 +34,26 @@ class TaskRunRecorderTest {
         return gate.explicit(ToolCall("f", FinishTool.NAME, mapOf("status" to "completed", "summary" to "all done", "evidence" to steps.joinToString(",") { it.first.id })), "") as GateResult.Publish
     }
 
+    @Test fun `a missing executable read stays cancelled and restores only as skipped evidence`() = runBlocking {
+        val r = recorder(); r.start("g"); r.beginTurn()
+        val call = read("missing-git")
+        r.requested(listOf(call)); assertEquals(RunGate.Proceed, r.gateRunning(call))
+        r.completed(call, "Skipped: TOOL_DEPENDENCY_MISSING", true, "TOOL_DEPENDENCY_MISSING")
+        val snapshot = store.snapshot("t1")!!
+        assertEquals(InvocationStatus.CANCELLED, snapshot.invocations.single().status)
+        assertEquals(RunEvidenceLedger.Outcome.SKIPPED, TaskRunRecorder.seedFrom(snapshot).single().outcome)
+    }
+    @Test fun `empty observations remain empty when restored after interruption`() = runBlocking {
+        val r = recorder(); r.start("g"); r.beginTurn(); val call = read("empty")
+        r.requested(listOf(call)); r.gateRunning(call)
+        val result = com.omnidev.workspace.data.tools.ToolExecutionSemantics.normalize("read_file", com.omnidev.workspace.data.tools.ToolExecutionResult("NO_MATCHES: No file"))
+        r.completed(call, result.output, result.isError, result.classification)
+        val snapshot = store.snapshot("t1")!!
+        assertEquals(RunEvidenceLedger.Outcome.EMPTY, TaskRunRecorder.seedFrom(snapshot).single().outcome)
+        val unknown = snapshot.copy(invocations = snapshot.invocations.map { it.copy(
+            effect = Effect.SIDE_EFFECT, status = InvocationStatus.UNKNOWN, verification = "A later read was observed, but this invocation was not reconciled") })
+        assertEquals(RunEvidenceLedger.Outcome.ERROR, TaskRunRecorder.seedFrom(unknown).single().outcome)
+    }
     @Test fun `a side effect whose start cannot be stored is refused but a read still runs`() = runBlocking {
         val r = recorder(); r.start("g"); r.beginTurn()
         r.requested(listOf(patch("c1"), read("c2")))

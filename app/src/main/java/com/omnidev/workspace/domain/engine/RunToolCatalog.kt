@@ -86,12 +86,17 @@ class RunToolCatalog(
         add(demanded.toList().asReversed().mapNotNull { name -> catalog.firstOrNull { it.name == name } }, ToolSurfaceSource.DISCOVERY)
         add(catalog.filter { it.name == focus?.verificationTool }, ToolSurfaceSource.VERIFICATION)
         add(catalog.filter { it.name in mentionedToolNames }.sortedBy { it.name }, ToolSurfaceSource.MENTION)
+        add(ExecutionEnvironmentContext.priorityNames(currentObjective, observation).mapNotNull { name ->
+            catalog.firstOrNull { it.name == name }
+        }, ToolSurfaceSource.OBJECTIVE)
         val step = focus
         if (step != null) add(search(step.query.take(2_000), INITIAL_SIZE, focusedDomains = step.domains), ToolSurfaceSource.ACTIVE_STEP)
         if (!initial || mentionedToolNames.isEmpty()) {
             // Preferences are hints, never permissions. Keep the old initial mention-only behavior.
             add(catalog.filter { it.name in preferences }.sortedBy { it.name }.take(8), ToolSurfaceSource.PREFERENCE)
-            add(search(currentObjective, if (step == null) INITIAL_SIZE else SEARCH_SIZE), ToolSurfaceSource.OBJECTIVE)
+            // Remote inspection starts with a narrow surface; other permitted tools remain loadable on demand.
+            val objectiveLimit = if (step == null && ExecutionEnvironmentContext.remoteRepository(currentObjective) == null) INITIAL_SIZE else SEARCH_SIZE
+            add(search(currentObjective, objectiveLimit), ToolSurfaceSource.OBJECTIVE)
         }
         if (!observation.isNullOrBlank()) add(search(observation.take(800), 2, lexicalOnly = true), ToolSurfaceSource.OBSERVATION)
         selection = ToolSurfaceSelector.select(candidates, budget)

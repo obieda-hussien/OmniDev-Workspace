@@ -610,7 +610,7 @@ ACTIONS:
     set_min_readiness_score  - Override the minimum score threshold (0.0-1.0)
 """.trimIndent(),
             parameters = listOf(
-                ToolParameter("action", "string", "Action to perform (see description)", true),
+                ToolParameter("action", "string", "Exact supported action. Use get_dom for page structure or screenshot for an image; snapshot is not supported.", true, allowedValues = BrowserToolPolicy.allActions.sorted()),
                 ToolParameter("url", "string", "URL to navigate to", false),
                 ToolParameter("session_id", "string", "Session ID (uses active session if omitted)", false),
                 ToolParameter("label", "string", "Label for new session", false),
@@ -645,6 +645,8 @@ ACTIONS:
     private var blockedDomains: Set<String> = DEFAULT_BLOCKED_DOMAINS
 
     suspend fun execute(action: String, args: Map<String, String>): ToolExecutionResult {
+        if (action.trim().lowercase(java.util.Locale.ROOT) !in BrowserToolPolicy.allActions)
+            return ToolExecutionResult("INVALID_TOOL_ARGUMENTS: Unsupported browser action. Use get_dom or screenshot after reading the advertised schema. No action executed.", true, classification = "INVALID_TOOL_ARGUMENTS")
         if (!BrowserToolPolicy.allowed(com.omnidev.workspace.BuildConfig.TIER, action.trim()))
             return ToolExecutionResult("Browser action is not included in this build.", true, classification = "TIER_DENIED")
         restoreSessions()

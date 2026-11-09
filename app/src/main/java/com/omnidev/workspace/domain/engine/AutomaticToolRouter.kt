@@ -42,6 +42,15 @@ class AutomaticToolRouter(private val catalog: RunToolCatalog) {
             return rejected("Operation needs only a concrete nonempty intent (up to 800 characters) and arguments object.")
         val decoded = ToolArgumentCodec.decode(operation["arguments"])
         decoded.error?.let { return rejected(it) }
+        // Discovery is a runtime control, intentionally absent from the ordinary capability index.
+        // Exact exposed controls must not be sent through semantic matching.
+        if (intent.content == RunToolCatalog.DISCOVER.name || intent.content in exposedNames &&
+            intent.content in setOf(com.omnidev.workspace.domain.engine.completion.FinishTool.NAME,
+                com.omnidev.workspace.domain.planning.TaskPlanningCoordinator.COMPLETE,
+                com.omnidev.workspace.domain.planning.TaskPlanningCoordinator.REPLAN)) {
+            return response.copy(content = "", toolCalls = listOf(ToolCall(
+                "operation_${UUID.randomUUID()}", intent.content, decoded.arguments, textProtocol = true)))
+        }
         val match = catalog.matchOperation(intent.content)
         catalog.loadCandidates(match.candidates)
         val tool = match.tool ?: run {
