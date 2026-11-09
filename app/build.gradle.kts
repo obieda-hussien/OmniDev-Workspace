@@ -430,7 +430,7 @@ dependencies {
     implementation("com.github.obieda-hussien.OmniLinkSDK:omni-link-transport:v3.0.0")
 
     implementation("androidx.webkit:webkit:1.17.0")
-    listOf("norm", "pro", "oem", "admin").forEach { add("${it}Implementation", "org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r") }
+    listOf("norm", "pro", "oem", "admin").forEach { add("${it}Implementation", "org.eclipse.jgit:org.eclipse.jgit:7.8.1.202611041320-r") }
     // Direct offline PCM recognition; no Android/Google SpeechRecognizer startup sounds.
     implementation("com.alphacephei:vosk-android:0.3.75@aar")
     implementation("net.java.dev.jna:jna:5.18.1@aar")
