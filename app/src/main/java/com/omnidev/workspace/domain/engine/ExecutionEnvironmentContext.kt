@@ -19,7 +19,8 @@ object ExecutionEnvironmentContext {
 
     fun missingGit(observation: String?): Boolean {
         val text = observation.orEmpty().lowercase()
-        return "git" in text && ("not found" in text || "inaccessible" in text) &&
+        return "git" in text && ("not found" in text || "inaccessible" in text ||
+            "tool_dependency_missing" in text && "git is unavailable" in text) &&
             ("127" in text || "git:" in text)
     }
 

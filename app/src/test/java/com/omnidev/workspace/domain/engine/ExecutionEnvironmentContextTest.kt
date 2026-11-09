@@ -24,6 +24,17 @@ class ExecutionEnvironmentContextTest {
         assertFalse(RunToolCatalog(unrelated, objective).isPermitted("github_manager"))
         assertTrue(ExecutionEnvironmentContext.guidance(objective).contains("not a verified checkout"))
     }
+    @Test fun `normalized missing git output activates local recovery and prioritizes developer tools`() {
+        val result = com.omnidev.workspace.data.tools.MissingGitCapability.classify("git status", 127, "", "/system/bin/sh: git: not found")!!
+        val observation = "run_terminal failed: " + result.output
+        assertTrue(ExecutionEnvironmentContext.missingGit(observation))
+        assertTrue(ExecutionEnvironmentContext.guidance("Inspect local project", observation).contains("no git executable"))
+        val definitions = (1..80).map { ToolDefinition("noise_$it", "local project inspection") } +
+            listOf(ToolDefinition("git_manager", "Repository operations"), ToolDefinition("agent_runtime", "Developer environment"))
+        val c = RunToolCatalog(definitions, "Inspect local project", budget = ToolSurfaceBudget(4, 2_500))
+        c.prepare("Inspect local project", observation)
+        assertEquals(listOf("git_manager", "agent_runtime"), c.definitions().drop(1).take(2).map { it.name })
+    }
     @Test fun `missing git points at developer capabilities rather than root or an absent repository`() {
         val observation = "run_terminal failed: exit=127 /system/bin/sh: git: inaccessible or not found"
         assertTrue(ExecutionEnvironmentContext.missingGit(observation))
