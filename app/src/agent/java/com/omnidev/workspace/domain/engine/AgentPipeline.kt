@@ -364,7 +364,7 @@ When improving: keep every other sentence, the structure, the language and the l
                 taskSignals, model.maxOutputTokens,
                 remainingAtStart?.coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE)
             )
-            val plan = IterationPlan.compute(systemPrompt, runtimeBackends, toolDefs,
+            val plan = IterationPlan.compute(systemPrompt + "\n" + ExecutionEnvironmentContext.guidance(routingContext, lastToolObservation), runtimeBackends, toolDefs,
                 evidenceLedger.fin.exposed(toolDefs, runtimeBackends.reportOnly), nativeTools, model,
                 desiredOutputBudget, config.contextWindowBuffer, evidenceLedger.fin.inputReserveTokens())
             if (plan.inputBudget <= 0) {
@@ -623,7 +623,7 @@ When improving: keep every other sentence, the structure, the language and the l
                         "Learned a draft: ${draft.name}. Review it in Agent Skills to enable local replay."))
                 }
                 if (finalContent != messages.last().content) messages[messages.lastIndex] = messages.last().copy(content = finalContent)
-                phase(AgentExecutionPhase.REPORT, if (runtimeBackends.hasBlocks()) "Reporting completed work and runtime limitation" else "Publishing verified result")
+                phase(AgentExecutionPhase.REPORT, evidenceLedger.fin.reportDetail(runtimeBackends.hasBlocks()))
                 val finalOutcome = evidenceLedger.fin.episodeOutcome(runtimeBackends.hasBlocks())
                 brain?.onTaskEnd(finalOutcome, finalContent.take(500))
                 send(
@@ -842,8 +842,7 @@ When improving: keep every other sentence, the structure, the language and the l
                 output = SensitiveObservationRedactor.redact(videoSample?.observation ?: result.output)
             )
             lastObservation = "${call.name} ${if (modelSafe.isError) "failed" else "returned"}: " +
-                SensitiveObservationRedactor.redact(modelSafe.output.lineSequence().firstOrNull().orEmpty())
-                    .take(160)
+                modelSafe.output.replace(Regex("\\s+"), " ").take(600)
             modelSafeResults += modelSafe
             toolResults += ToolCallResult(call.id, call.name, modelSafe.output, modelSafe.isError)
             evidenceLedger.record(call, toolResults.last())
@@ -1166,9 +1165,10 @@ When improving: keep every other sentence, the structure, the language and the l
         while (true) {
             val callStarted = System.currentTimeMillis()
             try {
+                val draftStream = AgentDraftStream()
                 val chunkHandler: suspend (String) -> Unit = {
                     emitted = true
-                    onStreamChunk(it)
+                    draftStream.accept(it).takeIf(String::isNotEmpty)?.let { visible -> onStreamChunk(visible) }
                 }
                 val managedRequest = request.copy(retryManagedByCaller = true)
                 val streamRequest = managedRequest.copy(

@@ -34,6 +34,15 @@ class TaskRunRecorderTest {
         return gate.explicit(ToolCall("f", FinishTool.NAME, mapOf("status" to "completed", "summary" to "all done", "evidence" to steps.joinToString(",") { it.first.id })), "") as GateResult.Publish
     }
 
+    @Test fun `a missing executable read stays cancelled and restores only as skipped evidence`() = runBlocking {
+        val r = recorder(); r.start("g"); r.beginTurn()
+        val call = read("missing-git")
+        r.requested(listOf(call)); assertEquals(RunGate.Proceed, r.gateRunning(call))
+        r.completed(call, "Skipped: TOOL_DEPENDENCY_MISSING", true, "TOOL_DEPENDENCY_MISSING")
+        val snapshot = store.snapshot("t1")!!
+        assertEquals(InvocationStatus.CANCELLED, snapshot.invocations.single().status)
+        assertEquals(RunEvidenceLedger.Outcome.SKIPPED, TaskRunRecorder.seedFrom(snapshot).single().outcome)
+    }
     @Test fun `a side effect whose start cannot be stored is refused but a read still runs`() = runBlocking {
         val r = recorder(); r.start("g"); r.beginTurn()
         r.requested(listOf(patch("c1"), read("c2")))

@@ -86,6 +86,9 @@ class RunToolCatalog(
         add(demanded.toList().asReversed().mapNotNull { name -> catalog.firstOrNull { it.name == name } }, ToolSurfaceSource.DISCOVERY)
         add(catalog.filter { it.name == focus?.verificationTool }, ToolSurfaceSource.VERIFICATION)
         add(catalog.filter { it.name in mentionedToolNames }.sortedBy { it.name }, ToolSurfaceSource.MENTION)
+        add(ExecutionEnvironmentContext.priorityNames(currentObjective, observation).mapNotNull { name ->
+            catalog.firstOrNull { it.name == name }
+        }, ToolSurfaceSource.OBJECTIVE)
         val step = focus
         if (step != null) add(search(step.query.take(2_000), INITIAL_SIZE, focusedDomains = step.domains), ToolSurfaceSource.ACTIVE_STEP)
         if (!initial || mentionedToolNames.isEmpty()) {
