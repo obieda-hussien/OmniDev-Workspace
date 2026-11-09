@@ -1913,9 +1913,9 @@ class ChatViewModel(
             is SwarmEvent.Completed -> {
                 steeringSaveJob?.join()
                 val message = ChatMessage(MessageRole.ASSISTANT, event.summary)
-                val console = _uiState.value.consoleEntries
+                val console = _uiState.value.consoleEntries + teamCompletionEntries(event.completion)
                 chatRepository?.saveMessage(sessionId, message, console)
-                chatRepository?.updateSessionRunStatus(sessionId, STATUS_COMPLETED)
+                chatRepository?.updateSessionRunStatus(sessionId, event.completion?.sessionStatus ?: STATUS_INTERRUPTED)
                 if (runId != activeRunId.get()) return
                 _uiState.update {
                     it.copy(
@@ -1925,7 +1925,7 @@ class ChatViewModel(
                         isProcessing = false, canSteer = false,
                         agentStatus = null,
                         streamingContent = null,
-                        consoleEntries = it.consoleEntries + AgentConsoleEntry.ReplyEntry()
+                        consoleEntries = console + AgentConsoleEntry.ReplyEntry()
                     )
                 }
             }
