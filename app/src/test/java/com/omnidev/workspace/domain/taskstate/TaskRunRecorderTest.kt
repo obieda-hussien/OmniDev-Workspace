@@ -43,6 +43,13 @@ class TaskRunRecorderTest {
         assertEquals(InvocationStatus.CANCELLED, snapshot.invocations.single().status)
         assertEquals(RunEvidenceLedger.Outcome.SKIPPED, TaskRunRecorder.seedFrom(snapshot).single().outcome)
     }
+    @Test fun `empty observations remain empty when restored after interruption`() = runBlocking {
+        val r = recorder(); r.start("g"); r.beginTurn(); val call = read("empty")
+        r.requested(listOf(call)); r.gateRunning(call)
+        val result = com.omnidev.workspace.data.tools.ToolExecutionSemantics.normalize("read_file", com.omnidev.workspace.data.tools.ToolExecutionResult("NO_MATCHES: No file"))
+        r.completed(call, result.output, result.isError, result.classification)
+        assertEquals(RunEvidenceLedger.Outcome.EMPTY, TaskRunRecorder.seedFrom(store.snapshot("t1")!!).single().outcome)
+    }
     @Test fun `a side effect whose start cannot be stored is refused but a read still runs`() = runBlocking {
         val r = recorder(); r.start("g"); r.beginTurn()
         r.requested(listOf(patch("c1"), read("c2")))

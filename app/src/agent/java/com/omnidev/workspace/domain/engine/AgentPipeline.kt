@@ -845,7 +845,7 @@ When improving: keep every other sentence, the structure, the language and the l
                 modelSafe.output.replace(Regex("\\s+"), " ").take(600)
             modelSafeResults += modelSafe
             toolResults += ToolCallResult(call.id, call.name, modelSafe.output, modelSafe.isError)
-            evidenceLedger.record(call, toolResults.last())
+            evidenceLedger.record(call, toolResults.last(), modelSafe.classification)
             onEvent(AgentEvent.ToolResult(call.name, modelSafe.output, modelSafe.isError, iteration,
                 evidenceLedger.snapshot().last(), modelSafe.classification))
             brain?.onToolExecutionEnd(

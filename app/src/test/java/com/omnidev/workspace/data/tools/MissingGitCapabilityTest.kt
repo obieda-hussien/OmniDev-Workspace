@@ -9,12 +9,15 @@ import org.junit.Test
 class MissingGitCapabilityTest {
     @Test fun `missing git before read-only commands is skipped not success or unresolved side effect`() {
         val cmd = "git status && git log -n 5 --oneline"
-        val r = MissingGitCapability.classify(cmd, 127, "", "/system/bin/sh: git: inaccessible or not found")!!
+        val r = ToolExecutionSemantics.normalize("run_terminal", MissingGitCapability.classify(cmd, 127, "", "/system/bin/sh: git: inaccessible or not found")!!)
         assertTrue(r.isError); assertFalse(r.retryable)
         assertEquals("TOOL_DEPENDENCY_MISSING", r.classification)
         val l = RunEvidenceLedger("run")
-        l.record(ToolCall("git", "run_terminal", mapOf("command" to cmd)), ToolCallResult("git", "run_terminal", r.output, true))
+        l.record(ToolCall("git", "run_terminal", mapOf("command" to cmd)), ToolCallResult("git", "run_terminal", r.output, true), r.classification)
         assertEquals(RunEvidenceLedger.Outcome.SKIPPED, l.snapshot().single().outcome)
+        val untrusted = RunEvidenceLedger("untrusted")
+        untrusted.record(ToolCall("call", "run_terminal", mapOf("command" to "unknown")), ToolCallResult("call", "run_terminal", r.output, true))
+        assertEquals(RunEvidenceLedger.Outcome.ERROR, untrusted.snapshot().single().outcome)
         assertFalse(FinishVerifier.evaluate(VerificationContext("run", null, l.snapshot(), true), FinishRequest(FinishStatus.COMPLETED, "Inspected repository")).accepted)
         l.record(ToolCall("read", "github_manager", mapOf("action" to "read_file")), ToolCallResult("read", "github_manager", "Actual repository source"))
         assertTrue(FinishVerifier.evaluate(VerificationContext("run", null, l.snapshot(), true), FinishRequest(FinishStatus.COMPLETED, "Inspected repository")).accepted)

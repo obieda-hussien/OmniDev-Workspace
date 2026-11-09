@@ -9,6 +9,18 @@ class RunEvidenceLedgerTest {
     private fun record(ledger: RunEvidenceLedger, id: String, tool: String, args: Map<String, String>, output: String, error: Boolean = false) =
         ledger.record(ToolCall(id, tool, args), ToolCallResult(id, tool, output, error))
 
+    @Test fun `runtime outcome headers do not promote empty or no matches observations to success`() {
+        val l = RunEvidenceLedger("empty")
+        for ((index, body) in listOf("", "(no output)", "NO_MATCHES: Nothing found").withIndex()) {
+            val r = com.omnidev.workspace.data.tools.ToolExecutionSemantics.normalize("find_files",
+                com.omnidev.workspace.data.tools.ToolExecutionResult(body))
+            record(l, "$index", "find_files", emptyMap(), r.output)
+        }
+        assertTrue(l.snapshot().all { it.outcome == RunEvidenceLedger.Outcome.EMPTY })
+        assertFalse(com.omnidev.workspace.domain.engine.completion.FinishVerifier.evaluate(
+            com.omnidev.workspace.domain.engine.completion.VerificationContext("empty", null, l.snapshot(), true),
+            com.omnidev.workspace.domain.engine.completion.FinishRequest(com.omnidev.workspace.domain.engine.completion.FinishStatus.COMPLETED, "Found source files")).accepted)
+    }
     @Test fun `empty find output is recorded as EMPTY not success`() {
         val ledger = RunEvidenceLedger()
         record(ledger, "1", "find_files", mapOf("directory" to "/a", "name_pattern" to "*.kt"), "(no output)")

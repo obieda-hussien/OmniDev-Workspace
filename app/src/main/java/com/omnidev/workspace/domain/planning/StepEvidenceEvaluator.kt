@@ -13,7 +13,7 @@ object StepEvidenceEvaluator {
         if (snapshot.invocations.any { it.effect == Effect.SIDE_EFFECT && !it.status.final }) return "UNRESOLVED_SIDE_EFFECT"
         val owned = snapshot.invocations.filter { it.stepId == step.stepId }
         val cited = ids.map { id -> owned.firstOrNull { it.invocationId == id } ?: return "UNATTRIBUTED_STEP_EVIDENCE" }
-        if (cited.any { it.status != InvocationStatus.SUCCEEDED || it.isError || it.resultSummary.isBlank() }) return "UNSUCCESSFUL_STEP_EVIDENCE"
+        if (cited.any { it.status != InvocationStatus.SUCCEEDED || it.isError || com.omnidev.workspace.data.tools.ToolExecutionSemantics.isEmptyObservation(it.resultSummary) }) return "UNSUCCESSFUL_STEP_EVIDENCE"
         val policy = PlanCodec.metadata(snapshot.latestPlan?.metadataJson.orEmpty())?.policies?.get(step.key) ?: StepPolicy()
         val refs = owned.map { inv ->
             val args = arguments(inv)
@@ -22,6 +22,8 @@ object StepEvidenceEvaluator {
             EvidenceRef(inv.invocationId, inv.seq.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), inv.toolName,
                 target?.let { "path=$it" }.orEmpty(),
                 when {
+                    inv.status == InvocationStatus.SUCCEEDED && !inv.isError &&
+                        com.omnidev.workspace.data.tools.ToolExecutionSemantics.isEmptyObservation(inv.resultSummary) -> RunEvidenceLedger.Outcome.EMPTY
                     inv.status == InvocationStatus.SUCCEEDED && !inv.isError && inv.resultSummary.isNotBlank() -> RunEvidenceLedger.Outcome.OK
                     inv.status == InvocationStatus.FAILED || inv.status == InvocationStatus.UNKNOWN -> RunEvidenceLedger.Outcome.ERROR
                     else -> RunEvidenceLedger.Outcome.SKIPPED

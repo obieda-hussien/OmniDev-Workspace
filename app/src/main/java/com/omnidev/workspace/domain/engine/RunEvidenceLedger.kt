@@ -57,10 +57,11 @@ class RunEvidenceLedger(
     }
 
     @Synchronized
-    fun record(call: ToolCall, result: ToolCallResult) {
+    fun record(call: ToolCall, result: ToolCallResult, classification: String? = null) {
         val output = result.output
         val trimmed = output.trim()
         val wasNotExecuted = result.isError && (
+            classification == "TOOL_DEPENDENCY_MISSING" ||
             trimmed.startsWith("Skipped:", ignoreCase = true) ||
                 trimmed.startsWith("Skipped retry", ignoreCase = true) ||
                 listOf(
@@ -74,7 +75,7 @@ class RunEvidenceLedger(
         val outcome = when {
             wasNotExecuted -> Outcome.SKIPPED
             result.isError -> Outcome.ERROR
-            trimmed.isEmpty() || trimmed == "(no output)" || trimmed.startsWith("NO_MATCHES") -> Outcome.EMPTY
+            com.omnidev.workspace.data.tools.ToolExecutionSemantics.isEmptyObservation(output) -> Outcome.EMPTY
             else -> Outcome.OK
         }
         seq += 1
