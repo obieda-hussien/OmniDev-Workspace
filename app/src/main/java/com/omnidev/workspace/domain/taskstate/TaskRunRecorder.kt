@@ -355,8 +355,11 @@ class TaskRunRecorder(
         /** Evidence entries that a resumed run restores into the P0 ledger. Only SUCCEEDED counts as success. */
         fun seedFrom(snapshot: TaskSnapshot): List<ResumeEntry> = snapshot.invocations.map { inv ->
             val outcome = when {
+                // P2 may reconcile this exact operation using separately persisted verification even
+                // when its original tool response was lost. Unresolved statuses still remain ERROR.
                 inv.status == InvocationStatus.SUCCEEDED && !inv.isError &&
-                    com.omnidev.workspace.data.tools.ToolExecutionSemantics.isEmptyObservation(inv.resultSummary) -> RunEvidenceLedger.Outcome.EMPTY
+                    com.omnidev.workspace.data.tools.ToolExecutionSemantics.isEmptyObservation(inv.resultSummary) &&
+                    com.omnidev.workspace.data.tools.ToolExecutionSemantics.isEmptyObservation(inv.verification) -> RunEvidenceLedger.Outcome.EMPTY
                 inv.status == InvocationStatus.SUCCEEDED && !inv.isError -> RunEvidenceLedger.Outcome.OK
                 inv.status == InvocationStatus.FAILED || inv.status == InvocationStatus.UNKNOWN ||
                     (inv.status == InvocationStatus.INTERRUPTED && inv.effect == Effect.SIDE_EFFECT) -> RunEvidenceLedger.Outcome.ERROR

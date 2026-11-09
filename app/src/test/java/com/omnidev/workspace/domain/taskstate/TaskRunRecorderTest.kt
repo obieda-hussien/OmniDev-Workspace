@@ -48,7 +48,11 @@ class TaskRunRecorderTest {
         r.requested(listOf(call)); r.gateRunning(call)
         val result = com.omnidev.workspace.data.tools.ToolExecutionSemantics.normalize("read_file", com.omnidev.workspace.data.tools.ToolExecutionResult("NO_MATCHES: No file"))
         r.completed(call, result.output, result.isError, result.classification)
-        assertEquals(RunEvidenceLedger.Outcome.EMPTY, TaskRunRecorder.seedFrom(store.snapshot("t1")!!).single().outcome)
+        val snapshot = store.snapshot("t1")!!
+        assertEquals(RunEvidenceLedger.Outcome.EMPTY, TaskRunRecorder.seedFrom(snapshot).single().outcome)
+        val unknown = snapshot.copy(invocations = snapshot.invocations.map { it.copy(
+            effect = Effect.SIDE_EFFECT, status = InvocationStatus.UNKNOWN, verification = "A later read was observed, but this invocation was not reconciled") })
+        assertEquals(RunEvidenceLedger.Outcome.ERROR, TaskRunRecorder.seedFrom(unknown).single().outcome)
     }
     @Test fun `a side effect whose start cannot be stored is refused but a read still runs`() = runBlocking {
         val r = recorder(); r.start("g"); r.beginTurn()
