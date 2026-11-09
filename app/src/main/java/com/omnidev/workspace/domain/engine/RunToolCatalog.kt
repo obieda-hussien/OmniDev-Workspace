@@ -94,7 +94,9 @@ class RunToolCatalog(
         if (!initial || mentionedToolNames.isEmpty()) {
             // Preferences are hints, never permissions. Keep the old initial mention-only behavior.
             add(catalog.filter { it.name in preferences }.sortedBy { it.name }.take(8), ToolSurfaceSource.PREFERENCE)
-            add(search(currentObjective, if (step == null) INITIAL_SIZE else SEARCH_SIZE), ToolSurfaceSource.OBJECTIVE)
+            // Remote inspection starts with a narrow surface; other permitted tools remain loadable on demand.
+            val objectiveLimit = if (step == null && ExecutionEnvironmentContext.remoteRepository(currentObjective) == null) INITIAL_SIZE else SEARCH_SIZE
+            add(search(currentObjective, objectiveLimit), ToolSurfaceSource.OBJECTIVE)
         }
         if (!observation.isNullOrBlank()) add(search(observation.take(800), 2, lexicalOnly = true), ToolSurfaceSource.OBSERVATION)
         selection = ToolSurfaceSelector.select(candidates, budget)

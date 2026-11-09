@@ -21,6 +21,9 @@ class ExecutionEnvironmentContextTest {
         val c = RunToolCatalog(unrelated + gh, objective, budget = ToolSurfaceBudget(4, 2_500))
         assertTrue(c.definitions().any { it.name == gh.name })
         assertTrue(c.definitions().size <= 5)
+        val defaultSurface = RunToolCatalog(unrelated + gh, objective)
+        assertTrue(defaultSurface.definitions().size <= 8)
+        assertTrue(defaultSurface.ensureLoaded("shell_90"))
         assertFalse(RunToolCatalog(unrelated, objective).isPermitted("github_manager"))
         assertTrue(ExecutionEnvironmentContext.guidance(objective).contains("not a verified checkout"))
     }
