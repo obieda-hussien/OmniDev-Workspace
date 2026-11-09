@@ -26,7 +26,7 @@ browser = "1.10.0"
 jsoup = "1.23.2"
 
 # Additional AI agent dependencies.
-okhttp = "4.12.0"
+okhttp = "5.5.1"
 work = "2.12.0"
 securityCrypto = "1.1.0"
 orgJson = "20260814"
