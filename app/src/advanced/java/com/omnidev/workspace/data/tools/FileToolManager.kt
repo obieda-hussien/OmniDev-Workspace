@@ -1281,7 +1281,7 @@ class FileToolManager(
                     if (stderrTruncated) appendLine("[STDERR TRUNCATED]")
                 }
 
-                ToolExecutionResult(
+                MissingGitCapability.classify(command, exitCode, stdout, stderr) ?: ToolExecutionResult(
                     output = resultText,
                     isError = exitCode != 0,
                     exitCode = exitCode,

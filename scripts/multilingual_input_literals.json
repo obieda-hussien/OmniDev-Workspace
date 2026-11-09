@@ -118,5 +118,13 @@
   "app/src/main/java/com/omnidev/workspace/ui/settings/SettingsCatalog.kt": {
     "sha256": "326546fae5f661806d1ce238f531f205dd3f7ff5027ff3bab1bf93e75bf1d59b",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/teamcompletion/TeamCompletionProtocol.kt": {
+    "purpose": "Functional execution-directive input matching; never display prose.",
+    "sha256": "a1a22046efbdb44dd1c79cef74ee47a32685bf5a5f0996f3a5323b39ada6d76a"
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/ExecutionEnvironmentContext.kt": {
+    "sha256": "04f4f1e61e6757f07bb82275618a7885244e1baafdf62aa0b63177df1ec5f799",
+    "purpose": "Functional GitHub repository input matching; never display prose."
   }
 }

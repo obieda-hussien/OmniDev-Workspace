@@ -6,6 +6,7 @@ import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.registry.ModelRegistry
+import com.omnidev.workspace.domain.engine.teamcompletion.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -137,6 +138,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         val teamStartedAt = System.currentTimeMillis()
         val observedTeamTokens = AtomicInteger(0)
         val evidence = TeamSteeringEvidence()
+        val teamRunId = "team-" + java.util.UUID.randomUUID().toString()
         while (true) {
             val revision = steering?.revision ?: 0L
             val objective = steering?.objective(userMessage, revision) ?: userMessage
@@ -145,7 +147,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 executeAttempt(objective + evidence.context(), orchestratorModelId, workerModelId,
                     coordinatorAuto, workerAuto, scopePath, enableDeepThinking, godModeEnabled, steering, revision,
                     teamStartedAt, observedTeamTokens, mentionFocus, disabledToolNames, toolAccessMode,
-                    focusContext, userContext.take(5000)).collect { event ->
+                    focusContext, userContext.take(5000), teamRunId, objective).collect { event ->
                     evidence.record(event)
                     send(event)
                 }
@@ -175,7 +177,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         disabledToolNames: Set<String>,
         toolAccessMode: String,
         focusContext: String,
-        profileContext: String
+        profileContext: String,
+        teamRunId: String,
+        rootObjective: String
     ): Flow<SwarmEvent> = channelFlow {
         steering?.check(revision)
         if (observedTeamTokens.get() >= TEAM_TOTAL_TOKEN_HARD_LIMIT - SYNTHESIS_TOKEN_RESERVE) {
@@ -194,6 +198,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             messages = listOf(ChatMessage(MessageRole.USER, userMessage)),
             systemPrompt = buildString {
                 appendLine(ORCHESTRATOR_SYSTEM_PROMPT.trimIndent())
+                appendLine(ExecutionEnvironmentContext.guidance(rootObjective))
                 appendLine(mentionFocus.prompt())
                 appendLine(focusContext)
                 appendLine(profileContext)
@@ -252,7 +257,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         val bounded = boundPlan(normalized, userMessage)
         val runtimeCandidate = bounded.map { task ->
             val runtime = TeamExecutionPolicy.classify(task)
-            task.copy(parallelSafe = runtime.effectiveParallelSafe)
+            task.copy(parallelSafe = runtime.effectiveParallelSafe && !TeamCompletionProtocol.requiresAction(task.description),
+                toolFree = task.toolFree && TeamCompletionProtocol.toolFreeAllowed(task.description) &&
+                    (revision > 0 || !bounded.all { it.toolFree } || TeamCompletionProtocol.toolFreeAllowed(rootObjective)))
         }
         val runtimeTasks = if (validateTasks(runtimeCandidate) == null) {
             runtimeCandidate
@@ -283,6 +290,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         // Expose runtime truth, not planner claims, to UI/adaptive routing.
         send(SwarmEvent.PlanCompleted(runtimeTasks))
 
+        val protocol = TeamCompletionProtocol(teamRunId, revision, runtimeTasks, revision == 0L && TeamCompletionProtocol.requiresAction(rootObjective))
         val completed = linkedMapOf<String, String>()
         val completedToolEvidence = linkedMapOf<String, String>()
         val failed = linkedMapOf<String, String>()
@@ -301,11 +309,14 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             val redirected: Boolean = false,
             val toolEvidence: String = "",
             /** Honest terminal states (awaiting approval, blocked, failed) are never retried: a retry could repeat side effects or approval prompts. */
-            val noRetry: Boolean = false
+            val noRetry: Boolean = false,
+            val receipt: WorkerReceipt? = null
         )
 
         suspend fun runWorkerAttempt(task: SwarmTask, attempt: Int, recoveryNote: String?, tokenCap: Int = Int.MAX_VALUE): TaskOutcome {
             if (steering?.changed(revision) == true) return TaskOutcome(task, "", redirected = true)
+            val assignment = protocol.begin(task)
+            val observer = WorkerCompletionObserver(assignment)
             if (attempt == 1) send(SwarmEvent.TaskStarted(task))
             val budget = allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)
             val dependencyContext = compactDependencyContext(task, completed, completedToolEvidence)
@@ -346,18 +357,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             var taskResult = ""
             var taskError: String? = null
             var completionReport: com.omnidev.workspace.domain.engine.completion.CompletionReport? = null
-            // Requirements follow the assigned objective, not a text heuristic: the planner's own contract says
-            // parallelSafe=false is the only way to change state, so that is implementation work (needs a
-            // successful non-read action). Read-only workers need grounded evidence but are never forced to
-            // Tool-free is an explicit planner decision for self-contained reasoning/synthesis; all evidence-bearing work requires a real tool call.
-            val workerRequiresExecution = !task.toolFree
-            val workerKind = if (task.parallelSafe) com.omnidev.workspace.domain.engine.completion.TaskKind.ANALYSIS
-                else com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION
-            val workerIdentity = com.omnidev.workspace.domain.engine.completion.RunIdentity(
-                workerId = task.id, acceptance = task.acceptance, requireExecution = workerRequiresExecution, taskKind = workerKind
-            )
-            // Independent count of successful tool results seen on the event stream (not from the worker's report).
-            val observedOkByTool = HashMap<String, Int>()
+            val workerIdentity = assignment.identity
             var reviewTerminal: com.omnidev.workspace.domain.engine.completion.FinishStatus? = null
             val observedToolResults = mutableListOf<String>()
             try {
@@ -383,8 +383,12 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                         }
                         is AgentEvent.Error -> taskError = event.message
                         is AgentEvent.StreamChunk -> send(SwarmEvent.WorkerStreamChunk(task, event.delta))
-                        is AgentEvent.ToolExecution -> send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
+                        is AgentEvent.ToolExecution -> {
+                            observer.started(event)
+                            send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
+                        }
                         is AgentEvent.ToolResult -> {
+                            observer.observed(event)
                             send(SwarmEvent.WorkerToolResult(task, event.toolName, event.output, event.isError))
                             val outcome = when {
                                 event.isError -> "ERROR"
@@ -395,7 +399,6 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                                 .replace(Regex("\\s+"), " ").trim()
                             val snippet = if (output.length <= MAX_WORKER_TOOL_OBSERVATION_CHARS) output
                                 else output.take(650) + " … " + output.takeLast(200)
-                            if (outcome == "OK") observedOkByTool.merge(event.toolName, 1, Int::plus)
                             observedToolResults += "[TOOL OUTPUT] ${event.toolName} [$outcome]: $snippet"
                             if (observedToolResults.size > MAX_WORKER_TOOL_OBSERVATIONS) observedToolResults.removeAt(0)
                         }
@@ -424,37 +427,22 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             }
             if (steering?.changed(revision) == true) return TaskOutcome(task, "", redirected = true)
 
+            taskResult = SensitiveObservationRedactor.redact(taskResult)
+            taskError = taskError?.let(SensitiveObservationRedactor::redact)
             if (taskError == null && taskResult.isBlank()) {
                 taskError = "Worker ended without a final response."
             }
             // A worker that only announced work (the agent loop marks this explicitly) did not do its task.
             if (taskError == null && taskResult.startsWith(WorkerRecoveryPlanner.INCOMPLETE_PREFIX)) {
-                taskError = "Worker announced work without performing it."
+                taskError = "WORKER_NO_PROGRESS: Worker announced work without performing it."
             }
-            // The coordinator never accepts a worker's prose as success: its runtime-produced report is
-            // re-verified (status, run/worker identity, digest, acceptance items, ledger rules).
-            if (taskError == null) {
-                val review = com.omnidev.workspace.domain.engine.completion.WorkerEvidenceReview.review(
-                    report = completionReport,
-                    expectedWorkerId = task.id,
-                    taskCriteria = task.acceptance,
-                    requireExecution = workerRequiresExecution,
-                    legacyToolEvidencePresent = observedToolResults.isNotEmpty(),
-                    expectedRunId = workerIdentity.runId,
-                    requireAction = workerKind == com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION && workerRequiresExecution,
-                    observedOkByTool = observedOkByTool
-                )
-                if (!review.accepted) {
-                    reviewTerminal = review.terminal
-                    taskError = when (review.terminal) {
-                        com.omnidev.workspace.domain.engine.completion.FinishStatus.AWAITING_APPROVAL -> "AWAITING_APPROVAL: ${review.reason}"
-                        null -> "Worker result not accepted by coordinator evidence review: ${review.reason}"
-                        else -> "Worker stopped (${review.terminal.wire}): ${review.reason}"
-                    }
-                }
+            val receipt = observer.review(completionReport, taskResult)
+            if (taskError == null && !receipt.accepted) {
+                reviewTerminal = receipt.status.takeIf { it != com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE }
+                taskError = "Worker result not accepted: ${receipt.reason}"
             }
             val toolEvidence = observedToolResults.joinToString("\n").take(MAX_WORKER_TOOL_EVIDENCE_CHARS)
-            if (taskError == null) return TaskOutcome(task, taskResult, toolEvidence = toolEvidence)
+            if (taskError == null) return TaskOutcome(task, taskResult, toolEvidence = toolEvidence, receipt = receipt)
 
             val error = taskError.orEmpty()
             val partial = taskResult.takeIf(String::isNotBlank)?.let {
@@ -468,7 +456,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 requiresSerialReplan = task.parallelSafe && error.startsWith("READ_ONLY_WORKER:") &&
                     TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
                 toolEvidence = toolEvidence,
-                noRetry = reviewTerminal != null
+                noRetry = reviewTerminal != null || observer.unsafeToRetry ||
+                    completionReport?.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE,
+                receipt = receipt
             )
         }
 
@@ -503,9 +493,15 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         val serialReplans = mutableListOf<SwarmTask>()
         suspend fun accept(outcome: TaskOutcome) {
             if (outcome.redirected) throw RunRedirected()
+            outcome.receipt?.let { protocol.accept(it, outcome.result) }
             if (outcome.requiresSerialReplan) {
                 serialReplans += outcome.task.copy(parallelSafe = false)
                 send(SwarmEvent.WorkerPhaseChanged(outcome.task, "REPLAN", "Runtime detected a mutation; resume once after parallel workers finish."))
+                return
+            }
+            if (outcome.error == null && (outcome.receipt?.accepted != true || !protocol.accept(outcome.receipt, outcome.result))) {
+                failed[outcome.task.id] = "TEAM_RECEIPT_REJECTED"
+                send(SwarmEvent.TaskFailed(outcome.task, "TEAM_RECEIPT_REJECTED"))
                 return
             }
             completed[outcome.task.id] = outcome.result
@@ -531,22 +527,26 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 break
             }
 
-            val blocked = remaining.filter { task ->
-                task.dependencies.any { dependency -> dependency in failed || dependency in skipped }
-            }
-            blocked.forEach { task ->
-                remaining.remove(task)
-                val dependencies = task.dependencies.filter { it in failed || it in skipped }
-                val reason = "Blocked by failed/skipped dependency: $dependencies"
-                skipped[task.id] = reason
-                if (dependencies.any { it in infrastructureFailed || it in infrastructureSkipped }) {
-                    infrastructureSkipped += task.id
+            // Propagate failure through every dependent before judging readiness; a blocked chain is not a cycle.
+            while (true) {
+                val blocked = remaining.filter { task ->
+                    task.dependencies.any { dependency -> dependency in failed || dependency in skipped }
                 }
-                send(SwarmEvent.TaskSkipped(task, reason))
+                if (blocked.isEmpty()) break
+                blocked.forEach { task ->
+                    remaining.remove(task)
+                    val dependencies = task.dependencies.filter { it in failed || it in skipped }
+                    val reason = "Blocked by failed/skipped dependency: $dependencies"
+                    skipped[task.id] = reason
+                    if (dependencies.any { it in infrastructureFailed || it in infrastructureSkipped }) {
+                        infrastructureSkipped += task.id
+                    }
+                    send(SwarmEvent.TaskSkipped(task, reason))
+                }
             }
 
             val ready = remaining.filter { task ->
-                task.dependencies.all { dependency -> dependency in completed && dependency !in failed }
+                protocol.ready(task.id) && task.dependencies.all { dependency -> dependency in completed && dependency !in failed }
             }
             if (ready.isEmpty()) {
                 remaining.toList().forEach { task ->
@@ -583,7 +583,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             }
         }
 
-        val successfulCount = completed.keys.count { it !in failed }
+        val completion = protocol.finish(failed.keys, skipped.keys)
+        val successfulCount = completion.completed
         val totalFailures = failed.size + skipped.size
 
         steering?.check(revision)
@@ -609,7 +610,10 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             ) ?: deterministicEvidenceSummary(completed, failed, skipped)
         }
 
-        val finalSummary = FinalAnswerSanitizer.clean(if (steering == null) summarize() else steering.reasoning(revision) { summarize() })
+        val finalSummary = if (completion.verified) FinalAnswerSanitizer.clean(
+            if (steering == null) summarize() else steering.reasoning(revision) { summarize() })
+        else "${completion.status.label} " + deterministicFailureSummary(failed, skipped) +
+            "\n\n" + completion.render() + "\n\n" + deterministicEvidenceSummary(completed, failed, skipped)
         if (steering != null && !steering.finish(revision)) throw RunRedirected()
 
         val rootFailures = failed.keys
@@ -620,15 +624,13 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         if (!onlyInfrastructureFailure) {
             recordTeamOutcome(
                 userRequest = userMessage,
-                outcome = if (totalFailures == 0) {
+                outcome = if (completion.verified) {
                     ModeOutcomeLearner.Outcome.SUCCESS
                 } else ModeOutcomeLearner.Outcome.FAILURE,
                 startedAt = teamStartedAt,
                 tokens = observedTeamTokens.get(),
                 taskCount = runtimeTasks.size,
-                verified = totalFailures == 0 && runtimeTasks.any {
-                    IntentClassifier.analyze(it.description).verificationIntent >= 0.45f
-                }
+                verified = completion.verified
             )
         }
 
@@ -636,7 +638,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             SwarmEvent.Completed(
                 summary = finalSummary,
                 tasksCompleted = successfulCount,
-                tasksFailed = totalFailures
+                tasksFailed = runtimeTasks.size - successfulCount,
+                completion = completion
             )
         )
     }
@@ -704,6 +707,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
     ): String = buildString {
         appendLine("## Assigned Team Task")
         appendLine(task.description)
+        appendLine(ExecutionEnvironmentContext.guidance(originalObjective))
         if (task.acceptance.isNotEmpty()) {
             appendLine("\n## Acceptance (finish_task must prove each with ledger ids: 'A1 => id1,id2')")
             task.acceptance.forEachIndexed { index, item -> appendLine("A${index + 1}. ${item.take(300)}") }
@@ -918,10 +922,10 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
     private fun validateRawPlannerTasks(tasks: List<SwarmTask>): String? {
         if (tasks.isEmpty()) return "Orchestrator produced no actionable tasks."
         val ids = tasks.map { it.id }
-        if (ids.any(String::isBlank) || ids.distinct().size != ids.size) {
+        if (ids.any { !it.matches(Regex("[A-Za-z0-9_-]{1,64}")) || !com.omnidev.workspace.domain.planning.PlanningPrivacy.allowed(it) } || ids.distinct().size != ids.size) {
             return "Invalid Team plan: task IDs must be non-empty and unique."
         }
-        if (tasks.any { task -> task.description.isBlank() }) {
+        if (tasks.any { task -> task.description.isBlank() || task.description.length > 8_000 || task.status != SwarmTaskStatus.PENDING || task.acceptance.size > 12 || task.acceptance.any { it.isBlank() || it.length > 500 } }) {
             return "Invalid Team plan: every task needs a description."
         }
         if (tasks.any { task -> task.dependencies.any { it !in ids || it == task.id } }) {
@@ -940,7 +944,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         if (tasks.isEmpty()) return "Orchestrator produced no actionable tasks."
         if (tasks.size > MAX_SUBTASKS) return "Too many tasks (${tasks.size}); maximum is $MAX_SUBTASKS."
         val ids = tasks.map { it.id }
-        if (ids.any(String::isBlank) || ids.distinct().size != ids.size) {
+        if (ids.any { !it.matches(Regex("[A-Za-z0-9_-]{1,64}")) || !com.omnidev.workspace.domain.planning.PlanningPrivacy.allowed(it) } || ids.distinct().size != ids.size) {
             return "Invalid Team plan: task IDs must be non-empty and unique."
         }
         if (tasks.any { task -> task.dependencies.any { it !in ids || it == task.id } }) {

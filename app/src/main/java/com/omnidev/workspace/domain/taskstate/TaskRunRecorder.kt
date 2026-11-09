@@ -339,7 +339,7 @@ class TaskRunRecorder(
         const val MAX_INPUT_CHARS = 4_000
         const val MAX_RESULT_CHARS = 8_000
         /** Classifications of results that were produced without the tool ever executing. */
-        val NEVER_RAN = setOf("TOOL_NOT_AVAILABLE", "TOOL_POLICY_DENIED", "TIER_DENIED", "RUN_REDIRECTED", "SKILL_NOT_SELECTED",
+        val NEVER_RAN = setOf("TOOL_DEPENDENCY_MISSING", "TOOL_NOT_AVAILABLE", "TOOL_POLICY_DENIED", "TIER_DENIED", "RUN_REDIRECTED", "SKILL_NOT_SELECTED",
             "LAUNCHER_TYPED_ACTION_REQUIRED", "TOOL_NOT_EXPOSED", "INVALID_TOOL_ARGUMENTS", "BATCH_PREFLIGHT_BLOCKED", "INVALID_TOOL_BATCH",
             "PRIOR_MUTATION_OUTCOME_UNKNOWN", "DUPLICATE_SIDE_EFFECT_ALREADY_SUCCEEDED", "PERSISTENCE_UNAVAILABLE", "PLAN_STEP_NOT_READY")
 
@@ -355,6 +355,11 @@ class TaskRunRecorder(
         /** Evidence entries that a resumed run restores into the P0 ledger. Only SUCCEEDED counts as success. */
         fun seedFrom(snapshot: TaskSnapshot): List<ResumeEntry> = snapshot.invocations.map { inv ->
             val outcome = when {
+                // P2 may reconcile this exact operation using separately persisted verification even
+                // when its original tool response was lost. Unresolved statuses still remain ERROR.
+                inv.status == InvocationStatus.SUCCEEDED && !inv.isError &&
+                    com.omnidev.workspace.data.tools.ToolExecutionSemantics.isEmptyObservation(inv.resultSummary) &&
+                    com.omnidev.workspace.data.tools.ToolExecutionSemantics.isEmptyObservation(inv.verification) -> RunEvidenceLedger.Outcome.EMPTY
                 inv.status == InvocationStatus.SUCCEEDED && !inv.isError -> RunEvidenceLedger.Outcome.OK
                 inv.status == InvocationStatus.FAILED || inv.status == InvocationStatus.UNKNOWN ||
                     (inv.status == InvocationStatus.INTERRUPTED && inv.effect == Effect.SIDE_EFFECT) -> RunEvidenceLedger.Outcome.ERROR

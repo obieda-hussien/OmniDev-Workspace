@@ -30,7 +30,8 @@ sealed class SwarmEvent {
     data class WorkerPhaseChanged(val task: SwarmTask, val phase: String, val detail: String?) : SwarmEvent()
     data class WorkerStreamChunk(val task: SwarmTask, val delta: String) : SwarmEvent()
     data object SynthesisStarted : SwarmEvent()
-    data class Completed(val summary: String, val tasksCompleted: Int, val tasksFailed: Int) : SwarmEvent()
+    data class Completed(val summary: String, val tasksCompleted: Int, val tasksFailed: Int,
+        val completion: com.omnidev.workspace.domain.engine.teamcompletion.TeamCompletionReport? = null) : SwarmEvent()
     data class Error(val message: String) : SwarmEvent()
 }
 

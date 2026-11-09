@@ -809,7 +809,7 @@ class ExternalAgentGatewayService : Service() {
                         is SwarmEvent.WorkerPhaseChanged -> event.phase
                         is SwarmEvent.WorkerStreamChunk -> "Writing response…"
                         SwarmEvent.SynthesisStarted -> "Synthesizing…"
-                        is SwarmEvent.Completed -> "Completed"
+                        is SwarmEvent.Completed -> event.completion?.sessionStatus ?: "Interrupted"
                         is SwarmEvent.Error -> "Interrupted"
                     },
                     force = event is SwarmEvent.Completed || event is SwarmEvent.Error
@@ -819,8 +819,9 @@ class ExternalAgentGatewayService : Service() {
                     is SwarmEvent.Completed -> {
                         assistant = assistant.copy(content = event.summary)
                         runtime.chatRepository.updateRun(rowId, assistant, console.takeLast(500))
-                        runtime.chatRepository.updateSessionRunStatus(sessionId, "Completed")
-                        completeSnapshot(request.taskId, sessionId, event.summary)
+                        runtime.chatRepository.updateSessionRunStatus(sessionId, event.completion?.sessionStatus ?: "Interrupted")
+                        if (event.completion?.verified == true) completeSnapshot(request.taskId, sessionId, event.summary)
+                        else failSnapshot(request.taskId, sessionId, event.summary)
                     }
                     is SwarmEvent.Error -> {
                         assistant = assistant.copy(content = partial)
@@ -966,9 +967,9 @@ class ExternalAgentGatewayService : Service() {
                 taskId, seq, now, event.delta
             )
             SwarmEvent.SynthesisStarted -> AgentTaskEvent.Status(taskId, seq, now, "Synthesizing")
-            is SwarmEvent.Completed -> AgentTaskEvent.FinalAnswer(
+            is SwarmEvent.Completed -> if (event.completion?.verified == true) AgentTaskEvent.FinalAnswer(
                 taskId, seq, now, event.summary.take(MAX_FINAL_ANSWER_CHARS)
-            )
+            ) else AgentTaskEvent.Error(taskId, seq, now, "team_incomplete", event.summary.take(MAX_FINAL_ANSWER_CHARS))
             is SwarmEvent.Error -> AgentTaskEvent.Error(
                 taskId, seq, now, "team_error", event.message
             )
@@ -1029,7 +1030,10 @@ class ExternalAgentGatewayService : Service() {
                 event.phase, event.detail
             )
             is SwarmEvent.Error -> entries += AgentConsoleEntry.ErrorEntry(event.message.take(500))
-            is SwarmEvent.Completed -> entries += AgentConsoleEntry.ReplyEntry()
+            is SwarmEvent.Completed -> {
+                entries += com.omnidev.workspace.ui.chat.teamCompletionEntries(event.completion)
+                entries += AgentConsoleEntry.ReplyEntry()
+            }
             is SwarmEvent.WorkerStreamChunk,
             SwarmEvent.SynthesisStarted -> Unit
         }

@@ -81,6 +81,12 @@ class FinishRuntime private constructor(
 
     private fun decided(p: GateResult.Publish) { verdict = p; recorder?.finalizeAsync(p) }
     fun report(): CompletionReport? = verdict?.report
+    fun reportDetail(blocked: Boolean): String = when {
+        blocked -> "Reporting completed work and runtime limitation"
+        verdict?.status == FinishStatus.COMPLETED && verdict?.report?.verified == true -> "Publishing verified result"
+        verdict != null -> "Reporting ${verdict!!.status.wire}; completion was not verified"
+        else -> "Publishing response"
+    }
     fun reflectionEnabled(configured: Boolean): Boolean = profile.selfReflection ?: configured
     /** Honest non-success terminal texts must not be rewritten by the critic. */
     fun keepsText(): Boolean = verdict?.let { it.status != FinishStatus.COMPLETED } == true

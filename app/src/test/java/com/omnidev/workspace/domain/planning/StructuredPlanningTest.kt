@@ -90,6 +90,18 @@ class StructuredPlanningTest {
         assertNull(TaskExecutionScheduler.schedule(store.snapshot("task")!!.currentSteps).next)
     }
 
+    @Test fun `wrapped empty observations cannot complete a step or unlock its dependent`() = runBlocking {
+        val store = started(); persist(store); val first = store.snapshot("task")!!.currentSteps.first()
+        val empty = com.omnidev.workspace.data.tools.ToolExecutionSemantics.normalize("read_file",
+            com.omnidev.workspace.data.tools.ToolExecutionResult("NO_MATCHES: No source"))
+        val missing = read(store, first, "missing", empty.output)
+        assertEquals("UNSUCCESSFUL_STEP_EVIDENCE", StepEvidenceEvaluator.evaluate(store.snapshot("task")!!, first, StepCompletion(listOf(missing))))
+        assertTrue(store.transitionStep(first.stepId, StepStatus.COMPLETED, "empty claim", 8, "empty-proof", StepCompletion(listOf(missing))) is TransitionResult.Rejected)
+        assertNotEquals("S2", TaskExecutionScheduler.schedule(store.snapshot("task")!!.currentSteps).next?.key)
+        val real = read(store, first, "real", "class Source")
+        assertEquals(TransitionResult.Applied, store.transitionStep(first.stepId, StepStatus.COMPLETED, "verified source", 9, "real-proof", StepCompletion(listOf(real))))
+        assertEquals("S2", TaskExecutionScheduler.schedule(store.snapshot("task")!!.currentSteps).next!!.key)
+    }
     @Test fun `tool success requires explicit step proof and wrong or unassigned evidence is refused`() = runBlocking {
         val store = started(); persist(store)
         val first = store.snapshot("task")!!.currentSteps.first()
