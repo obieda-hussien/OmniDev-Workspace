@@ -12,7 +12,7 @@ buildscript {
         constraints {
             // AGP/UTP and ODC carry their own dependency graphs. App implementation
             // constraints cannot repair these older build-classpath dependencies.
-            add("classpath", "com.google.guava:guava:33.7.2-jre") // GHSA-xxph-c9ww-hj94 affects <= 33.7.1
+            add("classpath", "com.google.guava:guava:33.8.0-jre") // GHSA-xxph-c9ww-hj94 affects <= 33.7.1
             add("classpath", "com.google.protobuf:protobuf-java:3.25.5")
             add("classpath", "com.google.protobuf:protobuf-kotlin:3.25.5")
             add("classpath", "org.jdom:jdom2:2.0.6.1")
