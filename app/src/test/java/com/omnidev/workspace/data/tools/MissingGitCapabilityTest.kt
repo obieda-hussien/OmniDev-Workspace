@@ -20,7 +20,7 @@ class MissingGitCapabilityTest {
         assertTrue(FinishVerifier.evaluate(VerificationContext("run", null, l.snapshot(), true), FinishRequest(FinishStatus.COMPLETED, "Inspected repository")).accepted)
     }
     @Test fun `writes mixed scripts partial results and other errors are never downgraded`() {
-        for (command in listOf("git push", "git status; echo changed > file", "git status || touch file", "touch file && git status", "$(touch file) git status"))
+        for (command in listOf("git diff --output=file", "git diff --ext-diff", "git push", "git status; echo changed > file", "git status || touch file", "touch file && git status", "$(touch file) git status"))
             assertNull(command, MissingGitCapability.classify(command, 127, "", "/system/bin/sh: git: not found"))
         assertNull(MissingGitCapability.classify("git status", 127, "partial results", "/system/bin/sh: git: not found"))
         assertNull(MissingGitCapability.classify("git status", 1, "", "fatal: permission denied"))

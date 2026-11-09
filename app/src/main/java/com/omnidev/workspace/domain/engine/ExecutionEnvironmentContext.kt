@@ -32,8 +32,8 @@ object ExecutionEnvironmentContext {
     fun guidance(objective: String, observation: String? = null): String = buildString {
         remoteRepository(objective)?.let {
             append("REMOTE REPOSITORY: $it is a GitHub identity, not a verified checkout in the Android workspace. ")
-            append("Use github_manager get_repo/list_contents/read_file or api_request for exact refs, branches and repository operations, with existing authorization. ")
-            append("Do not search the default local folder or run local git as a substitute for a remote read. ")
+            append("When exposed, use github_manager get_repo/list_contents/read_file or api_request for exact refs, branches and repository operations, with existing authorization; otherwise report the missing permitted capability. ")
+            append("Until a checkout is verified, do not substitute the default local folder or local git for a remote read. ")
             append("Local builds/tests require an observed checkout and a ready developer runtime; otherwise use an authorized CI/IDE route or report the blocker. ")
         }
         if (missingGit(observation)) append("The observed shell has no git executable (exit 127); this is not a missing repository or evidence that root is needed. Use the available GitHub API for remote work or inspect git_manager/agent_runtime environment capabilities for local work. Do not retry the same shell or install packages without checking the actual runtime. ")
