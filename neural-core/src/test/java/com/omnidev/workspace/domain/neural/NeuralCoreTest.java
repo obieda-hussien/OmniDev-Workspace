@@ -99,6 +99,15 @@ public final class NeuralCoreTest {
         assertFalse(fail.accepted);
         assertEquals(0f, fail.selected.infer(new float[]{0})[0], 0f);
         rejects(() -> WeightEditGate.evaluate(linear(0), linear(1), dev, dev, 0, 0));
+        // Same input with a different target is still data leakage.
+        List<WeightEditGate.Example> relabelled = Arrays.asList(
+                new WeightEditGate.Example(new float[]{1}, new float[]{10}),
+                new WeightEditGate.Example(new float[]{5}, new float[]{5}));
+        rejects(() -> WeightEditGate.evaluate(linear(0), linear(1), dev, relabelled, 0, 0));
+        List<WeightEditGate.Example> duplicateGate = Arrays.asList(
+                new WeightEditGate.Example(new float[]{3}, new float[]{3}),
+                new WeightEditGate.Example(new float[]{3}, new float[]{3}));
+        rejects(() -> WeightEditGate.evaluate(linear(0), linear(1), dev, duplicateGate, 0, 0));
     }
 
     @Test public void rerankingNeverFabricatesEvidence() {
