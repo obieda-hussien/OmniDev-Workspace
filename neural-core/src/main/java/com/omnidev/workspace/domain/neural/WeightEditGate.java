@@ -9,7 +9,9 @@ public final class WeightEditGate {
     private WeightEditGate() { }
 
     public static final class Example {
-        public final float[] input, expected;
+        private final float[] input, expected;
+        public float[] inputCopy() { return input.clone(); }
+        public float[] expectedCopy() { return expected.clone(); }
         public Example(float[] input, float[] expected) {
             if (input == null || expected == null || input.length == 0 || expected.length == 0) {
                 throw new IllegalArgumentException("Empty example");
@@ -54,12 +56,19 @@ public final class WeightEditGate {
         Set<String> seen = new HashSet<>();
         for (Example example : development) {
             ensureShape(example, original);
-            seen.add(fingerprint(example));
+            if (!seen.add(fingerprint(example))) {
+                throw new IllegalArgumentException("Duplicate development sample");
+            }
         }
+        Set<String> gateSeen = new HashSet<>();
         for (Example example : holdout) {
             ensureShape(example, original);
-            if (seen.contains(fingerprint(example))) {
-                throw new IllegalArgumentException("Development/holdout leakage");
+            String identity = fingerprint(example);
+            if (seen.contains(identity)) {
+                throw new IllegalArgumentException("Development/holdout input leakage");
+            }
+            if (!gateSeen.add(identity)) {
+                throw new IllegalArgumentException("Duplicate holdout sample");
             }
         }
         double baselineDev = mse(original, development);
@@ -89,8 +98,7 @@ public final class WeightEditGate {
     private static String fingerprint(Example e) {
         StringBuilder b = new StringBuilder();
         for (float n : e.input) b.append(Integer.toHexString(Float.floatToIntBits(n))).append(':');
-        b.append('|');
-        for (float n : e.expected) b.append(Integer.toHexString(Float.floatToIntBits(n))).append(':');
+        // Identity uses inputs only: re-labelling a leaked sample must not bypass the gate.
         return b.toString();
     }
 
