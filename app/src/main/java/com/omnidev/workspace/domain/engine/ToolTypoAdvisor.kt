@@ -20,6 +20,13 @@ internal object ToolTypoAdvisor {
     }
 
     private fun editDistance(a: String, b: String): Int {
+        // An adjacent transposition is a common one-keystroke mistake: reop -> repo.
+        if (a.length == b.length) {
+            for (i in 0 until a.length - 1) {
+                if (a[i] == b[i + 1] && a[i + 1] == b[i] &&
+                    a.indices.all { j -> j == i || j == i + 1 || a[j] == b[j] }) return 1
+            }
+        }
         if (kotlin.math.abs(a.length - b.length) > 2) return 3
         var previous = IntArray(b.length + 1) { it }
         for (i in a.indices) {
