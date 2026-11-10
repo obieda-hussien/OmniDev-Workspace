@@ -1,0 +1,44 @@
+name: Omni Neural Core (experimental)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'neural-core/**'
+      - 'settings.gradle.kts'
+      - '.github/workflows/neural-core-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'neural-core/**'
+      - 'settings.gradle.kts'
+      - '.github/workflows/neural-core-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  java-compat:
+    name: Java 8 compatibility + isolated smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile without Python or Android tooling
+        run: |
+          mkdir -p /tmp/omni-neural-classes
+          javac --release 8 -encoding UTF-8 -d /tmp/omni-neural-classes \
+            neural-core/src/main/java/com/omnidev/workspace/domain/neural/*.java \
+            neural-core/smoke/NeuralPrototypeSmoke.java
+          java -cp /tmp/omni-neural-classes NeuralPrototypeSmoke
+      - name: Verify isolated module with JUnit
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --max-workers 1 :neural-core:test --stacktrace
