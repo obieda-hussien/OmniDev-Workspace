@@ -43,3 +43,4 @@ rootProject.name = "OmniDevWorkspace"
 include(":app")
 
 include(":oem-system-contract", ":oem-system")
+include(":neural-core")
