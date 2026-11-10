@@ -26,8 +26,7 @@ object ExecutionEnvironmentContext {
 
     fun missingGitWorktree(observation: String?): Boolean {
         val text = observation.orEmpty().lowercase()
-        return "not a git repository" in text || "git_worktree_required" in text ||
-            ("exit=128" in text && "git" in text)
+        return "not a git repository" in text || "git_worktree_required" in text
     }
 
     fun priorityNames(objective: String, observation: String?): List<String> = when {
@@ -44,6 +43,6 @@ object ExecutionEnvironmentContext {
             append("Local builds/tests require an observed checkout and a ready developer runtime; otherwise use an authorized CI/IDE route or report the blocker. ")
         }
         if (missingGit(observation)) append("The observed shell has no git executable (exit 127); this is not a missing repository or evidence that root is needed. Use the available GitHub API for remote work or inspect git_manager/agent_runtime environment capabilities for local work. Do not retry the same shell or install packages without checking the actual runtime. ")
-        if (missingGitWorktree(observation)) append("Git exit 128 means the shell is outside a Git worktree, NOT that the remote repository is absent. Never rerun git_status without verifying a local checkout and cwd. Use permitted github_manager for remote reads; for local builds verify the checkout or report the missing environment. ")
+        if (missingGitWorktree(observation)) append("The observed Git diagnostic identifies a missing local worktree, NOT an absent remote repository. Never rerun git_status without verifying a local checkout and cwd. Use permitted github_manager for remote reads; for local builds verify the checkout or report the missing environment. ")
     }
 }
