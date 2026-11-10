@@ -286,6 +286,7 @@ When improving: keep every other sentence, the structure, the language and the l
         var githubFailures = GitHubFailureLedger()
         val runtimeBackends = RuntimeBackendLedger()
         val recoveryGovernor = AgentRecoveryGovernor()
+        val actionProgressBudget = ModelActionProgressBudget()
         var pendingRecoveryNote: String? = null
         var pendingRecoveryWaitMs = 0L
         var repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
@@ -485,6 +486,13 @@ When improving: keep every other sentence, the structure, the language and the l
             val responseUsage = TokenAccounting.usage(request, nativeResponse)
             totalTokensUsed += responseUsage.totalTokens
             emitUsage(responseUsage.totalTokens, totalTokensUsed)
+            if (actionProgressBudget.onModelResponse(responseUsage.totalTokens, response.toolCalls,
+                    response.content, permittedDefinitions.isNotEmpty())) {
+                brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "thinking-only token budget exhausted")
+                send(AgentEvent.Error("NO_VERIFIED_PROGRESS: Model consumed too many tokens without a tool action or substantive answer. " +
+                    "Verified observations remain in the checkpoint; resume with a different model, valid tool call or smaller task."))
+                return@channelFlow
+            }
 
             response.thinkingContent
                 ?.takeIf { streamingCompletionProvider == null }
@@ -739,6 +747,7 @@ When improving: keep every other sentence, the structure, the language and the l
             }
 
             PipelineRecovery.noteProgress(response.toolCalls, modelSafeResults, recoveryGovernor, automaticRouter)
+            actionProgressBudget.onToolResults(response.toolCalls, modelSafeResults)
 
             if (steering?.changed(revision) == true) {
                 messages += ChatMessage(MessageRole.TOOL,
