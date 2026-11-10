@@ -457,7 +457,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
                 toolEvidence = toolEvidence,
                 noRetry = reviewTerminal != null || observer.unsafeToRetry ||
-                    completionReport?.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE,
+                    (completionReport?.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE &&
+                        !error.startsWith("WORKER_NO_PROGRESS:")),
                 receipt = receipt
             )
         }
@@ -471,7 +472,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             var attempt = 1
             var outcome = runWorkerAttempt(task, attempt, null)
             while (attempt < WorkerRecoveryPlanner.MAX_ATTEMPTS && !outcome.noRetry &&
-                WorkerRecoveryPlanner.shouldRetry(outcome.error, outcome.redirected, outcome.requiresSerialReplan)
+                WorkerRecoveryPlanner.shouldRetry(outcome.error, outcome.redirected, outcome.requiresSerialReplan, attempt)
             ) {
                 val wanted = (allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)).tokenBudget
                 val granted = retryLedger.reserve(wanted, observedTeamTokens.get())
@@ -481,7 +482,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     send(SwarmEvent.WorkerPhaseChanged(task, "RECOVER",
                         "Attempt ${attempt - 1} failed; retrying with a different approach ($attempt/${WorkerRecoveryPlanner.MAX_ATTEMPTS})"))
                     delay(WorkerRecoveryPlanner.waitMs(attempt, outcome.infrastructureBlocked))
-                    val note = WorkerRecoveryPlanner.note(attempt, outcome.error.orEmpty(), outcome.result)
+                    val note = WorkerRecoveryPlanner.note(attempt, outcome.error.orEmpty(), outcome.result, outcome.toolEvidence)
                     outcome = runWorkerAttempt(task, attempt, note, tokenCap = granted)
                 } finally {
                     retryLedger.release(granted)

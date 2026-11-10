@@ -1207,6 +1207,11 @@ When improving: keep every other sentence, the structure, the language and the l
                     onFatalError("${error.message} (iteration $iteration)")
                     return null
                 }
+                if (ProviderRetryPolicy.isDnsUnavailable(error)) {
+                    onFatalError("Network DNS unavailable (iteration $iteration): provider host could not be resolved. " +
+                        "Execution was interrupted; retain the verified checkpoint until connectivity is restored.")
+                    return null
+                }
 
                 val rateLimit = error as? com.omnidev.workspace.data.network.RateLimitException
                 val rateLimited = rateLimit != null || containsAny(

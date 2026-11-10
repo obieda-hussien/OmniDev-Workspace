@@ -1017,7 +1017,7 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
             if (!cwd.isNullOrBlank()) appendLine("cd ${sq(cwd)} || exit 1")
             appendLine("${envPfx}${gitBin} $subcommand 2>&1")
         }
-        return EnvironmentSetupManager.executeShell(script, useBase64 = false)
+        return explainWrongGitWorktree(EnvironmentSetupManager.executeShell(script, useBase64 = false), cwd)
     }
 
     private suspend fun gitExecMulti(subcommands: List<String>, cwd: String?): ToolExecutionResult {
@@ -1030,7 +1030,20 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
                 appendLine("${envPfx}${gitBin} $sub 2>&1 || exit 1")
             }
         }
-        return EnvironmentSetupManager.executeShell(script, useBase64 = true)
+        return explainWrongGitWorktree(EnvironmentSetupManager.executeShell(script, useBase64 = true), cwd)
+    }
+
+    private fun explainWrongGitWorktree(result: ToolExecutionResult, cwd: String?): ToolExecutionResult {
+        if (!result.isError || !result.output.contains("not a git repository", ignoreCase = true)) return result
+        // Do not infer a local checkout from a GitHub URL or silently clone/init.
+        val location = if (cwd.isNullOrBlank()) "No verified cwd was supplied." else "The supplied cwd is not a Git worktree."
+        return result.copy(
+            output = "GIT_WORKTREE_REQUIRED: $location Specify the absolute checked-out project path via cwd, " +
+                "or use a permitted github_manager operation for remote repository reads. " +
+                "Do not rerun git_status in the same directory. Original Git failure: " + result.output.take(800),
+            classification = "GIT_WORKTREE_REQUIRED",
+            retryable = false
+        )
     }
 
     private suspend fun downloadFile(context: Context, url: String, destPath: String?): ToolExecutionResult {

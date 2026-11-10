@@ -11,7 +11,13 @@ class ToolCallPreflight(definitions: List<ToolDefinition>) {
 
     fun check(call: ToolCall): ToolExecutionResult? {
         val definition = catalog[call.name]
-            ?: return denied("TOOL_NOT_EXPOSED", "Tool is not in this request's catalog. Use discover_tools to find and load an exact registered name.")
+            ?: return denied("TOOL_NOT_EXPOSED", buildString {
+                append("Tool is not in this request's catalog. ")
+                ToolTypoAdvisor.suggest(call.name, catalog.keys)?.let {
+                    append("Possible exact exposed name: ").append(it).append(". ")
+                }
+                append("Use discover_tools to find and load an exact registered name.")
+            })
         call.argumentError?.let { error ->
             if (error.startsWith("OPERATION_UNRESOLVED:")) {
                 return ToolExecutionResult(
@@ -25,8 +31,13 @@ class ToolCallPreflight(definitions: List<ToolDefinition>) {
         }
         val parameters = definition.parameters.associateBy { it.name }
         val unknown = call.arguments.keys - parameters.keys
-        if (unknown.isNotEmpty()) return denied("INVALID_TOOL_ARGUMENTS",
-            "Unknown parameter(s): ${unknown.sorted().joinToString()}. Expected: ${parameters.keys.joinToString()}.")
+        if (unknown.isNotEmpty()) return denied("INVALID_TOOL_ARGUMENTS", buildString {
+            append("Unknown parameter(s): ").append(unknown.sorted().joinToString()).append(". ")
+            if (unknown.size == 1) ToolTypoAdvisor.suggest(unknown.single(), parameters.keys)?.let {
+                append("Possible exact parameter: ").append(it).append(". ")
+            }
+            append("Expected: ").append(parameters.keys.joinToString()).append(".")
+        })
         val missing = definition.parameters.filter { (it.required || call.arguments["action"] in it.requiredForActions) && it.name !in call.arguments }.map { it.name }
         if (missing.isNotEmpty()) return denied("INVALID_TOOL_ARGUMENTS", "Missing required parameter(s): ${missing.joinToString()}.")
         for ((key, value) in call.arguments) {

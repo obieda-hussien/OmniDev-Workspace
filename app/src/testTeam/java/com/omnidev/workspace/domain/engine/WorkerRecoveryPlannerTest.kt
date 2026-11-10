@@ -6,8 +6,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WorkerRecoveryPlannerTest {
-    @Test fun `exhausted no progress is not replayed from scratch`() {
-        assertFalse(WorkerRecoveryPlanner.shouldRetry("WORKER_NO_PROGRESS: Worker announced work without performing it.", false, false))
+    @Test fun `no progress gets a single safe alternative attempt`() {
+        assertTrue(WorkerRecoveryPlanner.shouldRetry("WORKER_NO_PROGRESS: Worker announced work without performing it.", false, false, 1))
+        assertFalse(WorkerRecoveryPlanner.shouldRetry("WORKER_NO_PROGRESS: Worker announced work without performing it.", false, false, 2))
+        assertFalse(WorkerRecoveryPlanner.shouldRetry("WORKER_NO_PROGRESS: Worker announced work without performing it.", true, false, 1))
     }
     @Test fun `a plain failure is retried`() {
         assertTrue(WorkerRecoveryPlanner.shouldRetry("Worker ended without a final response.", false, false))
@@ -41,6 +43,10 @@ class WorkerRecoveryPlannerTest {
         assertTrue(note.contains("Found tizen_bridge.py"))
         assertTrue(note.contains("Do not repeat the failing call"))
         assertTrue(note.contains("Never fabricate results"))
+        val alternate = WorkerRecoveryPlanner.note(2, "WORKER_NO_PROGRESS: no code execution",
+            "[FAILED] WORKER_NO_PROGRESS:", "[TOOL OUTPUT] github_manager GET repo HTTP 200")
+        assertTrue(alternate.contains("not completion proof"))
+        assertTrue(alternate.contains("Do not call finish_task before verifying"))
     }
 
     @Test fun `the note omits the evidence section when there is none`() {
