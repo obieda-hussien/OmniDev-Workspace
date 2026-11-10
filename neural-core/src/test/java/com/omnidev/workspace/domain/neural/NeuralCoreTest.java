@@ -144,4 +144,22 @@ public final class NeuralCoreTest {
         assertEquals(.5, duplicate.recallAtK, 1e-9);
         assertTrue(duplicate.ndcgAtK < 1);
     }
+    @Test public void toolRankerCannotAddOrExecuteTools() {
+        TinyNeuralRuntime model = network(6, 1,
+                new float[]{2, 0, 0, 0, 0, 0}, new float[]{0},
+                TinyNeuralRuntime.Activation.LINEAR);
+        NeuralToolRanker.Candidate high = new NeuralToolRanker.Candidate(
+                "read_file", new float[]{1, 0, 0, 0, 0, 1});
+        NeuralToolRanker.Candidate low = new NeuralToolRanker.Candidate(
+                "lookup_document", new float[]{0, 0, 0, 0, 0, 1});
+        List<NeuralToolRanker.Ranked> ranked =
+                NeuralToolRanker.proposals(Arrays.asList(low, high), model);
+        assertEquals(2, ranked.size());
+        assertSame(high, ranked.get(0).candidate);
+        assertSame(low, ranked.get(1).candidate);
+        assertTrue(ranked.get(0).confidence > ranked.get(1).confidence);
+        rejects(() -> NeuralToolRanker.proposals(Arrays.asList(high, high), model));
+        rejects(() -> new NeuralToolRanker.Candidate("invalid", new float[]{2, 0, 0, 0, 0, 0}));
+    }
+
 }
