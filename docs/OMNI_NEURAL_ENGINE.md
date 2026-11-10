@@ -19,6 +19,9 @@ APK because the app does not declare a dependency on this module.
   clamped to 0..0.5. No bundled neural checkpoint or quality claim.
 * EvidenceMetrics: labelled recall@k, reciprocal rank and nDCG@k plus exact
   quote verification.
+* NeuralToolRanker: optional shadow-only six-feature scorer of existing
+  eligible tool candidates. Returns the same candidates, no tool invocation,
+  eligibility changes or permission decisions.
 
 ## Important limits
 * NOT a port of Racore's Mega-RAM-100K weights/architecture. It neither
