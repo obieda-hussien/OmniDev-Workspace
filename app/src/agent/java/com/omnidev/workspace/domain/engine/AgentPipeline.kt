@@ -40,7 +40,8 @@ class AgentPipeline(
     private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null,
     private val toolEligibility: ((String) -> String?)? = null,
     private val toolCallEligibility: ((ToolCall) -> String?)? = null,
-    private val taskStateStore: com.omnidev.workspace.domain.taskstate.TaskStateStore? = null
+    private val taskStateStore: com.omnidev.workspace.domain.taskstate.TaskStateStore? = null,
+    private val beforeToolExecution: (suspend (ToolCall) -> Unit)? = null
 ) {
 
     companion object {
@@ -1092,6 +1093,7 @@ When improving: keep every other sentence, the structure, the language and the l
             (recorder?.gateRunning(call) as? com.omnidev.workspace.domain.taskstate.RunGate.Blocked)?.let {
                 return ToolExecutionResult(it.output, true, classification = it.classification, retryable = false)
             }
+            beforeToolExecution?.invoke(call)
             val started = System.nanoTime()
             val retrySafe = ToolBatchPolicy.isReadOnly(call)
             val recordedStep = capture?.before(call, retrySafe)

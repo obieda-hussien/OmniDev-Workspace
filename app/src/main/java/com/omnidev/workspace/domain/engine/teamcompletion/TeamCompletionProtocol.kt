@@ -32,16 +32,30 @@ class TeamCompletionProtocol(val runId: String, val revision: Long, private val 
         require(resolved.size == tasks.size)
     }
 
-    @Synchronized fun begin(task: SwarmTask): WorkerAssignment {
+    @Synchronized fun begin(task: SwarmTask, previousAttempt: Int = 0): WorkerAssignment {
         require(matches(task))
         require(task.dependencies.all { receipts[it]?.accepted == true })
         require(receipts[task.id]?.accepted != true)
         val promoted = tasks.single { it.id == task.id }.parallelSafe && !task.parallelSafe
         val kind = if (!task.toolFree && (promoted || requiresAction(task.description)))
             com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION else com.omnidev.workspace.domain.engine.completion.TaskKind.ANALYSIS
-        val assignment = WorkerAssignment(runId, revision, task, (active[task.id]?.attempt ?: 0) + 1, kind)
+        val assignment = WorkerAssignment(runId, revision, task, maxOf(active[task.id]?.attempt ?: 0, previousAttempt) + 1, kind)
         active[task.id] = assignment
         return assignment
+    }
+
+    /** Only the durable runtime calls this seam; model-authored JSON never enters it. Re-runs P5/P0 review. */
+    @Synchronized internal fun restore(checkpoint: com.omnidev.workspace.domain.teamstate.WorkerCheckpoint): Boolean {
+        val a = checkpoint.assignment
+        if (a.teamRunId != runId || a.revision != revision || !matches(a.task) ||
+            a.attempt !in 1..com.omnidev.workspace.domain.teamstate.TeamStateEngine.MAX_ATTEMPTS ||
+            a.task.dependencies.any { receipts[it]?.accepted != true } || receipts[a.task.id]?.accepted == true) return false
+        val observer = WorkerCompletionObserver(a)
+        observer.restore(checkpoint.observations)
+        val receipt = observer.review(checkpoint.report, checkpoint.output)
+        if (!receipt.accepted || receipt.ledgerDigest != checkpoint.ledgerDigest || receipt.outputDigest != checkpoint.outputDigest) return false
+        active[a.task.id] = a
+        return accept(receipt, checkpoint.output)
     }
 
     private fun matches(task: SwarmTask) = tasks.any {

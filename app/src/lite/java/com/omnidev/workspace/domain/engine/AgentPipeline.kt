@@ -37,7 +37,8 @@ class AgentPipeline(
     private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null,
     private val toolEligibility: ((String) -> String?)? = null,
     private val toolCallEligibility: ((ToolCall) -> String?)? = null,
-    private val taskStateStore: com.omnidev.workspace.domain.taskstate.TaskStateStore? = null
+    private val taskStateStore: com.omnidev.workspace.domain.taskstate.TaskStateStore? = null,
+    private val beforeToolExecution: (suspend (ToolCall) -> Unit)? = null
 ) {
     fun execute(
         userMessage: String,

@@ -8,6 +8,7 @@ package com.omnidev.workspace.domain.taskstate
  *  4. VERIFICATION: what the P0 finish protocol accepted (task finish record, step completion proof).
  * Hidden model reasoning is never stored; only operational decisions and concise summaries.
  */
+@kotlinx.serialization.Serializable
 enum class TaskStatus {
     CREATED, RUNNING, INTERRUPTED, AWAITING_APPROVAL, BLOCKED, INCOMPLETE, COMPLETED, FAILED, CANCELLED;
 
