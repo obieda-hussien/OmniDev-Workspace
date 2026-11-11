@@ -2,6 +2,7 @@ package com.omnidev.workspace.data.tools
 
 import org.junit.Assert.*
 import org.junit.Test
+import java.io.File
 import java.nio.file.Files
 
 class GitWorkspaceSelectorTest {
