@@ -8,8 +8,20 @@ import kotlinx.serialization.json.*
 /** Exact contract checks; no fuzzy dispatch, guessed arguments, or silent repairs. */
 class ToolCallPreflight(definitions: List<ToolDefinition>) {
     private val catalog = definitions.associateBy { it.name }
+    private val corrections = ToolCorrectionAdvisor(definitions)
 
     fun check(call: ToolCall): ToolExecutionResult? {
+        val failure = checkExact(call)
+        val report = corrections.review(call)
+        if (failure == null && report.valid) return null
+        // Preserve the router's separately owned candidate-loading control, never its raw payload.
+        if (call.argumentError?.startsWith("OPERATION_UNRESOLVED:") == true) return failure
+        val code = if (report.issues.any { it.kind == ToolContractIssueKind.UNKNOWN_TOOL }) "TOOL_NOT_EXPOSED"
+            else failure?.classification ?: "INVALID_TOOL_ARGUMENTS"
+        return denied(code, report.render())
+    }
+
+    private fun checkExact(call: ToolCall): ToolExecutionResult? {
         val definition = catalog[call.name]
             ?: return denied("TOOL_NOT_EXPOSED", buildString {
                 append("Tool is not in this request's catalog. ")

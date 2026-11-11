@@ -11,7 +11,7 @@ internal object ToolTypoAdvisor {
         val candidates = exposed.asSequence()
             .filter { it.length <= 160 }
             .map { it to editDistance(input.lowercase(), it.lowercase()) }
-            .filter { it.second in 1..limit }
+            .filter { (name, distance) -> name != input && distance in 0..limit }
             .sortedWith(compareBy<Pair<String, Int>> { it.second }.thenBy { it.first })
             .take(2).toList()
         val first = candidates.firstOrNull() ?: return null
