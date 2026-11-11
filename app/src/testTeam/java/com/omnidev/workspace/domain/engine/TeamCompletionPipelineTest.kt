@@ -49,6 +49,31 @@ class TeamCompletionPipelineTest {
         assertTrue(events.filterIsInstance<SwarmEvent.WorkerPhaseChanged>().any { it.phase == "RECOVER" })
     }
 
+    @Test fun `mutation worker with no observations never blindly replays`() = runTest {
+        val tools = Tools()
+        var workerRequests = 0
+        val team = SwarmOrchestrator(tools, completionProvider = { request ->
+            when {
+                request.systemPrompt.orEmpty().contains("Omni Team Orchestrator") ->
+                    CompletionResponse("""[{"id":"edit","description":"Write source implementation","parallelSafe":false}]""")
+                request.systemPrompt.orEmpty().contains("Synthesize specialist") ->
+                    CompletionResponse("Unverified")
+                else -> {
+                    workerRequests++
+                    CompletionResponse("I will write the source next.")
+                }
+            }
+        })
+        val events = team.execute("Write source implementation and verify the result",
+            "gpt-4o-mini", "gpt-4o-mini", "/tmp").toList()
+        val outcome = events.filterIsInstance<SwarmEvent.Completed>().single()
+        assertEquals(0, outcome.tasksCompleted)
+        assertEquals(1, outcome.tasksFailed)
+        assertTrue(tools.executed.isEmpty())
+        assertFalse(events.filterIsInstance<SwarmEvent.WorkerPhaseChanged>().any { it.phase == "RECOVER" })
+        assertTrue(workerRequests > 0)
+    }
+
     @Test fun `actual workers produce exact accepted receipts before dependencies execute`() = runTest {
         val tools = Tools()
         val team = SwarmOrchestrator(tools, completionProvider = { r -> when {
