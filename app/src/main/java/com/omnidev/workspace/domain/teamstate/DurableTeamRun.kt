@@ -22,10 +22,19 @@ internal class DurableTeamRun private constructor(private val store: TeamStateEn
     suspend fun heartbeat() = store.heartbeat(id, owner)
     suspend fun release() = store.release(id, owner)
     suspend fun plan(revision: Long) = store.load(id)?.plans?.singleOrNull { it.revision == revision }
+    suspend fun assertMayPlan() = store.assertMayPlan(id, owner)
     suspend fun savePlan(revision: Long, objective: String, tasks: List<SwarmTask>) = store.savePlan(id, owner, revision, objective, tasks)
+    suspend fun remainingBudget(): Int = (TeamStateEngine.TOKEN_LIMIT - requireNotNull(store.load(id)).reservedTokens).coerceAtLeast(0)
     suspend fun reserve(tokens: Int) = store.reserve(id, owner, tokens)
     suspend fun previousAttempt(revision: Long, taskId: String): Int = store.load(id)?.attempts.orEmpty()
         .filter { it.assignment.revision == revision && it.assignment.task.id == taskId }.maxOfOrNull { it.assignment.attempt } ?: 0
+    suspend fun previousObservations(taskId: String): String {
+        val prior = store.load(id)?.attempts.orEmpty().filter { it.assignment.task.id == taskId }
+        val notes = prior.flatMap { it.operations }.filter { it.returned }.takeLast(6).joinToString("\n") {
+            "${it.tool}: ${it.classification.ifBlank { if (it.succeeded) "returned" else "failed" }} · ${it.observation.take(300)}"
+        }
+        return if (notes.isBlank()) "" else "\nPrevious attempt observations (context only; not this attempt's P0 proof):\n$notes"
+    }
     suspend fun begin(a: WorkerAssignment, tokens: Int) = store.begin(id, owner, a, tokens)
     suspend fun beforeTool(a: WorkerAssignment, call: ToolCall) = store.beforeTool(id, owner, a, call)
     suspend fun observed(a: WorkerAssignment, event: AgentEvent.ToolResult) = store.observed(id, owner, a, event)
@@ -43,7 +52,7 @@ internal class DurableTeamRun private constructor(private val store: TeamStateEn
         check(remaining.isEmpty()) { "Saved receipt no longer matches its P0/P5 verification contract" }
         return outputs
     }
-    suspend fun finish(report: TeamCompletionReport) = store.finish(id, owner, report)
+    suspend fun finish(report: TeamCompletionReport, summary: String) = store.finish(id, owner, report, summary)
 }
 
 /** Runtime-known failures pause without speculative model correction. P7/P9 may advise; they cannot override this. */

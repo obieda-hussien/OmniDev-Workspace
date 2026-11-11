@@ -116,7 +116,8 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
                 onReconcileTask = viewModel::reconcileTaskInvocation,
                 onDismissRecoveryTask = viewModel::dismissTaskRecovery,
                 onResumeTeam = viewModel::resumePersistentTeam, onCancelTeam = viewModel::cancelPersistentTeam,
-                onReconcileTeam = viewModel::reconcileTeamOperation, onRefreshTeams = viewModel::refreshTaskRecovery)
+                onReconcileTeam = viewModel::reconcileTeamOperation, onRefreshTeams = viewModel::refreshTaskRecovery,
+                onReviewTeamIntervention = viewModel::reviewTeamIntervention)
         }
     }
 }
@@ -144,7 +145,8 @@ internal fun ChatConversation(
     onDismissRecoveryTask: (String) -> Unit = {},
     onResumeTeam: (String) -> Unit = {}, onCancelTeam: (String) -> Unit = {},
     onReconcileTeam: (String, String, String, String) -> Unit = { _, _, _, _ -> },
-    onRefreshTeams: () -> Unit = {}
+    onRefreshTeams: () -> Unit = {},
+    onReviewTeamIntervention: (String, String) -> Unit = { _, _ -> }
 ) {
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -190,7 +192,7 @@ internal fun ChatConversation(
                                 onEditLastUser = onEditLastUser, onRegenerateLast = onRegenerateLast,
                                 onClearError = onClearError, onModeDecision = onModeDecision, onBrowser = onBrowser,
                                 leadingContent = {
-                                    TeamRecoverySection(state.recoveryTeams, !state.isProcessing, onResumeTeam, onCancelTeam, onReconcileTeam, onRefreshTeams)
+                                    TeamRecoverySection(state.recoveryTeams, !state.isProcessing, onResumeTeam, onCancelTeam, onReconcileTeam, onRefreshTeams, onReviewTeamIntervention)
                                     TaskRecoverySection(recoveryTasks, recoveryLoading, recoveryError, !state.isProcessing,
                                         onResumeTask, state.inputText, onReconcileTask, onDismissRecoveryTask)
                                 })

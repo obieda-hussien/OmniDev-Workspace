@@ -40,7 +40,7 @@ class TeamStateEngineTest {
         fun recreate() { clock += TeamStateEngine.LEASE_MS + 1; store = TeamStateEngine(backend) { clock } }
         suspend fun begin(t: SwarmTask = a, attempt: Int = 1, owner: String = "owner"): WorkerAssignment =
             WorkerAssignment("team", 0, t, attempt).also { store.begin("team", owner, it, 12_000) }
-        suspend fun complete(a: WorkerAssignment, owner: String = "owner", tool: String = "read_file", args: Map<String, String> = mapOf("path" to "/tmp/Source.kt")) {
+        suspend fun complete(a: WorkerAssignment, owner: String = "owner", tool: String = "read_file", args: Map<String, String> = mapOf("path" to "/tmp/Source.kt"), summary: String = "Read verified source") {
             val observer = WorkerCompletionObserver(a)
             val ledger = RunEvidenceLedger(a.identity.runId, a.task.id)
             val call = ToolCall("read", tool, args)
@@ -51,7 +51,7 @@ class TeamStateEngineTest {
             observer.observed(event); store.observed("team", owner, a, event)
             val policy = FinalizationPolicy(true, true, requireAction = a.kind == TaskKind.IMPLEMENTATION)
             val gate = FinishGate(ledger, RunState(a.task.description, ledger, emptyList(), true), policy, a.identity)
-            val report = (gate.implicit("Read verified source") as GateResult.Publish).report
+            val report = (gate.implicit(summary) as GateResult.Publish).report
             val receipt = observer.review(report, "Read verified source")
             assertTrue(receipt.reason, receipt.accepted)
             store.finishWorker("team", owner, a, observer, report, "Read verified source", receipt, null)
@@ -70,6 +70,13 @@ class TeamStateEngineTest {
         assertEquals("team", resumed.id)
         assertEquals(1, resumed.generation)
         assertTrue(r.store.summaries(7).single().workers.any { it.id == "inspect" && it.status == "COMPLETED" })
+    }
+    @Test fun `operational report prose is redacted without changing the evidence identity`() = runTest {
+        val r = Rig(); r.start(); val a = r.begin()
+        r.complete(a, summary = "Read source. password=never-persist-this")
+        assertFalse(r.backend.data.getValue("team").contains("never-persist-this"))
+        assertTrue(r.store.accepted(r.store.load("team")!!, "inspect"))
+        assertEquals(a.identity.runId, r.store.checkpoints(r.store.load("team")!!).single().report!!.runId)
     }
     @Test fun `unverified dependencies never unlock workers`() = runTest {
         val r = Rig(); r.start()
@@ -148,6 +155,16 @@ class TeamStateEngineTest {
         r.store.observed("team", "owner", a, AgentEvent.ToolResult("read_file", "permission", true, 1,
             EvidenceRef("denied", 1, "read_file", "", RunEvidenceLedger.Outcome.ERROR, EvidenceKinds.Kind.READ, a.identity.runId, a.task.id), "CONFIRMATION_REQUIRED"))
         r.recreate(); assertFalse(r.store.summaries(7).single().canResume)
+    }
+    @Test fun `explicit intervention review does not grant permissions or mark a worker complete`() = runTest {
+        val r = Rig(); r.start(); val a = r.begin()
+        r.store.observed("team", "owner", a, AgentEvent.ToolResult("read_file", "permission", true, 1,
+            EvidenceRef("denied", 1, "read_file", "", RunEvidenceLedger.Outcome.ERROR, EvidenceKinds.Kind.READ, a.identity.runId, a.task.id), "CONFIRMATION_REQUIRED"))
+        r.recreate(); r.store.reviewIntervention("team", 7, a.identity.runId)
+        assertTrue(r.store.summaries(7).single().canResume)
+        assertFalse(r.store.accepted(r.store.load("team")!!, "inspect"))
+        r.store.claim("team", 7, "next")
+        assertEquals(2, r.begin(attempt = 2, owner = "next").attempt)
     }
     @Test fun `completed workers do not rerun and synthesis cannot complete missing successors`() = runTest {
         val r = Rig(); r.start(); r.complete(r.begin())

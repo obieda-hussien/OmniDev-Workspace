@@ -330,6 +330,17 @@ class ChatViewModel(
         }
     }
 
+    fun reviewTeamIntervention(teamId: String, attemptRunId: String) {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        viewModelScope.launch {
+            try {
+                withContext(kotlinx.coroutines.Dispatchers.IO) { teamStateStore?.reviewIntervention(teamId, sessionId, attemptRunId) }
+                refreshTaskRecovery()
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { _uiState.update { it.copy(recoveryError = error.message?.take(240)) } }
+        }
+    }
+
     fun cancelPersistentTeam(teamId: String) {
         val sessionId = _uiState.value.currentSessionId ?: return
         viewModelScope.launch {
@@ -733,7 +744,7 @@ class ChatViewModel(
                         errorMessage = null,
                         streamingContent = null,
                         recoveryTasks = emptyList(),
-                recoveryTeams = emptyList(),
+                        recoveryTeams = emptyList(),
                         recoveryLoading = false,
                         recoveryError = null
                     )
@@ -757,7 +768,7 @@ class ChatViewModel(
                     errorMessage = null,
                     streamingContent = null,
                     recoveryTasks = emptyList(),
-                recoveryTeams = emptyList(),
+                    recoveryTeams = emptyList(),
                     recoveryLoading = false,
                     recoveryError = null
                 )
@@ -783,7 +794,7 @@ class ChatViewModel(
                         errorMessage = null,
                         streamingContent = null,
                         recoveryTasks = emptyList(),
-                recoveryTeams = emptyList(),
+                        recoveryTeams = emptyList(),
                         recoveryLoading = false,
                         recoveryError = null
                     )

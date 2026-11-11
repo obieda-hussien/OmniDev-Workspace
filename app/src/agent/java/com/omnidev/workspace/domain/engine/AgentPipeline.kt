@@ -316,7 +316,7 @@ When improving: keep every other sentence, the structure, the language and the l
         val learnedTool = (toolManager as? CompositeToolManager)?.learnedRoutineTool
         // This path precedes provider selection, API key reads, memory retrieval and prompt compilation.
         val launcherReplayNeedsEvidence = LauncherExecutionLedger(routingContext).requiresAction
-        val localMatch = if (!launcherReplayNeedsEvidence && !mentionFocus.active && steering == null && workerPersona == null && toolCallEligibility == null && userAttachments.isEmpty() &&
+        val localMatch = if (!launcherReplayNeedsEvidence && !mentionFocus.active && steering == null && workerPersona == null && runIdentity?.workerId == null && beforeToolExecution == null && toolCallEligibility == null && userAttachments.isEmpty() &&
             toolAccessMode != "DISABLED" && "learned_routine" !in disabledToolNames)
             learnedTool?.let { com.omnidev.workspace.data.routines.RoutineMatcher.match(userMessage, it.hub.store.list()) } else null
         if (localMatch != null) {

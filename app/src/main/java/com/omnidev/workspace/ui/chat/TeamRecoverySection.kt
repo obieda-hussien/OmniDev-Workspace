@@ -13,7 +13,8 @@ import com.omnidev.workspace.domain.teamstate.TeamRecoverySummary
 @Composable
 internal fun TeamRecoverySection(teams: List<TeamRecoverySummary>, enabled: Boolean,
     onResume: (String) -> Unit, onCancel: (String) -> Unit,
-    onReconcile: (String, String, String, String) -> Unit, onRefresh: () -> Unit) {
+    onReconcile: (String, String, String, String) -> Unit, onRefresh: () -> Unit,
+    onReviewIntervention: (String, String) -> Unit = { _, _ -> }) {
     if (teams.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = onRefresh, enabled = enabled) { Text("Refresh saved Teams") }
@@ -27,12 +28,22 @@ internal fun TeamRecoverySection(teams: List<TeamRecoverySummary>, enabled: Bool
                     var inspect by rememberSaveable(team.id) { mutableStateOf(false) }
                     TextButton(onClick = { inspect = !inspect }) { Text(if (inspect) "Hide recovery details" else "Inspect plan and failures") }
                     if (inspect) {
+                        if (team.verifiedSummary.isNotBlank()) Text(team.verifiedSummary, style = MaterialTheme.typography.bodySmall)
                         if (team.objective != team.originalObjective) Text("Current objective: ${team.objective.take(600)}")
                         team.workers.forEach { worker ->
                             Text("${worker.id}: ${worker.status} (attempt ${worker.attempt})", style = MaterialTheme.typography.bodySmall)
+                            if (worker.description.isNotBlank()) Text(worker.description, style = MaterialTheme.typography.bodySmall)
+                            worker.acceptance.forEach { Text("Acceptance: $it", style = MaterialTheme.typography.bodySmall) }
                             if (worker.dependencies.isNotEmpty()) Text("Dependencies: ${worker.dependencies.joinToString()}", style = MaterialTheme.typography.bodySmall)
                             worker.lastOperation?.let { Text("Last attempted operation: $it", style = MaterialTheme.typography.bodySmall) }
                             worker.blocker?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                            worker.lastVerifiedOperation?.let { Text("Last verified tool result: $it", style = MaterialTheme.typography.bodySmall) }
+                            if (worker.interventionRequired && worker.unresolvedCalls.isEmpty() && worker.attemptRunId != null) {
+                                Text("Review permission or backend setup first. A retry still checks all normal tool permissions.", style = MaterialTheme.typography.bodySmall)
+                                TextButton(onClick = { onReviewIntervention(team.id, worker.attemptRunId) }, enabled = enabled) {
+                                    Text("Recheck permissions on next attempt")
+                                }
+                            }
                             worker.unresolvedCalls.forEach { callId ->
                                 Text("Review unresolved effect: $callId. An operation may have succeeded; it will not replay automatically.",
                                     style = MaterialTheme.typography.bodySmall)

@@ -54,6 +54,13 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
             r.copy(reservedTokens = r.reservedTokens + tokens)
         }
     }
+    internal suspend fun assertMayPlan(id: String, owner: String) {
+        owned(id, owner) { r ->
+            check(r.plans.size < MAX_REVISIONS) { "Team revision limit reached" }
+            check(r.attempts.none { unsafe(it) }) { "Review unresolved effects or approvals before asking for a new plan" }
+            r
+        }
+    }
     internal suspend fun savePlan(id: String, owner: String, revision: Long, objective: String, tasks: List<SwarmTask>) {
         // Validate with exactly the production P5 graph validator before committing.
         TeamCompletionProtocol(id, revision, tasks)
@@ -117,30 +124,43 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
                 "GITHUB_AUTH_REQUIRED", "GITHUB_PERMISSION_DENIED", "TIER_DENIED", "USER_DENIED", "USER_ACTION_DENIED")
             w.copy(stage = "TOOL_RETURNED", intervention = w.intervention || intervention,
                 operations = w.operations.map { op -> if (op.callId != ref.callId) op else op.copy(returned = true,
-                    succeeded = !event.isError, classification = event.classification.orEmpty().take(120)) })
+                    succeeded = !event.isError, classification = event.classification.orEmpty().take(120),
+                    evidence = ref, observation = SensitiveObservationRedactor.redact(event.output).take(600)) })
         }
     }
     internal suspend fun finishWorker(id: String, owner: String, a: WorkerAssignment, observer: WorkerCompletionObserver,
         report: CompletionReport?, output: String, receipt: WorkerReceipt, error: String?) {
         require(output.length <= 48_000) { "Worker output exceeds durable checkpoint bound" }
         require(receipt.assignment === a)
-        val reviewed = observer.review(report, output)
+        require(SensitiveObservationRedactor.redact(output) == output) { "Worker output must be redacted before checkpointing" }
+        require(report == null || (report.criteria.size <= 64 && report.evidence.size <= 200 && report.problems.size <= 64))
+        val safeReport = report?.copy(summary = SensitiveObservationRedactor.redact(report.summary).take(2_000),
+            criteria = report.criteria.map { it.copy(criterion = it.criterion.copy(text = SensitiveObservationRedactor.redact(it.criterion.text).take(1_000)),
+                reason = it.reason?.let { reason -> SensitiveObservationRedactor.redact(reason).take(300) }) },
+            problems = report.problems.map { SensitiveObservationRedactor.redact(it).take(300) })
+        val reviewed = observer.review(safeReport, output)
         require(receipt.accepted == reviewed.accepted && receipt.ledgerDigest == reviewed.ledgerDigest && receipt.outputDigest == reviewed.outputDigest)
         attempt(id, owner, a) { w ->
-            val checkpoint = if (error == null && receipt.accepted) WorkerCheckpoint(a, observer.snapshot(), report, output,
+            val checkpoint = if (error == null && receipt.accepted) WorkerCheckpoint(a, observer.snapshot(), safeReport, output,
                 receipt.ledgerDigest, receipt.outputDigest) else null
-            w.copy(status = if (checkpoint != null) TaskStatus.COMPLETED else TaskStatus.INTERRUPTED,
+            w.copy(status = if (checkpoint != null) TaskStatus.COMPLETED
+                else if (w.intervention || receipt.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.AWAITING_APPROVAL) TaskStatus.AWAITING_APPROVAL
+                else TaskStatus.INTERRUPTED,
                 stage = if (checkpoint != null) "P0_P5_VERIFIED" else "INTERRUPTED", checkpoint = checkpoint,
                 failure = error?.let { "${TeamFailurePolicy.classify(it)}: ${SensitiveObservationRedactor.redact(it).take(260)}" }.orEmpty(),
-                intervention = w.intervention || receipt.status in setOf(com.omnidev.workspace.domain.engine.completion.FinishStatus.AWAITING_APPROVAL,
+                intervention = w.intervention || (checkpoint == null && observer.unsafeToRetry && w.operations.none { !it.readOnly }) || receipt.status in setOf(com.omnidev.workspace.domain.engine.completion.FinishStatus.AWAITING_APPROVAL,
                     com.omnidev.workspace.domain.engine.completion.FinishStatus.BLOCKED))
         }
     }
-    internal suspend fun finish(id: String, owner: String, report: TeamCompletionReport) {
+    internal suspend fun finish(id: String, owner: String, report: TeamCompletionReport, summary: String = "") {
         owned(id, owner) { r ->
             check(report.runId == id && report.revision == r.revision)
-            if (report.verified) check(r.plan!!.tasks.all { accepted(r, it.id) }) { "Missing durable worker proof" }
-            r.copy(status = if (report.verified) TaskStatus.COMPLETED else TaskStatus.INTERRUPTED, finalDigest = report.digest)
+            if (report.verified) {
+                val protocol = restoredProtocol(r)
+                check(protocol.finish(emptySet(), emptySet()).digest == report.digest) { "Team report disagrees with durable P0/P5 receipts" }
+            }
+            r.copy(status = if (report.verified) TaskStatus.COMPLETED else TaskStatus.INTERRUPTED, finalDigest = report.digest,
+                verifiedSummary = if (report.verified) SensitiveObservationRedactor.redact(summary).take(24_000) else "")
         }
     }
     internal suspend fun release(id: String, owner: String) {
@@ -157,21 +177,23 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
         TeamRecoverySummary(r.id, r.sessionId, r.originalObjective, r.objective, r.revision,
             if (!active && r.status == TaskStatus.RUNNING) "INTERRUPTED" else r.status.name,
             r.plan?.tasks.orEmpty().map { task ->
-                val a = r.currentAttempts.lastOrNull { it.assignment.task.id == task.id }
+                val a = r.currentAttempts.lastOrNull { it.assignment.task.id == task.id } ?:
+                    r.attempts.lastOrNull { it.assignment.task.id == task.id && it.assignment.revision == r.plan?.carriedReceipts?.get(task.id) }
                 val proof = accepted(r, task.id)
                 val blocked = task.dependencies.filterNot { accepted(r, it) }
                 TeamWorkerRecovery(task.id, if (proof) "COMPLETED" else if (active && a?.status == TaskStatus.RUNNING) "RUNNING"
-                    else if (blocked.isNotEmpty()) "BLOCKED" else a?.status?.name?.takeUnless { it == "RUNNING" } ?: "READY",
+                    else if (blocked.isNotEmpty()) "BLOCKED" else if (a?.status == TaskStatus.RUNNING) "INTERRUPTED" else a?.status?.name ?: "READY",
                     a?.assignment?.attempt ?: 0, task.dependencies, a?.operations?.lastOrNull()?.tool,
                     if (blocked.isNotEmpty()) "Waiting for verified dependencies: ${blocked.joinToString()}" else a?.failure?.takeIf { it.isNotBlank() },
                     a?.operations.orEmpty().filter { !it.readOnly && !it.notExecuted && a?.checkpoint == null }.map { it.callId }, a?.assignment?.identity?.runId,
-                    a?.operations.orEmpty().filter { !it.readOnly && !it.notExecuted && !it.succeeded && a?.intervention != true && a?.checkpoint == null }.map { it.callId })
-            }, !active && blockers.isEmpty() && r.status !in setOf(TaskStatus.COMPLETED, TaskStatus.CANCELLED), blockers, r.scopePath)
+                    a?.operations.orEmpty().filter { !it.readOnly && !it.notExecuted && !it.succeeded && a?.intervention != true && a?.checkpoint == null }.map { it.callId }, a?.intervention == true,
+                    a?.operations?.lastOrNull { it.succeeded && it.evidence != null }?.tool, task.description, task.acceptance)
+            }, !active && blockers.isEmpty() && r.status !in setOf(TaskStatus.COMPLETED, TaskStatus.CANCELLED), blockers, r.scopePath, if (r.status == TaskStatus.COMPLETED) r.verifiedSummary else "")
     }
 
     /** Explicit exact-operation reconciliation. A read/result alone cannot call this API. Successful writes stay non-replayable. */
     suspend fun reconcileNotExecuted(id: String, sessionId: Long, attemptRunId: String, callId: String, verification: String) {
-        require(verification.trim().length in 20..1_000)
+        require(verification.length <= 1_000 && verification.trim().length >= 20)
         backend.change(id) { old ->
             val r = requireNotNull(old)
             require(r.sessionId == sessionId && (r.owner == null || r.leaseUntil <= now()))
@@ -182,6 +204,18 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
             r.copy(attempts = r.attempts.map { if (it != a) it else a.copy(operations = a.operations.map {
                 if (it.callId != callId) it else it.copy(notExecuted = true, reconciliation = SensitiveObservationRedactor.redact(verification))
             }) }, updatedAt = now())
+        }
+    }
+    suspend fun reviewIntervention(id: String, sessionId: Long, attemptRunId: String) {
+        backend.change(id) { old ->
+            val r = requireNotNull(old)
+            require(r.sessionId == sessionId && (r.owner == null || r.leaseUntil <= now()))
+            val a = r.attempts.single { it.assignment.identity.runId == attemptRunId }
+            require(a.intervention && a.checkpoint == null && a.operations.none { !it.readOnly && !it.notExecuted }) {
+                "Side effects must be reconciled before retrying"
+            }
+            r.copy(attempts = r.attempts.map { if (it != a) it else a.copy(intervention = false,
+                status = TaskStatus.INTERRUPTED, failure = "User requested fresh authorization/backend validation") }, updatedAt = now())
         }
     }
     suspend fun cancel(id: String, sessionId: Long) { backend.change(id) { old ->
@@ -209,25 +243,34 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
         }
         return current + carried
     }
-    internal fun accepted(r: TeamRecord, id: String): Boolean {
-        val p = r.plan ?: return false
-        val protocol = TeamCompletionProtocol(r.id, r.revision, p.tasks, TeamCompletionProtocol.requiresAction(r.originalObjective))
+    internal fun restoredProtocol(r: TeamRecord): TeamCompletionProtocol {
+        val p = requireNotNull(r.plan)
+        val protocol = TeamCompletionProtocol(r.id, r.revision, p.tasks,
+            r.revision == 0L && TeamCompletionProtocol.requiresAction(r.originalObjective))
         val remaining = checkpoints(r).toMutableList()
         repeat(p.tasks.size) {
             remaining.toList().forEach { c -> if (protocol.restore(c, p.carriedReceipts[c.assignment.task.id])) remaining.remove(c) }
         }
-        return !protocol.ready(id) && protocol.finish(emptySet(), emptySet()).workers.any { it.taskId == id && it.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.COMPLETED }
+        check(remaining.isEmpty()) { "Saved Team receipt failed verification" }
+        return protocol
     }
+    internal fun accepted(r: TeamRecord, id: String): Boolean {
+        if (r.plan == null) return false
+        return try { restoredProtocol(r).finish(emptySet(), emptySet()).workers.any {
+            it.taskId == id && it.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.COMPLETED
+        } } catch (_: IllegalStateException) { false } catch (_: IllegalArgumentException) { false }
+    }
+
 }
 
 private class MemoryTeamBackend : TeamStateBackend {
     private val mutex = Mutex()
-    private val records = mutableMapOf<String, TeamRecord>()
-    override suspend fun read(id: String) = mutex.withLock { records[id] }
+    private val records = mutableMapOf<String, String>()
+    override suspend fun read(id: String) = mutex.withLock { records[id]?.let(TeamPayloadCodec::decode) }
     override suspend fun change(id: String, transform: (TeamRecord?) -> TeamRecord) = mutex.withLock {
-        transform(records[id]).also { check(it.id == id); records[id] = it }
+        transform(records[id]?.let(TeamPayloadCodec::decode)).also { check(it.id == id); records[id] = TeamPayloadCodec.encode(it) }
     }
     override suspend fun forSession(sessionId: Long, limit: Int) = mutex.withLock {
-        records.values.filter { it.sessionId == sessionId }.sortedByDescending { it.updatedAt }.take(limit)
+        records.values.map(TeamPayloadCodec::decode).filter { it.sessionId == sessionId }.sortedByDescending { it.updatedAt }.take(limit)
     }
 }

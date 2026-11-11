@@ -8,7 +8,11 @@ import com.omnidev.workspace.data.repository.RoomTeamStateBackend
 import com.omnidev.workspace.domain.engine.SwarmTask
 import com.omnidev.workspace.domain.engine.teamcompletion.WorkerAssignment
 import com.omnidev.workspace.domain.teamstate.TeamStateEngine
+import com.omnidev.workspace.domain.engine.*
+import com.omnidev.workspace.domain.engine.completion.*
+import com.omnidev.workspace.domain.engine.teamcompletion.*
 import com.omnidev.workspace.data.model.ToolCall
+import com.omnidev.workspace.data.model.ToolCallResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -46,6 +50,44 @@ class TeamStateRoomTest {
             assertTrue(runCatching { restored.claim("team", 42, "new-owner") }.isFailure)
             restored.reconcileNotExecuted("team", 42, a.identity.runId, "write", "Verified exact destination: action was never executed")
             assertTrue(restored.summaries(42).single().canResume)
+        } finally { db.close() }
+    }
+    @Test fun verifiedReceiptAndFinalPresentationSurviveDatabaseReopenWithTheOriginalAttempt() = runBlocking {
+        var clock = 100L
+        var db = Room.databaseBuilder(context, OmniDevDatabase::class.java, filename).build()
+        val store = TeamStateEngine(RoomTeamStateBackend(db)) { clock }
+        val task = SwarmTask("inspect", "Read source")
+        store.create("team", 42, "Read source", "/tmp", "owner")
+        store.savePlan("team", "owner", 0, "Read source", listOf(task))
+        val a = WorkerAssignment("team", 0, task, 1)
+        store.begin("team", "owner", a, 12_000)
+        val observer = WorkerCompletionObserver(a)
+        val ledger = RunEvidenceLedger(a.identity.runId, task.id)
+        val call = ToolCall("read", "read_file", mapOf("path" to "/tmp/Source.kt"))
+        observer.started(AgentEvent.ToolExecution(call.name, call.arguments, 1, call.id))
+        store.beforeTool("team", "owner", a, call)
+        ledger.record(call, ToolCallResult(call.id, call.name, "class Source"))
+        val event = AgentEvent.ToolResult(call.name, "class Source", false, 1, ledger.snapshot().last())
+        observer.observed(event); store.observed("team", "owner", a, event)
+        val gate = FinishGate(ledger, RunState("Read source", ledger, emptyList(), true), FinalizationPolicy(true, true), a.identity)
+        val report = (gate.implicit("Verified source") as GateResult.Publish).report
+        val receipt = observer.review(report, "Verified source")
+        assertTrue(receipt.accepted)
+        store.finishWorker("team", "owner", a, observer, report, "Verified source", receipt, null)
+        val protocol = TeamCompletionProtocol("team", 0, listOf(task))
+        assertTrue(protocol.restore(store.load("team")!!.attempts.single().checkpoint!!))
+        store.finish("team", "owner", protocol.finish(emptySet(), emptySet()), "Verified source result")
+        db.close() // process dies after durable completion but before publishing the answer to chat
+        clock += TeamStateEngine.LEASE_MS + 1
+        db = Room.databaseBuilder(context, OmniDevDatabase::class.java, filename).build()
+        try {
+            val restored = TeamStateEngine(RoomTeamStateBackend(db)) { clock }
+            val saved = restored.load("team")!!
+            assertTrue(restored.accepted(saved, task.id))
+            assertEquals(a.identity.runId, saved.attempts.single().assignment.identity.runId)
+            assertEquals("Verified source result", restored.summaries(42).single().verifiedSummary)
+            assertFalse(restored.summaries(42).single().canResume)
+            assertTrue(runCatching { restored.claim("team", 42, "another") }.isFailure)
         } finally { db.close() }
     }
     @Test fun independentRoomEnginesCannotClaimTheSameTeamTwice() = runBlocking {

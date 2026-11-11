@@ -80,6 +80,34 @@ class DurableTeamPipelineTest {
         assertEquals(before + 1, tools.calls.count { it == "read_file" }) // edit read-back only
         assertEquals(1, tools.calls.count { it == "run_terminal" })
     }
+    @Test fun `saved implementation receipt prevents duplicate mutation when interrupted before verification worker`() = runTest {
+        val store = TeamStateEngine.inMemory(); val tools = Tools()
+        try {
+            SwarmOrchestrator(tools, { r ->
+                if (assignment(r).contains("Run Gradle")) kotlinx.coroutines.awaitCancellation()
+                scripted(r)
+            }, teamStateStore = store).execute("Inspect source, modify Kotlin and run Gradle tests", "gpt-4o-mini", "gpt-4o-mini", "/tmp", sessionId = 7)
+                .collect { if (it is SwarmEvent.TaskCompleted && it.task.id == "edit") throw CancellationException("stopped after saved edit receipt") }
+        } catch (_: CancellationException) { }
+        val saved = store.summaries(7).single()
+        assertTrue(saved.toString(), saved.workers.any { it.id == "edit" && it.status == "COMPLETED" })
+        val writes = tools.calls.count { it == "write_file" }
+        val result = run(tools, store, saved.id).filterIsInstance<SwarmEvent.Completed>().single()
+        assertTrue(result.completion!!.verified)
+        assertEquals(writes, tools.calls.count { it == "write_file" })
+        assertEquals(1, tools.calls.count { it == "run_terminal" })
+    }
+    @Test fun `interrupted test execution is uncertain and is not repeated as a harmless read`() = runTest {
+        val store = TeamStateEngine.inMemory(); val tools = Tools().apply { interrupt = "run_terminal" }
+        try { run(tools, store) } catch (_: CancellationException) { }
+        val saved = store.summaries(7).single()
+        assertFalse(saved.toString(), saved.canResume)
+        assertEquals(2, saved.workers.count { it.status == "COMPLETED" })
+        tools.interrupt = null
+        val result = run(tools, store, saved.id)
+        assertEquals(1, tools.calls.count { it == "run_terminal" })
+        assertTrue(result.none { it is SwarmEvent.Completed && it.completion?.verified == true })
+    }
     @Test fun `lost mutation response blocks the whole Team and never dispatches a duplicate write`() = runTest {
         val store = TeamStateEngine.inMemory(); val tools = Tools().apply { interrupt = "write_file" }
         try { run(tools, store) } catch (_: CancellationException) { }
@@ -118,6 +146,17 @@ class DurableTeamPipelineTest {
         assertTrue(saved.canResume)
         val resumed = run(tools, store, saved.id)
         assertTrue(resumed.filterIsInstance<SwarmEvent.Completed>().single().completion!!.verified)
+    }
+    @Test fun `planner rate limit has a bounded retry policy and a durable resumable original objective`() = runTest {
+        val store = TeamStateEngine.inMemory(); val tools = Tools(); var requests = 0
+        val events = run(tools, store) { requests++; throw java.io.IOException("HTTP 429 rate limit") }
+        assertEquals(5, requests) // one request plus the existing four bounded coordinator backoffs
+        assertTrue(events.any { it is SwarmEvent.Error })
+        assertTrue(tools.calls.isEmpty())
+        val saved = store.summaries(7).single()
+        assertTrue(saved.canResume)
+        assertTrue(saved.originalObjective.contains("GitHub repository"))
+        assertTrue(saved.workers.isEmpty())
     }
     @Test fun `interrupted known read resumes under a fresh worker identity without completing its dependency from prose`() = runTest {
         val store = TeamStateEngine.inMemory(); val tools = Tools().apply { interrupt = "read_file" }
