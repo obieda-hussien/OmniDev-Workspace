@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - 'neural-core/**'
+      - 'scripts/test_neural_training.sh'
       - 'settings.gradle.kts'
       - '.github/workflows/neural-core-ci.yml'
   push:
     branches: [main]
     paths:
       - 'neural-core/**'
+      - 'scripts/test_neural_training.sh'
       - 'settings.gradle.kts'
       - '.github/workflows/neural-core-ci.yml'
   workflow_dispatch:
@@ -42,3 +44,5 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon --max-workers 1 :neural-core:test --stacktrace
+      - name: Train numerical fixtures and verify portable checkpoints
+        run: bash scripts/test_neural_training.sh
