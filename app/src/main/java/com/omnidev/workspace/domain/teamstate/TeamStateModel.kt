@@ -15,7 +15,8 @@ internal data class WorkerCheckpoint(val assignment: WorkerAssignment, val obser
 internal data class TeamOperation(val callId: String, val tool: String, val readOnly: Boolean,
     val returned: Boolean = false, val succeeded: Boolean = false, val notExecuted: Boolean = false,
     val reconciliation: String = "", val classification: String = "",
-    val evidence: com.omnidev.workspace.domain.engine.completion.EvidenceRef? = null, val observation: String = "")
+    val evidence: com.omnidev.workspace.domain.engine.completion.EvidenceRef? = null, val observation: String = "",
+    val intentSummary: String = "")
 
 @Serializable
 internal data class TeamWorkerAttempt(val assignment: WorkerAssignment, val status: TaskStatus = TaskStatus.RUNNING,
@@ -41,7 +42,8 @@ data class TeamWorkerRecovery(val id: String, val status: String, val attempt: I
     val lastOperation: String?, val blocker: String?, val unresolvedCalls: List<String>,
     val attemptRunId: String? = null, val reconcilableCalls: List<String> = emptyList(),
     val interventionRequired: Boolean = false, val lastVerifiedOperation: String? = null,
-    val description: String = "", val acceptance: List<String> = emptyList())
+    val description: String = "", val acceptance: List<String> = emptyList(),
+    val operationDetails: Map<String, String> = emptyMap())
 data class TeamRecoverySummary(val id: String, val sessionId: Long?, val originalObjective: String,
     val objective: String, val revision: Long, val status: String, val workers: List<TeamWorkerRecovery>,
     val canResume: Boolean, val blockers: List<String>, val scopePath: String, val verifiedSummary: String = "")

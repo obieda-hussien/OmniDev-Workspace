@@ -45,6 +45,7 @@ internal fun TeamRecoverySection(teams: List<TeamRecoverySummary>, enabled: Bool
                                 }
                             }
                             worker.unresolvedCalls.forEach { callId ->
+                                worker.operationDetails[callId]?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                                 Text("Review unresolved effect: $callId. An operation may have succeeded; it will not replay automatically.",
                                     style = MaterialTheme.typography.bodySmall)
                                 if (callId in worker.reconcilableCalls && worker.attemptRunId != null) {

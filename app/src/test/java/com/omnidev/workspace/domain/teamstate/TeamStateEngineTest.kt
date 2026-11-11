@@ -185,6 +185,18 @@ class TeamStateEngineTest {
         assertFalse(TeamCompletionProtocol("team", 0, r.tasks).restore(cp.copy(output = "Invented result")))
         assertFalse(TeamCompletionProtocol("team", 0, r.tasks).restore(cp.copy(report = null)))
     }
+    @Test fun `corrupt stored receipt cannot unlock dependencies or produce a green recovery summary`() = runTest {
+        val r = Rig(); r.start(); r.complete(r.begin())
+        val saved = r.store.load("team")!!
+        val broken = saved.copy(status = TaskStatus.COMPLETED, attempts = saved.attempts.map {
+            it.copy(checkpoint = it.checkpoint!!.copy(report = null))
+        })
+        r.backend.data["team"] = Json.encodeToString(broken)
+        assertEquals("BLOCKED", r.store.summaries(7).single().status)
+        assertFalse(r.store.summaries(7).single().canResume)
+        r.recreate()
+        assertTrue(runCatching { r.store.claim("team", 7, "next") }.isFailure)
+    }
     @Test fun `plan revisions preserve immutable history and cannot conceal unresolved effects`() = runTest {
         val r = Rig(); r.start(); r.complete(r.begin())
         r.store.savePlan("team", "owner", 1, "Updated objective", listOf(r.a))

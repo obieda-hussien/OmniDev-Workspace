@@ -113,7 +113,12 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
         attempt(id, owner, a) { w ->
             check(w.operations.size < 200 && w.operations.none { it.callId == call.id }) { "Duplicate or excessive operation" }
             check(w.status == TaskStatus.RUNNING)
-            w.copy(stage = "TOOL_RUNNING", operations = w.operations + TeamOperation(call.id, call.name, ToolBatchPolicy.isReadOnly(call)))
+            val fields = listOf("action", "operation", "repo", "repository", "path", "filePath", "file_path", "directory", "endpoint")
+                .mapNotNull { key -> call.arguments[key]?.let { "$key=${SensitiveObservationRedactor.redact(it).take(160)}" } }.take(4)
+            val target = com.omnidev.workspace.domain.engine.completion.EvidenceKinds.commandTarget(call.name, call.arguments)
+                ?.let { "target=${SensitiveObservationRedactor.redact(it).take(160)}" }
+            val intent = (fields + listOfNotNull(target)).joinToString("; ").take(700)
+            w.copy(stage = "TOOL_RUNNING", operations = w.operations + TeamOperation(call.id, call.name, ToolBatchPolicy.isReadOnly(call), intentSummary = intent))
         }
     }
     internal suspend fun observed(id: String, owner: String, a: WorkerAssignment, event: AgentEvent.ToolResult) {
@@ -159,7 +164,12 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
                 val protocol = restoredProtocol(r)
                 check(protocol.finish(emptySet(), emptySet()).digest == report.digest) { "Team report disagrees with durable P0/P5 receipts" }
             }
-            r.copy(status = if (report.verified) TaskStatus.COMPLETED else TaskStatus.INTERRUPTED, finalDigest = report.digest,
+            r.copy(status = when (report.status) {
+                com.omnidev.workspace.domain.engine.completion.FinishStatus.COMPLETED -> TaskStatus.COMPLETED
+                com.omnidev.workspace.domain.engine.completion.FinishStatus.AWAITING_APPROVAL -> TaskStatus.AWAITING_APPROVAL
+                com.omnidev.workspace.domain.engine.completion.FinishStatus.BLOCKED -> TaskStatus.BLOCKED
+                else -> TaskStatus.INCOMPLETE
+            }, finalDigest = report.digest,
                 verifiedSummary = if (report.verified) SensitiveObservationRedactor.redact(summary).take(24_000) else "")
         }
     }
@@ -174,8 +184,10 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
     suspend fun summaries(sessionId: Long): List<TeamRecoverySummary> = backend.forSession(sessionId, 20).map { r ->
         val active = r.owner != null && r.leaseUntil > now()
         val blockers = recoveryBlockers(r) + if (active) listOf("Coordinator active or awaiting lease expiry") else emptyList()
+        val verifiedCompletion = r.status == TaskStatus.COMPLETED && r.plan?.tasks?.all { accepted(r, it.id) } == true
         TeamRecoverySummary(r.id, r.sessionId, r.originalObjective, r.objective, r.revision,
-            if (!active && r.status == TaskStatus.RUNNING) "INTERRUPTED" else r.status.name,
+            if (r.status == TaskStatus.COMPLETED && !verifiedCompletion) "BLOCKED"
+                else if (!active && r.status == TaskStatus.RUNNING) "INTERRUPTED" else r.status.name,
             r.plan?.tasks.orEmpty().map { task ->
                 val a = r.currentAttempts.lastOrNull { it.assignment.task.id == task.id } ?:
                     r.attempts.lastOrNull { it.assignment.task.id == task.id && it.assignment.revision == r.plan?.carriedReceipts?.get(task.id) }
@@ -187,8 +199,9 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
                     if (blocked.isNotEmpty()) "Waiting for verified dependencies: ${blocked.joinToString()}" else a?.failure?.takeIf { it.isNotBlank() },
                     a?.operations.orEmpty().filter { !it.readOnly && !it.notExecuted && a?.checkpoint == null }.map { it.callId }, a?.assignment?.identity?.runId,
                     a?.operations.orEmpty().filter { !it.readOnly && !it.notExecuted && !it.succeeded && a?.intervention != true && a?.checkpoint == null }.map { it.callId }, a?.intervention == true,
-                    a?.operations?.lastOrNull { it.succeeded && it.evidence != null }?.tool, task.description, task.acceptance)
-            }, !active && blockers.isEmpty() && r.status !in setOf(TaskStatus.COMPLETED, TaskStatus.CANCELLED), blockers, r.scopePath, if (r.status == TaskStatus.COMPLETED) r.verifiedSummary else "")
+                    a?.operations?.lastOrNull { it.succeeded && it.evidence?.outcome == RunEvidenceLedger.Outcome.OK }?.tool, task.description, task.acceptance,
+                    a?.operations.orEmpty().filter { !it.readOnly && !it.notExecuted && a?.checkpoint == null }.associate { it.callId to it.intentSummary })
+            }, !active && blockers.isEmpty() && r.status !in setOf(TaskStatus.COMPLETED, TaskStatus.CANCELLED), blockers, r.scopePath, if (verifiedCompletion) r.verifiedSummary else "")
     }
 
     /** Explicit exact-operation reconciliation. A read/result alone cannot call this API. Successful writes stay non-replayable. */
