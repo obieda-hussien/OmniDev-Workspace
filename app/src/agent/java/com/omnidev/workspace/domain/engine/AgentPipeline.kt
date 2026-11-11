@@ -199,6 +199,49 @@ When improving: keep every other sentence, the structure, the language and the l
         return if (steering == null) complete() else steering.reasoning(revision) { complete() }
     }
 
+    /** Critique and deterministic grounding never bypass the P0 finish gate. */
+    private suspend fun renderVerifiedFinalContent(
+        response: CompletionResponse,
+        userMessage: String,
+        steering: RunSteering?,
+        revision: Long,
+        modelId: String,
+        maxOutputTokens: Int,
+        scopePath: String,
+        apiKey: String?,
+        totalTokensUsed: Int,
+        evidenceLedger: RunEvidenceLedger,
+        runtimeBackends: RuntimeBackendLedger,
+        messages: List<ChatMessage>,
+        onUsage: suspend (Int) -> Unit,
+        onReflecting: suspend (Int) -> Unit
+    ): String {
+        suspend fun critique() = maybeCritique(
+            draft = response.content,
+            originalUserMessage = steering?.objective(userMessage, revision) ?: userMessage,
+            modelId = modelId, modelMaxOutputTokens = maxOutputTokens,
+            scopePath = scopePath, apiKey = apiKey,
+            totalTokensUsed = totalTokensUsed,
+            ledger = evidenceLedger.render(maxOk = 60, maxProblems = 40),
+            onUsage = onUsage, onReflecting = onReflecting,
+            enabled = evidenceLedger.fin.reflectionEnabled(config.enableSelfReflection)
+        )
+        val critiquedContent = when {
+            runtimeBackends.hasBlocks() -> response.content + "\n\n" + runtimeBackends.reportSummary()
+            evidenceLedger.fin.keepsText() -> response.content
+            steering == null -> critique()
+            else -> steering.reasoning(revision) { critique() }
+        }
+        // Only observed tool outcomes can support a claim of files or completion.
+        val cleaned = FinalAnswerSanitizer.clean(critiquedContent)
+        val groundingNote = if (runtimeBackends.hasBlocks()) "" else evidenceLedger.groundingNote(
+            cleaned,
+            messages.filter { it.role == MessageRole.TOOL }
+                .flatMap { it.toolResults }.takeLast(256)
+        )
+        return if (groundingNote.isBlank()) cleaned else cleaned + "\n\n" + groundingNote
+    }
+
     fun execute(
         userMessage: String,
         conversationHistory: List<ChatMessage> = emptyList(),
@@ -657,45 +700,26 @@ When improving: keep every other sentence, the structure, the language and the l
                     thinkingContent = response.thinkingContent
                 )
 
-                val critiquedContent = try {
-                    suspend fun critique() = maybeCritique(
-                        draft = response.content,
-                        originalUserMessage = steering?.objective(userMessage, revision) ?: userMessage,
-                        modelId = modelId,
-                        modelMaxOutputTokens = model.maxOutputTokens,
-                        scopePath = scopePath,
-                        apiKey = resolvedApiKey,
-                        totalTokensUsed = totalTokensUsed,
-                        ledger = evidenceLedger.render(maxOk = 60, maxProblems = 40),
+                val finalContent = try {
+                    renderVerifiedFinalContent(
+                        response = response, userMessage = userMessage,
+                        steering = steering, revision = revision,
+                        modelId = modelId, maxOutputTokens = model.maxOutputTokens,
+                        scopePath = scopePath, apiKey = resolvedApiKey,
+                        totalTokensUsed = totalTokensUsed, evidenceLedger = evidenceLedger,
+                        runtimeBackends = runtimeBackends, messages = messages,
                         onUsage = { used ->
                             totalTokensUsed += used
                             emitUsage(used, totalTokensUsed)
                         },
-                        onReflecting = { send(AgentEvent.Reflecting(it)) },
-                        enabled = evidenceLedger.fin.reflectionEnabled(config.enableSelfReflection)
+                        onReflecting = { send(AgentEvent.Reflecting(it)) }
                     )
-                    if (runtimeBackends.hasBlocks()) response.content + "\n\n" + runtimeBackends.reportSummary()
-                    else if (evidenceLedger.fin.keepsText()) response.content
-                    else if (steering == null) critique() else steering.reasoning(revision) { critique() }
                 } catch (redirected: RunRedirected) {
                     // A draft has no tool side effects; remove it before continuing.
                     messages.removeAt(messages.lastIndex)
                     applySteering()
                     continue
                 }
-                // Deterministic fact-check: warn about files/paths no tool ever returned and about
-                // tool calls that came back empty or failed. Never rewrites the model's answer.
-                val cleanedContent = FinalAnswerSanitizer.clean(critiquedContent)
-                val groundingNote = if (runtimeBackends.hasBlocks()) "" else evidenceLedger.groundingNote(
-                    cleanedContent,
-                    // Only prior tool observations are supplemental evidence. User requests,
-                    // assistant drafts and tool-call arguments are not proof that a file exists.
-                    messages.filter { it.role == MessageRole.TOOL }
-                        .flatMap { message -> message.toolResults }
-                        .takeLast(256)
-                )
-                val finalContent = if (groundingNote.isBlank()) cleanedContent else cleanedContent + "\n\n" + groundingNote
-
                 if (steering != null) {
                     if (steeringRevision != null) steering.check(revision)
                     else if (!steering.finish(revision)) {
