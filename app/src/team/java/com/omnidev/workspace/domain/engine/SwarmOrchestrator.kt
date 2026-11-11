@@ -457,6 +457,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
                 toolEvidence = toolEvidence,
                 noRetry = reviewTerminal != null || observer.unsafeToRetry ||
+                    (error.startsWith("WORKER_NO_PROGRESS:") && observedToolResults.isEmpty()) ||
                     (completionReport?.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE &&
                         !error.startsWith("WORKER_NO_PROGRESS:")),
                 receipt = receipt
