@@ -8,6 +8,7 @@ import java.util.UUID
  * Terminal states of a run under the finish protocol. The runtime, never the model, decides which
  * of them is *accepted*; the model only proposes one.
  */
+@kotlinx.serialization.Serializable
 enum class FinishStatus(val wire: String, val label: String) {
     COMPLETED("completed", ""),
     BLOCKED("blocked", "[Blocked]"),
@@ -25,6 +26,7 @@ enum class FinishStatus(val wire: String, val label: String) {
 }
 
 /** What the assigned objective is, as far as the runtime must enforce evidence for it. */
+@kotlinx.serialization.Serializable
 enum class TaskKind {
     /** Single-agent run or chat-like task: only baseline checks. */
     GENERAL,
@@ -55,9 +57,11 @@ data class RunIdentity(
 )
 
 /** Counters for measuring how often the protocol intervenes (benchmark input, never trusted by the gate). */
+@kotlinx.serialization.Serializable
 data class FinishStats(val rejections: Int = 0, val malformed: Int = 0, val implicit: Boolean = false)
 
 /** Immutable, runtime-produced snapshot of one ledger entry. Models can cite it but never create it. */
+@kotlinx.serialization.Serializable
 data class EvidenceRef(
     val callId: String,
     val seq: Int,
@@ -74,10 +78,13 @@ data class EvidenceRef(
 
 data class CriterionClaim(val key: String, val text: String, val evidenceIds: List<String>)
 
+@kotlinx.serialization.Serializable
 data class AcceptanceCriterion(val id: String, val text: String, val source: Source) {
+@kotlinx.serialization.Serializable
     enum class Source { RUNTIME, TASK, MODEL }
 }
 
+@kotlinx.serialization.Serializable
 data class CriterionResult(
     val criterion: AcceptanceCriterion,
     val met: Boolean,
@@ -89,6 +96,7 @@ data class CriterionResult(
  * Self-contained, runtime-produced record of how a run ended. Carried on FinalAnswer so a
  * coordinator can re-check the evidence instead of trusting the worker's prose.
  */
+@kotlinx.serialization.Serializable
 data class CompletionReport(
     val runId: String,
     val workerId: String?,
@@ -119,6 +127,7 @@ data class CompletionReport(
 }
 
 object EvidenceKinds {
+@kotlinx.serialization.Serializable
     enum class Kind { READ, MUTATION, ACTION, OTHER }
 
     private val MUTATION = setOf(

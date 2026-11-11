@@ -4,9 +4,11 @@ import com.omnidev.workspace.domain.engine.*
 import com.omnidev.workspace.domain.engine.completion.*
 
 /** One runtime-created attempt. A retry, redirect or different team cannot reuse its proof. */
+@kotlinx.serialization.Serializable
 data class WorkerAssignment(val teamRunId: String, val revision: Long, val task: SwarmTask, val attempt: Int,
     val kind: TaskKind = if (TeamCompletionProtocol.requiresAction(task.description) && !task.toolFree)
         TaskKind.IMPLEMENTATION else TaskKind.ANALYSIS) {
+    @kotlinx.serialization.Transient
     val identity = RunIdentity(runId = "$teamRunId:r$revision:${task.id}:a$attempt", workerId = task.id,
         acceptance = task.acceptance, requireExecution = !task.toolFree,
         taskKind = kind,
@@ -52,6 +54,21 @@ class WorkerCompletionObserver(private val assignment: WorkerAssignment) {
         if (event.isError && e.outcome == RunEvidenceLedger.Outcome.OK) invalid = true
     }
 
+    internal fun snapshot() = WorkerObservationSnapshot(started.toMap(), observed.values.toList(), pendingEffects.toSet(),
+        invalid, uncertain, effectObserved, terminal)
+
+    internal fun restore(snapshot: WorkerObservationSnapshot) {
+        require(started.isEmpty() && observed.isEmpty())
+        require(snapshot.started.size <= 200 && snapshot.observed.size <= 200 && snapshot.pending.size <= 200)
+        started.putAll(snapshot.started)
+        snapshot.observed.forEach { require(observed.put(it.callId, it) == null) }
+        pendingEffects.addAll(snapshot.pending)
+        invalid = snapshot.invalid
+        uncertain = snapshot.uncertain
+        effectObserved = snapshot.effectObserved
+        terminal = snapshot.terminal
+    }
+
     fun review(report: CompletionReport?, output: String): WorkerReceipt {
         fun rejected(code: String, status: FinishStatus = FinishStatus.INCOMPLETE) = WorkerReceipt(assignment,
             status.takeUnless { it == FinishStatus.COMPLETED } ?: FinishStatus.INCOMPLETE,
@@ -77,3 +94,8 @@ class WorkerCompletionObserver(private val assignment: WorkerAssignment) {
             "INVALID_TOOL_ARGUMENTS", "INVALID_TOOL_BATCH", "BATCH_PREFLIGHT_BLOCKED", "RUN_REDIRECTED")
     }
 }
+
+@kotlinx.serialization.Serializable
+internal data class WorkerObservationSnapshot(val started: Map<String, String>, val observed: List<EvidenceRef>,
+    val pending: Set<String>, val invalid: Boolean, val uncertain: Boolean, val effectObserved: Boolean,
+    val terminal: FinishStatus?)

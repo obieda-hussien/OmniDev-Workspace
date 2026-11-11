@@ -40,7 +40,8 @@ class AgentPipeline(
     private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null,
     private val toolEligibility: ((String) -> String?)? = null,
     private val toolCallEligibility: ((ToolCall) -> String?)? = null,
-    private val taskStateStore: com.omnidev.workspace.domain.taskstate.TaskStateStore? = null
+    private val taskStateStore: com.omnidev.workspace.domain.taskstate.TaskStateStore? = null,
+    private val beforeToolExecution: (suspend (ToolCall) -> Unit)? = null
 ) {
 
     companion object {
@@ -315,7 +316,7 @@ When improving: keep every other sentence, the structure, the language and the l
         val learnedTool = (toolManager as? CompositeToolManager)?.learnedRoutineTool
         // This path precedes provider selection, API key reads, memory retrieval and prompt compilation.
         val launcherReplayNeedsEvidence = LauncherExecutionLedger(routingContext).requiresAction
-        val localMatch = if (!launcherReplayNeedsEvidence && !mentionFocus.active && steering == null && workerPersona == null && toolCallEligibility == null && userAttachments.isEmpty() &&
+        val localMatch = if (!launcherReplayNeedsEvidence && !mentionFocus.active && steering == null && workerPersona == null && runIdentity?.workerId == null && beforeToolExecution == null && toolCallEligibility == null && userAttachments.isEmpty() &&
             toolAccessMode != "DISABLED" && "learned_routine" !in disabledToolNames)
             learnedTool?.let { com.omnidev.workspace.data.routines.RoutineMatcher.match(userMessage, it.hub.store.list()) } else null
         if (localMatch != null) {
@@ -1092,6 +1093,7 @@ When improving: keep every other sentence, the structure, the language and the l
             (recorder?.gateRunning(call) as? com.omnidev.workspace.domain.taskstate.RunGate.Blocked)?.let {
                 return ToolExecutionResult(it.output, true, classification = it.classification, retryable = false)
             }
+            beforeToolExecution?.invoke(call)
             val started = System.nanoTime()
             val retrySafe = ToolBatchPolicy.isReadOnly(call)
             val recordedStep = capture?.before(call, retrySafe)

@@ -7,6 +7,10 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.registry.ModelRegistry
 import com.omnidev.workspace.domain.engine.teamcompletion.*
+import com.omnidev.workspace.domain.teamstate.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -38,7 +42,8 @@ class SwarmOrchestrator(
     private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null,
     private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null,
     private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null,
-    private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null
+    private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null,
+    private val teamStateStore: TeamStateEngine? = null
 ) {
 
     companion object {
@@ -120,7 +125,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         toolAccessMode: String = "ON_DEMAND",
         userContext: String = "",
         coordinatorAuto: Boolean = false,
-        workerAuto: Boolean = false
+        workerAuto: Boolean = false,
+        sessionId: Long? = null,
+        resumeTeamId: String? = null
     ): Flow<SwarmEvent> = channelFlow {
         val focusContext = try {
             if (mentionFocus.tools.isNotEmpty()) {
@@ -135,19 +142,31 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         } catch (error: IllegalArgumentException) {
             send(SwarmEvent.Error(error.message ?: "Invalid capability mention")); return@channelFlow
         }
-        val teamStartedAt = System.currentTimeMillis()
+        val teamRunId = resumeTeamId ?: ("team-" + java.util.UUID.randomUUID().toString())
+        val durable = try {
+            if (resumeTeamId != null) require(teamStateStore != null) { "Durable Team store unavailable" }
+            teamStateStore?.let { DurableTeamRun.open(it, teamRunId, sessionId, userMessage, scopePath, resumeTeamId != null) }
+        } catch (error: IllegalArgumentException) {
+            send(SwarmEvent.Error(error.message ?: "Team recovery unavailable")); return@channelFlow
+        }
+        val teamStartedAt = durable?.startingRecord?.createdAt ?: System.currentTimeMillis()
         val observedTeamTokens = AtomicInteger(0)
         val evidence = TeamSteeringEvidence()
-        val teamRunId = "team-" + java.util.UUID.randomUUID().toString()
+        val leaseHeartbeat = durable?.let { journal -> launch { while (true) { delay(10_000); journal.heartbeat() } } }
+        try {
         while (true) {
-            val revision = steering?.revision ?: 0L
-            val objective = steering?.objective(userMessage, revision) ?: userMessage
-            if (revision > 0) send(SwarmEvent.SteeringApplied(revision))
+            val baseRevision = durable?.startingRecord?.revision ?: 0L
+            val liveRevision = steering?.revision ?: 0L
+            val revision = baseRevision + liveRevision
+            // Steering uses its own in-memory revision; durable revisions remain monotonic after restart.
+            val objective = steering?.objective(durable?.startingRecord?.objective ?: userMessage, liveRevision)
+                ?: durable?.startingRecord?.objective ?: userMessage
+            if (liveRevision > 0) send(SwarmEvent.SteeringApplied(liveRevision))
             try {
                 executeAttempt(objective + evidence.context(), orchestratorModelId, workerModelId,
                     coordinatorAuto, workerAuto, scopePath, enableDeepThinking, godModeEnabled, steering, revision,
                     teamStartedAt, observedTeamTokens, mentionFocus, disabledToolNames, toolAccessMode,
-                    focusContext, userContext.take(5000), teamRunId, objective).collect { event ->
+                    focusContext, userContext.take(5000), teamRunId, objective, durable, liveRevision).collect { event ->
                     evidence.record(event)
                     send(event)
                 }
@@ -157,6 +176,10 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 // All members of the old wave have settled before this replan starts.
                 continue
             }
+        }
+        } finally {
+            leaseHeartbeat?.cancel()
+            withContext(NonCancellable) { durable?.release() }
         }
     }
 
@@ -179,20 +202,25 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         focusContext: String,
         profileContext: String,
         teamRunId: String,
-        rootObjective: String
+        rootObjective: String,
+        durable: DurableTeamRun?,
+        steeringRevision: Long
     ): Flow<SwarmEvent> = channelFlow {
-        steering?.check(revision)
+        steering?.check(steeringRevision)
         if (observedTeamTokens.get() >= TEAM_TOTAL_TOKEN_HARD_LIMIT - SYNTHESIS_TOKEN_RESERVE) {
             send(SwarmEvent.Error("Team token ceiling reached while applying user follow-up."))
             return@channelFlow
         }
-        send(SwarmEvent.PlanningStarted)
 
         val orchestratorModel = ModelRegistry.findModelById(orchestratorModelId)
             ?: ModelRegistry.getModelById(orchestratorModelId)
         val orchestratorApiKey = apiKeyRepository?.getApiKey(orchestratorModel.provider)
         val runtimeClock = currentRuntimeClock()
 
+        val restoredPlan = durable?.plan(revision)
+        val runtimeTasks = if (restoredPlan != null) restoredPlan.tasks else {
+        durable?.assertMayPlan()
+        send(SwarmEvent.PlanningStarted)
         val planPrototype = CompletionRequest(
             modelId = orchestratorModelId,
             messages = listOf(ChatMessage(MessageRole.USER, userMessage)),
@@ -215,23 +243,25 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         )
 
         val planInput = TokenAccounting.estimateInputTokens(planPrototype)
-        val availableForPlan = TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE
+        val availableForPlan = minOf(TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE,
+            (durable?.remainingBudget() ?: TEAM_TOTAL_TOKEN_HARD_LIMIT) - SYNTHESIS_TOKEN_RESERVE)
         if (availableForPlan <= planInput + 256) {
             send(SwarmEvent.Error("Team token budget cannot fit the corrected plan and its evidence."))
             return@channelFlow
         }
         val planRequest = planPrototype.copy(maxTokens = minOf(planPrototype.maxTokens, availableForPlan - planInput))
+        durable?.reserve(planInput + planRequest.maxTokens)
         val planResponse = try {
             if (steering == null) callWithRateLimitRetry(planRequest)
-            else steering.reasoning(revision) { callWithRateLimitRetry(planRequest) }
+            else steering.reasoning(steeringRevision) { callWithRateLimitRetry(planRequest) }
         } catch (cancelled: CancellationException) {
-            if (steering?.changed(revision) == true) {
+            if (steering?.changed(steeringRevision) == true) {
                 // Reserve a bounded estimate when an interrupted planner has no usage report.
                 observedTeamTokens.addAndGet(planInput + planRequest.maxTokens)
             }
             throw cancelled
         } catch (error: Exception) {
-            steering?.check(revision)
+            steering?.check(steeringRevision)
             if (!isInfrastructureFailure(error.message.orEmpty())) {
                 recordTeamOutcome(
                     userMessage,
@@ -252,9 +282,12 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         val normalized = if (rawValidationError == null) {
             TeamExecutionPolicy.normalizePlan(parsed).tasks
         } else {
-            listOf(directWorker(userMessage))
+            listOf(directWorker(TeamPrivacy.redact(userMessage)))
         }
-        val bounded = boundPlan(normalized, userMessage)
+        val bounded = boundPlan(normalized, userMessage).map { it.copy(
+            description = TeamPrivacy.redact(it.description),
+            requiredPersona = TeamPrivacy.redact(it.requiredPersona).take(200),
+            acceptance = it.acceptance.map(TeamPrivacy::redact)) }
         val runtimeCandidate = bounded.map { task ->
             val runtime = TeamExecutionPolicy.classify(task)
             task.copy(parallelSafe = runtime.effectiveParallelSafe && !TeamCompletionProtocol.requiresAction(task.description),
@@ -264,13 +297,18 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         val runtimeTasks = if (validateTasks(runtimeCandidate) == null) {
             runtimeCandidate
         } else {
-            listOf(directWorker(userMessage))
+            listOf(directWorker(TeamPrivacy.redact(userMessage)))
+        }
+
+        durable?.savePlan(revision, rootObjective, runtimeTasks)
+        runtimeTasks
         }
 
         val remainingRunBudget = (
             TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE
             ).coerceAtLeast(0)
-        val workerPool = minOf(TEAM_WORKER_POOL_CEILING, remainingRunBudget)
+        val workerPool = minOf(TEAM_WORKER_POOL_CEILING, remainingRunBudget,
+            ((durable?.remainingBudget() ?: TEAM_TOTAL_TOKEN_HARD_LIMIT) - SYNTHESIS_TOKEN_RESERVE).coerceAtLeast(0))
         val allocation = TeamBudgetAllocator.allocate(runtimeTasks, workerPool)
         if (runtimeTasks.isNotEmpty() &&
             (allocation.budgets.size != runtimeTasks.size || allocation.allocatedTotal > workerPool)
@@ -291,13 +329,15 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         send(SwarmEvent.PlanCompleted(runtimeTasks))
 
         val protocol = TeamCompletionProtocol(teamRunId, revision, runtimeTasks, revision == 0L && TeamCompletionProtocol.requiresAction(rootObjective))
-        val completed = linkedMapOf<String, String>()
+        val completed = linkedMapOf<String, String>().apply { durable?.restore(protocol)?.let { putAll(it) } }
         val completedToolEvidence = linkedMapOf<String, String>()
         val failed = linkedMapOf<String, String>()
         val skipped = linkedMapOf<String, String>()
         val infrastructureFailed = mutableSetOf<String>()
         val infrastructureSkipped = mutableSetOf<String>()
-        val remaining = runtimeTasks.sortedWith(compareBy<SwarmTask> { it.priority }.thenBy { it.id })
+        // Saved P0/P5 receipts are restored before selecting the first dependency wave.
+        completed.forEach { (id, output) -> send(SwarmEvent.TaskCompleted(runtimeTasks.single { it.id == id }, output)) }
+        val remaining = runtimeTasks.filterNot { it.id in completed }.sortedWith(compareBy<SwarmTask> { it.priority }.thenBy { it.id })
             .toMutableList()
 
         data class TaskOutcome(
@@ -323,12 +363,17 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         }
 
         suspend fun runWorkerAttempt(task: SwarmTask, attempt: Int, recoveryNote: String?, tokenCap: Int = Int.MAX_VALUE): TaskOutcome {
-            if (steering?.changed(revision) == true) return TaskOutcome(task, "", redirected = true)
-            val assignment = protocol.begin(task)
+            if (steering?.changed(steeringRevision) == true) return TaskOutcome(task, "", redirected = true)
+            val assignment = protocol.begin(task, durable?.previousAttempt(revision, task.id) ?: 0)
             val observer = WorkerCompletionObserver(assignment)
             if (attempt == 1) send(SwarmEvent.TaskStarted(task))
             val budget = allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)
-            val dependencyContext = compactDependencyContext(task, completed, completedToolEvidence)
+            val attemptTokens = minOf(budget.tokenBudget, tokenCap,
+                (TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE).coerceAtLeast(1),
+                ((durable?.remainingBudget() ?: TEAM_TOTAL_TOKEN_HARD_LIMIT) - SYNTHESIS_TOKEN_RESERVE).coerceAtLeast(1))
+            durable?.begin(assignment, attemptTokens)
+            val dependencyContext = compactDependencyContext(task, completed, completedToolEvidence) +
+                durable?.previousObservations(task.id).orEmpty()
             val workerPrompt = buildWorkerPrompt(
                 task = task,
                 dependencyContext = dependencyContext,
@@ -350,13 +395,14 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 streamingCompletionProvider = streamingCompletionProvider,
                 config = TEAM_WORKER_CONFIG.copy(
                     maxIterations = budget.maxIterations,
-                    tokenBudget = minOf(budget.tokenBudget, tokenCap, (TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE).coerceAtLeast(1)),
+                    tokenBudget = attemptTokens,
                     maxRepeatedToolCalls = budget.repeatedToolLimit
                 ),
                 apiKeyRepository = apiKeyRepository,
                 memoryManager = memoryManager,
                 smartLearningBridge = smartLearningBridge,
                 analyticsRepository = analyticsRepository,
+                beforeToolExecution = { call -> durable?.beforeTool(assignment, call); Unit },
                 toolCallEligibility = if (task.parallelSafe) ({ call ->
                     if (call.name == RunToolCatalog.DISCOVER.name || ToolBatchPolicy.isReadOnly(call)) null
                     else "READ_ONLY_WORKER: Mutation or unknown-effect tool requires a serial task; no batch actions executed."
@@ -382,7 +428,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     disabledToolNames = disabledToolNames,
                     mentionFocus = mentionFocus,
                     steering = steering,
-                    steeringRevision = revision,
+                    steeringRevision = steeringRevision,
                     runIdentity = workerIdentity
                 ).collect { event ->
                     when (event) {
@@ -398,13 +444,14 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                         }
                         is AgentEvent.ToolResult -> {
                             observer.observed(event)
+                            durable?.observed(assignment, event)
                             send(SwarmEvent.WorkerToolResult(task, event.toolName, event.output, event.isError))
                             val outcome = when {
                                 event.isError -> "ERROR"
                                 event.output.isBlank() || event.output.trim() == "(no output)" -> "EMPTY"
                                 else -> "OK"
                             }
-                            val output = SensitiveObservationRedactor.redact(event.output)
+                            val output = TeamPrivacy.redact(event.output)
                                 .replace(Regex("\\s+"), " ").trim()
                             val snippet = if (output.length <= MAX_WORKER_TOOL_OBSERVATION_CHARS) output
                                 else output.take(650) + " … " + output.takeLast(200)
@@ -434,10 +481,10 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             } catch (redirected: RunRedirected) {
                 return TaskOutcome(task, "", redirected = true)
             }
-            if (steering?.changed(revision) == true) return TaskOutcome(task, "", redirected = true)
+            if (steering?.changed(steeringRevision) == true) return TaskOutcome(task, "", redirected = true)
 
-            taskResult = SensitiveObservationRedactor.redact(taskResult)
-            taskError = taskError?.let(SensitiveObservationRedactor::redact)
+            taskResult = TeamPrivacy.redact(taskResult)
+            taskError = taskError?.let(TeamPrivacy::redact)
             if (taskError == null && taskResult.isBlank()) {
                 taskError = "Worker ended without a final response."
             }
@@ -450,6 +497,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 reviewTerminal = receipt.status.takeIf { it != com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE }
                 taskError = "Worker result not accepted: ${receipt.reason}"
             }
+            durable?.checkpoint(assignment, observer, completionReport, taskResult, receipt, taskError)
             val toolEvidence = observedToolResults.joinToString("\n").take(MAX_WORKER_TOOL_EVIDENCE_CHARS)
             if (taskError == null) return TaskOutcome(task, taskResult, toolEvidence = toolEvidence, receipt = receipt)
 
@@ -465,7 +513,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 requiresSerialReplan = task.parallelSafe && error.startsWith("READ_ONLY_WORKER:") &&
                     TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
                 toolEvidence = toolEvidence,
-                noRetry = reviewTerminal != null || observer.unsafeToRetry ||
+                noRetry = reviewTerminal != null || observer.unsafeToRetry || TeamFailurePolicy.pauseWithoutWorkerRetry(error) ||
                     // A read-only worker that never called a tool can safely take ONE alternate
                     // attempt: the next attempt still enforces the read-only tool gate and P0
                     // verification. For mutation workers, absence of observations is not
@@ -532,7 +580,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         }
 
         while (remaining.isNotEmpty()) {
-            steering?.check(revision)
+            steering?.check(steeringRevision)
             if (observedTeamTokens.get() >= TEAM_TOTAL_TOKEN_HARD_LIMIT - SYNTHESIS_TOKEN_RESERVE) {
                 remaining.toList().forEach { task ->
                     val reason = "Team token ceiling reached before this task could start"
@@ -603,7 +651,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         val successfulCount = completion.completed
         val totalFailures = failed.size + skipped.size
 
-        steering?.check(revision)
+        steering?.check(steeringRevision)
         suspend fun summarize() = when {
             runtimeTasks.size == 1 && totalFailures == 0 -> completed[runtimeTasks.single().id].orEmpty()
             successfulCount == 0 -> deterministicFailureSummary(failed, skipped)
@@ -626,11 +674,12 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             ) ?: deterministicEvidenceSummary(completed, failed, skipped)
         }
 
+        if (completion.verified && runtimeTasks.size > 1) durable?.reserve(SYNTHESIS_TOKEN_RESERVE)
         val finalSummary = if (completion.verified) FinalAnswerSanitizer.clean(
-            if (steering == null) summarize() else steering.reasoning(revision) { summarize() })
+            if (steering == null) summarize() else steering.reasoning(steeringRevision) { summarize() })
         else "${completion.status.label} " + deterministicFailureSummary(failed, skipped) +
             "\n\n" + completion.render() + "\n\n" + deterministicEvidenceSummary(completed, failed, skipped)
-        if (steering != null && !steering.finish(revision)) throw RunRedirected()
+        if (steering != null && !steering.finish(steeringRevision)) throw RunRedirected()
 
         val rootFailures = failed.keys
         val onlyInfrastructureFailure = rootFailures.isNotEmpty() &&
@@ -650,6 +699,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             )
         }
 
+        durable?.finish(completion, finalSummary)
         send(
             SwarmEvent.Completed(
                 summary = finalSummary,

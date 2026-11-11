@@ -57,6 +57,7 @@ object WorkspaceChatRuntime {
         val memoryManager = MemoryManager(database.knowledgeDao())
         // Persistent task state: only runs bound by the finish protocol use it; plain chat never does.
         val taskStateStore = com.omnidev.workspace.data.repository.roomTaskStateStore(database)
+        val teamStateStore = com.omnidev.workspace.data.repository.roomTeamStateStore(database)
         com.omnidev.workspace.domain.taskstate.TaskRecoveryBootstrap.runOnce(taskStateStore,
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)) {
             android.util.Log.i("TaskRecovery", it)
@@ -128,7 +129,8 @@ object WorkspaceChatRuntime {
             streamingCompletionProvider = { request, onChunk ->
                 autoCompletion.stream(request, onChunk)
             },
-            analyticsRepository = analyticsRepository
+            analyticsRepository = analyticsRepository,
+            teamStateStore = teamStateStore
         )
 
         val autoHealBuildUseCase = com.omnidev.workspace.domain.engine.AutoHealBuildUseCase(
@@ -157,7 +159,8 @@ object WorkspaceChatRuntime {
                     analyticsRepository = analyticsRepository,
                     compositeToolManager = toolManager,
                     assistantWorkspace = if (assistant) java.io.File(applicationContext.filesDir, "assistant_workspace").apply { mkdirs() }.absolutePath else null,
-                    taskStateStore = taskStateStore
+                    taskStateStore = taskStateStore,
+                    teamStateStore = teamStateStore
                 )
             }
         })[ChatViewModel::class.java]

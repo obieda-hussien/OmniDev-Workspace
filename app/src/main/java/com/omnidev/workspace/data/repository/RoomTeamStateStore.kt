@@ -1,0 +1,30 @@
+package com.omnidev.workspace.data.repository
+
+import androidx.room.withTransaction
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.omnidev.workspace.data.db.OmniDevDatabase
+import com.omnidev.workspace.data.db.entities.TeamRunEntity
+import com.omnidev.workspace.domain.teamstate.*
+
+fun roomTeamStateStore(db: OmniDevDatabase): TeamStateEngine = TeamStateEngine(RoomTeamStateBackend(db))
+
+/** A short transaction provides the same serializable state transitions as the in-memory backend. */
+internal class RoomTeamStateBackend(private val db: OmniDevDatabase) : TeamStateBackend {
+    override suspend fun read(id: String) = withContext(Dispatchers.IO) { db.teamStateDao().get(id)?.let(::decode) }
+    override suspend fun change(id: String, transform: (TeamRecord?) -> TeamRecord): TeamRecord = db.withTransaction {
+        val next = transform(db.teamStateDao().get(id)?.let(::decode))
+        check(next.id == id)
+        val payload = TeamPayloadCodec.encode(next)
+        db.teamStateDao().save(TeamRunEntity(id, next.sessionId, next.updatedAt, payload))
+        next
+    }
+    override suspend fun forSession(sessionId: Long, limit: Int) = withContext(Dispatchers.IO) {
+        db.teamStateDao().forSession(sessionId, limit.coerceIn(1, 20)).map(::decode)
+    }
+    private fun decode(row: TeamRunEntity): TeamRecord {
+        return TeamPayloadCodec.decode(row.payload).also {
+            check(it.id == row.teamId && it.sessionId == row.sessionId) { "Team checkpoint envelope mismatch" }
+        }
+    }
+}

@@ -23,6 +23,7 @@ class RunEvidenceLedger(
      */
     lateinit var fin: com.omnidev.workspace.domain.engine.completion.FinishRuntime
 
+    @kotlinx.serialization.Serializable
     enum class Outcome { OK, EMPTY, ERROR, SKIPPED }
 
     data class Entry(

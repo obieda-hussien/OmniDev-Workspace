@@ -108,7 +108,8 @@ class AgentRuntime(context: Context) {
             streamingCompletionProvider = { request, onChunk ->
                 autoCompletion.stream(request, onChunk)
             },
-            analyticsRepository = analyticsRepository
+            analyticsRepository = analyticsRepository,
+            teamStateStore = com.omnidev.workspace.data.repository.roomTeamStateStore(database)
         )
 
 

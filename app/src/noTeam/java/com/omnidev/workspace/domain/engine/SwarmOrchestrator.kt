@@ -32,7 +32,8 @@ class SwarmOrchestrator(
     private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null,
     private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null,
     private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null,
-    private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null
+    private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null,
+    private val teamStateStore: com.omnidev.workspace.domain.teamstate.TeamStateEngine? = null
 ) {
     fun execute(
         userMessage: String,
@@ -47,6 +48,8 @@ class SwarmOrchestrator(
         toolAccessMode: String = "ON_DEMAND",
         userContext: String = "",
         coordinatorAuto: Boolean = false,
-        workerAuto: Boolean = false
+        workerAuto: Boolean = false,
+        sessionId: Long? = null,
+        resumeTeamId: String? = null
     ): Flow<SwarmEvent> = kotlinx.coroutines.flow.flowOf(SwarmEvent.Error("Team mode is not included in this build."))
 }

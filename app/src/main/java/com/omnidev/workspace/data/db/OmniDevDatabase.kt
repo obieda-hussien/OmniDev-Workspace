@@ -85,14 +85,16 @@ import com.omnidev.workspace.data.db.entities.TaskStepEntity
         TaskStepEntity::class,
         TaskCycleEntity::class,
         TaskInvocationEntity::class,
-        TaskEventEntity::class],
-    version = 19,
+        TaskEventEntity::class,
+        com.omnidev.workspace.data.db.entities.TeamRunEntity::class],
+    version = 20,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
 
     abstract fun knowledgeDao(): KnowledgeDao
     abstract fun taskStateDao(): TaskStateDao
+    abstract fun teamStateDao(): com.omnidev.workspace.data.db.dao.TeamStateDao
     abstract fun chatSessionDao(): ChatSessionDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun toolExecutionDao(): ToolExecutionDao
@@ -694,11 +696,19 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        /** v20: durable P5 coordinator aggregate, separate from single-agent P2 identities. */
+        val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS team_runs (teamId TEXT NOT NULL, sessionId INTEGER, updatedAt INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(teamId))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_team_runs_sessionId_updatedAt ON team_runs (sessionId, updatedAt)")
+            }
+        }
+
         /** Every migration in order. The database builder and the migration tests use this one list. */
         val ALL_MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
             MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
-            MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19
+            MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20
         )
 
         fun getInstance(context: Context): OmniDevDatabase =

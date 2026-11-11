@@ -1,7 +1,7 @@
 # Persistent task state
 
 Agent runs bound by the [finish protocol](FINISH_PROTOCOL.md) are stored in the existing Room database
-(`OmniDevDatabase`, version 19; P1 tables introduced in version 18) so that a run can be inspected and resumed from what really happened, not
+(`OmniDevDatabase`, version 20; P1 tables introduced in version 18) so that a run can be inspected and resumed from what really happened, not
 from reconstructed chat history. Plain chat never touches these tables.
 
 ## Four layers that are never interchangeable
@@ -106,3 +106,5 @@ and a failed sweep remains visible and prevents mutation execution.
 See [structured planning](STRUCTURED_PLANNING.md) for validated JSON plans, dependency scheduling, cycle-owned
 step attribution, typed output checks, adaptive revisions and recovery. Version 19 adds only plan metadata;
 the six P1 tables and shared Room/memory engine remain authoritative. P0 remains the final task completion gate.
+
+Team-level coordinator recovery is documented separately in [P6 durable runtime](DURABLE_TEAM_RUNTIME.md). Single-agent P2 identities and tables retain their existing contracts.

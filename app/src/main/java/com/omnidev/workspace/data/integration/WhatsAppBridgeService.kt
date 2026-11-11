@@ -162,7 +162,9 @@ class WhatsAppBridgeService : Service() {
             apiKeyRepository = apiKeyRepository,
             memoryManager = toolManager.memoryManager,
             smartLearningBridge = com.omnidev.workspace.OmniDevApp.instance.smartLearningBridge,
-            streamingCompletionProvider = { req, onChunk -> completionService.stream(req, onChunk) }
+            streamingCompletionProvider = { req, onChunk -> completionService.stream(req, onChunk) },
+            teamStateStore = com.omnidev.workspace.data.repository.roomTeamStateStore(
+                com.omnidev.workspace.data.db.OmniDevDatabase.getInstance(applicationContext))
         )
     }
 

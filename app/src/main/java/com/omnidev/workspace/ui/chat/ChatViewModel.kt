@@ -94,6 +94,7 @@ data class ChatUiState(
     val chatSettings: com.omnidev.workspace.domain.model.ChatSettings =
         com.omnidev.workspace.domain.model.ChatSettings(),
     val recoveryTasks: List<TaskRecoverySummary> = emptyList(),
+    val recoveryTeams: List<com.omnidev.workspace.domain.teamstate.TeamRecoverySummary> = emptyList(),
     val recoveryLoading: Boolean = false,
     val recoveryError: String? = null
 )
@@ -119,7 +120,8 @@ class ChatViewModel(
     private val analyticsRepository: AnalyticsRepository? = null,
     private val compositeToolManager: CompositeToolManager? = null,
     private val assistantWorkspace: String? = null,
-    taskStateStore: TaskStateStore? = null
+    taskStateStore: TaskStateStore? = null,
+    private val teamStateStore: com.omnidev.workspace.domain.teamstate.TeamStateEngine? = null
 ) : ViewModel() {
 
     companion object {
@@ -265,16 +267,19 @@ class ChatViewModel(
     /** Reloads only bounded, redacted task summaries for the active chat session. */
     fun refreshTaskRecovery() {
         val sessionId = _uiState.value.currentSessionId ?: return
-        val coordinator = taskRecovery ?: return
+        val coordinator = taskRecovery
+        if (coordinator == null && teamStateStore == null) return
         recoveryLoadJob?.cancel()
         _uiState.update { it.copy(recoveryLoading = true, recoveryError = null) }
         recoveryLoadJob = viewModelScope.launch {
             try {
                 val summaries = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    coordinator.tasksForSession(sessionId)
+                    coordinator?.tasksForSession(sessionId).orEmpty()
                 }
+                val teams = withContext(kotlinx.coroutines.Dispatchers.IO) { teamStateStore?.summaries(sessionId).orEmpty() }
                 if (_uiState.value.currentSessionId == sessionId) {
                     _uiState.update { it.copy(
+                        recoveryTeams = teams,
                         recoveryTasks = summaries.filterNot { task -> task.taskId in dismissedRecoveryTasks },
                         recoveryLoading = false,
                         recoveryError = null
@@ -288,6 +293,71 @@ class ChatViewModel(
                         recoveryError = error.message?.take(240) ?: "Saved task recovery is unavailable.") }
                 }
             }
+        }
+    }
+
+    fun resumePersistentTeam(teamId: String) {
+        val saved = _uiState.value.recoveryTeams.firstOrNull { it.id == teamId && it.canResume } ?: return
+        val sessionId = _uiState.value.currentSessionId ?: return
+        if (_uiState.value.isProcessing || saved.sessionId != sessionId || !com.omnidev.workspace.BuildConfig.ALLOW_TEAM) return
+        val runId = activeRunId.incrementAndGet()
+        _uiState.update { it.copy(isProcessing = true, activeMode = OmniMode.SWARM, canSteer = false,
+            consoleEntries = emptyList(), agentStatus = "Restoring saved Team…", errorMessage = null) }
+        currentAgentJob = viewModelScope.launch {
+            try {
+                val message = ChatMessage(MessageRole.USER, "Resume saved Team: " + saved.originalObjective.take(300),
+                    userMode = OmniMode.SWARM.name, userScopePath = saved.scopePath)
+                runHistory = _uiState.value.messages
+                runOriginMessageId = message.messageId
+                runFollowUpIds = linkedSetOf()
+                currentSteering = null
+                runSessionReady = CompletableDeferred(sessionId)
+                compositeToolManager?.currentSessionId = sessionId
+                chatRepository?.saveMessage(sessionId, message)
+                if (activeRunId.get() != runId || _uiState.value.currentSessionId != sessionId) return@launch
+                _uiState.update { it.copy(messages = it.messages + message) }
+                executeSwarmMode(saved.objective, sessionId, saved.scopePath, runId, teamId)
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                if (activeRunId.get() == runId) _uiState.update { it.copy(errorMessage = error.message?.take(300)) }
+            } finally {
+                if (activeRunId.get() == runId) {
+                    currentSteering = null
+                    _uiState.update { it.copy(isProcessing = false, canSteer = false, agentStatus = null, streamingContent = null) }
+                }
+                refreshTaskRecovery()
+            }
+        }
+    }
+
+    fun reviewTeamIntervention(teamId: String, attemptRunId: String) {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        viewModelScope.launch {
+            try {
+                withContext(kotlinx.coroutines.Dispatchers.IO) { teamStateStore?.reviewIntervention(teamId, sessionId, attemptRunId) }
+                refreshTaskRecovery()
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { _uiState.update { it.copy(recoveryError = error.message?.take(240)) } }
+        }
+    }
+
+    fun cancelPersistentTeam(teamId: String) {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        viewModelScope.launch {
+            try { withContext(kotlinx.coroutines.Dispatchers.IO) { teamStateStore?.cancel(teamId, sessionId) }; refreshTaskRecovery() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { _uiState.update { it.copy(recoveryError = error.message?.take(240)) } }
+        }
+    }
+
+    fun reconcileTeamOperation(teamId: String, attemptRunId: String, callId: String, verification: String) {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        viewModelScope.launch {
+            try {
+                withContext(kotlinx.coroutines.Dispatchers.IO) { teamStateStore?.reconcileNotExecuted(teamId, sessionId, attemptRunId, callId, verification) }
+                refreshTaskRecovery()
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { _uiState.update { it.copy(recoveryError = error.message?.take(240)) } }
         }
     }
 
@@ -640,6 +710,7 @@ class ChatViewModel(
                 replyingTo = null,
                 isDrawerOpen = false,
                 recoveryTasks = emptyList(),
+                recoveryTeams = emptyList(),
                 recoveryLoading = false,
                 recoveryError = null
             )
@@ -673,6 +744,7 @@ class ChatViewModel(
                         errorMessage = null,
                         streamingContent = null,
                         recoveryTasks = emptyList(),
+                        recoveryTeams = emptyList(),
                         recoveryLoading = false,
                         recoveryError = null
                     )
@@ -696,6 +768,7 @@ class ChatViewModel(
                     errorMessage = null,
                     streamingContent = null,
                     recoveryTasks = emptyList(),
+                    recoveryTeams = emptyList(),
                     recoveryLoading = false,
                     recoveryError = null
                 )
@@ -721,6 +794,7 @@ class ChatViewModel(
                         errorMessage = null,
                         streamingContent = null,
                         recoveryTasks = emptyList(),
+                        recoveryTeams = emptyList(),
                         recoveryLoading = false,
                         recoveryError = null
                     )
@@ -1617,7 +1691,8 @@ class ChatViewModel(
         input: String,
         sessionId: Long,
         scopePath: String,
-        runId: Long
+        runId: Long,
+        resumeTeamId: String? = null
     ) {
         if (currentSteering == null) {
             currentSteering = RunSteering()
@@ -1659,10 +1734,12 @@ class ChatViewModel(
                 disabledToolNames = _uiState.value.chatSettings.disabledToolNames(),
                 toolAccessMode = _uiState.value.chatSettings.toolAccessMode.name,
                 userContext = settingsRepository.observeUserPromptContext().first(),
-                steering = control
+                steering = control,
+                sessionId = sessionId,
+                resumeTeamId = resumeTeamId
             ).collect { event ->
                 handleSwarmEvent(event, sessionId, runId)
-                if (event is SwarmEvent.PlanCompleted) {
+                if (event is SwarmEvent.PlanCompleted && resumeTeamId == null) {
                     val suggestion = AdaptiveModeRouter.fromTeamPlan(
                         taskCount = event.tasks.size,
                         parallelSafeTaskCount = event.tasks.count { it.parallelSafe }
@@ -1841,6 +1918,7 @@ class ChatViewModel(
     }
 
     private suspend fun handleSwarmEvent(event: SwarmEvent, sessionId: Long, runId: Long) {
+        if (event is SwarmEvent.PlanCompleted || event is SwarmEvent.TaskCompleted || event is SwarmEvent.Completed) refreshTaskRecovery()
         if (runId != activeRunId.get()) return
         when (event) {
             is SwarmEvent.SteeringApplied -> steeringApplied(event.revision)
