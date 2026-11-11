@@ -25,7 +25,7 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
         backend.change(id) { old ->
             require(old == null) { "Team already exists" }
             require(objective.isNotBlank() && objective.length <= 24_000 && scopePath.length <= 2_000)
-            val safe = SensitiveObservationRedactor.redact(objective)
+            val safe = TeamPrivacy.redact(objective)
             TeamRecord(id, sessionId, safe, scopePath, owner = owner, leaseUntil = now() + LEASE_MS,
                 status = TaskStatus.RUNNING, createdAt = now())
         }
@@ -82,8 +82,8 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
                 repeat(tasks.size) { compatible.removeAll { key -> tasks.single { it.id == key }.dependencies.any { it !in compatible } } }
                 val carried = checkpoints(r).filter { it.assignment.task.id in compatible }
                     .associate { it.assignment.task.id to it.assignment.revision }
-                r.copy(revision = revision, objective = SensitiveObservationRedactor.redact(objective), plans = r.plans +
-                    TeamPlan(revision, SensitiveObservationRedactor.redact(objective), tasks, if (r.plan == null) "initial" else "plan revision", carried))
+                r.copy(revision = revision, objective = TeamPrivacy.redact(objective), plans = r.plans +
+                    TeamPlan(revision, TeamPrivacy.redact(objective), tasks, if (r.plan == null) "initial" else "plan revision", carried))
             }
         }
     }
@@ -114,15 +114,16 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
             check(w.operations.size < 200 && w.operations.none { it.callId == call.id }) { "Duplicate or excessive operation" }
             check(w.status == TaskStatus.RUNNING)
             val fields = listOf("action", "operation", "repo", "repository", "path", "filePath", "file_path", "directory", "endpoint")
-                .mapNotNull { key -> call.arguments[key]?.let { "$key=${SensitiveObservationRedactor.redact(it).take(160)}" } }.take(4)
+                .mapNotNull { key -> call.arguments[key]?.let { "$key=${TeamPrivacy.redact(it).take(160)}" } }.take(4)
             val target = com.omnidev.workspace.domain.engine.completion.EvidenceKinds.commandTarget(call.name, call.arguments)
-                ?.let { "target=${SensitiveObservationRedactor.redact(it).take(160)}" }
+                ?.let { "target=${TeamPrivacy.redact(it).take(160)}" }
             val intent = (fields + listOfNotNull(target)).joinToString("; ").take(700)
             w.copy(stage = "TOOL_RUNNING", operations = w.operations + TeamOperation(call.id, call.name, ToolBatchPolicy.isReadOnly(call), intentSummary = intent))
         }
     }
     internal suspend fun observed(id: String, owner: String, a: WorkerAssignment, event: AgentEvent.ToolResult) {
         val ref = event.evidence ?: return
+        require(TeamPrivacy.redact(ref.target) == ref.target) { "Credential-bearing evidence target cannot be persisted" }
         attempt(id, owner, a) { w ->
             check(ref.runId == a.identity.runId && ref.workerId == a.task.id)
             val intervention = event.classification in setOf("USER_ACTION_REQUIRED", "CONFIRMATION_REQUIRED", "PERMISSION_DENIED",
@@ -130,19 +131,19 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
             w.copy(stage = "TOOL_RETURNED", intervention = w.intervention || intervention,
                 operations = w.operations.map { op -> if (op.callId != ref.callId) op else op.copy(returned = true,
                     succeeded = !event.isError, classification = event.classification.orEmpty().take(120),
-                    evidence = ref, observation = SensitiveObservationRedactor.redact(event.output).take(600)) })
+                    evidence = ref, observation = TeamPrivacy.redact(event.output).take(600)) })
         }
     }
     internal suspend fun finishWorker(id: String, owner: String, a: WorkerAssignment, observer: WorkerCompletionObserver,
         report: CompletionReport?, output: String, receipt: WorkerReceipt, error: String?) {
         require(output.length <= 48_000) { "Worker output exceeds durable checkpoint bound" }
         require(receipt.assignment === a)
-        require(SensitiveObservationRedactor.redact(output) == output) { "Worker output must be redacted before checkpointing" }
+        require(TeamPrivacy.redact(output) == output) { "Worker output must be redacted before checkpointing" }
         require(report == null || (report.criteria.size <= 64 && report.evidence.size <= 200 && report.problems.size <= 64))
-        val safeReport = report?.copy(summary = SensitiveObservationRedactor.redact(report.summary).take(2_000),
-            criteria = report.criteria.map { it.copy(criterion = it.criterion.copy(text = SensitiveObservationRedactor.redact(it.criterion.text).take(1_000)),
-                reason = it.reason?.let { reason -> SensitiveObservationRedactor.redact(reason).take(300) }) },
-            problems = report.problems.map { SensitiveObservationRedactor.redact(it).take(300) })
+        val safeReport = report?.copy(summary = TeamPrivacy.redact(report.summary).take(2_000),
+            criteria = report.criteria.map { it.copy(criterion = it.criterion.copy(text = TeamPrivacy.redact(it.criterion.text).take(1_000)),
+                reason = it.reason?.let { reason -> TeamPrivacy.redact(reason).take(300) }) },
+            problems = report.problems.map { TeamPrivacy.redact(it).take(300) })
         val reviewed = observer.review(safeReport, output)
         require(receipt.accepted == reviewed.accepted && receipt.ledgerDigest == reviewed.ledgerDigest && receipt.outputDigest == reviewed.outputDigest)
         attempt(id, owner, a) { w ->
@@ -152,7 +153,7 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
                 else if (w.intervention || receipt.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.AWAITING_APPROVAL) TaskStatus.AWAITING_APPROVAL
                 else TaskStatus.INTERRUPTED,
                 stage = if (checkpoint != null) "P0_P5_VERIFIED" else "INTERRUPTED", checkpoint = checkpoint,
-                failure = error?.let { "${TeamFailurePolicy.classify(it)}: ${SensitiveObservationRedactor.redact(it).take(260)}" }.orEmpty(),
+                failure = error?.let { "${TeamFailurePolicy.classify(it)}: ${TeamPrivacy.redact(it).take(260)}" }.orEmpty(),
                 intervention = w.intervention || (checkpoint == null && observer.unsafeToRetry && w.operations.none { !it.readOnly }) || receipt.status in setOf(com.omnidev.workspace.domain.engine.completion.FinishStatus.AWAITING_APPROVAL,
                     com.omnidev.workspace.domain.engine.completion.FinishStatus.BLOCKED))
         }
@@ -170,7 +171,7 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
                 com.omnidev.workspace.domain.engine.completion.FinishStatus.BLOCKED -> TaskStatus.BLOCKED
                 else -> TaskStatus.INCOMPLETE
             }, finalDigest = report.digest,
-                verifiedSummary = if (report.verified) SensitiveObservationRedactor.redact(summary).take(24_000) else "")
+                verifiedSummary = if (report.verified) TeamPrivacy.redact(summary).take(24_000) else "")
         }
     }
     internal suspend fun release(id: String, owner: String) {
@@ -198,7 +199,7 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
                     a?.assignment?.attempt ?: 0, task.dependencies, a?.operations?.lastOrNull()?.tool,
                     if (blocked.isNotEmpty()) "Waiting for verified dependencies: ${blocked.joinToString()}" else a?.failure?.takeIf { it.isNotBlank() },
                     a?.operations.orEmpty().filter { !it.readOnly && !it.notExecuted && a?.checkpoint == null }.map { it.callId }, a?.assignment?.identity?.runId,
-                    a?.operations.orEmpty().filter { !it.readOnly && !it.notExecuted && !it.succeeded && a?.intervention != true && a?.checkpoint == null }.map { it.callId }, a?.intervention == true,
+                    a?.operations.orEmpty().filter { !it.readOnly && !it.notExecuted && !it.succeeded && a?.checkpoint == null }.map { it.callId }, a?.intervention == true,
                     a?.operations?.lastOrNull { it.succeeded && it.evidence?.outcome == RunEvidenceLedger.Outcome.OK }?.tool, task.description, task.acceptance,
                     a?.operations.orEmpty().filter { !it.readOnly && !it.notExecuted && a?.checkpoint == null }.associate { it.callId to it.intentSummary })
             }, !active && blockers.isEmpty() && r.status !in setOf(TaskStatus.COMPLETED, TaskStatus.CANCELLED), blockers, r.scopePath, if (verifiedCompletion) r.verifiedSummary else "")
@@ -211,11 +212,11 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
             val r = requireNotNull(old)
             require(r.sessionId == sessionId && (r.owner == null || r.leaseUntil <= now()))
             val a = r.attempts.single { it.assignment.identity.runId == attemptRunId }
-            require(a.checkpoint == null && !a.intervention)
+            require(a.checkpoint == null)
             val op = a.operations.single { it.callId == callId }
             require(!op.readOnly && !op.succeeded) { "A recorded successful action cannot be retried" }
             r.copy(attempts = r.attempts.map { if (it != a) it else a.copy(operations = a.operations.map {
-                if (it.callId != callId) it else it.copy(notExecuted = true, reconciliation = SensitiveObservationRedactor.redact(verification))
+                if (it.callId != callId) it else it.copy(notExecuted = true, reconciliation = TeamPrivacy.redact(verification))
             }) }, updatedAt = now())
         }
     }

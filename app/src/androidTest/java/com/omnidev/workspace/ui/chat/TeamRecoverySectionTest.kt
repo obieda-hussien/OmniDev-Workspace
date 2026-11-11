@@ -26,6 +26,14 @@ class TeamRecoverySectionTest {
         assertTrue(reconciled)
         compose.onNodeWithText("Saved Team · COMPLETED").assertDoesNotExist()
     }
+    @Test fun authorizationFailureAllowsExactReviewBeforePermissionRetry() {
+        val saved = team(false).let { it.copy(workers = it.workers.map { worker -> worker.copy(interventionRequired = true) }) }
+        compose.setContent { OmniDevTheme(dynamicColor = false) { TeamRecoverySection(listOf(saved), true, {}, {}, { _, _, _, _ -> }, {}) } }
+        compose.onNodeWithText("Inspect plan and failures").performClick()
+        compose.onNodeWithText("Confirm exact operation was not executed").assertExists()
+        compose.onNodeWithText("Recheck permissions on next attempt").assertDoesNotExist()
+        compose.onNodeWithTag("team-resume-team").assertDoesNotExist()
+    }
     @Test fun safeResumeUsesThePersistedTeamIdentityAndRespectsProcessingState() {
         var resumed: String? = null
         compose.setContent { OmniDevTheme(dynamicColor = false) { TeamRecoverySection(listOf(team(true)), true, { resumed = it }, {}, { _, _, _, _ -> }, {}) } }

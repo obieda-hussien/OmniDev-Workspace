@@ -282,12 +282,12 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         val normalized = if (rawValidationError == null) {
             TeamExecutionPolicy.normalizePlan(parsed).tasks
         } else {
-            listOf(directWorker(userMessage))
+            listOf(directWorker(TeamPrivacy.redact(userMessage)))
         }
         val bounded = boundPlan(normalized, userMessage).map { it.copy(
-            description = SensitiveObservationRedactor.redact(it.description),
-            requiredPersona = SensitiveObservationRedactor.redact(it.requiredPersona).take(200),
-            acceptance = it.acceptance.map(SensitiveObservationRedactor::redact)) }
+            description = TeamPrivacy.redact(it.description),
+            requiredPersona = TeamPrivacy.redact(it.requiredPersona).take(200),
+            acceptance = it.acceptance.map(TeamPrivacy::redact)) }
         val runtimeCandidate = bounded.map { task ->
             val runtime = TeamExecutionPolicy.classify(task)
             task.copy(parallelSafe = runtime.effectiveParallelSafe && !TeamCompletionProtocol.requiresAction(task.description),
@@ -297,7 +297,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         val runtimeTasks = if (validateTasks(runtimeCandidate) == null) {
             runtimeCandidate
         } else {
-            listOf(directWorker(userMessage))
+            listOf(directWorker(TeamPrivacy.redact(userMessage)))
         }
 
         durable?.savePlan(revision, rootObjective, runtimeTasks)
@@ -451,7 +451,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                                 event.output.isBlank() || event.output.trim() == "(no output)" -> "EMPTY"
                                 else -> "OK"
                             }
-                            val output = SensitiveObservationRedactor.redact(event.output)
+                            val output = TeamPrivacy.redact(event.output)
                                 .replace(Regex("\\s+"), " ").trim()
                             val snippet = if (output.length <= MAX_WORKER_TOOL_OBSERVATION_CHARS) output
                                 else output.take(650) + " … " + output.takeLast(200)
@@ -483,8 +483,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             }
             if (steering?.changed(steeringRevision) == true) return TaskOutcome(task, "", redirected = true)
 
-            taskResult = SensitiveObservationRedactor.redact(taskResult)
-            taskError = taskError?.let(SensitiveObservationRedactor::redact)
+            taskResult = TeamPrivacy.redact(taskResult)
+            taskError = taskError?.let(TeamPrivacy::redact)
             if (taskError == null && taskResult.isBlank()) {
                 taskError = "Worker ended without a final response."
             }

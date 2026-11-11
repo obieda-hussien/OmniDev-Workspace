@@ -156,6 +156,37 @@ class TeamStateEngineTest {
             EvidenceRef("denied", 1, "read_file", "", RunEvidenceLedger.Outcome.ERROR, EvidenceKinds.Kind.READ, a.identity.runId, a.task.id), "CONFIRMATION_REQUIRED"))
         r.recreate(); assertFalse(r.store.summaries(7).single().canResume)
     }
+    @Test fun `auth failure permits exact not-executed reconciliation while retaining the permission barrier`() = runTest {
+        val r = Rig(); r.start(); val a = r.begin(r.a.copy(parallelSafe = false))
+        val call = ToolCall("create", "github_manager", mapOf("action" to "create_issue", "repo" to "owner/repo"))
+        r.store.beforeTool("team", "owner", a, call)
+        r.store.observed("team", "owner", a, AgentEvent.ToolResult(call.name, "Connect GitHub token", true, 1,
+            EvidenceRef(call.id, 1, call.name, "", RunEvidenceLedger.Outcome.ERROR, EvidenceKinds.Kind.OTHER,
+                a.identity.runId, a.task.id), "GITHUB_AUTH_REQUIRED"))
+        r.recreate()
+        assertFalse(r.store.summaries(7).single().canResume)
+        assertEquals(listOf("create"), r.store.summaries(7).single().workers.first().reconcilableCalls)
+        assertTrue(runCatching { r.store.reviewIntervention("team", 7, a.identity.runId) }.isFailure)
+        r.store.reconcileNotExecuted("team", 7, a.identity.runId, "create", "Verified exact repository and request: no issue was created")
+        assertFalse(r.store.summaries(7).single().canResume) // permission barrier is still present
+        assertTrue(r.store.summaries(7).single().workers.first().interventionRequired)
+        r.store.reviewIntervention("team", 7, a.identity.runId)
+        assertTrue(r.store.summaries(7).single().canResume)
+        assertFalse(r.store.accepted(r.store.load("team")!!, "inspect"))
+    }
+    @Test fun `quoted credentials and URL userinfo are redacted in durable operational text`() = runTest {
+        val request = """Inspect {"apiKey":"private-json-key","password":"private-json-password"} and https://username:private-url-password@example.com/source"""
+        val store = TeamStateEngine.inMemory()
+        store.create("privacy", 9, request, "/tmp", "owner")
+        val saved = store.load("privacy")!!
+        val encoded = TeamPayloadCodec.encode(saved)
+        assertFalse(encoded.contains("private-json-key"))
+        assertFalse(encoded.contains("private-json-password"))
+        assertFalse(encoded.contains("private-url-password"))
+        assertEquals(saved.originalObjective, TeamPrivacy.redact(saved.originalObjective))
+        val single = TeamPrivacy.redact("{'token':'private-single-quote'}")
+        assertFalse(single.contains("private-single-quote"))
+    }
     @Test fun `explicit intervention review does not grant permissions or mark a worker complete`() = runTest {
         val r = Rig(); r.start(); val a = r.begin()
         r.store.observed("team", "owner", a, AgentEvent.ToolResult("read_file", "permission", true, 1,

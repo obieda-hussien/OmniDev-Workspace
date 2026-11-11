@@ -66,7 +66,8 @@ UNKNOWN prior operations block both plan changes and continuation.
 
 A later read cannot reconcile a mutation. The review UI accepts an explicit statement, tied to the exact attempt and call,
 that an uncertain operation did **not** execute. It never labels that worker completed. Known successful actions cannot
-be declared not-executed. If an action succeeded but its worker receipt was lost, P6 truthfully blocks continuation:
+be declared not-executed. An authorization failure may be reconciled as not-executed while its intervention flag stays set;
+only a subsequent explicit permission review can permit a fresh normally authorized attempt. This avoids a circular recovery barrier. If an action succeeded but its worker receipt was lost, P6 truthfully blocks continuation:
 it does not infer a new P0 receipt from read-back or fabricate acceptance. Positive postcondition reconciliation and
 continuing within such a partially executed mutation worker remain a P8 extension, not a P6 completion shortcut.
 
@@ -80,7 +81,8 @@ flavor/tool permissions. Cancel preserves history. Existing chat and console eve
 At most 6 workers, 8 plan revisions, 6 physical attempts per worker/revision (including serial promotion), and 200 operation
 records/attempt are allowed. Worker checkpoints cap outputs at 48,000 characters; partial observations cap each snippet
 at 600 characters, with at most six snippets loaded as retry context. The aggregate has a 1,500,000-character storage cap;
-overflow fails closed. Session discovery loads at most 20 Teams. No private reasoning, credentials, raw operation arguments,
+overflow fails closed. Session discovery loads at most 20 Teams. Quoted JSON/config credentials and URL userinfo are also redacted. Only whitelisted bounded action/resource targets are
+saved for exact-operation review. No private reasoning, credentials, raw operation argument payloads,
 full conversation history or full tool catalog is persisted here. Existing redaction, context compaction and actual usage
 accounting remain in place.
 
