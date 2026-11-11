@@ -6,6 +6,8 @@ import com.omnidev.workspace.domain.engine.SwarmTask
 import com.omnidev.workspace.domain.engine.completion.CompletionReport
 import com.omnidev.workspace.domain.engine.teamcompletion.*
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Per-coordinator lease, never the durable source of truth. All writes validate the exact owner. */
 internal class DurableTeamRun private constructor(private val store: TeamStateEngine, val id: String,
@@ -39,8 +41,10 @@ internal class DurableTeamRun private constructor(private val store: TeamStateEn
     suspend fun beforeTool(a: WorkerAssignment, call: ToolCall) = store.beforeTool(id, owner, a, call)
     suspend fun observed(a: WorkerAssignment, event: AgentEvent.ToolResult) = store.observed(id, owner, a, event)
     suspend fun checkpoint(a: WorkerAssignment, observer: WorkerCompletionObserver, report: CompletionReport?,
-        output: String, receipt: WorkerReceipt, error: String?) = store.finishWorker(id, owner, a, observer, report, output, receipt, error)
-    suspend fun restore(protocol: TeamCompletionProtocol): Map<String, String> {
+        output: String, receipt: WorkerReceipt, error: String?) = withContext(Dispatchers.Default) {
+        store.finishWorker(id, owner, a, observer, report, output, receipt, error)
+    }
+    suspend fun restore(protocol: TeamCompletionProtocol): Map<String, String> = withContext(Dispatchers.Default) {
         val record = requireNotNull(store.load(id))
         val remaining = store.checkpoints(record).toMutableList()
         val outputs = linkedMapOf<String, String>()
@@ -50,7 +54,7 @@ internal class DurableTeamRun private constructor(private val store: TeamStateEn
             }
         }
         check(remaining.isEmpty()) { "Saved receipt no longer matches its P0/P5 verification contract" }
-        return outputs
+        outputs
     }
     suspend fun finish(report: TeamCompletionReport, summary: String) = store.finish(id, owner, report, summary)
 }
