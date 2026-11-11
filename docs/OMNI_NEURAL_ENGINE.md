@@ -22,6 +22,11 @@ APK because the app does not declare a dependency on this module.
 * NeuralToolRanker: optional shadow-only six-feature scorer of existing
   eligible tool candidates. Returns the same candidates, no tool invocation,
   eligibility changes or permission decisions.
+* TinyDecisionModel: typed choices over numerical features, stable softmax,
+  explicit abstention and caller-provided calibration temperature. No language
+  encoder, tool execution or permission decisions. Desktop-only supervised
+  training and portable checkpoint experiments are described in
+  [Offline decision training](NEURAL_DECISION_TRAINING.md).
 
 ## Important limits
 * NOT a port of Racore's Mega-RAM-100K weights/architecture. It neither
