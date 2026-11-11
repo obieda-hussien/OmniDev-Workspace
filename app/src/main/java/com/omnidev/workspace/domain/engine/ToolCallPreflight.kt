@@ -12,8 +12,8 @@ class ToolCallPreflight(definitions: List<ToolDefinition>) {
 
     fun check(call: ToolCall): ToolExecutionResult? {
         val failure = checkExact(call)
+        if (failure == null && corrections.hasUniqueContract(call.name)) return null
         val report = corrections.review(call)
-        if (failure == null && report.valid) return null
         // Preserve the router's separately owned candidate-loading control, never its raw payload.
         if (call.argumentError?.startsWith("OPERATION_UNRESOLVED:") == true) return failure
         val code = if (report.issues.any { it.kind == ToolContractIssueKind.UNKNOWN_TOOL }) "TOOL_NOT_EXPOSED"

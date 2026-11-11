@@ -26,6 +26,7 @@ internal data class ToolCorrectionReport(val tool: String?, val issues: List<Too
 /** Consumes only the caller's currently eligible contracts; never searches a global/denied registry. */
 internal class ToolCorrectionAdvisor(definitions: List<ToolDefinition>) {
     private val contracts = definitions.groupBy { it.name }
+    fun hasUniqueContract(name: String): Boolean = contracts[name]?.size == 1
     fun review(call: ToolCall): ToolCorrectionReport {
         val matches = contracts[call.name]
         val definition = matches?.singleOrNull()
@@ -37,13 +38,14 @@ internal class ToolCorrectionAdvisor(definitions: List<ToolDefinition>) {
         fun add(issue: ToolContractIssue) { if (issues.size < 13) issues += issue }
         // Do not echo unknown names or supplied values: either can contain credentials or instructions.
         val unknown = call.arguments.keys - parameters.keys
-        unknown.sorted().forEach { key -> add(ToolContractIssue(ToolContractIssueKind.UNKNOWN_PARAMETER,
+        unknown.sorted().take(13).forEach { key -> add(ToolContractIssue(ToolContractIssueKind.UNKNOWN_PARAMETER,
             suggestion = ToolTypoAdvisor.suggest(key, parameters.keys))) }
         val action = call.arguments["action"]
         val actionSchema = parameters["action"]
         val actionHint = action?.let { ToolTypoAdvisor.suggest(it, actionSchema?.allowedValues.orEmpty()) }
         val effectiveAction = action?.takeIf { actionSchema?.allowedValues.isNullOrEmpty() || it in actionSchema!!.allowedValues } ?: actionHint
         definition.parameters.forEach { p ->
+            if (issues.size >= 13) return@forEach
             val value = call.arguments[p.name]
             if (value == null) {
                 if (p.required || effectiveAction in p.requiredForActions) add(ToolContractIssue(ToolContractIssueKind.MISSING_PARAMETER, p.name, p.type))
