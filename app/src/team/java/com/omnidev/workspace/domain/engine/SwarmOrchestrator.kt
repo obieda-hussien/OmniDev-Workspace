@@ -313,6 +313,15 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             val receipt: WorkerReceipt? = null
         )
 
+        // Without a verified checkout, a promised GitHub/repository inspection has no
+        // actionable local observation to retry from. Preserve dependency failure instead
+        // of restarting the same remote task or guessing a local worktree exists.
+        // Ordinary read-only inspection workers can still take one alternative attempt.
+        fun isRemoteRepositoryObjective(objective: String): Boolean {
+            val text = objective.lowercase()
+            return Regex("\\b(github|repository|repo)\\b").containsMatchIn(text)
+        }
+
         suspend fun runWorkerAttempt(task: SwarmTask, attempt: Int, recoveryNote: String?, tokenCap: Int = Int.MAX_VALUE): TaskOutcome {
             if (steering?.changed(revision) == true) return TaskOutcome(task, "", redirected = true)
             val assignment = protocol.begin(task)
@@ -457,7 +466,14 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
                 toolEvidence = toolEvidence,
                 noRetry = reviewTerminal != null || observer.unsafeToRetry ||
-                    completionReport?.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE,
+                    // A read-only worker that never called a tool can safely take ONE alternate
+                    // attempt: the next attempt still enforces the read-only tool gate and P0
+                    // verification. For mutation workers, absence of observations is not
+                    // proof that nothing happened, so keep the no-replay guard.
+                    (error.startsWith("WORKER_NO_PROGRESS:") && observedToolResults.isEmpty() &&
+                        (!task.parallelSafe || isRemoteRepositoryObjective(userMessage))) ||
+                    (completionReport?.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE &&
+                        !error.startsWith("WORKER_NO_PROGRESS:")),
                 receipt = receipt
             )
         }
@@ -471,7 +487,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             var attempt = 1
             var outcome = runWorkerAttempt(task, attempt, null)
             while (attempt < WorkerRecoveryPlanner.MAX_ATTEMPTS && !outcome.noRetry &&
-                WorkerRecoveryPlanner.shouldRetry(outcome.error, outcome.redirected, outcome.requiresSerialReplan)
+                WorkerRecoveryPlanner.shouldRetry(outcome.error, outcome.redirected, outcome.requiresSerialReplan, attempt)
             ) {
                 val wanted = (allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)).tokenBudget
                 val granted = retryLedger.reserve(wanted, observedTeamTokens.get())
@@ -481,7 +497,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     send(SwarmEvent.WorkerPhaseChanged(task, "RECOVER",
                         "Attempt ${attempt - 1} failed; retrying with a different approach ($attempt/${WorkerRecoveryPlanner.MAX_ATTEMPTS})"))
                     delay(WorkerRecoveryPlanner.waitMs(attempt, outcome.infrastructureBlocked))
-                    val note = WorkerRecoveryPlanner.note(attempt, outcome.error.orEmpty(), outcome.result)
+                    val note = WorkerRecoveryPlanner.note(attempt, outcome.error.orEmpty(), outcome.result, outcome.toolEvidence)
                     outcome = runWorkerAttempt(task, attempt, note, tokenCap = granted)
                 } finally {
                     retryLedger.release(granted)

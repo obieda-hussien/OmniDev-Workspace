@@ -114,4 +114,21 @@ class AgentRuntimeRecoveryTest {
         assertTrue(events.filterIsInstance<AgentEvent.Error>().any { it.message.startsWith("RUNTIME_BACKEND_BLOCKED:") })
     }
 
+
+    @Test fun `provider DNS outage does not retry the same unreachable hostname`() = runTest {
+        val tools = RuntimeTools()
+        var requests = 0
+        val pipeline = AgentPipeline(tools, completionProvider = {
+            requests++
+            throw java.net.UnknownHostException("generativelanguage.googleapis.com")
+        }, config = config.copy(enableRetry = true, maxRetries = 5))
+        val events = pipeline.execute("Inspect repository with agent_runtime",
+            modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
+        assertEquals(1, requests)
+        assertTrue(events.filterIsInstance<AgentEvent.Error>().any {
+            it.message.contains("Network DNS unavailable")
+        })
+        assertTrue(tools.executed.isEmpty())
+    }
+
 }

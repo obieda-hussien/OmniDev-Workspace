@@ -90,6 +90,158 @@ When improving: keep every other sentence, the structure, the language and the l
             (toolManager as? CompositeToolManager)?.confirmationGate)
     }
 
+    private data class PreparedRequestContext(
+        val prototype: CompletionRequest?,
+        val estimatedInput: Int,
+        val compactionTokens: Int,
+        val error: String? = null
+    )
+
+    /**
+     * Context compaction and per-turn request assembly are not part of the main
+     * coroutine's state machine. This keeps invokeSuspend under the JVM method
+     * size limit without changing token accounting, pinned evidence or native
+     * tool schemas.
+     */
+    private suspend fun prepareRequestContext(
+        messages: MutableList<ChatMessage>,
+        plan: IterationPlan,
+        modelId: String,
+        desiredOutputBudget: Int,
+        enableThinking: Boolean,
+        nativeTools: Boolean,
+        scopePath: String,
+        apiKey: String?,
+        autoRouteRole: com.omnidev.workspace.data.model.ModelRole?,
+        spentTokens: Int,
+        iteration: Int,
+        evidenceLedger: RunEvidenceLedger,
+        onEvent: suspend (AgentEvent) -> Unit
+    ): PreparedRequestContext {
+        val compaction = if (config.enableMemoryTrimming) {
+            ContextCompressor.checkAndCompact(
+                messages = messages,
+                tokenBudget = plan.inputBudget,
+                modelId = modelId,
+                completionProvider = completionProvider,
+                apiKey = apiKey,
+                remainingTokenBudget = config.tokenBudget?.minus(spentTokens),
+                allowModelSummary = AgentDecisionPolicy.useModelCompaction(
+                    spentTokens, config.tokenBudget, config.tokenBudget?.minus(spentTokens)
+                ),
+                pinnedEvidence = { evidenceLedger.render() }
+            ) { onEvent(it) }
+        } else null
+        val compactionTokens = compaction?.tokensUsed?.coerceAtLeast(0) ?: 0
+        val requestMessages = if (config.enableMemoryTrimming) {
+            ContextCompressor.trim(messages, plan.inputBudget)
+        } else messages.toList()
+        if (requestMessages.sumOf(ContextCompressor::estimatedTokens) > plan.inputBudget) {
+            return PreparedRequestContext(null, 0, compactionTokens,
+                "The latest message/tool result exceeds this model's context window.")
+        }
+        val prototype = CompletionRequest(
+            modelId = modelId,
+            messages = ToolTextProtocol.messages(
+                requestMessages + evidenceLedger.fin.stateMessages(iteration),
+                textCallsOnly = nativeTools
+            ),
+            systemPrompt = plan.systemPrompt,
+            maxTokens = desiredOutputBudget,
+            enableThinking = enableThinking,
+            targetContext = scopePath,
+            apiKey = apiKey,
+            tools = if (nativeTools) plan.exposed else null,
+            autoRouteRole = autoRouteRole
+        )
+        return PreparedRequestContext(
+            prototype = prototype,
+            estimatedInput = TokenAccounting.estimateInputTokens(prototype),
+            compactionTokens = compactionTokens
+        )
+    }
+
+    /**
+     * A provider request and its retry/error streaming callbacks run outside
+     * the oversized AgentPipeline.execute coroutine body. Steering boundaries
+     * and the caller's interrupted-usage accounting stay unchanged.
+     */
+    private suspend fun callIterationProvider(
+        request: CompletionRequest,
+        iteration: Int,
+        requestBegan: java.util.concurrent.atomic.AtomicBoolean,
+        observedOutputChars: java.util.concurrent.atomic.AtomicInteger,
+        steering: RunSteering?,
+        revision: Long,
+        brain: com.omnidev.workspace.data.brain.SmartLearningBridge?,
+        onEvent: suspend (AgentEvent) -> Unit
+    ): CompletionResponse? {
+        suspend fun complete(): CompletionResponse? {
+            requestBegan.set(true)
+            return callWithRetry(
+                request = request,
+                iteration = iteration,
+                onStreamChunk = { chunk ->
+                    observedOutputChars.addAndGet(chunk.length)
+                    onEvent(AgentEvent.StreamChunk(chunk))
+                },
+                onRetry = { detail ->
+                    onEvent(AgentEvent.PhaseChanged(AgentExecutionPhase.ANALYZE, detail))
+                },
+                onFatalError = { error ->
+                    steering?.check(revision)
+                    val outcome = if (isInfrastructureError(error)) EpisodeOutcome.BLOCKED else EpisodeOutcome.FAILURE
+                    brain?.onTaskEnd(outcome, "API/runtime failure: ${error.take(240)}")
+                    onEvent(AgentEvent.Error(error))
+                }
+            )
+        }
+        return if (steering == null) complete() else steering.reasoning(revision) { complete() }
+    }
+
+    /** Critique and deterministic grounding never bypass the P0 finish gate. */
+    private suspend fun renderVerifiedFinalContent(
+        response: CompletionResponse,
+        userMessage: String,
+        steering: RunSteering?,
+        revision: Long,
+        modelId: String,
+        maxOutputTokens: Int,
+        scopePath: String,
+        apiKey: String?,
+        totalTokensUsed: Int,
+        evidenceLedger: RunEvidenceLedger,
+        runtimeBackends: RuntimeBackendLedger,
+        messages: List<ChatMessage>,
+        onUsage: suspend (Int) -> Unit,
+        onReflecting: suspend (Int) -> Unit
+    ): String {
+        suspend fun critique() = maybeCritique(
+            draft = response.content,
+            originalUserMessage = steering?.objective(userMessage, revision) ?: userMessage,
+            modelId = modelId, modelMaxOutputTokens = maxOutputTokens,
+            scopePath = scopePath, apiKey = apiKey,
+            totalTokensUsed = totalTokensUsed,
+            ledger = evidenceLedger.render(maxOk = 60, maxProblems = 40),
+            onUsage = onUsage, onReflecting = onReflecting,
+            enabled = evidenceLedger.fin.reflectionEnabled(config.enableSelfReflection)
+        )
+        val critiquedContent = when {
+            runtimeBackends.hasBlocks() -> response.content + "\n\n" + runtimeBackends.reportSummary()
+            evidenceLedger.fin.keepsText() -> response.content
+            steering == null -> critique()
+            else -> steering.reasoning(revision) { critique() }
+        }
+        // Only observed tool outcomes can support a claim of files or completion.
+        val cleaned = FinalAnswerSanitizer.clean(critiquedContent)
+        val groundingNote = if (runtimeBackends.hasBlocks()) "" else evidenceLedger.groundingNote(
+            cleaned,
+            messages.filter { it.role == MessageRole.TOOL }
+                .flatMap { it.toolResults }.takeLast(256)
+        )
+        return if (groundingNote.isBlank()) cleaned else cleaned + "\n\n" + groundingNote
+    }
+
     fun execute(
         userMessage: String,
         conversationHistory: List<ChatMessage> = emptyList(),
@@ -286,6 +438,7 @@ When improving: keep every other sentence, the structure, the language and the l
         var githubFailures = GitHubFailureLedger()
         val runtimeBackends = RuntimeBackendLedger()
         val recoveryGovernor = AgentRecoveryGovernor()
+        val actionProgressBudget = ModelActionProgressBudget()
         var pendingRecoveryNote: String? = null
         var pendingRecoveryWaitMs = 0L
         var repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
@@ -373,46 +526,29 @@ When improving: keep every other sentence, the structure, the language and the l
                 return@channelFlow
             }
 
-            if (config.enableMemoryTrimming) {
-                val report = ContextCompressor.checkAndCompact(
-                    messages = messages,
-                    tokenBudget = plan.inputBudget,
-                    modelId = modelId,
-                    completionProvider = completionProvider,
-                    apiKey = resolvedApiKey,
-                    remainingTokenBudget = config.tokenBudget?.minus(totalTokensUsed),
-                    allowModelSummary = AgentDecisionPolicy.useModelCompaction(
-                        totalTokensUsed, config.tokenBudget, config.tokenBudget?.minus(totalTokensUsed)
-                    ),
-                    pinnedEvidence = { evidenceLedger.render() }
-                ) { send(it) }
-                if (report.tokensUsed > 0) {
-                    totalTokensUsed += report.tokensUsed
-                    emitUsage(report.tokensUsed, totalTokensUsed)
-                }
+            // Keep context compaction and request serialization outside invokeSuspend:
+            // the AgentPipeline coroutine must remain under the JVM 64 KB method limit.
+            val prepared = prepareRequestContext(
+                messages = messages, plan = plan, modelId = modelId,
+                desiredOutputBudget = desiredOutputBudget,
+                enableThinking = enableDeepThinking && model.supportsThinking && !runtimeBackends.reportOnly,
+                nativeTools = nativeTools, scopePath = scopePath, apiKey = resolvedApiKey,
+                autoRouteRole = autoRouteRole, spentTokens = totalTokensUsed,
+                iteration = iteration, evidenceLedger = evidenceLedger,
+                onEvent = { send(it) }
+            )
+            if (prepared.compactionTokens > 0) {
+                totalTokensUsed += prepared.compactionTokens
+                emitUsage(prepared.compactionTokens, totalTokensUsed)
             }
-
-            val requestMessages = if (config.enableMemoryTrimming) {
-                ContextCompressor.trim(messages, plan.inputBudget)
-            } else messages.toList()
-            if (requestMessages.sumOf(ContextCompressor::estimatedTokens) > plan.inputBudget) {
+            if (prepared.error != null) {
                 brain?.onTaskEnd(EpisodeOutcome.FAILURE, "latest context still exceeds input budget")
-                send(AgentEvent.Error("The latest message/tool result exceeds this model's context window."))
+                send(AgentEvent.Error(prepared.error))
                 return@channelFlow
             }
+            val requestPrototype = checkNotNull(prepared.prototype)
+            val estimatedRequestInput = prepared.estimatedInput
 
-            val requestPrototype = CompletionRequest(
-                modelId = modelId,
-                messages = ToolTextProtocol.messages(requestMessages + evidenceLedger.fin.stateMessages(iteration), textCallsOnly = nativeTools),
-                systemPrompt = plan.systemPrompt,
-                maxTokens = desiredOutputBudget,
-                enableThinking = enableDeepThinking && model.supportsThinking && !runtimeBackends.reportOnly,
-                targetContext = scopePath,
-                apiKey = resolvedApiKey,
-                tools = if (nativeTools) plan.exposed else null,
-                autoRouteRole = autoRouteRole
-            )
-            val estimatedRequestInput = TokenAccounting.estimateInputTokens(requestPrototype)
             val remainingAfterCompaction = config.tokenBudget?.minus(totalTokensUsed)
             if (remainingAfterCompaction != null &&
                 remainingAfterCompaction <= estimatedRequestInput + MIN_COMPLETION_OUTPUT_RESERVE
@@ -443,25 +579,12 @@ When improving: keep every other sentence, the structure, the language and the l
             )
 
             val nativeResponse = try {
-                suspend fun complete(): CompletionResponse? {
-                    requestBegan.set(true)
-                    return callWithRetry(
-                        request = request,
-                        iteration = iteration,
-                        onStreamChunk = {
-                            observedOutputChars.addAndGet(it.length)
-                            send(AgentEvent.StreamChunk(it))
-                        },
-                        onRetry = { detail -> send(AgentEvent.PhaseChanged(AgentExecutionPhase.ANALYZE, detail)) },
-                        onFatalError = { error ->
-                            steering?.check(revision)
-                            val outcome = if (isInfrastructureError(error)) EpisodeOutcome.BLOCKED else EpisodeOutcome.FAILURE
-                            brain?.onTaskEnd(outcome, "API/runtime failure: ${error.take(240)}")
-                            send(AgentEvent.Error(error))
-                        }
-                    )
-                }
-                if (steering == null) complete() else steering.reasoning(revision) { complete() }
+                callIterationProvider(
+                    request = request, iteration = iteration,
+                    requestBegan = requestBegan, observedOutputChars = observedOutputChars,
+                    steering = steering, revision = revision, brain = brain,
+                    onEvent = { send(it) }
+                )
             } catch (redirected: RunRedirected) {
                 // Interrupted providers may omit usage; retain observed input/output estimates.
                 if (requestBegan.get()) {
@@ -485,6 +608,13 @@ When improving: keep every other sentence, the structure, the language and the l
             val responseUsage = TokenAccounting.usage(request, nativeResponse)
             totalTokensUsed += responseUsage.totalTokens
             emitUsage(responseUsage.totalTokens, totalTokensUsed)
+            if (actionProgressBudget.onModelResponse(responseUsage.totalTokens, response.toolCalls,
+                    response.content, permittedDefinitions.isNotEmpty())) {
+                brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "thinking-only token budget exhausted")
+                send(AgentEvent.Error("NO_VERIFIED_PROGRESS: Model consumed too many tokens without a tool action or substantive answer. " +
+                    "Verified observations remain in the checkpoint; resume with a different model, valid tool call or smaller task."))
+                return@channelFlow
+            }
 
             response.thinkingContent
                 ?.takeIf { streamingCompletionProvider == null }
@@ -570,45 +700,26 @@ When improving: keep every other sentence, the structure, the language and the l
                     thinkingContent = response.thinkingContent
                 )
 
-                val critiquedContent = try {
-                    suspend fun critique() = maybeCritique(
-                        draft = response.content,
-                        originalUserMessage = steering?.objective(userMessage, revision) ?: userMessage,
-                        modelId = modelId,
-                        modelMaxOutputTokens = model.maxOutputTokens,
-                        scopePath = scopePath,
-                        apiKey = resolvedApiKey,
-                        totalTokensUsed = totalTokensUsed,
-                        ledger = evidenceLedger.render(maxOk = 60, maxProblems = 40),
+                val finalContent = try {
+                    renderVerifiedFinalContent(
+                        response = response, userMessage = userMessage,
+                        steering = steering, revision = revision,
+                        modelId = modelId, maxOutputTokens = model.maxOutputTokens,
+                        scopePath = scopePath, apiKey = resolvedApiKey,
+                        totalTokensUsed = totalTokensUsed, evidenceLedger = evidenceLedger,
+                        runtimeBackends = runtimeBackends, messages = messages,
                         onUsage = { used ->
                             totalTokensUsed += used
                             emitUsage(used, totalTokensUsed)
                         },
-                        onReflecting = { send(AgentEvent.Reflecting(it)) },
-                        enabled = evidenceLedger.fin.reflectionEnabled(config.enableSelfReflection)
+                        onReflecting = { send(AgentEvent.Reflecting(it)) }
                     )
-                    if (runtimeBackends.hasBlocks()) response.content + "\n\n" + runtimeBackends.reportSummary()
-                    else if (evidenceLedger.fin.keepsText()) response.content
-                    else if (steering == null) critique() else steering.reasoning(revision) { critique() }
                 } catch (redirected: RunRedirected) {
                     // A draft has no tool side effects; remove it before continuing.
                     messages.removeAt(messages.lastIndex)
                     applySteering()
                     continue
                 }
-                // Deterministic fact-check: warn about files/paths no tool ever returned and about
-                // tool calls that came back empty or failed. Never rewrites the model's answer.
-                val cleanedContent = FinalAnswerSanitizer.clean(critiquedContent)
-                val groundingNote = if (runtimeBackends.hasBlocks()) "" else evidenceLedger.groundingNote(
-                    cleanedContent,
-                    // Only prior tool observations are supplemental evidence. User requests,
-                    // assistant drafts and tool-call arguments are not proof that a file exists.
-                    messages.filter { it.role == MessageRole.TOOL }
-                        .flatMap { message -> message.toolResults }
-                        .takeLast(256)
-                )
-                val finalContent = if (groundingNote.isBlank()) cleanedContent else cleanedContent + "\n\n" + groundingNote
-
                 if (steering != null) {
                     if (steeringRevision != null) steering.check(revision)
                     else if (!steering.finish(revision)) {
@@ -739,6 +850,7 @@ When improving: keep every other sentence, the structure, the language and the l
             }
 
             PipelineRecovery.noteProgress(response.toolCalls, modelSafeResults, recoveryGovernor, automaticRouter)
+            actionProgressBudget.onToolResults(response.toolCalls, modelSafeResults)
 
             if (steering?.changed(revision) == true) {
                 messages += ChatMessage(MessageRole.TOOL,
@@ -1205,6 +1317,11 @@ When improving: keep every other sentence, the structure, the language and the l
                 }
                 if (error is com.omnidev.workspace.data.network.AutoRoutingExhaustedException) {
                     onFatalError("${error.message} (iteration $iteration)")
+                    return null
+                }
+                if (ProviderRetryPolicy.isDnsUnavailable(error)) {
+                    onFatalError("Network DNS unavailable (iteration $iteration): provider host could not be resolved. " +
+                        "Execution was interrupted; retain the verified checkpoint until connectivity is restored.")
                     return null
                 }
 

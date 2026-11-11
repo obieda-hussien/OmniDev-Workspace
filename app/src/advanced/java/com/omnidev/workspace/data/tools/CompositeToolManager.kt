@@ -989,7 +989,10 @@ class CompositeToolManager(
             // ── Agent runtime / tool-installer tool ──
             "agent_runtime" -> {
                 val action = arguments["action"] ?: return missingArg("action")
-                AgentRuntimeTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
+                // Prefer the user's already selected local checkout, but never treat a GitHub
+                // repository identifier as proof that Termux contains a clone.
+                val runtimeArgs = GitWorkspaceSelector.injectVerifiedScope(action, arguments, scopePath)
+                AgentRuntimeTool.execute(context = context ?: return missingContext(), action = action, args = runtimeArgs)
             }
             "install_tool", "tools_status", "tools_list" -> {
                 val ctx = context

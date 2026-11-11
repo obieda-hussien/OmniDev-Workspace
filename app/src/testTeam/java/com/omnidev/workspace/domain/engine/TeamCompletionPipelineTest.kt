@@ -24,6 +24,56 @@ class TeamCompletionPipelineTest {
     }
     private fun assigned(request: CompletionRequest) = request.messages.firstOrNull { it.content.contains("## Assigned Team Task") }?.content.orEmpty()
 
+
+    @Test fun `unkept inspection promise gets one alternative worker attempt with real read evidence`() = runTest {
+        val tools = Tools()
+        val team = SwarmOrchestrator(tools, completionProvider = { request ->
+            when {
+                request.systemPrompt.orEmpty().contains("Omni Team Orchestrator") ->
+                    CompletionResponse("""[{"id":"inspect","description":"Inspect project configuration","parallelSafe":true}]""")
+                request.systemPrompt.orEmpty().contains("Synthesize specialist") ->
+                    CompletionResponse("Verified source inspection")
+                request.messages.any { it.toolResults.isNotEmpty() } ->
+                    CompletionResponse("Read source and verified its contents")
+                request.messages.any { it.role == MessageRole.USER && it.content.contains("[Recovery attempt 2/3]") } ->
+                    CompletionResponse("", listOf(ToolCall("read-on-retry", "read_file", mapOf("path" to "/tmp/config.kt"))))
+                else -> CompletionResponse("I will inspect the source next.")
+            }
+        })
+        val events = team.execute("Inspect project configuration and report verified source",
+            "gpt-4o-mini", "gpt-4o-mini", "/tmp").toList()
+        val result = events.filterIsInstance<SwarmEvent.Completed>().single()
+        assertEquals(events.joinToString("\n"), 1, result.tasksCompleted)
+        assertEquals(0, result.tasksFailed)
+        assertEquals(listOf("read_file"), tools.executed)
+        assertTrue(events.filterIsInstance<SwarmEvent.WorkerPhaseChanged>().any { it.phase == "RECOVER" })
+    }
+
+    @Test fun `mutation worker with no observations never blindly replays`() = runTest {
+        val tools = Tools()
+        var workerRequests = 0
+        val team = SwarmOrchestrator(tools, completionProvider = { request ->
+            when {
+                request.systemPrompt.orEmpty().contains("Omni Team Orchestrator") ->
+                    CompletionResponse("""[{"id":"edit","description":"Write source implementation","parallelSafe":false}]""")
+                request.systemPrompt.orEmpty().contains("Synthesize specialist") ->
+                    CompletionResponse("Unverified")
+                else -> {
+                    workerRequests++
+                    CompletionResponse("I will write the source next.")
+                }
+            }
+        })
+        val events = team.execute("Write source implementation and verify the result",
+            "gpt-4o-mini", "gpt-4o-mini", "/tmp").toList()
+        val outcome = events.filterIsInstance<SwarmEvent.Completed>().single()
+        assertEquals(0, outcome.tasksCompleted)
+        assertEquals(1, outcome.tasksFailed)
+        assertTrue(tools.executed.isEmpty())
+        assertFalse(events.filterIsInstance<SwarmEvent.WorkerPhaseChanged>().any { it.phase == "RECOVER" })
+        assertTrue(workerRequests > 0)
+    }
+
     @Test fun `actual workers produce exact accepted receipts before dependencies execute`() = runTest {
         val tools = Tools()
         val team = SwarmOrchestrator(tools, completionProvider = { r -> when {

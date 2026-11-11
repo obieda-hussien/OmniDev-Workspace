@@ -19,6 +19,18 @@ class ToolCallPreflightTest {
     private fun call(args: Map<String, String> = emptyMap(), name: String = "edit") = ToolCall("1", name, args)
     private val read = mapOf("action" to "read", "path" to "a")
 
+    @Test fun `typo hints never turn invalid tool calls into execution`() {
+        val guard = ToolCallPreflight(listOf(ToolDefinition("github_manager", "GitHub", listOf(
+            ToolParameter("action", "string", "Action"), ToolParameter("repo", "string", "Repository")
+        ))))
+        val wrongName = guard.check(ToolCall("n", "github_managr", mapOf("action" to "get_repo")))
+        assertEquals("TOOL_NOT_EXPOSED", wrongName?.classification)
+        assertTrue(wrongName!!.output.contains("github_manager"))
+        val wrongKey = guard.check(ToolCall("p", "github_manager", mapOf("action" to "get_repo", "rep" to "x")))
+        assertEquals("INVALID_TOOL_ARGUMENTS", wrongKey?.classification)
+        assertTrue(wrongKey!!.output.contains("repo"))
+    }
+
     @Test fun `invented and case changed names are refused`() {
         assertEquals("TOOL_NOT_EXPOSED", guard.check(call(read, "Edit"))?.classification)
         assertNotNull(guard.check(call(read, "delete_everything")))
