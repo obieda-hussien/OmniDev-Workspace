@@ -281,7 +281,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         } else {
             listOf(directWorker(userMessage))
         }
-        val bounded = boundPlan(normalized, userMessage)
+        val bounded = boundPlan(normalized, userMessage).map { it.copy(
+            description = SensitiveObservationRedactor.redact(it.description),
+            acceptance = it.acceptance.map(SensitiveObservationRedactor::redact)) }
         val runtimeCandidate = bounded.map { task ->
             val runtime = TeamExecutionPolicy.classify(task)
             task.copy(parallelSafe = runtime.effectiveParallelSafe && !TeamCompletionProtocol.requiresAction(task.description),
@@ -393,7 +395,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 memoryManager = memoryManager,
                 smartLearningBridge = smartLearningBridge,
                 analyticsRepository = analyticsRepository,
-                beforeToolExecution = durable?.let { journal -> { call -> journal.beforeTool(assignment, call) } },
+                beforeToolExecution = { call -> durable?.beforeTool(assignment, call); Unit },
                 toolCallEligibility = if (task.parallelSafe) ({ call ->
                     if (call.name == RunToolCatalog.DISCOVER.name || ToolBatchPolicy.isReadOnly(call)) null
                     else "READ_ONLY_WORKER: Mutation or unknown-effect tool requires a serial task; no batch actions executed."

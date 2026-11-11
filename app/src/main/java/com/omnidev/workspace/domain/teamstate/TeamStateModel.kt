@@ -22,7 +22,8 @@ internal data class TeamWorkerAttempt(val assignment: WorkerAssignment, val stat
     val checkpoint: WorkerCheckpoint? = null, val failure: String = "", val intervention: Boolean = false)
 
 @Serializable
-internal data class TeamPlan(val revision: Long, val objective: String, val tasks: List<SwarmTask>, val reason: String)
+internal data class TeamPlan(val revision: Long, val objective: String, val tasks: List<SwarmTask>, val reason: String,
+    val carriedReceipts: Map<String, Long> = emptyMap())
 
 @Serializable
 internal data class TeamRecord(val id: String, val sessionId: Long?, val originalObjective: String,

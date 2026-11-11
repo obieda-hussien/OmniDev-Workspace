@@ -8,6 +8,7 @@ import com.omnidev.workspace.domain.engine.completion.*
 data class WorkerAssignment(val teamRunId: String, val revision: Long, val task: SwarmTask, val attempt: Int,
     val kind: TaskKind = if (TeamCompletionProtocol.requiresAction(task.description) && !task.toolFree)
         TaskKind.IMPLEMENTATION else TaskKind.ANALYSIS) {
+    @kotlinx.serialization.Transient
     val identity = RunIdentity(runId = "$teamRunId:r$revision:${task.id}:a$attempt", workerId = task.id,
         acceptance = task.acceptance, requireExecution = !task.toolFree,
         taskKind = kind,

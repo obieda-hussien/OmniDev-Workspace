@@ -67,8 +67,16 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
                 check(r.attempts.none { a -> a.operations.any { !it.readOnly && !it.notExecuted } && a.checkpoint == null }) {
                     "Resolve prior side effects before changing the Team plan"
                 }
+                // Only an unchanged objective and identical dependency-closed worker contracts permit carry-forward.
+                // A real user redirect retains history but invalidates acceptance until the new contracts are verified.
+                val compatible = if (objective == r.objective) tasks.filter { task ->
+                    r.plan?.tasks?.contains(task) == true && accepted(r, task.id)
+                }.mapTo(mutableSetOf()) { it.id } else mutableSetOf()
+                repeat(tasks.size) { compatible.removeAll { key -> tasks.single { it.id == key }.dependencies.any { it !in compatible } } }
+                val carried = checkpoints(r).filter { it.assignment.task.id in compatible }
+                    .associate { it.assignment.task.id to it.assignment.revision }
                 r.copy(revision = revision, objective = SensitiveObservationRedactor.redact(objective), plans = r.plans +
-                    TeamPlan(revision, SensitiveObservationRedactor.redact(objective), tasks, if (r.plan == null) "initial" else "user redirect"))
+                    TeamPlan(revision, SensitiveObservationRedactor.redact(objective), tasks, if (r.plan == null) "initial" else "plan revision", carried))
             }
         }
     }
@@ -116,6 +124,8 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
         report: CompletionReport?, output: String, receipt: WorkerReceipt, error: String?) {
         require(output.length <= 48_000) { "Worker output exceeds durable checkpoint bound" }
         require(receipt.assignment === a)
+        val reviewed = observer.review(report, output)
+        require(receipt.accepted == reviewed.accepted && receipt.ledgerDigest == reviewed.ledgerDigest && receipt.outputDigest == reviewed.outputDigest)
         attempt(id, owner, a) { w ->
             val checkpoint = if (error == null && receipt.accepted) WorkerCheckpoint(a, observer.snapshot(), report, output,
                 receipt.ledgerDigest, receipt.outputDigest) else null
@@ -192,12 +202,19 @@ class TeamStateEngine internal constructor(private val backend: TeamStateBackend
         if (r.reservedTokens >= TOKEN_LIMIT - 40_000) add("Durable token ceiling reached")
     }
     private fun unsafe(a: TeamWorkerAttempt) = a.checkpoint == null && (a.intervention || a.operations.any { !it.readOnly && !it.notExecuted })
+    internal fun checkpoints(r: TeamRecord): List<WorkerCheckpoint> {
+        val current = r.currentAttempts.mapNotNull { it.checkpoint }
+        val carried = r.plan?.carriedReceipts.orEmpty().map { (key, revision) ->
+            r.attempts.single { it.assignment.task.id == key && it.assignment.revision == revision && it.checkpoint != null }.checkpoint!!
+        }
+        return current + carried
+    }
     internal fun accepted(r: TeamRecord, id: String): Boolean {
         val p = r.plan ?: return false
         val protocol = TeamCompletionProtocol(r.id, r.revision, p.tasks, TeamCompletionProtocol.requiresAction(r.originalObjective))
-        val remaining = r.currentAttempts.mapNotNull { it.checkpoint }.toMutableList()
+        val remaining = checkpoints(r).toMutableList()
         repeat(p.tasks.size) {
-            remaining.toList().forEach { c -> if (protocol.restore(c)) remaining.remove(c) }
+            remaining.toList().forEach { c -> if (protocol.restore(c, p.carriedReceipts[c.assignment.task.id])) remaining.remove(c) }
         }
         return !protocol.ready(id) && protocol.finish(emptySet(), emptySet()).workers.any { it.taskId == id && it.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.COMPLETED }
     }

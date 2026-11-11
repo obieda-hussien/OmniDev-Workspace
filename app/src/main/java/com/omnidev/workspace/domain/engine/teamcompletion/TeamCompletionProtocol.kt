@@ -21,6 +21,7 @@ data class TeamCompletionReport(val runId: String, val revision: Long, val statu
 class TeamCompletionProtocol(val runId: String, val revision: Long, private val tasks: List<SwarmTask>, private val requireAction: Boolean = false) {
     private val receipts = linkedMapOf<String, WorkerReceipt>()
     private val active = mutableMapOf<String, WorkerAssignment>()
+    private val restoredOrigins = mutableMapOf<String, Long>()
     init {
         require(tasks.size in 1..6 && tasks.map { it.id }.distinct().size == tasks.size)
         val ids = tasks.map { it.id }.toSet()
@@ -45,9 +46,9 @@ class TeamCompletionProtocol(val runId: String, val revision: Long, private val 
     }
 
     /** Only the durable runtime calls this seam; model-authored JSON never enters it. Re-runs P5/P0 review. */
-    @Synchronized internal fun restore(checkpoint: com.omnidev.workspace.domain.teamstate.WorkerCheckpoint): Boolean {
+    @Synchronized internal fun restore(checkpoint: com.omnidev.workspace.domain.teamstate.WorkerCheckpoint, originRevision: Long? = null): Boolean {
         val a = checkpoint.assignment
-        if (a.teamRunId != runId || a.revision != revision || !matches(a.task) ||
+        if (a.teamRunId != runId || (a.revision != revision && (originRevision != a.revision || a.revision >= revision)) || !matches(a.task) ||
             a.attempt !in 1..com.omnidev.workspace.domain.teamstate.TeamStateEngine.MAX_ATTEMPTS ||
             a.task.dependencies.any { receipts[it]?.accepted != true } || receipts[a.task.id]?.accepted == true) return false
         val observer = WorkerCompletionObserver(a)
@@ -55,6 +56,7 @@ class TeamCompletionProtocol(val runId: String, val revision: Long, private val 
         val receipt = observer.review(checkpoint.report, checkpoint.output)
         if (!receipt.accepted || receipt.ledgerDigest != checkpoint.ledgerDigest || receipt.outputDigest != checkpoint.outputDigest) return false
         active[a.task.id] = a
+        if (a.revision != revision) restoredOrigins[a.task.id] = a.revision
         return accept(receipt, checkpoint.output)
     }
 
@@ -65,7 +67,7 @@ class TeamCompletionProtocol(val runId: String, val revision: Long, private val 
     /** Rejected or stale attempts cannot unlock dependencies. Duplicate delivery is idempotent. */
     @Synchronized fun accept(receipt: WorkerReceipt, output: String): Boolean {
         val a = receipt.assignment
-        if (a.teamRunId != runId || a.revision != revision || active[a.task.id] !== a || !matches(a.task)) return false
+        if (a.teamRunId != runId || (a.revision != revision && restoredOrigins[a.task.id] != a.revision) || active[a.task.id] !== a || !matches(a.task)) return false
         if (receipt.accepted && receipt.outputDigest != digest(output)) return false
         val previous = receipts[a.task.id]
         if (previous == receipt) return true

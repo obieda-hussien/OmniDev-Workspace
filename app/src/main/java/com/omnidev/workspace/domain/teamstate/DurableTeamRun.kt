@@ -33,11 +33,11 @@ internal class DurableTeamRun private constructor(private val store: TeamStateEn
         output: String, receipt: WorkerReceipt, error: String?) = store.finishWorker(id, owner, a, observer, report, output, receipt, error)
     suspend fun restore(protocol: TeamCompletionProtocol): Map<String, String> {
         val record = requireNotNull(store.load(id))
-        val remaining = record.currentAttempts.mapNotNull { it.checkpoint }.toMutableList()
+        val remaining = store.checkpoints(record).toMutableList()
         val outputs = linkedMapOf<String, String>()
         repeat(record.plan?.tasks?.size ?: 0) {
             remaining.toList().forEach { c ->
-                if (protocol.restore(c)) { outputs[c.assignment.task.id] = c.output; remaining.remove(c) }
+                if (protocol.restore(c, record.plan?.carriedReceipts?.get(c.assignment.task.id))) { outputs[c.assignment.task.id] = c.output; remaining.remove(c) }
             }
         }
         check(remaining.isEmpty()) { "Saved receipt no longer matches its P0/P5 verification contract" }
