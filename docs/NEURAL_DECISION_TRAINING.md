@@ -42,3 +42,7 @@ Omni accuracy benchmark, a device latency/memory measurement, or a comparison ag
 exclude the JVM, arrays, activations, features and application memory. No model is enabled automatically.
 Before application integration: curate independently labelled real tasks, evaluate ranking/abstention
 and calibration against deterministic baselines, test API 30 on hardware, then use shadow-only rollout.
+
+The separate [bilingual text experiment](TEXT_INTENT_EXPERIMENT.md) now exercises a bounded text encoder,
+an authored multilingual corpus, a centroid comparison and text-checkpoint parity. Its results do not
+authorize production integration.
