@@ -457,7 +457,11 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
                 toolEvidence = toolEvidence,
                 noRetry = reviewTerminal != null || observer.unsafeToRetry ||
-                    (error.startsWith("WORKER_NO_PROGRESS:") && observedToolResults.isEmpty()) ||
+                    // A read-only worker that never called a tool can safely take ONE alternate
+                    // attempt: the next attempt still enforces the read-only tool gate and P0
+                    // verification. For mutation workers, absence of observations is not
+                    // proof that nothing happened, so keep the no-replay guard.
+                    (error.startsWith("WORKER_NO_PROGRESS:") && observedToolResults.isEmpty() && !task.parallelSafe) ||
                     (completionReport?.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE &&
                         !error.startsWith("WORKER_NO_PROGRESS:")),
                 receipt = receipt
