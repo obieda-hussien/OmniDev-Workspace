@@ -11,8 +11,15 @@ compile_java() {
 compile_java "${training_compat[@]}" -encoding UTF-8 -d "$training_out" \
   neural-core/src/main/java/com/omnidev/workspace/domain/neural/*.java \
   neural-core/training/com/omnidev/workspace/domain/neural/*.java \
-  neural-core/smoke/DecisionTrainingSmoke.java
+  neural-core/smoke/DecisionTrainingSmoke.java neural-core/smoke/TextCorpusValidationSmoke.java
 java -cp "$training_out" DecisionTrainingSmoke "$training_out/TrainedDecisionCheckpoint.java"
 compile_java "${training_compat[@]}" -encoding UTF-8 -cp "$training_out" -d "$training_out" \
   "$training_out/TrainedDecisionCheckpoint.java" "$training_out/TrainedLargeDecisionCheckpoint.java"
 java -cp "$training_out" DecisionTrainingSmoke --verify
+java -cp "$training_out" TextCorpusValidationSmoke neural-core/fixtures/text-intents.tsv
+java -cp "$training_out" com.omnidev.workspace.domain.neural.TextIntentExperiment \
+  neural-core/fixtures/text-intents.tsv "$training_out/TrainedTextIntentCheckpoint.java"
+compile_java "${training_compat[@]}" -encoding UTF-8 -cp "$training_out" -d "$training_out" \
+  "$training_out/TrainedTextIntentCheckpoint.java"
+java -cp "$training_out" com.omnidev.workspace.domain.neural.TextIntentExperiment \
+  neural-core/fixtures/text-intents.tsv --verify

@@ -1,0 +1,121 @@
+split	group	label	language	text
+train	repo-status	repository	en	Inspect the GitHub repository branch and git status
+train	repo-status	repository	ar	افحص مستودع جيتهوب وشوف الفرع وحالة الملفات
+train	repo-status	repository	mixed	شوف git status والbranch في repository
+train	repo-source	repository	en	Read the Kotlin source file from the repository
+train	repo-source	repository	ar	اقرأ ملف كوتلن من مستودع المشروع
+train	repo-source	repository	mixed	اقرأ Kotlin source من الريبو
+train	repo-diff	repository	en	Review the commit diff and changed files on GitHub
+train	repo-diff	repository	ar	راجع تعديلات الملفات وآخر كوميت على جيتهوب
+train	repo-diff	repository	mixed	راجع commit diff والملفات المتغيرة
+train	repo-issue	repository	en	Create a GitHub issue describing the repository bug
+train	repo-issue	repository	ar	افتح مشكلة في مستودع جيتهوب واشرح الخطأ
+train	repo-issue	repository	mixed	اعمل GitHub issue للباج في الريبو
+train	build-unit	build	en	Run the Gradle unit tests and inspect failures
+train	build-unit	build	ar	شغل اختبارات جرادل وراجع الاختبارات الفاشلة
+train	build-unit	build	mixed	شغل Gradle unit tests وشوف failures
+train	build-apk	build	en	Compile the Android release APK with Gradle
+train	build-apk	build	ar	ابني نسخة أندرويد للإصدار بجرادل
+train	build-apk	build	mixed	اعمل build للrelease APK باستخدام Gradle
+train	build-lint	build	en	Run lint and report compilation errors
+train	build-lint	build	ar	شغل فحص لينت ووضح أخطاء التجميع
+train	build-lint	build	mixed	شغل lint وشوف compiler errors
+train	build-emulator	build	en	Execute the Android UI tests on the emulator
+train	build-emulator	build	ar	نفذ اختبارات واجهة أندرويد على المحاكي
+train	build-emulator	build	mixed	شغل Android UI tests على emulator
+train	device-volume	device	en	Change the phone media volume using Android settings
+train	device-volume	device	ar	غير صوت الوسائط في إعدادات الموبايل
+train	device-volume	device	mixed	ظبط media volume على التلفون
+train	device-shizuku	device	en	Check whether Shizuku is connected on this phone
+train	device-shizuku	device	ar	اتأكد إن شيزوكو متصل على الجهاز
+train	device-shizuku	device	mixed	شوف Shizuku connection على الموبايل
+train	device-battery	device	en	Show the phone battery usage and running Android apps
+train	device-battery	device	ar	اعرض استهلاك بطارية الجهاز والتطبيقات الشغالة
+train	device-battery	device	mixed	شوف battery usage والapps على التلفون
+train	device-screen	device	en	Adjust the phone screen brightness
+train	device-screen	device	ar	ظبط سطوع شاشة الموبايل
+train	device-screen	device	mixed	غير screen brightness على الجهاز
+train	know-docs	knowledge	en	Search the documentation and quote the relevant passage
+train	know-docs	knowledge	ar	ابحث في التوثيق وهات اقتباس من المصدر
+train	know-docs	knowledge	mixed	دور في documentation وهات citation
+train	know-notes	knowledge	en	Find the saved note about context compression
+train	know-notes	knowledge	ar	دور في الملاحظات المحفوظة عن ضغط السياق
+train	know-notes	knowledge	mixed	ابحث في saved notes عن context compaction
+train	know-paper	knowledge	en	Retrieve the research paper and summarize its evidence
+train	know-paper	knowledge	ar	هات الورقة البحثية ولخص الأدلة الموجودة فيها
+train	know-paper	knowledge	mixed	هات research paper ولخص evidence
+train	know-search	knowledge	en	Look up the official Kotlin reference and cite sources
+train	know-search	knowledge	ar	ابحث في المرجع الرسمي لكوتلن مع ذكر المصادر
+train	know-search	knowledge	mixed	دور على official reference وهات sources
+train	chat-greet	chat	en	Hello how are you today
+train	chat-greet	chat	ar	ازيك عاملة ايه النهارده
+train	chat-greet	chat	mixed	Hello يا منه اخبارك ايه
+train	chat-thanks	chat	en	Thank you that was helpful
+train	chat-thanks	chat	ar	شكرا يا منه تسلمي على المساعدة
+train	chat-thanks	chat	mixed	Thanks يا منه على المساعدة
+train	chat-joke	chat	en	Tell me a funny joke
+train	chat-joke	chat	ar	احكي لي نكتة تضحكني
+train	chat-joke	chat	mixed	قولي funny joke كده
+train	chat-feel	chat	en	I had a tiring day and want to talk
+train	chat-feel	chat	ar	يومي كان متعب وعايز أتكلم شوية
+train	chat-feel	chat	mixed	كان tiring day وعايز نتكلم
+development	repo-history	repository	en	Inspect the repository commit history
+development	repo-history	repository	ar	افحص تاريخ الكوميتات في المستودع
+development	repo-history	repository	mixed	راجع git history في الريبو
+development	build-debug	build	en	Build the debug APK and check the compiler output
+development	build-debug	build	ar	ابني نسخة تجريبية وراجع نتيجة التجميع
+development	build-debug	build	mixed	اعمل debug build وراجع compiler output
+development	device-permissions	device	en	Inspect Android application permissions on my phone
+development	device-permissions	device	ar	افحص صلاحيات تطبيقات أندرويد على موبايلي
+development	device-permissions	device	mixed	راجع Android permissions على الجهاز
+development	know-memory	knowledge	en	Search saved memories for the device specification
+development	know-memory	knowledge	ar	ابحث في الذكريات المحفوظة عن مواصفات الجهاز
+development	know-memory	knowledge	mixed	دور في saved memories عن المواصفات
+development	chat-coffee	chat	en	Let us chat while I drink coffee
+development	chat-coffee	chat	ar	تعالي ندردش وأنا بشرب قهوة
+development	chat-coffee	chat	mixed	يلا chat مع فنجان coffee
+calibration	repo-pull	repository	en	Read the GitHub pull request changes
+calibration	repo-pull	repository	ar	اقرأ تغييرات طلب الدمج على جيتهوب
+calibration	repo-pull	repository	mixed	راجع pull request diff في GitHub
+calibration	build-testlog	build	en	Run the test suite and examine the Gradle log
+calibration	build-testlog	build	ar	شغل مجموعة الاختبارات وافحص سجل جرادل
+calibration	build-testlog	build	mixed	شغل test suite وراجع Gradle log
+calibration	device-network	device	en	Show the phone WiFi settings
+calibration	device-network	device	ar	اعرض إعدادات الواي فاي على الموبايل
+calibration	device-network	device	mixed	شوف WiFi settings على الجهاز
+calibration	know-quote	knowledge	en	Find a source quotation about evidence verification
+calibration	know-quote	knowledge	ar	هات اقتباس من مصدر عن التحقق من الأدلة
+calibration	know-quote	knowledge	mixed	دور على source quotation عن verification
+calibration	chat-evening	chat	en	Good evening I hope you are doing well
+calibration	chat-evening	chat	ar	مساء الخير يا منه يارب تكوني بخير
+calibration	chat-evening	chat	mixed	Good evening يا منه اخبار يومك
+holdout	repo-merge	repository	en	Check the GitHub branch before merging this pull request
+holdout	repo-merge	repository	ar	راجع فرع جيتهوب قبل دمج طلب التعديل
+holdout	repo-merge	repository	mixed	اتأكد من branch قبل merge للpull request
+holdout	repo-fileedit	repository	en	Inspect the repository file and prepare a source diff
+holdout	repo-fileedit	repository	ar	افحص ملف المستودع وجهز تعديلات المصدر
+holdout	repo-fileedit	repository	mixed	راجع source file في الريبو وجهز diff
+holdout	build-flavors	build	en	Compile every Android flavor and check Gradle results
+holdout	build-flavors	build	ar	جمع كل نسخ أندرويد وراجع نتائج جرادل
+holdout	build-flavors	build	mixed	اعمل compile لكل flavors وشوف Gradle results
+holdout	build-regression	build	en	Run regression tests and report any failing assertions
+holdout	build-regression	build	ar	شغل اختبارات الانحدار ووضح التأكيدات الفاشلة
+holdout	build-regression	build	mixed	شغل regression tests وهات failing assertions
+holdout	device-storage	device	en	Inspect phone storage and installed Android applications
+holdout	device-storage	device	ar	افحص مساحة تخزين الموبايل وتطبيقات أندرويد المثبتة
+holdout	device-storage	device	mixed	شوف phone storage والinstalled apps
+holdout	device-display	device	en	Read the Android display refresh rate setting
+holdout	device-display	device	ar	اقرأ إعداد معدل تحديث شاشة الجهاز
+holdout	device-display	device	mixed	شوف display refresh rate في settings الجهاز
+holdout	know-retrieve	knowledge	en	Retrieve saved documentation with exact source quotations
+holdout	know-retrieve	knowledge	ar	استرجع التوثيق المحفوظ باقتباسات دقيقة من المصادر
+holdout	know-retrieve	knowledge	mixed	استرجع saved documentation مع source quotes
+holdout	know-references	knowledge	en	Search the official reference for supporting evidence
+holdout	know-references	knowledge	ar	دور في المرجع الرسمي على أدلة تدعم الكلام
+holdout	know-references	knowledge	mixed	ابحث في official reference عن evidence
+holdout	chat-weekend	chat	en	How was your weekend I just want to chat
+holdout	chat-weekend	chat	ar	كانت إجازتك عاملة إيه عايز ندردش شوية
+holdout	chat-weekend	chat	mixed	كان weekend عامل ايه يلا chat
+holdout	chat-smile	chat	en	Tell another joke to make me smile
+holdout	chat-smile	chat	ar	احكي نكتة كمان تضحكني شوية
+holdout	chat-smile	chat	mixed	قولي another joke عشان ابتسم
