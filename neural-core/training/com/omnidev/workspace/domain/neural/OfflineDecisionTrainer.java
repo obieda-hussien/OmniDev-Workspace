@@ -69,27 +69,48 @@ public final class OfflineDecisionTrainer {
 
         /** Portable Java checkpoint; no Python, native library or training code is needed to load it. */
         public String javaSource(double temperature) {
+            return javaSource(temperature, "TrainedDecisionCheckpoint");
+        }
+
+        public String javaSource(double temperature, String className) {
             if (!Double.isFinite(temperature) || temperature <= 0) throw new IllegalArgumentException("Invalid temperature");
+            if (className == null || !className.matches("Trained[A-Za-z0-9_]{0,56}")) {
+                throw new IllegalArgumentException("Invalid checkpoint class name");
+            }
             StringBuilder out = new StringBuilder("import com.omnidev.workspace.domain.neural.TinyNeuralRuntime;\n")
-                    .append("public final class TrainedDecisionCheckpoint {\n")
+                    .append("public final class ").append(className).append(" {\n")
                     .append("  public static final double TEMPERATURE = ").append(temperature).append(";\n")
                     .append("  public static TinyNeuralRuntime model() { return new TinyNeuralRuntime(\n");
-            if (hidden > 0) appendLayer(out, inputs, hidden, first, firstBias, "TANH").append(",\n");
-            appendLayer(out, hidden == 0 ? inputs : hidden, classes, last, lastBias, "LINEAR");
-            return out.append("); }\n}\n").toString();
+            if (hidden > 0) appendLayer(out, inputs, hidden, "firstWeights", "firstBias", "TANH").append(",\n");
+            appendLayer(out, hidden == 0 ? inputs : hidden, classes, "lastWeights", "lastBias", "LINEAR");
+            out.append("); }\n");
+            if (hidden > 0) { appendArrayFactory(out, "firstWeights", first); appendArrayFactory(out, "firstBias", firstBias); }
+            appendArrayFactory(out, "lastWeights", last); appendArrayFactory(out, "lastBias", lastBias);
+            return out.append("}\n").toString();
         }
 
         private static StringBuilder appendLayer(StringBuilder out, int inputs, int outputs,
-                                                  float[] weights, float[] bias, String activation) {
+                                                  String weights, String bias, String activation) {
             out.append("    new TinyNeuralRuntime.Dense(").append(inputs).append(',').append(outputs).append(',');
-            appendArray(out, weights).append(','); appendArray(out, bias);
+            out.append(weights).append("(),").append(bias).append("()");
             return out.append(",TinyNeuralRuntime.Activation.").append(activation).append(')');
         }
 
-        private static StringBuilder appendArray(StringBuilder out, float[] values) {
-            out.append("new float[]{");
-            for (int i = 0; i < values.length; i++) { if (i > 0) out.append(','); out.append(values[i]).append('f'); }
-            return out.append('}');
+        private static void appendArrayFactory(StringBuilder out, String name, float[] values) {
+            final int chunkSize = 256;
+            out.append("  private static float[] ").append(name).append("() { float[] values = new float[")
+                    .append(values.length).append("];\n");
+            for (int start = 0; start < values.length; start += chunkSize) {
+                out.append("    ").append(name).append(start / chunkSize).append("(values);\n");
+            }
+            out.append("    return values; }\n");
+            for (int start = 0; start < values.length; start += chunkSize) {
+                out.append("  private static void ").append(name).append(start / chunkSize).append("(float[] values) {\n");
+                for (int i = start; i < Math.min(values.length, start + chunkSize); i++) {
+                    out.append("    values[").append(i).append("] = ").append(values[i]).append("f;\n");
+                }
+                out.append("  }\n");
+            }
         }
     }
 

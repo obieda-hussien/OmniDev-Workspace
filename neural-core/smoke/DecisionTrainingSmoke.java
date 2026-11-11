@@ -45,13 +45,22 @@ public final class DecisionTrainingSmoke {
         NeuralToolRanker.Candidate candidate = new NeuralToolRanker.Candidate("eligible_fixture", probe);
         check(NeuralToolRanker.proposals(Collections.singletonList(candidate), selected.binaryRankingRuntime(1))
                 .get(0).candidate == candidate, "Tool scorer preserves original eligible candidate");
+        OfflineDecisionTrainer.Model large = largeFixture();
+        check(large.runtime().parameterCount() == 18528, "Supported large export shape");
+        rejects(() -> large.javaSource(1, "injected.class"));
         if (args.length > 0 && "--verify".equals(args[0])) {
             Class<?> checkpoint = Class.forName("TrainedDecisionCheckpoint");
             TinyNeuralRuntime loaded = (TinyNeuralRuntime) checkpoint.getMethod("model").invoke(null);
             check(Arrays.equals(selected.runtime().infer(probe), loaded.infer(probe)), "Compiled checkpoint parity");
             check(checkpoint.getField("TEMPERATURE").getDouble(null) == temperature, "Calibration export parity");
+            TinyNeuralRuntime loadedLarge = (TinyNeuralRuntime) Class.forName("TrainedLargeDecisionCheckpoint")
+                    .getMethod("model").invoke(null);
+            float[] largeProbe = new float[256]; Arrays.fill(largeProbe, 0.5f);
+            check(Arrays.equals(large.runtime().infer(largeProbe), loadedLarge.infer(largeProbe)), "Large checkpoint parity");
         } else if (args.length > 0) {
             Files.write(Paths.get(args[0]), selected.javaSource(temperature).getBytes(StandardCharsets.UTF_8));
+            Files.write(Paths.get(args[0]).resolveSibling("TrainedLargeDecisionCheckpoint.java"),
+                    large.javaSource(1, "TrainedLargeDecisionCheckpoint").getBytes(StandardCharsets.UTF_8));
         }
         System.out.printf(Locale.ROOT, "{\"fixture_only\":true,\"training_examples\":320,\"development_examples\":100," +
                 "\"calibration_examples\":100,\"holdout_examples\":200,\"linear_development_nll\":%.6f," +
@@ -59,6 +68,17 @@ public final class DecisionTrainingSmoke {
                 "\"holdout_nll\":%.6f,\"parameters\":%d,\"fp32_weight_bytes\":%d}%n",
                 linearDevelopment, neuralDevelopment, selected == linear ? "linear" : "mlp8", temperature,
                 loss, selected.runtime().parameterCount(), selected.runtime().parameterCount() * 4);
+    }
+
+    private static OfflineDecisionTrainer.Model largeFixture() {
+        List<OfflineDecisionTrainer.Example> training = new ArrayList<>();
+        Random random = new Random(300);
+        for (int label = 0; label < 32; label++) {
+            float[] features = new float[256];
+            for (int i = 0; i < features.length; i++) features[i] = random.nextFloat();
+            training.add(new OfflineDecisionTrainer.Example("large-" + label, features, label));
+        }
+        return OfflineDecisionTrainer.fit(training, 32, 64, 1, 10);
     }
 
     private static List<OfflineDecisionTrainer.Example> fixture(String split, int count, int width, long seed) {

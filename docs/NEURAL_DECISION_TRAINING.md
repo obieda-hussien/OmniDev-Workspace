@@ -27,6 +27,9 @@ checkpoint class with its temperature; the training check compiles and reloads t
 prediction parity. Binary log-odds exports support the existing six-feature NeuralToolRanker and
 five-feature NeuralEvidenceReranker shapes. Real data must use those exact feature meanings and order;
 shape compatibility alone is not evidence of ranking quality.
+Exported arrays use helper methods with at most 256 assignments, keeping JVM methods bounded.
+The export/reload check also covers the largest trainer shape (256 inputs, 64 hidden units,
+32 classes; 18,528 parameters), independently of the small learning fixture.
 
 Run `bash scripts/test_neural_training.sh` with a full JDK. It trains both architectures using a fixed
 synthetic numerical fixture and prints split sizes, development log loss, selected architecture,

@@ -13,5 +13,6 @@ compile_java "${training_compat[@]}" -encoding UTF-8 -d "$training_out" \
   neural-core/training/com/omnidev/workspace/domain/neural/*.java \
   neural-core/smoke/DecisionTrainingSmoke.java
 java -cp "$training_out" DecisionTrainingSmoke "$training_out/TrainedDecisionCheckpoint.java"
-compile_java "${training_compat[@]}" -encoding UTF-8 -cp "$training_out" -d "$training_out" "$training_out/TrainedDecisionCheckpoint.java"
+compile_java "${training_compat[@]}" -encoding UTF-8 -cp "$training_out" -d "$training_out" \
+  "$training_out/TrainedDecisionCheckpoint.java" "$training_out/TrainedLargeDecisionCheckpoint.java"
 java -cp "$training_out" DecisionTrainingSmoke --verify
