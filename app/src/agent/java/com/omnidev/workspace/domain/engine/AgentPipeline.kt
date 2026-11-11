@@ -90,6 +90,77 @@ When improving: keep every other sentence, the structure, the language and the l
             (toolManager as? CompositeToolManager)?.confirmationGate)
     }
 
+    private data class PreparedRequestContext(
+        val prototype: CompletionRequest?,
+        val estimatedInput: Int,
+        val compactionTokens: Int,
+        val error: String? = null
+    )
+
+    /**
+     * Context compaction and per-turn request assembly are not part of the main
+     * coroutine's state machine. This keeps invokeSuspend under the JVM method
+     * size limit without changing token accounting, pinned evidence or native
+     * tool schemas.
+     */
+    private suspend fun prepareRequestContext(
+        messages: MutableList<ChatMessage>,
+        plan: IterationPlan,
+        modelId: String,
+        desiredOutputBudget: Int,
+        enableThinking: Boolean,
+        nativeTools: Boolean,
+        scopePath: String,
+        apiKey: String?,
+        autoRouteRole: com.omnidev.workspace.data.model.ModelRole?,
+        spentTokens: Int,
+        iteration: Int,
+        evidenceLedger: RunEvidenceLedger,
+        onEvent: suspend (AgentEvent) -> Unit
+    ): PreparedRequestContext {
+        val compaction = if (config.enableMemoryTrimming) {
+            ContextCompressor.checkAndCompact(
+                messages = messages,
+                tokenBudget = plan.inputBudget,
+                modelId = modelId,
+                completionProvider = completionProvider,
+                apiKey = apiKey,
+                remainingTokenBudget = config.tokenBudget?.minus(spentTokens),
+                allowModelSummary = AgentDecisionPolicy.useModelCompaction(
+                    spentTokens, config.tokenBudget, config.tokenBudget?.minus(spentTokens)
+                ),
+                pinnedEvidence = { evidenceLedger.render() }
+            ) { onEvent(it) }
+        } else null
+        val compactionTokens = compaction?.tokensUsed?.coerceAtLeast(0) ?: 0
+        val requestMessages = if (config.enableMemoryTrimming) {
+            ContextCompressor.trim(messages, plan.inputBudget)
+        } else messages.toList()
+        if (requestMessages.sumOf(ContextCompressor::estimatedTokens) > plan.inputBudget) {
+            return PreparedRequestContext(null, 0, compactionTokens,
+                "The latest message/tool result exceeds this model's context window.")
+        }
+        val prototype = CompletionRequest(
+            modelId = modelId,
+            messages = ToolTextProtocol.messages(
+                requestMessages + evidenceLedger.fin.stateMessages(iteration),
+                textCallsOnly = nativeTools
+            ),
+            systemPrompt = plan.systemPrompt,
+            maxTokens = desiredOutputBudget,
+            enableThinking = enableThinking,
+            targetContext = scopePath,
+            apiKey = apiKey,
+            tools = if (nativeTools) plan.exposed else null,
+            autoRouteRole = autoRouteRole
+        )
+        return PreparedRequestContext(
+            prototype = prototype,
+            estimatedInput = TokenAccounting.estimateInputTokens(prototype),
+            compactionTokens = compactionTokens
+        )
+    }
+
     fun execute(
         userMessage: String,
         conversationHistory: List<ChatMessage> = emptyList(),
@@ -374,46 +445,29 @@ When improving: keep every other sentence, the structure, the language and the l
                 return@channelFlow
             }
 
-            if (config.enableMemoryTrimming) {
-                val report = ContextCompressor.checkAndCompact(
-                    messages = messages,
-                    tokenBudget = plan.inputBudget,
-                    modelId = modelId,
-                    completionProvider = completionProvider,
-                    apiKey = resolvedApiKey,
-                    remainingTokenBudget = config.tokenBudget?.minus(totalTokensUsed),
-                    allowModelSummary = AgentDecisionPolicy.useModelCompaction(
-                        totalTokensUsed, config.tokenBudget, config.tokenBudget?.minus(totalTokensUsed)
-                    ),
-                    pinnedEvidence = { evidenceLedger.render() }
-                ) { send(it) }
-                if (report.tokensUsed > 0) {
-                    totalTokensUsed += report.tokensUsed
-                    emitUsage(report.tokensUsed, totalTokensUsed)
-                }
+            // Keep context compaction and request serialization outside invokeSuspend:
+            // the AgentPipeline coroutine must remain under the JVM 64 KB method limit.
+            val prepared = prepareRequestContext(
+                messages = messages, plan = plan, modelId = modelId,
+                desiredOutputBudget = desiredOutputBudget,
+                enableThinking = enableDeepThinking && model.supportsThinking && !runtimeBackends.reportOnly,
+                nativeTools = nativeTools, scopePath = scopePath, apiKey = resolvedApiKey,
+                autoRouteRole = autoRouteRole, spentTokens = totalTokensUsed,
+                iteration = iteration, evidenceLedger = evidenceLedger,
+                onEvent = { send(it) }
+            )
+            if (prepared.compactionTokens > 0) {
+                totalTokensUsed += prepared.compactionTokens
+                emitUsage(prepared.compactionTokens, totalTokensUsed)
             }
-
-            val requestMessages = if (config.enableMemoryTrimming) {
-                ContextCompressor.trim(messages, plan.inputBudget)
-            } else messages.toList()
-            if (requestMessages.sumOf(ContextCompressor::estimatedTokens) > plan.inputBudget) {
+            if (prepared.error != null) {
                 brain?.onTaskEnd(EpisodeOutcome.FAILURE, "latest context still exceeds input budget")
-                send(AgentEvent.Error("The latest message/tool result exceeds this model's context window."))
+                send(AgentEvent.Error(prepared.error))
                 return@channelFlow
             }
+            val requestPrototype = checkNotNull(prepared.prototype)
+            val estimatedRequestInput = prepared.estimatedInput
 
-            val requestPrototype = CompletionRequest(
-                modelId = modelId,
-                messages = ToolTextProtocol.messages(requestMessages + evidenceLedger.fin.stateMessages(iteration), textCallsOnly = nativeTools),
-                systemPrompt = plan.systemPrompt,
-                maxTokens = desiredOutputBudget,
-                enableThinking = enableDeepThinking && model.supportsThinking && !runtimeBackends.reportOnly,
-                targetContext = scopePath,
-                apiKey = resolvedApiKey,
-                tools = if (nativeTools) plan.exposed else null,
-                autoRouteRole = autoRouteRole
-            )
-            val estimatedRequestInput = TokenAccounting.estimateInputTokens(requestPrototype)
             val remainingAfterCompaction = config.tokenBudget?.minus(totalTokensUsed)
             if (remainingAfterCompaction != null &&
                 remainingAfterCompaction <= estimatedRequestInput + MIN_COMPLETION_OUTPUT_RESERVE
