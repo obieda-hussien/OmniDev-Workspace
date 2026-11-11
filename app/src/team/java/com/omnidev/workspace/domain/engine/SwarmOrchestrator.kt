@@ -461,11 +461,21 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     // attempt: the next attempt still enforces the read-only tool gate and P0
                     // verification. For mutation workers, absence of observations is not
                     // proof that nothing happened, so keep the no-replay guard.
-                    (error.startsWith("WORKER_NO_PROGRESS:") && observedToolResults.isEmpty() && !task.parallelSafe) ||
+                    (error.startsWith("WORKER_NO_PROGRESS:") && observedToolResults.isEmpty() &&
+                        (!task.parallelSafe || isRemoteRepositoryObjective(userMessage))) ||
                     (completionReport?.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE &&
                         !error.startsWith("WORKER_NO_PROGRESS:")),
                 receipt = receipt
             )
+        }
+
+        // Without a verified checkout, a promised GitHub/repository inspection has no
+        // actionable local observation to retry from. Preserve dependency failure instead
+        // of restarting the same remote task or guessing a local worktree exists.
+        // Ordinary read-only inspection workers can still take one alternative attempt.
+        fun isRemoteRepositoryObjective(objective: String): Boolean {
+            val text = objective.lowercase()
+            return Regex("\\b(github|repository|repo)\\b").containsMatchIn(text)
         }
 
         // A failed worker is retried with a different approach before its dependents are skipped. Each
