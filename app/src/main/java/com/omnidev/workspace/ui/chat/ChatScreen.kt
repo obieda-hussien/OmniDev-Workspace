@@ -192,7 +192,8 @@ internal fun ChatConversation(
                                 onEditLastUser = onEditLastUser, onRegenerateLast = onRegenerateLast,
                                 onClearError = onClearError, onModeDecision = onModeDecision, onBrowser = onBrowser,
                                 leadingContent = {
-                                    TeamRecoverySection(state.recoveryTeams, !state.isProcessing, onResumeTeam, onCancelTeam, onReconcileTeam, onRefreshTeams, onReviewTeamIntervention)
+                                    TeamRecoverySection(state.recoveryTeams, !state.isProcessing, onResumeTeam, onCancelTeam, onReconcileTeam, onRefreshTeams, onReviewTeamIntervention,
+                                        allowResume = com.omnidev.workspace.BuildConfig.ALLOW_TEAM)
                                     TaskRecoverySection(recoveryTasks, recoveryLoading, recoveryError, !state.isProcessing,
                                         onResumeTask, state.inputText, onReconcileTask, onDismissRecoveryTask)
                                 })

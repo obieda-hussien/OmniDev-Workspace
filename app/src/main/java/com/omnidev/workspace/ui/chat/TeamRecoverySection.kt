@@ -14,7 +14,7 @@ import com.omnidev.workspace.domain.teamstate.TeamRecoverySummary
 internal fun TeamRecoverySection(teams: List<TeamRecoverySummary>, enabled: Boolean,
     onResume: (String) -> Unit, onCancel: (String) -> Unit,
     onReconcile: (String, String, String, String) -> Unit, onRefresh: () -> Unit,
-    onReviewIntervention: (String, String) -> Unit = { _, _ -> }) {
+    onReviewIntervention: (String, String) -> Unit = { _, _ -> }, allowResume: Boolean = true) {
     if (teams.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = onRefresh, enabled = enabled) { Text("Refresh saved Teams") }
@@ -60,7 +60,7 @@ internal fun TeamRecoverySection(teams: List<TeamRecoverySummary>, enabled: Bool
                         }
                         team.blockers.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                     }
-                    if (team.canResume) Button(onClick = { onResume(team.id) }, enabled = enabled,
+                    if (team.canResume && allowResume) Button(onClick = { onResume(team.id) }, enabled = enabled,
                         modifier = Modifier.testTag("team-resume-${team.id}")) { Text("Resume safe work") }
                     if (team.status !in setOf("COMPLETED", "CANCELLED", "RUNNING"))
                         TextButton(onClick = { onCancel(team.id) }, enabled = enabled) { Text("Cancel remaining work") }

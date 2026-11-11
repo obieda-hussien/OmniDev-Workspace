@@ -40,6 +40,12 @@ class TeamRecoverySectionTest {
         compose.onNodeWithTag("team-resume-team").performClick()
         assertEquals("team", resumed)
     }
+    @Test fun tierWithoutTeamCapabilityCanInspectSavedWorkButCannotOfferResume() {
+        compose.setContent { OmniDevTheme(dynamicColor = false) { TeamRecoverySection(listOf(team(true)), true, {}, {},
+            { _, _, _, _ -> }, {}, allowResume = false) } }
+        compose.onNodeWithText("Inspect plan and failures").assertExists()
+        compose.onNodeWithTag("team-resume-team").assertDoesNotExist()
+    }
     @Test fun busyComposerDisablesSafeContinuation() {
         compose.setContent { OmniDevTheme(dynamicColor = false) { TeamRecoverySection(listOf(team(true)), false, {}, {}, { _, _, _, _ -> }, {}) } }
         compose.onNodeWithTag("team-resume-team").assertIsNotEnabled()
