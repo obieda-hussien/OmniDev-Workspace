@@ -80,7 +80,7 @@ flavor/tool permissions. Cancel preserves history. Existing chat and console eve
 
 At most 6 workers, 8 plan revisions, 6 physical attempts per worker/revision (including serial promotion), and 200 operation
 records/attempt are allowed. Worker checkpoints cap outputs at 48,000 characters; partial observations cap each snippet
-at 600 characters, with at most six snippets loaded as retry context. The aggregate has a 1,500,000-character storage cap;
+at 600 characters, with at most six snippets loaded as retry context. The aggregate has a 1,500,000-byte UTF-8 storage cap (also checked before decoding, below Android CursorWindow limits);
 overflow fails closed. Session discovery loads at most 20 Teams. Quoted JSON/config credentials and URL userinfo are also redacted. Only whitelisted bounded action/resource targets are
 saved for exact-operation review. No private reasoning, credentials, raw operation argument payloads,
 full conversation history or full tool catalog is persisted here. Existing redaction, context compaction and actual usage

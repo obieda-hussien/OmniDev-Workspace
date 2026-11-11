@@ -270,6 +270,14 @@ class TeamStateEngineTest {
         assertTrue(runCatching { r.store.beforeTool("team", "owner", a, ToolCall("read-201", "read_file", emptyMap())) }.isFailure)
         assertEquals(200, r.store.load("team")!!.attempts.last().operations.size)
     }
+    @Test fun `UTF8 byte bound keeps Arabic aggregates below Android cursor window limits`() {
+        val oversized = TeamRecord("large", 7, "Read source", "/tmp", createdAt = 1,
+            verifiedSummary = "أ".repeat(800_000))
+        assertTrue(runCatching { TeamPayloadCodec.encode(oversized) }.isFailure)
+        val encoded = Json.encodeToString(oversized)
+        assertTrue(encoded.length < 1_500_000)
+        assertTrue(runCatching { TeamPayloadCodec.decode(encoded) }.isFailure)
+    }
     @Test fun `failure categories do not spend model tokens to rediscover known backend outages`() {
         val cases = mapOf("Unable to resolve host: no address associated" to TeamFailureCategory.DNS,
             "HTTP 429 rate limit" to TeamFailureCategory.RATE_LIMIT, "401 unauthorized" to TeamFailureCategory.AUTHENTICATION,
