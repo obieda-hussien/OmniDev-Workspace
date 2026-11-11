@@ -161,6 +161,44 @@ When improving: keep every other sentence, the structure, the language and the l
         )
     }
 
+    /**
+     * A provider request and its retry/error streaming callbacks run outside
+     * the oversized AgentPipeline.execute coroutine body. Steering boundaries
+     * and the caller's interrupted-usage accounting stay unchanged.
+     */
+    private suspend fun callIterationProvider(
+        request: CompletionRequest,
+        iteration: Int,
+        requestBegan: java.util.concurrent.atomic.AtomicBoolean,
+        observedOutputChars: java.util.concurrent.atomic.AtomicInteger,
+        steering: RunSteering?,
+        revision: Long,
+        brain: com.omnidev.workspace.data.brain.SmartLearningBridge?,
+        onEvent: suspend (AgentEvent) -> Unit
+    ): CompletionResponse? {
+        suspend fun complete(): CompletionResponse? {
+            requestBegan.set(true)
+            return callWithRetry(
+                request = request,
+                iteration = iteration,
+                onStreamChunk = { chunk ->
+                    observedOutputChars.addAndGet(chunk.length)
+                    onEvent(AgentEvent.StreamChunk(chunk))
+                },
+                onRetry = { detail ->
+                    onEvent(AgentEvent.PhaseChanged(AgentExecutionPhase.ANALYZE, detail))
+                },
+                onFatalError = { error ->
+                    steering?.check(revision)
+                    val outcome = if (isInfrastructureError(error)) EpisodeOutcome.BLOCKED else EpisodeOutcome.FAILURE
+                    brain?.onTaskEnd(outcome, "API/runtime failure: ${error.take(240)}")
+                    onEvent(AgentEvent.Error(error))
+                }
+            )
+        }
+        return if (steering == null) complete() else steering.reasoning(revision) { complete() }
+    }
+
     fun execute(
         userMessage: String,
         conversationHistory: List<ChatMessage> = emptyList(),
@@ -498,25 +536,12 @@ When improving: keep every other sentence, the structure, the language and the l
             )
 
             val nativeResponse = try {
-                suspend fun complete(): CompletionResponse? {
-                    requestBegan.set(true)
-                    return callWithRetry(
-                        request = request,
-                        iteration = iteration,
-                        onStreamChunk = {
-                            observedOutputChars.addAndGet(it.length)
-                            send(AgentEvent.StreamChunk(it))
-                        },
-                        onRetry = { detail -> send(AgentEvent.PhaseChanged(AgentExecutionPhase.ANALYZE, detail)) },
-                        onFatalError = { error ->
-                            steering?.check(revision)
-                            val outcome = if (isInfrastructureError(error)) EpisodeOutcome.BLOCKED else EpisodeOutcome.FAILURE
-                            brain?.onTaskEnd(outcome, "API/runtime failure: ${error.take(240)}")
-                            send(AgentEvent.Error(error))
-                        }
-                    )
-                }
-                if (steering == null) complete() else steering.reasoning(revision) { complete() }
+                callIterationProvider(
+                    request = request, iteration = iteration,
+                    requestBegan = requestBegan, observedOutputChars = observedOutputChars,
+                    steering = steering, revision = revision, brain = brain,
+                    onEvent = { send(it) }
+                )
             } catch (redirected: RunRedirected) {
                 // Interrupted providers may omit usage; retain observed input/output estimates.
                 if (requestBegan.get()) {
