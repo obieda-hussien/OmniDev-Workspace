@@ -1,0 +1,2241 @@
+split	group	source_partition	source_id	locale	intent	expected_domain	text
+train	massive-260	train	260	ar-SA	audio_volume_up	device	مو قادرة أسمعك olly
+train	massive-260	train	260	en-US	audio_volume_up	device	i can barely hear you olly
+train	massive-458	train	458	ar-SA	audio_volume_up	device	ممكن تتكلم بصوت أعلى
+train	massive-458	train	458	en-US	audio_volume_up	device	can you speak a little louder
+train	massive-459	train	459	ar-SA	audio_volume_up	device	مو قادرة أسمعك ممكن تتكلم بصوت أعلى شوي
+train	massive-459	train	459	en-US	audio_volume_up	device	i am unable to hear you can you speak little loud
+train	massive-460	train	460	ar-SA	audio_volume_up	device	تكلم بصوت عالي لو سمحت
+train	massive-460	train	460	en-US	audio_volume_up	device	please speak loud
+train	massive-547	train	547	ar-SA	audio_volume_up	device	من فضلك ارفع صوت أغنية الأماكن
+train	massive-547	train	547	en-US	audio_volume_up	device	please increase the volume of the music hips don't lie
+train	massive-573	train	573	ar-SA	audio_volume_up	device	علي الصوت
+train	massive-573	train	573	en-US	audio_volume_up	device	increase volume
+train	massive-598	train	598	ar-SA	audio_volume_up	device	ارفع الصوت
+train	massive-598	train	598	en-US	audio_volume_up	device	turn up sound
+train	massive-600	train	600	ar-SA	audio_volume_up	device	الصوت أعلى من فضلك
+train	massive-600	train	600	en-US	audio_volume_up	device	volume louder please
+train	massive-609	train	609	ar-SA	audio_volume_up	device	رجع الصوت بعدين
+train	massive-609	train	609	en-US	audio_volume_up	device	bring back talking after
+train	massive-736	train	736	ar-SA	audio_volume_up	device	ممكن تقول الإجابة بصوت عالي عشاني
+train	massive-736	train	736	en-US	audio_volume_up	device	could you please yell the answer out to me
+train	massive-748	train	748	ar-SA	audio_volume_up	device	من فضلك خفض صوت هذي الأغنية
+train	massive-748	train	748	en-US	audio_volume_up	device	please decrease the volume of this song
+train	massive-749	train	749	ar-SA	audio_volume_up	device	ارفع الصوت بحيث أقدر أسمع في الغرفة الثانية
+train	massive-749	train	749	en-US	audio_volume_up	device	increase the volume so that i can hear it in other room
+train	massive-979	train	979	ar-SA	audio_volume_up	device	تكفى ارفع الموسيقى
+train	massive-979	train	979	en-US	audio_volume_up	device	please turn the music up
+train	massive-981	train	981	ar-SA	audio_volume_up	device	زود الصوت لأعلى درجة
+train	massive-981	train	981	en-US	audio_volume_up	device	increase the volume to max please
+train	massive-1083	train	1083	ar-SA	audio_volume_up	device	ما قدرت اسمعك كرر هذا أعلى
+train	massive-1083	train	1083	en-US	audio_volume_up	device	i couldn't hear you repeat that louder
+train	massive-1297	train	1297	ar-SA	audio_volume_up	device	أعلى
+train	massive-1297	train	1297	en-US	audio_volume_up	device	louder
+train	massive-1298	train	1298	ar-SA	audio_volume_up	device	olly أعلى
+train	massive-1298	train	1298	en-US	audio_volume_up	device	olly louder
+train	massive-1299	train	1299	ar-SA	audio_volume_up	device	بطئ
+train	massive-1299	train	1299	en-US	audio_volume_up	device	slow
+train	massive-1323	train	1323	ar-SA	audio_volume_up	device	ارفع الصوت لو سمحت
+train	massive-1323	train	1323	en-US	audio_volume_up	device	please increase volume
+train	massive-1366	train	1366	ar-SA	audio_volume_up	device	ارفع الصوت شوية
+train	massive-1366	train	1366	en-US	audio_volume_up	device	move the volume up a little
+train	massive-1373	train	1373	ar-SA	audio_volume_up	device	تقدر تتكلم بصوت أعلى
+train	massive-1373	train	1373	en-US	audio_volume_up	device	could you speak up
+train	massive-1381	train	1381	ar-SA	audio_volume_up	device	ارفع صوت الموسيقى
+train	massive-1381	train	1381	en-US	audio_volume_up	device	turn up volume of music
+train	massive-1432	train	1432	ar-SA	audio_volume_up	device	من فضلك ارفع الصوت
+train	massive-1432	train	1432	en-US	audio_volume_up	device	please turn up the volume
+train	massive-1471	train	1471	ar-SA	audio_volume_up	device	ارفع الصوت لستين
+train	massive-1471	train	1471	en-US	audio_volume_up	device	raise the volume to sixty
+train	massive-1520	train	1520	ar-SA	audio_volume_up	device	ارقع الصوت لخمسين
+train	massive-1520	train	1520	en-US	audio_volume_up	device	increase the volume to fifty
+train	massive-1522	train	1522	ar-SA	audio_volume_up	device	ارفع صوت السماعة اللي عاليسار لعشرة
+train	massive-1522	train	1522	en-US	audio_volume_up	device	increase the volume of the left speaker by ten
+train	massive-1631	train	1631	ar-SA	audio_volume_up	device	احتاج اسمع صوت الموسيقى الحالية
+train	massive-1631	train	1631	en-US	audio_volume_up	device	i need to hear the volume of the current music
+train	massive-1632	train	1632	ar-SA	audio_volume_up	device	لازم ينرفع صوت الموسيقى الشغالة الحين
+train	massive-1632	train	1632	en-US	audio_volume_up	device	the volume of the music playing now should be raised
+train	massive-1641	train	1641	ar-SA	audio_volume_up	device	ارفع هذا
+train	massive-1641	train	1641	en-US	audio_volume_up	device	turn it up
+train	massive-1681	train	1681	ar-SA	audio_volume_up	device	لازم ترفع صوت الموسيقى لتسعين
+train	massive-1681	train	1681	en-US	audio_volume_up	device	the music volume should increase to ninety
+train	massive-1682	train	1682	ar-SA	audio_volume_up	device	حط صوت الموسيقى على تسعين
+train	massive-1682	train	1682	en-US	audio_volume_up	device	set the music volume to ninety
+train	massive-1708	train	1708	ar-SA	audio_volume_up	device	غير صوت السماعة لخمسة وستين في المية
+train	massive-1708	train	1708	en-US	audio_volume_up	device	change the speaker volume to sixty five percent
+train	massive-1709	train	1709	ar-SA	audio_volume_up	device	أبغى ترفع صوت السماعات عالي
+train	massive-1709	train	1709	en-US	audio_volume_up	device	i want the speakers turned up high
+train	massive-1714	train	1714	ar-SA	audio_volume_up	device	تكلم بصوت عالي قد ما تقدر
+train	massive-1714	train	1714	en-US	audio_volume_up	device	speak as loud as you can
+train	massive-1716	train	1716	ar-SA	audio_volume_up	device	ممكن تتكلم بصوت أنعم شوي
+train	massive-1716	train	1716	en-US	audio_volume_up	device	could you speak a little more softly
+train	massive-1788	train	1788	ar-SA	audio_volume_up	device	خلي الصوت عالي
+train	massive-1788	train	1788	en-US	audio_volume_up	device	set the volume higher
+train	massive-1856	train	1856	ar-SA	audio_volume_up	device	فوق
+train	massive-1856	train	1856	en-US	audio_volume_up	device	up
+train	massive-1880	train	1880	ar-SA	audio_volume_up	device	ارفع الصوت شوي
+train	massive-1880	train	1880	en-US	audio_volume_up	device	increase the volume a bit
+train	massive-1882	train	1882	ar-SA	audio_volume_up	device	مو قادرة أسمع شي
+train	massive-1882	train	1882	en-US	audio_volume_up	device	i cant hear a thing
+train	massive-1954	train	1954	ar-SA	audio_volume_up	device	ارفع الصوت لخمسين في المية
+train	massive-1954	train	1954	en-US	audio_volume_up	device	increase volume to fifty percent
+train	massive-2020	train	2020	ar-SA	audio_volume_up	device	ارفع الصوت مستويين
+train	massive-2020	train	2020	en-US	audio_volume_up	device	increase volume by two levels
+train	massive-2289	train	2289	ar-SA	audio_volume_up	device	ارفع الصوت بواحد
+train	massive-2289	train	2289	en-US	audio_volume_up	device	increase volume by one
+train	massive-2342	train	2342	ar-SA	audio_volume_up	device	اضبط مستوى الصوت في مشغل الموسيقى على ستين
+train	massive-2342	train	2342	en-US	audio_volume_up	device	on the music player set the volume level at sixty
+train	massive-2359	train	2359	ar-SA	audio_volume_up	device	سوي أعلى
+train	massive-2359	train	2359	en-US	audio_volume_up	device	get louder
+train	massive-2488	train	2488	ar-SA	audio_volume_up	device	الصوت أعلى أنعم
+train	massive-2488	train	2488	en-US	audio_volume_up	device	volume louder softer
+train	massive-2627	train	2627	ar-SA	audio_volume_up	device	غير صوت مشغل الموسيقى حقي لثمانين في الميه
+train	massive-2627	train	2627	en-US	audio_volume_up	device	change my music player volume to eighty percent
+train	massive-2628	train	2628	ar-SA	audio_volume_up	device	خفض صوت مشغل الموسيقى حقي خمسين في المية بالنسبة لمستواه الحالي
+train	massive-2628	train	2628	en-US	audio_volume_up	device	lower my music player volume by fifty percent of its current level
+train	massive-2635	train	2635	ar-SA	audio_volume_up	device	ارفع الصوت لخمسين
+train	massive-2635	train	2635	en-US	audio_volume_up	device	raise the volume to fifty
+train	massive-2880	train	2880	ar-SA	audio_volume_up	device	ارفع الصوت لسبعين في المية
+train	massive-2880	train	2880	en-US	audio_volume_up	device	increase the volume to seventy percent
+train	massive-3014	train	3014	ar-SA	audio_volume_up	device	من فضلك ارفع صوت الموسيقى
+train	massive-3014	train	3014	en-US	audio_volume_up	device	please turn the music volume up
+train	massive-3350	train	3350	ar-SA	audio_volume_up	device	وين النار
+train	massive-3350	train	3350	en-US	audio_volume_up	device	where is the fire
+train	massive-3467	train	3467	ar-SA	audio_volume_up	device	شغل هذا أعلى
+train	massive-3467	train	3467	en-US	audio_volume_up	device	play it louder
+train	massive-3561	train	3561	ar-SA	audio_volume_up	device	تكفى ارفع الصوت
+train	massive-3561	train	3561	en-US	audio_volume_up	device	please increase the volume
+train	massive-3591	train	3591	ar-SA	audio_volume_up	device	olly تكلم بصوت أعلى
+train	massive-3591	train	3591	en-US	audio_volume_up	device	olly speak loudly
+train	massive-3592	train	3592	ar-SA	audio_volume_up	device	بصوت أعلى
+train	massive-3592	train	3592	en-US	audio_volume_up	device	loudly
+train	massive-3642	train	3642	ar-SA	audio_volume_up	device	ما أقدر أسمعك تقدر تقوله مرة ثانية بصوت أعلى
+train	massive-3642	train	3642	en-US	audio_volume_up	device	i can't hear you can you say it again louder
+train	massive-3644	train	3644	ar-SA	audio_volume_up	device	أبيك تقول آخر معلومة مره ثانية بس بصوت أعلى
+train	massive-3644	train	3644	en-US	audio_volume_up	device	i need you to say that last information again but much louder
+train	massive-3688	train	3688	ar-SA	audio_volume_up	device	سوي هذا أعلى شوية
+train	massive-3688	train	3688	en-US	audio_volume_up	device	make this a bit louder
+train	massive-3689	train	3689	ar-SA	audio_volume_up	device	ارفع صوت السماعات
+train	massive-3689	train	3689	en-US	audio_volume_up	device	turn up the speakers
+train	massive-3793	train	3793	ar-SA	audio_volume_up	device	رجع صوت السماعة الحين
+train	massive-3793	train	3793	en-US	audio_volume_up	device	unmute the speaker now
+train	massive-3810	train	3810	ar-SA	audio_volume_up	device	طولي صوت السماعات
+train	massive-3810	train	3810	en-US	audio_volume_up	device	increase the volume of the speaker
+train	massive-4091	train	4091	ar-SA	audio_volume_up	device	أبغى صوت على السماعات حقي
+train	massive-4091	train	4091	en-US	audio_volume_up	device	i want volume on my speakers
+train	massive-4297	train	4297	ar-SA	audio_volume_up	device	تكلم بصوت أعلى
+train	massive-4297	train	4297	en-US	audio_volume_up	device	speak louder
+train	massive-4298	train	4298	ar-SA	audio_volume_up	device	ارفع صوت السماعة
+train	massive-4298	train	4298	en-US	audio_volume_up	device	raise speaker volume
+train	massive-4343	train	4343	ar-SA	audio_volume_up	device	ارفع الصوت حق السماعات لخمسة وخمسين في الميه
+train	massive-4343	train	4343	en-US	audio_volume_up	device	raise the volume of the speakers to fifty five percent
+train	massive-4370	train	4370	ar-SA	audio_volume_up	device	ارفع الصوت لمستوى سبعة في مشغل الموسيقى
+train	massive-4370	train	4370	en-US	audio_volume_up	device	raise volume to level seven on music player
+train	massive-4396	train	4396	ar-SA	audio_volume_up	device	olly تكفى ارفع صوتك
+train	massive-4396	train	4396	en-US	audio_volume_up	device	olly please speak up
+train	massive-4448	train	4448	ar-SA	audio_volume_up	device	رجع الصوت
+train	massive-4448	train	4448	en-US	audio_volume_up	device	unmute
+train	massive-4498	train	4498	ar-SA	audio_volume_up	device	من فضلك الغي كتم الاعدادات
+train	massive-4498	train	4498	en-US	audio_volume_up	device	please unmute the settings
+train	massive-4540	train	4540	ar-SA	audio_volume_up	device	ارفع صوت الوسائط
+train	massive-4540	train	4540	en-US	audio_volume_up	device	turn up media volume
+train	massive-4542	train	4542	ar-SA	audio_volume_up	device	سوي الصوت حق الوسائط أعلى
+train	massive-4542	train	4542	en-US	audio_volume_up	device	made media volume louder
+train	massive-4577	train	4577	ar-SA	audio_volume_up	device	ارفع صوت السماعات حقي
+train	massive-4577	train	4577	en-US	audio_volume_up	device	turn up the volume of my speakers
+train	massive-4701	train	4701	ar-SA	audio_volume_up	device	الغي كتم الصوت حقي
+train	massive-4701	train	4701	en-US	audio_volume_up	device	unmute my sound
+train	massive-4703	train	4703	ar-SA	audio_volume_up	device	اوكي جوجل أحتاج اسمع الصوت على السماعات حقتي
+train	massive-4703	train	4703	en-US	audio_volume_up	device	ok google i need to hear sound on my speakers
+train	massive-4704	train	4704	ar-SA	audio_volume_up	device	احتاج اسمع صوت على السماعات حقتي
+train	massive-4704	train	4704	en-US	audio_volume_up	device	i need to hear sound on my speakers
+train	massive-4762	train	4762	ar-SA	audio_volume_up	device	تقدر ترفع الصوت حق السماعات
+train	massive-4762	train	4762	en-US	audio_volume_up	device	can you increase the volume of the speakers
+train	massive-4763	train	4763	ar-SA	audio_volume_up	device	هاي الصوت واطي تقدر ترفع هذا
+train	massive-4763	train	4763	en-US	audio_volume_up	device	hey sound is low can you tune it up
+train	massive-4902	train	4902	ar-SA	audio_volume_up	device	ارفع صوت الموسيقى من فضلك
+train	massive-4902	train	4902	en-US	audio_volume_up	device	turn up music please
+train	massive-4944	train	4944	ar-SA	audio_volume_up	device	ارفع الصوت لأعلى مستوى
+train	massive-4944	train	4944	en-US	audio_volume_up	device	turn volume up to highest level
+train	massive-4978	train	4978	ar-SA	audio_volume_up	device	أبيك تخلي الصوت أعلى
+train	massive-4978	train	4978	en-US	audio_volume_up	device	i need you to have the volume louder
+train	massive-259	train	259	ar-SA	audio_volume_down	device	صوتك عالي كثير
+train	massive-259	train	259	en-US	audio_volume_down	device	you're too loud
+train	massive-330	train	330	ar-SA	audio_volume_down	device	أهدى
+train	massive-330	train	330	en-US	audio_volume_down	device	quieter
+train	massive-599	train	599	ar-SA	audio_volume_down	device	وطي الصوت
+train	massive-599	train	599	en-US	audio_volume_down	device	turn down volume
+train	massive-690	train	690	ar-SA	audio_volume_down	device	ترا مره الصوت عالي وطي الصوت
+train	massive-690	train	690	en-US	audio_volume_down	device	it is too loud decrease the volume
+train	massive-735	train	735	ar-SA	audio_volume_down	device	تقدر من فضلك تخفض الصوت حقك
+train	massive-735	train	735	en-US	audio_volume_down	device	could you please lower your volume
+train	massive-750	train	750	ar-SA	audio_volume_down	device	وطي الصوت لعشرة في المية
+train	massive-750	train	750	en-US	audio_volume_down	device	decrease the volume to ten percent
+train	massive-805	train	805	ar-SA	audio_volume_down	device	يله google وطي صوت كل السماعات لو سمحت
+train	massive-805	train	805	en-US	audio_volume_down	device	ok google lower all volume on speakers please
+train	massive-980	train	980	ar-SA	audio_volume_down	device	الصوت بجد عالي تقدر تخفض صوت الموسيقى لو سمحت
+train	massive-980	train	980	en-US	audio_volume_down	device	it's really loud can you please turn the music down
+train	massive-1050	train	1050	ar-SA	audio_volume_down	device	طفي الواطي في الصوت
+train	massive-1050	train	1050	en-US	audio_volume_down	device	turn off the bass from the audio
+train	massive-1082	train	1082	ar-SA	audio_volume_down	device	صوتك مره عالي عيد اللي قلته بصوت واطي
+train	massive-1082	train	1082	en-US	audio_volume_down	device	your volume is too high please repeat that lower
+train	massive-1353	train	1353	ar-SA	audio_volume_down	device	أنا ابغى أبطئ السماعة حقتي
+train	massive-1353	train	1353	en-US	audio_volume_down	device	i want to slow down my speaker
+train	massive-1367	train	1367	ar-SA	audio_volume_down	device	خلي الصوت أوطى
+train	massive-1367	train	1367	en-US	audio_volume_down	device	make the volume lower
+train	massive-1433	train	1433	ar-SA	audio_volume_down	device	من فضلك خفف الصوت
+train	massive-1433	train	1433	en-US	audio_volume_down	device	please turn down the volume
+train	massive-1472	train	1472	ar-SA	audio_volume_down	device	خفض الصوت لعشرين
+train	massive-1472	train	1472	en-US	audio_volume_down	device	lower the volume to twenty
+train	massive-1521	train	1521	ar-SA	audio_volume_down	device	خفض الصوت لعشرة
+train	massive-1521	train	1521	en-US	audio_volume_down	device	decrease the volume to ten
+train	massive-1642	train	1642	ar-SA	audio_volume_down	device	لا لا خفف هذا
+train	massive-1642	train	1642	en-US	audio_volume_down	device	no no turn it down
+train	massive-1707	train	1707	ar-SA	audio_volume_down	device	وطي السماعات لخمسة في المية
+train	massive-1707	train	1707	en-US	audio_volume_down	device	turn the speakers down to five percent
+train	massive-1857	train	1857	ar-SA	audio_volume_down	device	وطيه
+train	massive-1857	train	1857	en-US	audio_volume_down	device	down
+train	massive-1906	train	1906	ar-SA	audio_volume_down	device	وط الصوت
+train	massive-1906	train	1906	en-US	audio_volume_down	device	decrease volume
+train	massive-2021	train	2021	ar-SA	audio_volume_down	device	وطي الصوت وخله مره ناعم
+train	massive-2021	train	2021	en-US	audio_volume_down	device	decrease volume to very soft
+train	massive-2078	train	2078	ar-SA	audio_volume_down	device	خفف الصوت شوية لو سمحت
+train	massive-2078	train	2078	en-US	audio_volume_down	device	turn the volume down a little please
+train	massive-2585	train	2585	ar-SA	audio_volume_down	device	شغل الراديو الحين بصوت واطي
+train	massive-2585	train	2585	en-US	audio_volume_down	device	start the radio now on low volume
+train	massive-2634	train	2634	ar-SA	audio_volume_down	device	وطي مكبرات الصوت
+train	massive-2634	train	2634	en-US	audio_volume_down	device	lower the speakers
+train	massive-2706	train	2706	ar-SA	audio_volume_down	device	وطي الصوت عشرين في الميه
+train	massive-2706	train	2706	en-US	audio_volume_down	device	turn down volume twenty percent
+train	massive-2894	train	2894	ar-SA	audio_volume_down	device	وطي صوت السماعة
+train	massive-2894	train	2894	en-US	audio_volume_down	device	lower speaker volume
+train	massive-2895	train	2895	ar-SA	audio_volume_down	device	وطي السماعات
+train	massive-2895	train	2895	en-US	audio_volume_down	device	turn down speakers
+train	massive-3141	train	3141	ar-SA	audio_volume_down	device	تكلم بهدوء الله يسعدك
+train	massive-3141	train	3141	en-US	audio_volume_down	device	talk quieter please
+train	massive-3560	train	3560	ar-SA	audio_volume_down	device	من فضلك خفص الصوت
+train	massive-3560	train	3560	en-US	audio_volume_down	device	please reduce the sound
+train	massive-3736	train	3736	ar-SA	audio_volume_down	device	من فضلك خفض صوت السماعة
+train	massive-3736	train	3736	en-US	audio_volume_down	device	please lower the speaker volume
+train	massive-3737	train	3737	ar-SA	audio_volume_down	device	قلل صوت السماعات
+train	massive-3737	train	3737	en-US	audio_volume_down	device	lower the volume on the speakers
+train	massive-3738	train	3738	ar-SA	audio_volume_down	device	تكفى عدل السماعات لمستوى أقل ومريح أكثر
+train	massive-3738	train	3738	en-US	audio_volume_down	device	please adjust the speakers to a lower more comfortable level
+train	massive-4071	train	4071	ar-SA	audio_volume_down	device	خفض الصوت لو سمحت
+train	massive-4071	train	4071	en-US	audio_volume_down	device	lower the volume please
+train	massive-4072	train	4072	ar-SA	audio_volume_down	device	تقدر تخفض صوت هذا
+train	massive-4072	train	4072	en-US	audio_volume_down	device	can you turn that down
+train	massive-4167	train	4167	ar-SA	audio_volume_down	device	خفض الصوت للنصف
+train	massive-4167	train	4167	en-US	audio_volume_down	device	lower volume to half
+train	massive-4342	train	4342	ar-SA	audio_volume_down	device	وطي صوت السماعات
+train	massive-4342	train	4342	en-US	audio_volume_down	device	lower the volume of the speakers
+train	massive-4397	train	4397	ar-SA	audio_volume_down	device	ممكن تتكلم بهدوء لو سمحت
+train	massive-4397	train	4397	en-US	audio_volume_down	device	can you speak quieter please
+train	massive-4901	train	4901	ar-SA	audio_volume_down	device	وطي صوت الوسائط
+train	massive-4901	train	4901	en-US	audio_volume_down	device	turn down media volume
+train	massive-4943	train	4943	ar-SA	audio_volume_down	device	من فضلك تكلم بنعومة
+train	massive-4943	train	4943	en-US	audio_volume_down	device	please talk softer
+train	massive-5295	train	5295	ar-SA	audio_volume_down	device	تقدر تخليه أهدى شوي
+train	massive-5295	train	5295	en-US	audio_volume_down	device	can you make it a little quieter
+train	massive-5482	train	5482	ar-SA	audio_volume_down	device	olly وط الصوت
+train	massive-5482	train	5482	en-US	audio_volume_down	device	olly cut down the volume
+train	massive-5768	train	5768	ar-SA	audio_volume_down	device	مره مزعج
+train	massive-5768	train	5768	en-US	audio_volume_down	device	too loud
+train	massive-5924	train	5924	ar-SA	audio_volume_down	device	من فضلك خفض الصوت
+train	massive-5924	train	5924	en-US	audio_volume_down	device	please lower the volume
+train	massive-4	train	4	ar-SA	audio_volume_mute	device	olly هدوء
+train	massive-4	train	4	en-US	audio_volume_mute	device	olly quiet
+train	massive-5	train	5	ar-SA	audio_volume_mute	device	وقف
+train	massive-5	train	5	en-US	audio_volume_mute	device	stop
+train	massive-6	train	6	ar-SA	audio_volume_mute	device	أوللي وقف مؤقتاً لمدة عشر ثواني
+train	massive-6	train	6	en-US	audio_volume_mute	device	olly pause for ten seconds
+train	massive-7	train	7	ar-SA	audio_volume_mute	device	توقف مؤقتا لمدة عشر ثواني
+train	massive-7	train	7	en-US	audio_volume_mute	device	pause for ten seconds
+train	massive-316	train	316	ar-SA	audio_volume_mute	device	اكتم الصوت
+train	massive-316	train	316	en-US	audio_volume_mute	device	mute
+train	massive-332	train	332	ar-SA	audio_volume_mute	device	هدوء
+train	massive-332	train	332	en-US	audio_volume_mute	device	silent
+train	massive-502	train	502	ar-SA	audio_volume_mute	device	هدوء لو سمحت
+train	massive-502	train	502	en-US	audio_volume_mute	device	silence please
+train	massive-503	train	503	ar-SA	audio_volume_mute	device	قفل السماعات
+train	massive-503	train	503	en-US	audio_volume_mute	device	speakers off
+train	massive-514	train	514	ar-SA	audio_volume_mute	device	تقدر تكتم الصوت حين ما أكون في البيت
+train	massive-514	train	514	en-US	audio_volume_mute	device	can you mute when i am not home
+train	massive-607	train	607	ar-SA	audio_volume_mute	device	سوي كتم لمدة عشرين دقيقة
+train	massive-607	train	607	en-US	audio_volume_mute	device	set mute for twenty minutes
+train	massive-752	train	752	ar-SA	audio_volume_mute	device	اكتم نفسك حتى أقلك شي ثاني
+train	massive-752	train	752	en-US	audio_volume_mute	device	mute yourself until i say otherwise
+train	massive-753	train	753	ar-SA	audio_volume_mute	device	لا تتكلم الفتره هاذي
+train	massive-753	train	753	en-US	audio_volume_mute	device	don't speak for a while
+train	massive-801	train	801	ar-SA	audio_volume_mute	device	اكتم الصوت حق السماعات لو سمحت
+train	massive-801	train	801	en-US	audio_volume_mute	device	mute sound on speakers please
+train	massive-802	train	802	ar-SA	audio_volume_mute	device	اوكي غوغل اكتم الصوت حق السماعات لو سمحت
+train	massive-802	train	802	en-US	audio_volume_mute	device	ok google mute sound on speakers please
+train	massive-953	train	953	ar-SA	audio_volume_mute	device	ممكن تكتم صوت السماعات حقي لو سمحت
+train	massive-953	train	953	en-US	audio_volume_mute	device	will you please mute my speakers
+train	massive-954	train	954	ar-SA	audio_volume_mute	device	وقف الصوت
+train	massive-954	train	954	en-US	audio_volume_mute	device	sound off
+train	massive-1086	train	1086	ar-SA	audio_volume_mute	device	تكفى وقفه شوية
+train	massive-1086	train	1086	en-US	audio_volume_mute	device	please stop for a bit
+train	massive-1087	train	1087	ar-SA	audio_volume_mute	device	من فضلك توقف مؤقتاً
+train	massive-1087	train	1087	en-US	audio_volume_mute	device	please pause yourself
+train	massive-1443	train	1443	ar-SA	audio_volume_mute	device	اسكت
+train	massive-1443	train	1443	en-US	audio_volume_mute	device	shut up
+train	massive-1445	train	1445	ar-SA	audio_volume_mute	device	خلك هادي
+train	massive-1445	train	1445	en-US	audio_volume_mute	device	be quiet
+train	massive-1470	train	1470	ar-SA	audio_volume_mute	device	اكتم السماعات
+train	massive-1470	train	1470	en-US	audio_volume_mute	device	mute speakers
+train	massive-1508	train	1508	ar-SA	audio_volume_mute	device	حط على الوضع الصامت لمدة ساعة وحده
+train	massive-1508	train	1508	en-US	audio_volume_mute	device	set mute mode for one hour
+train	massive-1985	train	1985	ar-SA	audio_volume_mute	device	من فضلك غير الصوت وسويه كتم
+train	massive-1985	train	1985	en-US	audio_volume_mute	device	please change the volume to mute
+train	massive-2004	train	2004	ar-SA	audio_volume_mute	device	تصبح على خير
+train	massive-2004	train	2004	en-US	audio_volume_mute	device	good night
+train	massive-2046	train	2046	ar-SA	audio_volume_mute	device	ما أبغى صوت
+train	massive-2046	train	2046	en-US	audio_volume_mute	device	i don't want sound
+train	massive-2070	train	2070	ar-SA	audio_volume_mute	device	طف السماعة
+train	massive-2070	train	2070	en-US	audio_volume_mute	device	turn off speaker
+train	massive-2324	train	2324	ar-SA	audio_volume_mute	device	خلي الصوت على صفر
+train	massive-2324	train	2324	en-US	audio_volume_mute	device	make the volume to zero
+train	massive-2325	train	2325	ar-SA	audio_volume_mute	device	وطي صوت السماعة لآخر مستوى
+train	massive-2325	train	2325	en-US	audio_volume_mute	device	down the speaker volume at the end of level
+train	massive-2509	train	2509	ar-SA	audio_volume_mute	device	من فضلك كون هادي خلال الساعتين التاليتين
+train	massive-2509	train	2509	en-US	audio_volume_mute	device	please be quiet for the next two hours
+train	massive-2510	train	2510	ar-SA	audio_volume_mute	device	اخفي صوتك حتى خمسة العصر
+train	massive-2510	train	2510	en-US	audio_volume_mute	device	mute yourself until five p. m.
+train	massive-2511	train	2511	ar-SA	audio_volume_mute	device	احتاجك تكون هادي الين بكره
+train	massive-2511	train	2511	en-US	audio_volume_mute	device	i need you to be quiet until tomorrow
+train	massive-2579	train	2579	ar-SA	audio_volume_mute	device	الوضع الهادئ أربع ساعات
+train	massive-2579	train	2579	en-US	audio_volume_mute	device	quiet mode four hours
+train	massive-2580	train	2580	ar-SA	audio_volume_mute	device	تكفى خلك ساكت الين أقولك خلاص
+train	massive-2580	train	2580	en-US	audio_volume_mute	device	please be silent until i tell you not to be
+train	massive-2581	train	2581	ar-SA	audio_volume_mute	device	الوضع الصامت
+train	massive-2581	train	2581	en-US	audio_volume_mute	device	silent mode
+train	massive-2592	train	2592	ar-SA	audio_volume_mute	device	عندي اجتماع الليلة سبعة المسا من فضلك اكتم الموسيقى لمدة ساعة
+train	massive-2592	train	2592	en-US	audio_volume_mute	device	i've got a meeting by tonight seven p. m. please mute the music for an hour
+train	massive-2636	train	2636	ar-SA	audio_volume_mute	device	اكتم الصوت الحين
+train	massive-2636	train	2636	en-US	audio_volume_mute	device	mute volume now
+train	massive-2827	train	2827	ar-SA	audio_volume_mute	device	اكتم سماعات الصالة
+train	massive-2827	train	2827	en-US	audio_volume_mute	device	mute the living room speakers
+train	massive-2828	train	2828	ar-SA	audio_volume_mute	device	وقف الموسيقى
+train	massive-2828	train	2828	en-US	audio_volume_mute	device	pause the music
+train	massive-2829	train	2829	ar-SA	audio_volume_mute	device	وقف التشغيل
+train	massive-2829	train	2829	en-US	audio_volume_mute	device	stop playing
+train	massive-2852	train	2852	ar-SA	audio_volume_mute	device	اكتم الصوت لمدة ساعتين
+train	massive-2852	train	2852	en-US	audio_volume_mute	device	mute for two hours
+train	massive-2853	train	2853	ar-SA	audio_volume_mute	device	خليك صامت لمدة يوم
+train	massive-2853	train	2853	en-US	audio_volume_mute	device	go silent for a day
+train	massive-2854	train	2854	ar-SA	audio_volume_mute	device	توقف عن اصدار الأصوات لمدة أربعين دقيقة
+train	massive-2854	train	2854	en-US	audio_volume_mute	device	stop making sounds for forty minutes
+train	massive-3070	train	3070	ar-SA	audio_volume_mute	device	من فضلك اخفي الصوت
+train	massive-3070	train	3070	en-US	audio_volume_mute	device	please mute the sound
+train	massive-3071	train	3071	ar-SA	audio_volume_mute	device	تقدر تحط الصوت على كتم
+train	massive-3071	train	3071	en-US	audio_volume_mute	device	can you place the sound on mute
+train	massive-3072	train	3072	ar-SA	audio_volume_mute	device	ودي اكتم السماعات من فضلك
+train	massive-3072	train	3072	en-US	audio_volume_mute	device	i would like to mute the speakers please
+train	massive-3073	train	3073	ar-SA	audio_volume_mute	device	طفي الصوت
+train	massive-3073	train	3073	en-US	audio_volume_mute	device	turn the volume off
+train	massive-3110	train	3110	ar-SA	audio_volume_mute	device	تكفى اكتم الصوت الساعة الجاية
+train	massive-3110	train	3110	en-US	audio_volume_mute	device	please hold for the next hour
+train	massive-3111	train	3111	ar-SA	audio_volume_mute	device	أنا في اجتماع من فضلك لا تتكلم
+train	massive-3111	train	3111	en-US	audio_volume_mute	device	i'm in a meeting please do not speak
+train	massive-3112	train	3112	ar-SA	audio_volume_mute	device	قفل الصوت
+train	massive-3112	train	3112	en-US	audio_volume_mute	device	turn off the sound
+train	massive-3176	train	3176	ar-SA	audio_volume_mute	device	من فضلك اكتم السماعات
+train	massive-3176	train	3176	en-US	audio_volume_mute	device	please mute the speakers
+train	massive-3453	train	3453	ar-SA	audio_volume_mute	device	تكفى خلك هادي
+train	massive-3453	train	3453	en-US	audio_volume_mute	device	please be quiet
+train	massive-3458	train	3458	ar-SA	audio_volume_mute	device	اكتم السماعة
+train	massive-3458	train	3458	en-US	audio_volume_mute	device	mute speaker
+train	massive-3459	train	3459	ar-SA	audio_volume_mute	device	من فضلك سكت السماعة
+train	massive-3459	train	3459	en-US	audio_volume_mute	device	please quiet the speaker
+train	massive-3487	train	3487	ar-SA	audio_volume_mute	device	هذا وقت هادي
+train	massive-3487	train	3487	en-US	audio_volume_mute	device	it's quiet time
+train	massive-3578	train	3578	ar-SA	audio_volume_mute	device	اكتم لمدة عشرين دقيقة
+train	massive-3578	train	3578	en-US	audio_volume_mute	device	mute for twenty minutes
+train	massive-3579	train	3579	ar-SA	audio_volume_mute	device	خليك صامت الين ثلاثة بعد الظهر
+train	massive-3579	train	3579	en-US	audio_volume_mute	device	go silent until three p. m.
+train	massive-3580	train	3580	ar-SA	audio_volume_mute	device	شغل الوضع الصامت الين المنبه حقي يرن
+train	massive-3580	train	3580	en-US	audio_volume_mute	device	turn on silent mode until my alarm goes off
+train	massive-3583	train	3583	ar-SA	audio_volume_mute	device	حط الصوت على صفر
+train	massive-3583	train	3583	en-US	audio_volume_mute	device	set volume to zero
+train	massive-3643	train	3643	ar-SA	audio_volume_mute	device	google خلك هادي مره لان بنتي نايمة
+train	massive-3643	train	3643	en-US	audio_volume_mute	device	google please be extra quiet the baby is sleeping
+train	massive-3690	train	3690	ar-SA	audio_volume_mute	device	خلك ساكت نص ساعة
+train	massive-3690	train	3690	en-US	audio_volume_mute	device	be silent for thirty minutes
+train	massive-3792	train	3792	ar-SA	audio_volume_mute	device	احتاج أن اكتم السماعة
+train	massive-3792	train	3792	en-US	audio_volume_mute	device	i need to mute the speaker
+train	massive-3794	train	3794	ar-SA	audio_volume_mute	device	ابغى اكتم صوت السماعة
+train	massive-3794	train	3794	en-US	audio_volume_mute	device	i want to mute the speaker
+train	massive-3813	train	3813	ar-SA	audio_volume_mute	device	فعل الكتم حتى أقلك
+train	massive-3813	train	3813	en-US	audio_volume_mute	device	mute enabled until i say so
+train	massive-3853	train	3853	ar-SA	audio_volume_mute	device	وقف الصوت لو سمحت
+train	massive-3853	train	3853	en-US	audio_volume_mute	device	sound off please
+train	massive-3854	train	3854	ar-SA	audio_volume_mute	device	تكفى اكتم السماعات
+train	massive-3854	train	3854	en-US	audio_volume_mute	device	mute speakers please
+train	massive-3892	train	3892	ar-SA	audio_volume_mute	device	اكتم حالا
+train	massive-3892	train	3892	en-US	audio_volume_mute	device	mute immediately
+train	massive-3893	train	3893	ar-SA	audio_volume_mute	device	تكفى اكتم التحكم بالصوت
+train	massive-3893	train	3893	en-US	audio_volume_mute	device	please mute the volume control
+train	massive-3983	train	3983	ar-SA	audio_volume_mute	device	وقفه
+train	massive-3983	train	3983	en-US	audio_volume_mute	device	stop it
+train	massive-3984	train	3984	ar-SA	audio_volume_mute	device	تكفى خلك ساكت
+train	massive-3984	train	3984	en-US	audio_volume_mute	device	please be silent
+train	massive-4092	train	4092	ar-SA	audio_volume_mute	device	اكتم السماعات حقي دقيقة أبغى أسوي مكالمة
+train	massive-4092	train	4092	en-US	audio_volume_mute	device	mute my speakers for a minute here i need to make a call
+train	massive-4242	train	4242	ar-SA	audio_volume_mute	device	تكفى لا تتكلم
+train	massive-4242	train	4242	en-US	audio_volume_mute	device	please do not speak
+train	massive-4499	train	4499	ar-SA	audio_volume_mute	device	اضبط الإعدادات على كتم
+train	massive-4499	train	4499	en-US	audio_volume_mute	device	set the settings to mute
+train	massive-4725	train	4725	ar-SA	audio_volume_mute	device	حطه عالصامت
+train	massive-4725	train	4725	en-US	audio_volume_mute	device	set to mute
+train	massive-4726	train	4726	ar-SA	audio_volume_mute	device	خليك صامت
+train	massive-4726	train	4726	en-US	audio_volume_mute	device	be mute
+train	massive-4832	train	4832	ar-SA	audio_volume_mute	device	عن طريق الاخفاء
+train	massive-4832	train	4832	en-US	audio_volume_mute	device	by hide
+train	massive-4834	train	4834	ar-SA	audio_volume_mute	device	لا تستخدم
+train	massive-4834	train	4834	en-US	audio_volume_mute	device	not use
+train	massive-4855	train	4855	ar-SA	audio_volume_mute	device	شيل الضجة
+train	massive-4855	train	4855	en-US	audio_volume_mute	device	cut off noise
+train	massive-4903	train	4903	ar-SA	audio_volume_mute	device	طفي صوت الوسائط
+train	massive-4903	train	4903	en-US	audio_volume_mute	device	turn off media volume
+train	massive-4995	train	4995	ar-SA	audio_volume_mute	device	ممكن تكتم السماعة حقي
+train	massive-4995	train	4995	en-US	audio_volume_mute	device	can you mute my speaker
+train	massive-4996	train	4996	ar-SA	audio_volume_mute	device	ساعدني اكتم السماعة حقي
+train	massive-4996	train	4996	en-US	audio_volume_mute	device	help me to mute my speaker
+train	massive-166	train	166	ar-SA	general_greet	chat	كيف حالكم
+train	massive-166	train	166	en-US	general_greet	chat	how are you
+train	massive-304	train	304	ar-SA	general_greet	chat	صباح ما الأمر
+train	massive-304	train	304	en-US	general_greet	chat	morning what's up
+train	massive-1100	train	1100	ar-SA	general_greet	chat	كيفك اليوم
+train	massive-1100	train	1100	en-US	general_greet	chat	how are you today
+train	massive-1101	train	1101	ar-SA	general_greet	chat	صبحاح الخير olly
+train	massive-1101	train	1101	en-US	general_greet	chat	good morning olly
+train	massive-1102	train	1102	ar-SA	general_greet	chat	صباح الخير
+train	massive-1102	train	1102	en-US	general_greet	chat	good morning
+train	massive-1103	train	1103	ar-SA	general_greet	chat	سلام عليكم
+train	massive-1103	train	1103	en-US	general_greet	chat	good afternoon
+train	massive-1392	train	1392	ar-SA	general_greet	chat	سلام olly وش أخبارك
+train	massive-1392	train	1392	en-US	general_greet	chat	hey olly what's up
+train	massive-1792	train	1792	ar-SA	general_greet	chat	مساالخير كيف حالك
+train	massive-1792	train	1792	en-US	general_greet	chat	good afternoon how are you
+train	massive-1829	train	1829	ar-SA	general_greet	chat	مرحبا شنو تحب تسوي
+train	massive-1829	train	1829	en-US	general_greet	chat	hello what are you up to
+train	massive-1921	train	1921	ar-SA	general_greet	chat	مسا الخير
+train	massive-1921	train	1921	en-US	general_greet	chat	good evening
+train	massive-1957	train	1957	ar-SA	general_greet	chat	olly علميني عن انذاراتي
+train	massive-1957	train	1957	en-US	general_greet	chat	olly tell me my alarms
+train	massive-2011	train	2011	ar-SA	general_greet	chat	مرحبا كيف الحال
+train	massive-2011	train	2011	en-US	general_greet	chat	hello how are you
+train	massive-2942	train	2942	ar-SA	general_greet	chat	سلام شنو اليوم
+train	massive-2942	train	2942	en-US	general_greet	chat	hey what's today
+train	massive-3596	train	3596	ar-SA	general_greet	chat	كيف تجري الامور
+train	massive-3596	train	3596	en-US	general_greet	chat	how is everything
+train	massive-4804	train	4804	ar-SA	general_greet	chat	سلام olly كيفك
+train	massive-4804	train	4804	en-US	general_greet	chat	hi olly how are you
+train	massive-6197	train	6197	ar-SA	general_greet	chat	مين انته
+train	massive-6197	train	6197	en-US	general_greet	chat	who are you
+train	massive-13264	train	13264	ar-SA	general_greet	chat	كيف كان اليوم
+train	massive-13264	train	13264	en-US	general_greet	chat	how was the day
+train	massive-120	train	120	ar-SA	general_joke	chat	olly خليني اضحك
+train	massive-120	train	120	en-US	general_joke	chat	olly make me laugh
+train	massive-125	train	125	ar-SA	general_joke	chat	أليكسا قل لي نكتة
+train	massive-125	train	125	en-US	general_joke	chat	alexa tell me a joke
+train	massive-126	train	126	ar-SA	general_joke	chat	أبهجني
+train	massive-126	train	126	en-US	general_joke	chat	cheer me up
+train	massive-193	train	193	ar-SA	general_joke	chat	قل لي بعض النكات
+train	massive-193	train	193	en-US	general_joke	chat	tell me some joke
+train	massive-194	train	194	ar-SA	general_joke	chat	عندك أي نكتة
+train	massive-194	train	194	en-US	general_joke	chat	do you know any joke
+train	massive-492	train	492	ar-SA	general_joke	chat	ما هي نكتة سخيفة تعرف
+train	massive-492	train	492	en-US	general_joke	chat	what's a silly joke you know
+train	massive-526	train	526	ar-SA	general_joke	chat	قول لي نكتة عشوائية
+train	massive-526	train	526	en-US	general_joke	chat	tell me random joke
+train	massive-528	train	528	ar-SA	general_joke	chat	شنو النكتة المفضلة لديك
+train	massive-528	train	528	en-US	general_joke	chat	what's your favorite joke
+train	massive-543	train	543	ar-SA	general_joke	chat	ايش أكثر نكتة مضحكة
+train	massive-543	train	543	en-US	general_joke	chat	what's the funniest joke
+train	massive-544	train	544	ar-SA	general_joke	chat	قولي نكتة مقرفه
+train	massive-544	train	544	en-US	general_joke	chat	tell me a dirty joke
+train	massive-636	train	636	ar-SA	general_joke	chat	شنو في نكات مضحكة عن السيارات
+train	massive-636	train	636	en-US	general_joke	chat	what is a funny joke about car
+train	massive-637	train	637	ar-SA	general_joke	chat	احكيلي نكتة عن الانسان
+train	massive-637	train	637	en-US	general_joke	chat	tell me a joke about a man
+train	massive-848	train	848	ar-SA	general_joke	chat	أود نكتة
+train	massive-848	train	848	en-US	general_joke	chat	i would like a joke
+train	massive-849	train	849	ar-SA	general_joke	chat	قل لي نكتة
+train	massive-849	train	849	en-US	general_joke	chat	give me a joke
+train	massive-850	train	850	ar-SA	general_joke	chat	نكتة طال عمرك
+train	massive-850	train	850	en-US	general_joke	chat	a joke please
+train	massive-989	train	989	ar-SA	general_joke	chat	اعرض لي نكتة مضحكة
+train	massive-989	train	989	en-US	general_joke	chat	show me a funny joke
+train	massive-1159	train	1159	ar-SA	general_joke	chat	أخبر أشياء مضحكة
+train	massive-1159	train	1159	en-US	general_joke	chat	tell funny things
+train	massive-1200	train	1200	ar-SA	general_joke	chat	olly قول حاجة تضحك
+train	massive-1200	train	1200	en-US	general_joke	chat	olly say something funny
+train	massive-1243	train	1243	ar-SA	general_joke	chat	ابحث عن نكتة في قبوك وأخبرني
+train	massive-1243	train	1243	en-US	general_joke	chat	find a joke in your vault and tell me
+train	massive-1479	train	1479	ar-SA	general_joke	chat	ما هي النكتة الأعلى تقييما اليوم
+train	massive-1479	train	1479	en-US	general_joke	chat	what is the highest rated joke today
+train	massive-1578	train	1578	ar-SA	general_joke	chat	خبرني نكتة جيدة عن الاطباء
+train	massive-1578	train	1578	en-US	general_joke	chat	tell me a good doctor joke
+train	massive-2197	train	2197	ar-SA	general_joke	chat	شاركني نكتة
+train	massive-2197	train	2197	en-US	general_joke	chat	share me a joke
+train	massive-2204	train	2204	ar-SA	general_joke	chat	خبرني نكتة جديدة عن الطيور
+train	massive-2204	train	2204	en-US	general_joke	chat	tell me a joke about birds
+train	massive-2459	train	2459	ar-SA	general_joke	chat	مضحكة
+train	massive-2459	train	2459	en-US	general_joke	chat	could you tell me funny things
+train	massive-2460	train	2460	ar-SA	general_joke	chat	قل بعض النكات
+train	massive-2460	train	2460	en-US	general_joke	chat	say some jokes
+train	massive-2685	train	2685	ar-SA	general_joke	chat	يا صحاب ودي نكتة جديدة عشان احكيها ل سامي
+train	massive-2685	train	2685	en-US	general_joke	chat	olly i need a funny joke to tell sam
+train	massive-2686	train	2686	ar-SA	general_joke	chat	اريد نكتة مضحكة خبرها حق محمد
+train	massive-2686	train	2686	en-US	general_joke	chat	i need a funny joke to tell sam
+train	massive-2729	train	2729	ar-SA	general_joke	chat	البرتقالة والموزة
+train	massive-2729	train	2729	en-US	general_joke	chat	find the joke about the orange and the banana
+train	massive-2730	train	2730	ar-SA	general_joke	chat	ودي نكتة مضحكة للأطفال
+train	massive-2730	train	2730	en-US	general_joke	chat	i need to find a funny joke that is ok for kids
+train	massive-2876	train	2876	ar-SA	general_joke	chat	اجعلني سعيدا
+train	massive-2876	train	2876	en-US	general_joke	chat	make me happy
+train	massive-3065	train	3065	ar-SA	general_joke	chat	خلني اسمع نكتة
+train	massive-3065	train	3065	en-US	general_joke	chat	let me hear a joke
+train	massive-3185	train	3185	ar-SA	general_joke	chat	احكيلي نكتة عن المحامين
+train	massive-3185	train	3185	en-US	general_joke	chat	tell me a joke about lawyers
+train	massive-3265	train	3265	ar-SA	general_joke	chat	ودي أسمع نكتة تقدر تخبرني وحدة طال عمرك
+train	massive-3265	train	3265	en-US	general_joke	chat	i need to hear a joke can you tell me one
+train	massive-3363	train	3363	ar-SA	general_joke	chat	الشيخ يمشي في الحانة
+train	massive-3363	train	3363	en-US	general_joke	chat	a priest walks into a bar
+train	massive-3534	train	3534	ar-SA	general_joke	chat	نكتة اليوم
+train	massive-3534	train	3534	en-US	general_joke	chat	the joke of the day
+train	massive-3789	train	3789	ar-SA	general_joke	chat	قول لي نكته تضكني وايد
+train	massive-3789	train	3789	en-US	general_joke	chat	tell a joke that puts smile on my face
+train	massive-3855	train	3855	ar-SA	general_joke	chat	أبغى أسمع نكتة المحشش
+train	massive-3855	train	3855	en-US	general_joke	chat	i want to hear a yo mama joke
+train	massive-3944	train	3944	ar-SA	general_joke	chat	اجعلني اضحك اريد سماع نكتة
+train	massive-3944	train	3944	en-US	general_joke	chat	make me laugh i want to hear a joke
+train	massive-4157	train	4157	ar-SA	general_joke	chat	سلام يا صحاب مابو أي نكات مضحكة جديدة
+train	massive-4157	train	4157	en-US	general_joke	chat	hey olly have you heard any funny jokes lately
+train	massive-4158	train	4158	ar-SA	general_joke	chat	مرحبا سيري سمعت أي نكت مرحة مؤخرا
+train	massive-4158	train	4158	en-US	general_joke	chat	hey siri have you heard any funny jokes lately
+train	massive-4159	train	4159	ar-SA	general_joke	chat	سلام صاحبي قول لي نكتة جيدة
+train	massive-4159	train	4159	en-US	general_joke	chat	hey olly make me laugh with a good joke
+train	massive-4263	train	4263	ar-SA	general_joke	chat	سمعت أي نكات جيدة هن جديد
+train	massive-4263	train	4263	en-US	general_joke	chat	have you heard any good jokes lately
+train	massive-4264	train	4264	ar-SA	general_joke	chat	كم نكته تقدر تقول
+train	massive-4264	train	4264	en-US	general_joke	chat	how many jokes do you know
+train	massive-4274	train	4274	ar-SA	general_joke	chat	هل عندك نكتة
+train	massive-4274	train	4274	en-US	general_joke	chat	do you have a joke
+train	massive-4275	train	4275	ar-SA	general_joke	chat	قول لي نكتة لو سمحت
+train	massive-4275	train	4275	en-US	general_joke	chat	tell me a joke please
+train	massive-4366	train	4366	ar-SA	general_joke	chat	ما بو أي نكت مضحكة
+train	massive-4366	train	4366	en-US	general_joke	chat	any funny jokes
+train	massive-4721	train	4721	ar-SA	general_joke	chat	اش أحسن نكتة عندك
+train	massive-4721	train	4721	en-US	general_joke	chat	what is your best joke
+train	massive-4774	train	4774	ar-SA	general_joke	chat	ودي اسمع مزحة
+train	massive-4774	train	4774	en-US	general_joke	chat	i want to listen to a joke
+train	massive-4806	train	4806	ar-SA	general_joke	chat	ابغى نكتة حلوة
+train	massive-4806	train	4806	en-US	general_joke	chat	i need a good joke
+train	massive-4906	train	4906	ar-SA	general_joke	chat	شنو نكتة اليوم
+train	massive-4906	train	4906	en-US	general_joke	chat	today's jokes
+train	massive-4907	train	4907	ar-SA	general_joke	chat	نكات مفتوحة
+train	massive-4907	train	4907	en-US	general_joke	chat	open jokes
+train	massive-4912	train	4912	ar-SA	general_joke	chat	شنو هاي النكتة
+train	massive-4912	train	4912	en-US	general_joke	chat	what about this joke
+train	massive-4947	train	4947	ar-SA	general_joke	chat	قل لي نكتة عن الدجاج
+train	massive-4947	train	4947	en-US	general_joke	chat	tell me a joke about chickens
+train	massive-4948	train	4948	ar-SA	general_joke	chat	من فضلك قل لي نكتة أعتقد أنها مضحكة
+train	massive-4948	train	4948	en-US	general_joke	chat	please tell me a joke that i'll think is funny
+train	massive-4981	train	4981	ar-SA	general_joke	chat	شنو هي نكتة مضحكة
+train	massive-4981	train	4981	en-US	general_joke	chat	what is a funny joke
+train	massive-5033	train	5033	ar-SA	general_joke	chat	خبرني نكتة عن الكلاب
+train	massive-5033	train	5033	en-US	general_joke	chat	tell me a joke about dogs
+train	massive-5508	train	5508	ar-SA	general_joke	chat	قول نكتة
+train	massive-5508	train	5508	en-US	general_joke	chat	tell joke
+train	massive-5509	train	5509	ar-SA	general_joke	chat	قول لي نكتة
+train	massive-5509	train	5509	en-US	general_joke	chat	provide a joke
+train	massive-5522	train	5522	ar-SA	general_joke	chat	خلني
+train	massive-5522	train	5522	en-US	general_joke	chat	humor me
+train	massive-5951	train	5951	ar-SA	general_joke	chat	خبرني شوية طرف مرحة عشان نضحك
+train	massive-5951	train	5951	en-US	general_joke	chat	tell me some funny joke to laugh
+train	massive-6021	train	6021	ar-SA	general_joke	chat	شنو آخر نكتة سمعتوها
+train	massive-6021	train	6021	en-US	general_joke	chat	what's the latest joke
+train	massive-6146	train	6146	ar-SA	general_joke	chat	البحث عن نكت على شبكة الإنترنت
+train	massive-6146	train	6146	en-US	general_joke	chat	find jokes on the web
+train	massive-6545	train	6545	ar-SA	general_joke	chat	قول لي نكته
+train	massive-6545	train	6545	en-US	general_joke	chat	tell me jokes
+train	massive-13760	train	13760	ar-SA	general_joke	chat	وش النكتة الحجازية المشهورة حق العصفور
+train	massive-13760	train	13760	en-US	general_joke	chat	what's the famous monty python joke about the bird
+train	massive-12120	train	12120	ar-SA	transport_taxi	-	أحجز لي taxi حق هدى بنص ساعة
+train	massive-12120	train	12120	en-US	transport_taxi	-	olly book me a taxi to leith in half an hour
+train	massive-12122	train	12122	ar-SA	transport_taxi	-	أوبر عشرين دقيقة الى الشفا شارع الستين
+train	massive-12122	train	12122	en-US	transport_taxi	-	schedule an uber in twenty minutes to tesco on fifth street
+train	massive-12123	train	12123	ar-SA	transport_taxi	-	احجز لي تاكسي
+train	massive-12123	train	12123	en-US	transport_taxi	-	book me a cab
+train	massive-12124	train	12124	ar-SA	transport_taxi	-	تاكسي
+train	massive-12124	train	12124	en-US	transport_taxi	-	book me a cab olly
+train	massive-12145	train	12145	ar-SA	transport_taxi	-	taxi المطار خمسة الفجر
+train	massive-12145	train	12145	en-US	transport_taxi	-	call me a taxi to the airport at five am
+train	massive-12146	train	12146	ar-SA	transport_taxi	-	olly اطلبلي taxi إلى محطة القطار
+train	massive-12146	train	12146	en-US	transport_taxi	-	olly call me a cab to the train station
+train	massive-12175	train	12175	ar-SA	transport_taxi	-	أوبر الساعة العاشرة مساء الليلة
+train	massive-12175	train	12175	en-US	transport_taxi	-	flag me an uber for ten p. m. tonight
+train	massive-12176	train	12176	ar-SA	transport_taxi	-	taxi احدعش الظهر بكرة
+train	massive-12176	train	12176	en-US	transport_taxi	-	set up a taxi for eleven am tomorrow
+train	massive-12180	train	12180	ar-SA	transport_taxi	-	uber حقي
+train	massive-12180	train	12180	en-US	transport_taxi	-	i need a uber to my current location
+train	massive-12204	train	12204	ar-SA	transport_taxi	-	تاكسي الحفلة الليلة
+train	massive-12204	train	12204	en-US	transport_taxi	-	could you please hire me a taxi to go to the opera tonight
+train	massive-12214	train	12214	ar-SA	transport_taxi	-	تاكسي البيت المطار ثمنية الصبح
+train	massive-12214	train	12214	en-US	transport_taxi	-	schedule city cab from home to airport at eight am
+train	massive-12228	train	12228	ar-SA	transport_taxi	-	taxi
+train	massive-12228	train	12228	en-US	transport_taxi	-	i am in need of a taxi right now
+train	massive-12229	train	12229	ar-SA	transport_taxi	-	taxi خدمة
+train	massive-12229	train	12229	en-US	transport_taxi	-	find a taxi service close to me
+train	massive-12230	train	12230	ar-SA	transport_taxi	-	سيارة أجرة المنزل
+train	massive-12230	train	12230	en-US	transport_taxi	-	i need a taxi to go home
+train	massive-12231	train	12231	ar-SA	transport_taxi	-	سيارة أجرة البيت
+train	massive-12231	train	12231	en-US	transport_taxi	-	find a taxi to go home
+train	massive-12237	train	12237	ar-SA	transport_taxi	-	اطلب سيارة أجره الحين
+train	massive-12237	train	12237	en-US	transport_taxi	-	book taxi for now
+train	massive-12242	train	12242	ar-SA	transport_taxi	-	taxi المطار
+train	massive-12242	train	12242	en-US	transport_taxi	-	book a taxi to the airport
+train	massive-12243	train	12243	ar-SA	transport_taxi	-	سيارة أجرة غدا صباح
+train	massive-12243	train	12243	en-US	transport_taxi	-	book a taxi for tomorrow morning
+train	massive-12249	train	12249	ar-SA	transport_taxi	-	شوف أقرب تاكسي
+train	massive-12249	train	12249	en-US	transport_taxi	-	find the nearest taxi
+train	massive-12250	train	12250	ar-SA	transport_taxi	-	uber تسعة وعشرين
+train	massive-12250	train	12250	en-US	transport_taxi	-	find an uber on twenty ninth
+train	massive-12276	train	12276	ar-SA	transport_taxi	-	حجز taxi من أجلي
+train	massive-12276	train	12276	en-US	transport_taxi	-	book a taxi for me
+train	massive-12277	train	12277	ar-SA	transport_taxi	-	سيارة أجرة
+train	massive-12277	train	12277	en-US	transport_taxi	-	can you book me a taxi
+train	massive-12278	train	12278	ar-SA	transport_taxi	-	أحجز لي سيارة أجرة
+train	massive-12278	train	12278	en-US	transport_taxi	-	book me a taxi
+train	massive-12296	train	12296	ar-SA	transport_taxi	-	اطلب تاكسي
+train	massive-12296	train	12296	en-US	transport_taxi	-	get me a taxi
+train	massive-12301	train	12301	ar-SA	transport_taxi	-	uber
+train	massive-12301	train	12301	en-US	transport_taxi	-	get me an uber please
+train	massive-12320	train	12320	ar-SA	transport_taxi	-	اطلب سيارة أجرة
+train	massive-12320	train	12320	en-US	transport_taxi	-	call a taxi
+train	massive-12330	train	12330	ar-SA	transport_taxi	-	uber اثنعش
+train	massive-12330	train	12330	en-US	transport_taxi	-	open uber and book a car for twelve o'clock
+train	massive-12371	train	12371	ar-SA	transport_taxi	-	اريد وسيلة نقل ع المستشفى
+train	massive-12371	train	12371	en-US	transport_taxi	-	get me a ride to hospital
+train	massive-12378	train	12378	ar-SA	transport_taxi	-	مشوار
+train	massive-12378	train	12378	en-US	transport_taxi	-	book me a ride
+train	massive-12382	train	12382	ar-SA	transport_taxi	-	سيارة أجرة أوبر
+train	massive-12382	train	12382	en-US	transport_taxi	-	make a taxi booking in uber
+train	massive-12399	train	12399	ar-SA	transport_taxi	-	كريم سبعة المسا اليوم
+train	massive-12399	train	12399	en-US	transport_taxi	-	call golden taxi to pick me up at seven p. m. today
+train	massive-12418	train	12418	ar-SA	transport_taxi	-	taxi هنا
+train	massive-12418	train	12418	en-US	transport_taxi	-	book a taxi to start from here
+train	massive-12427	train	12427	ar-SA	transport_taxi	-	اتصل taxi
+train	massive-12427	train	12427	en-US	transport_taxi	-	call a taxi for me
+train	massive-12462	train	12462	ar-SA	transport_taxi	-	حجز uber هذي الليلة الساعة سبعة المساء
+train	massive-12462	train	12462	en-US	transport_taxi	-	book uber for tonight at seven p. m.
+train	massive-12463	train	12463	ar-SA	transport_taxi	-	أوبر
+train	massive-12463	train	12463	en-US	transport_taxi	-	please reserve an uber right now
+train	massive-12480	train	12480	ar-SA	transport_taxi	-	uber المطار
+train	massive-12480	train	12480	en-US	transport_taxi	-	find an uber that can get me to the airport now
+train	massive-12482	train	12482	ar-SA	transport_taxi	-	تاكسي لي
+train	massive-12482	train	12482	en-US	transport_taxi	-	find a taxi for me
+train	massive-12483	train	12483	ar-SA	transport_taxi	-	أقرب سيارة أجرة
+train	massive-12483	train	12483	en-US	transport_taxi	-	what's the closest taxi to me
+train	massive-12487	train	12487	ar-SA	transport_taxi	-	دقلي على اللموزين
+train	massive-12487	train	12487	en-US	transport_taxi	-	call a cab
+train	massive-12492	train	12492	ar-SA	transport_taxi	-	اطلب لي سيارة
+train	massive-12492	train	12492	en-US	transport_taxi	-	get me a car
+train	massive-12493	train	12493	ar-SA	transport_taxi	-	اريد تكسي بعد نص ساعة
+train	massive-12493	train	12493	en-US	transport_taxi	-	i need a taxi in thirty minutes
+train	massive-12494	train	12494	ar-SA	transport_taxi	-	اتصال uber
+train	massive-12494	train	12494	en-US	transport_taxi	-	can you call an uber for me
+train	massive-12495	train	12495	ar-SA	transport_taxi	-	الاتصال سيارة
+train	massive-12495	train	12495	en-US	transport_taxi	-	call a car for me
+train	massive-12496	train	12496	ar-SA	transport_taxi	-	أوبر نصف ساعة
+train	massive-12496	train	12496	en-US	transport_taxi	-	olly call a uber in thirty minutes
+train	massive-12497	train	12497	ar-SA	transport_taxi	-	أولي اتصل على سيارة أجرة
+train	massive-12497	train	12497	en-US	transport_taxi	-	olly can you call a taxi
+train	massive-12543	train	12543	ar-SA	transport_taxi	-	أحجز لي خدمة uber
+train	massive-12543	train	12543	en-US	transport_taxi	-	book me an uber
+train	massive-12545	train	12545	ar-SA	transport_taxi	-	الرياض
+train	massive-12545	train	12545	en-US	transport_taxi	-	find transportation to rome
+train	massive-12546	train	12546	ar-SA	transport_taxi	-	مطعم
+train	massive-12546	train	12546	en-US	transport_taxi	-	find a ride to the bar
+train	massive-12547	train	12547	ar-SA	transport_taxi	-	لقيت رحلة الى مقهى المحطة
+train	massive-12547	train	12547	en-US	transport_taxi	-	olly find a ride to the bar
+train	massive-12559	train	12559	ar-SA	transport_taxi	-	taxi uber
+train	massive-12559	train	12559	en-US	transport_taxi	-	book a taxi uber
+train	massive-12560	train	12560	ar-SA	transport_taxi	-	أحتاج إلى سيارة أجره وصلني
+train	massive-12560	train	12560	en-US	transport_taxi	-	i need a taxi uber
+train	massive-12609	train	12609	ar-SA	transport_taxi	-	احجز لي taxi بعد الإجتماع حقي يوم الخميس
+train	massive-12609	train	12609	en-US	transport_taxi	-	schedule me a taxi for after my thursday meeting
+train	massive-12631	train	12631	ar-SA	transport_taxi	-	اريد تكسي ل المطار الحين
+train	massive-12631	train	12631	en-US	transport_taxi	-	get me a taxi to the airport right now
+train	massive-12632	train	12632	ar-SA	transport_taxi	-	taxi وسط المدينة
+train	massive-12632	train	12632	en-US	transport_taxi	-	i need a taxi to pick me up at the house and take me downtown
+train	massive-12655	train	12655	ar-SA	transport_taxi	-	من فضلك اطلب تاكسي توصل الساعة أربعة وتاخذني دار الأوبرا
+train	massive-12655	train	12655	en-US	transport_taxi	-	please call a taxi to arrive at four hundred and take me to the manor theater
+train	massive-12657	train	12657	ar-SA	transport_taxi	-	taxi هند سالم بوابة أربعة في المطار رحلة خمسة الاف وأربعمية وواحد وثلاثين ثلاثة وواحد وعشرين الجمعة
+train	massive-12657	train	12657	en-US	transport_taxi	-	book a taxi to pick up shelley hennessey at gate four of the airport for the arrival of aa flight five thousand four hundred and thirty one at three hundred and twenty one on friday
+train	massive-12709	train	12709	ar-SA	transport_taxi	-	uber ساعة الحين
+train	massive-12709	train	12709	en-US	transport_taxi	-	book an uber for one hour from now
+train	massive-12713	train	12713	ar-SA	transport_taxi	-	تاكسي الأندلس مول
+train	massive-12713	train	12713	en-US	transport_taxi	-	book me a taxi to the mall of america please
+train	massive-12714	train	12714	ar-SA	transport_taxi	-	اوبر الى مقهى بلكونة ورد
+train	massive-12714	train	12714	en-US	transport_taxi	-	book an uber to pick me up outside of long island bar right now
+train	massive-12746	train	12746	ar-SA	transport_taxi	-	سيارة المطار
+train	massive-12746	train	12746	en-US	transport_taxi	-	open uber app and book me a car for pick up at the airport
+train	massive-12755	train	12755	ar-SA	transport_taxi	-	uber يوصلني البيت
+train	massive-12755	train	12755	en-US	transport_taxi	-	book me an uber ride to go home
+train	massive-12756	train	12756	ar-SA	transport_taxi	-	uber مشوار
+train	massive-12756	train	12756	en-US	transport_taxi	-	order me an uber ride please
+train	massive-12757	train	12757	ar-SA	transport_taxi	-	تاكسي من مكاني
+train	massive-12757	train	12757	en-US	transport_taxi	-	send a taxi to come pick me up from my location
+train	massive-12804	train	12804	ar-SA	transport_taxi	-	حقي برامج
+train	massive-12804	train	12804	en-US	transport_taxi	-	using my apps
+train	massive-12805	train	12805	ar-SA	transport_taxi	-	دقلي على رقم الجوال
+train	massive-12805	train	12805	en-US	transport_taxi	-	call the phone number
+train	massive-12812	train	12812	ar-SA	transport_taxi	-	اتصل على شركة سيارة أجرة
+train	massive-12812	train	12812	en-US	transport_taxi	-	call a taxi company
+train	massive-12829	train	12829	ar-SA	transport_taxi	-	التاكسي الأخضر
+train	massive-12829	train	12829	en-US	transport_taxi	-	book ola cab for now
+train	massive-12830	train	12830	ar-SA	transport_taxi	-	اريد احجز تاكسي منمكتب التاكسي الأخضر
+train	massive-12830	train	12830	en-US	transport_taxi	-	book an outstation cab of ola
+train	massive-12831	train	12831	ar-SA	transport_taxi	-	سيارة أجرة محلية
+train	massive-12831	train	12831	en-US	transport_taxi	-	book a local cab
+train	massive-12841	train	12841	ar-SA	transport_taxi	-	ليفت
+train	massive-12841	train	12841	en-US	transport_taxi	-	open lyft
+train	massive-12842	train	12842	ar-SA	transport_taxi	-	ابحث في google عن uber
+train	massive-12842	train	12842	en-US	transport_taxi	-	google uber
+train	massive-12843	train	12843	ar-SA	transport_taxi	-	taxi المطار المسا
+train	massive-12843	train	12843	en-US	transport_taxi	-	book a taxi to airport for me in the evening
+train	massive-12845	train	12845	ar-SA	transport_taxi	-	تاكسي المسا
+train	massive-12845	train	12845	en-US	transport_taxi	-	book a cab in the evening for me
+train	massive-12849	train	12849	ar-SA	transport_taxi	-	اطلب لي سيارة أجرة للدرعية
+train	massive-12849	train	12849	en-US	transport_taxi	-	book for me an uber taxi to bardonia
+train	massive-12850	train	12850	ar-SA	transport_taxi	-	uber taxi مواقف السلامة
+train	massive-12850	train	12850	en-US	transport_taxi	-	book for me an uber taxi to carmen drive
+train	massive-12876	train	12876	ar-SA	transport_taxi	-	كريم واحجز taxi ثلاثة الساعة الصباح
+train	massive-12876	train	12876	en-US	transport_taxi	-	call rta and book a taxi for three o'clock in the morning
+train	massive-12889	train	12889	ar-SA	transport_taxi	-	اريد بيت مفروش وسط جدة للاجار باسرع وقت
+train	massive-12889	train	12889	en-US	transport_taxi	-	can i get an uber home from the fox downtown as soon as possible
+train	massive-12906	train	12906	ar-SA	transport_taxi	-	taxi تسعة الصباح
+train	massive-12906	train	12906	en-US	transport_taxi	-	siri please reserve the next taxi a nine am
+train	massive-12907	train	12907	ar-SA	transport_taxi	-	taxi بيتي
+train	massive-12907	train	12907	en-US	transport_taxi	-	please send a taxi to my house
+train	massive-12911	train	12911	ar-SA	transport_taxi	-	بحدود ساعة
+train	massive-12911	train	12911	en-US	transport_taxi	-	i need a ride in an hour
+train	massive-87	train	87	ar-SA	takeaway_order	-	اطلب مقلوبة للعشا
+train	massive-87	train	87	en-US	takeaway_order	-	please order some sushi for dinner
+train	massive-88	train	88	ar-SA	takeaway_order	-	برغر
+train	massive-88	train	88	en-US	takeaway_order	-	hey i'd like you to order burger
+train	massive-91	train	91	ar-SA	takeaway_order	-	عادي أطلب عشا سفري من مطعم الطازج
+train	massive-91	train	91	en-US	takeaway_order	-	can i order takeaway dinner from byron's
+train	massive-130	train	130	ar-SA	takeaway_order	-	اطلب pizza
+train	massive-130	train	130	en-US	takeaway_order	-	order a pizza
+train	massive-131	train	131	ar-SA	takeaway_order	-	بيتزا من مطعم الشرقي
+train	massive-131	train	131	en-US	takeaway_order	-	order me a byron from deliveroo
+train	massive-200	train	200	ar-SA	takeaway_order	-	جاهز اسباني
+train	massive-200	train	200	en-US	takeaway_order	-	can i order takeaway from spanish place
+train	massive-231	train	231	ar-SA	takeaway_order	-	سوشي من شيرو
+train	massive-231	train	231	en-US	takeaway_order	-	could you please help me to order some sushi from deliveroo
+train	massive-305	train	305	ar-SA	takeaway_order	-	بيتزا بيتزاراتي
+train	massive-305	train	305	en-US	takeaway_order	-	order a pizza from pizza express
+train	massive-306	train	306	ar-SA	takeaway_order	-	سوشي غداء
+train	massive-306	train	306	en-US	takeaway_order	-	i would like to have a sushi can you order me a lunch
+train	massive-307	train	307	ar-SA	takeaway_order	-	alexa ودي في مثلوثة ممكن تطلبه لبكرا
+train	massive-307	train	307	en-US	takeaway_order	-	alexa i would like to have a sushi can you order me a lunch
+train	massive-308	train	308	ar-SA	takeaway_order	-	اطلب سفري sandwich وشوربة من البيك
+train	massive-308	train	308	en-US	takeaway_order	-	order a takeaway sandwich and soup from the italian's
+train	massive-669	train	669	ar-SA	takeaway_order	-	تنين همبرغر
+train	massive-669	train	669	en-US	takeaway_order	-	order two hamburgers for me
+train	massive-670	train	670	ar-SA	takeaway_order	-	البيتزا واحد
+train	massive-670	train	670	en-US	takeaway_order	-	place order of one pizza
+train	massive-799	train	799	ar-SA	takeaway_order	-	سفري اكل الحين
+train	massive-799	train	799	en-US	takeaway_order	-	can i order take out food at this time
+train	massive-840	train	840	ar-SA	takeaway_order	-	بيتزا دومينوز سبعة المغرب
+train	massive-840	train	840	en-US	takeaway_order	-	order take-out pizza from domino's for seven p. m.
+train	massive-841	train	841	ar-SA	takeaway_order	-	بطلب بيتزا سفري الساعة سبعة باليل
+train	massive-841	train	841	en-US	takeaway_order	-	place order to pizza take-out for seven p. m.
+train	massive-842	train	842	ar-SA	takeaway_order	-	حدد موعدًا لتناول البيتزا من برا سبعة المساء
+train	massive-842	train	842	en-US	takeaway_order	-	schedule pizza take-out for seven p. m.
+train	massive-877	train	877	ar-SA	takeaway_order	-	grubhub
+train	massive-877	train	877	en-US	takeaway_order	-	food order from grubhub
+train	massive-1044	train	1044	ar-SA	takeaway_order	-	افضل بيتزا قريب مني بوصل بوصل
+train	massive-1044	train	1044	en-US	takeaway_order	-	what is the best pizza near me that delivers
+train	massive-1138	train	1138	ar-SA	takeaway_order	-	اتصل على شارع تسعه واطلب باستا توصيل
+train	massive-1138	train	1138	en-US	takeaway_order	-	call eastwind and order lomaine to go
+train	massive-1139	train	1139	ar-SA	takeaway_order	-	رجاءاً حط طلبية عند سوليا
+train	massive-1139	train	1139	en-US	takeaway_order	-	place a take out order at olive garden
+train	massive-1140	train	1140	ar-SA	takeaway_order	-	أطلبو spaghetti من كازاباستا يوصل للبيت
+train	massive-1140	train	1140	en-US	takeaway_order	-	order spaghetti from spaghetti warehouse to bring home
+train	massive-1230	train	1230	ar-SA	takeaway_order	-	بيتزا بالزيتون مطعم الشرقي
+train	massive-1230	train	1230	en-US	takeaway_order	-	order me a large ham and olive pizza from dominoes
+train	massive-1231	train	1231	ar-SA	takeaway_order	-	دلني على أعلى تقييم menu عراقي سفري قريب مني
+train	massive-1231	train	1231	en-US	takeaway_order	-	can you direct me to the menu for the highest rated chinese carry-out near me
+train	massive-1232	train	1232	ar-SA	takeaway_order	-	عطني خيارات لأكل لبناني سفري رخيص
+train	massive-1232	train	1232	en-US	takeaway_order	-	give me options for indian carry-out under dollars
+train	massive-1415	train	1415	ar-SA	takeaway_order	-	بعض اكل
+train	massive-1415	train	1415	en-US	takeaway_order	-	i want to order some food
+train	massive-1417	train	1417	ar-SA	takeaway_order	-	أماكن لطلب اكل جاهز
+train	massive-1417	train	1417	en-US	takeaway_order	-	places to order takeaway food
+train	massive-1459	train	1459	ar-SA	takeaway_order	-	بيتزا بيبروني مطعم الشرقي
+train	massive-1459	train	1459	en-US	takeaway_order	-	order a large pepperoni pizza from dominoes to go
+train	massive-1460	train	1460	ar-SA	takeaway_order	-	اشتري
+train	massive-1460	train	1460	en-US	takeaway_order	-	i would like to pickup a veggie sub with a cookie from subway
+train	massive-1461	train	1461	ar-SA	takeaway_order	-	بليز بطلب سفري برجر جبن وبطاطس من burger king
+train	massive-1461	train	1461	en-US	takeaway_order	-	place a takeaway order for a cheeseburger and fries from burger king
+train	massive-1517	train	1517	ar-SA	takeaway_order	-	اطلب ساندويش لحم خروف وجبن من subway
+train	massive-1517	train	1517	en-US	takeaway_order	-	order a ham and cheese sandwich from subway
+train	massive-1518	train	1518	ar-SA	takeaway_order	-	اطلب مشاوي من الرافدين
+train	massive-1518	train	1518	en-US	takeaway_order	-	order a smoked meat platter from beanos
+train	massive-1627	train	1627	ar-SA	takeaway_order	-	مطاعم
+train	massive-1627	train	1627	en-US	takeaway_order	-	selection of restaurants
+train	massive-1628	train	1628	ar-SA	takeaway_order	-	السعر
+train	massive-1628	train	1628	en-US	takeaway_order	-	price
+train	massive-1629	train	1629	ar-SA	takeaway_order	-	توصيل
+train	massive-1629	train	1629	en-US	takeaway_order	-	free home delivery
+train	massive-1730	train	1730	ar-SA	takeaway_order	-	مطعم الشرق بيتزا بالجبنة
+train	massive-1730	train	1730	en-US	takeaway_order	-	checkout domino center near me and order cheese pizza
+train	massive-1731	train	1731	ar-SA	takeaway_order	-	مطعم سوشي بانر
+train	massive-1731	train	1731	en-US	takeaway_order	-	checkout top restaurant near me and order shahi panner
+train	massive-1743	train	1743	ar-SA	takeaway_order	-	اوجد واطلب سوشي من المطعم الصيني
+train	massive-1743	train	1743	en-US	takeaway_order	-	find and order rasgulla of janta sweet home pvt ltd
+train	massive-1846	train	1846	ar-SA	takeaway_order	-	السلام عليكم google دق على اقرب مطعم كويتي لطلب سفري
+train	massive-1846	train	1846	en-US	takeaway_order	-	hey google hey call the nearest chinese restaurant for a takeaway
+train	massive-1847	train	1847	ar-SA	takeaway_order	-	برغر بالجبنة مطعم الشرقي
+train	massive-1847	train	1847	en-US	takeaway_order	-	order me a cheese burger from tommy's burgers
+train	massive-2090	train	2090	ar-SA	takeaway_order	-	اتصل ب مايسترو بيتزا
+train	massive-2090	train	2090	en-US	takeaway_order	-	call peking garden
+train	massive-2099	train	2099	ar-SA	takeaway_order	-	أطلب online من ماكدونالدز
+train	massive-2099	train	2099	en-US	takeaway_order	-	pull up peking garden online
+train	massive-2100	train	2100	ar-SA	takeaway_order	-	فول فوال الطائف
+train	massive-2100	train	2100	en-US	takeaway_order	-	how much does general tsos chicken cost at peking garden
+train	massive-2267	train	2267	ar-SA	takeaway_order	-	مطعم الشرق
+train	massive-2267	train	2267	en-US	takeaway_order	-	order the usual from turiellos pizza
+train	massive-2268	train	2268	ar-SA	takeaway_order	-	شاورما من شاورمر
+train	massive-2268	train	2268	en-US	takeaway_order	-	order the best priced general tofu in nyack
+train	massive-2337	train	2337	ar-SA	takeaway_order	-	وجبة noodles سفري
+train	massive-2337	train	2337	en-US	takeaway_order	-	takeaway noodles one pack
+train	massive-2361	train	2361	ar-SA	takeaway_order	-	pizza
+train	massive-2361	train	2361	en-US	takeaway_order	-	i want to order some pizza
+train	massive-2362	train	2362	ar-SA	takeaway_order	-	شفلي أقرب مطعم لبناني يوصل
+train	massive-2362	train	2362	en-US	takeaway_order	-	find me the nearest chinese for delivery
+train	massive-2363	train	2363	ar-SA	takeaway_order	-	مين اللي يوصل قريب من هنا
+train	massive-2363	train	2363	en-US	takeaway_order	-	who delivers near here
+train	massive-2415	train	2415	ar-SA	takeaway_order	-	أطلبي من مطعم الرافدين العراقي
+train	massive-2415	train	2415	en-US	takeaway_order	-	call china king chinese restaurant
+train	massive-2448	train	2448	ar-SA	takeaway_order	-	شوربة الدجاج الشرقي مطعم
+train	massive-2448	train	2448	en-US	takeaway_order	-	place order for a chicken manchow soup from wangs kitchen restaurant
+train	massive-2449	train	2449	ar-SA	takeaway_order	-	أطلب من مطعم المجلس الخليجي شوربة دجاج يوصل للبيت
+train	massive-2449	train	2449	en-US	takeaway_order	-	from wangs kitchen restaurant home delivery for a chicken manchow soup
+train	massive-2479	train	2479	ar-SA	takeaway_order	-	افتح menu السفري
+train	massive-2479	train	2479	en-US	takeaway_order	-	open take-out menus
+train	massive-2524	train	2524	ar-SA	takeaway_order	-	اقدر اطلب ولا
+train	massive-2524	train	2524	en-US	takeaway_order	-	can i order out
+train	massive-2629	train	2629	ar-SA	takeaway_order	-	ماك
+train	massive-2629	train	2629	en-US	takeaway_order	-	order mcdonalds
+train	massive-2630	train	2630	ar-SA	takeaway_order	-	طلب أكل جنوبي
+train	massive-2630	train	2630	en-US	takeaway_order	-	order chinese food
+train	massive-2631	train	2631	ar-SA	takeaway_order	-	وريني أقرب المطاعم إلي عندهم سفري
+train	massive-2631	train	2631	en-US	takeaway_order	-	show me nearby take-out restaurants
+train	massive-2689	train	2689	ar-SA	takeaway_order	-	اكدي الطلب وارسلي لي التأكيد
+train	massive-2689	train	2689	en-US	takeaway_order	-	confirm the order and send me the confirmation
+train	massive-2696	train	2696	ar-SA	takeaway_order	-	اطلب أكل شعبي من مطعم بن سفران هريسة وعصيدة
+train	massive-2696	train	2696	en-US	takeaway_order	-	order chinese from china spring wonton soup and a small beef and broccoli
+train	massive-2697	train	2697	ar-SA	takeaway_order	-	اطلب اثنين بيتزا وسط بالجنبة وواحد وسط بيتزا بيبروني من مايسترو
+train	massive-2697	train	2697	en-US	takeaway_order	-	order two medium cheese and one medium pepperoni pizza from dominoes
+train	massive-2698	train	2698	ar-SA	takeaway_order	-	تشيز برقر مطعم برقرايزر
+train	massive-2698	train	2698	en-US	takeaway_order	-	order two cheeseburgers from wings n. ale on university drive
+train	massive-2764	train	2764	ar-SA	takeaway_order	-	ابي اطلب takeaway
+train	massive-2764	train	2764	en-US	takeaway_order	-	i would like to order takeaway
+train	massive-2765	train	2765	ar-SA	takeaway_order	-	تيك أوي
+train	massive-2765	train	2765	en-US	takeaway_order	-	i'm in the mood to order takeaway
+train	massive-2766	train	2766	ar-SA	takeaway_order	-	ابدا طلبية سفري عشاني
+train	massive-2766	train	2766	en-US	takeaway_order	-	start a takeaway order for me
+train	massive-2899	train	2899	ar-SA	takeaway_order	-	بيتزا
+train	massive-2899	train	2899	en-US	takeaway_order	-	order pizza
+train	massive-2900	train	2900	ar-SA	takeaway_order	-	جيبي بيتزا بالببروني كبير
+train	massive-2900	train	2900	en-US	takeaway_order	-	get large pizza with pepperoni
+train	massive-2923	train	2923	ar-SA	takeaway_order	-	إخراج أطعمة خالد
+train	massive-2923	train	2923	en-US	takeaway_order	-	hey order me some take out from jason's deli
+train	massive-2924	train	2924	ar-SA	takeaway_order	-	اهلين olly اطلبي لي اكل سفري من كودو
+train	massive-2924	train	2924	en-US	takeaway_order	-	hey olly order me some take out from jason's deli
+train	massive-2925	train	2925	ar-SA	takeaway_order	-	من فضلك اطلب أخذ من شرنبي
+train	massive-2925	train	2925	en-US	takeaway_order	-	please order take from jason's deli
+train	massive-2926	train	2926	ar-SA	takeaway_order	-	مطعم الشرق الشارع السادس
+train	massive-2926	train	2926	en-US	takeaway_order	-	yo order take out from jason's deli on sixth avenue
+train	massive-3048	train	3048	ar-SA	takeaway_order	-	مطعم الملكي
+train	massive-3048	train	3048	en-US	takeaway_order	-	olly what movies are playing at carmike cinemas
+train	massive-3049	train	3049	ar-SA	takeaway_order	-	بيتزا بيبروني كبيرة
+train	massive-3049	train	3049	en-US	takeaway_order	-	how about some pizza tonight can you please order a pepperoni large
+train	massive-3066	train	3066	ar-SA	takeaway_order	-	شوي الطازج
+train	massive-3066	train	3066	en-US	takeaway_order	-	order me some chipotle
+train	massive-3067	train	3067	ar-SA	takeaway_order	-	postmates of mcdonald
+train	massive-3067	train	3067	en-US	takeaway_order	-	order me postmates of mcdonald
+train	massive-3069	train	3069	ar-SA	takeaway_order	-	أطلب لي شوية اكل صيني
+train	massive-3069	train	3069	en-US	takeaway_order	-	order me some chinese food
+train	massive-3081	train	3081	ar-SA	takeaway_order	-	شاورما كولا دايت
+train	massive-3081	train	3081	en-US	takeaway_order	-	i want to eat two pita gyros please and some diet coke
+train	massive-3135	train	3135	ar-SA	takeaway_order	-	صحن من فيش اوت
+train	massive-3135	train	3135	en-US	takeaway_order	-	order me a bowl from chipotle take-out
+train	massive-3250	train	3250	ar-SA	takeaway_order	-	ابي اطلب شوية اكل سفري
+train	massive-3250	train	3250	en-US	takeaway_order	-	i want to order some takeaway food
+train	massive-3251	train	3251	ar-SA	takeaway_order	-	فرجيني اكل توصيل
+train	massive-3251	train	3251	en-US	takeaway_order	-	i'm hungry show me some takeaway food
+train	massive-3290	train	3290	ar-SA	takeaway_order	-	حدد وقت لتوصيل طعام العشاء سفري من مطعم الوجبات السريعة القريب
+train	massive-3290	train	3290	en-US	takeaway_order	-	schedule a delivery from food at the nearby takeaway diner
+train	massive-34	train	34	ar-SA	play_music	-	أبغى اسمع أغنية محمد عبده مرة ثانية
+train	massive-34	train	34	en-US	play_music	-	i want to listen arijit singh song once again
+train	massive-35	train	35	ar-SA	play_music	-	أريد تشغيل هذي الموسيقا مرة ثانية
+train	massive-35	train	35	en-US	play_music	-	i want to play that music one again
+train	massive-66	train	66	ar-SA	play_music	-	من فضلك شغل البيتلز أمس
+train	massive-66	train	66	en-US	play_music	-	please play yesterday from beatles
+train	massive-72	train	72	ar-SA	play_music	-	ابدأ تشغيل موسيقى مفضلة
+train	massive-72	train	72	en-US	play_music	-	start playing music from favorites
+train	massive-73	train	73	ar-SA	play_music	-	من فضلك شغل موسيقى الأفضل الخاص بي
+train	massive-73	train	73	en-US	play_music	-	please play my best music
+train	massive-108	train	108	ar-SA	play_music	-	شغلي أغنية أنا أحبها
+train	massive-108	train	108	en-US	play_music	-	play a song i like
+train	massive-110	train	110	ar-SA	play_music	-	شغل أهواك
+train	massive-110	train	110	en-US	play_music	-	play daft punk
+train	massive-111	train	111	ar-SA	play_music	-	بعض لعب سيء
+train	massive-111	train	111	en-US	play_music	-	put on some coldplay
+train	massive-139	train	139	ar-SA	play_music	-	شغل قائمة التشغيل جاز الخاص بي
+train	massive-139	train	139	en-US	play_music	-	play my jazz playlist
+train	massive-140	train	140	ar-SA	play_music	-	حقي الشعبية قائمة التشغيل
+train	massive-140	train	140	en-US	play_music	-	start my jazz playlist
+train	massive-141	train	141	ar-SA	play_music	-	my favorite playlist
+train	massive-141	train	141	en-US	play_music	-	play my favorite playlist
+train	massive-146	train	146	ar-SA	play_music	-	هل يمكنك أن تعزف شوية موسيقى jazz
+train	massive-146	train	146	en-US	play_music	-	can you play some jazz
+train	massive-183	train	183	ar-SA	play_music	-	شغلي قايمة تشغيل كاظم الساهر حقتي
+train	massive-183	train	183	en-US	play_music	-	turn on my michael jackson playlist
+train	massive-184	train	184	ar-SA	play_music	-	شغل بلقيس من قايمة الأغاني حقتي
+train	massive-184	train	184	en-US	play_music	-	play michael jackson from my playlist
+train	massive-186	train	186	ar-SA	play_music	-	شغل الأغنية الأخيرة من قائمتي المفضلة
+train	massive-186	train	186	en-US	play_music	-	play last song from my favorite playlist
+train	massive-249	train	249	ar-SA	play_music	-	شغلي بعض أغاني ال hiphop
+train	massive-249	train	249	en-US	play_music	-	play me some hihop
+train	massive-252	train	252	ar-SA	play_music	-	موت العود العربي الآن
+train	massive-252	train	252	en-US	play_music	-	death metal now
+train	massive-257	train	257	ar-SA	play_music	-	olly شغلي موسيقى افضل عازف بيانو من مفضلتي
+train	massive-257	train	257	en-US	play_music	-	olly play music from my favorite pianist
+train	massive-361	train	361	ar-SA	play_music	-	شغل أغنية رقم ثمنية من موسيقى google play
+train	massive-361	train	361	en-US	play_music	-	play the track eight from google play music
+train	massive-363	train	363	ar-SA	play_music	-	تشغيل أغنية بشكل عشوائي من قايمة تشغيل حقي
+train	massive-363	train	363	en-US	play_music	-	play a song randomly from my playlist
+train	massive-380	train	380	ar-SA	play_music	-	من فضلك شغل disturbed ل games
+train	massive-380	train	380	en-US	play_music	-	please play games by disturbed
+train	massive-381	train	381	ar-SA	play_music	-	لدي نجمتين محمد عبده
+train	massive-381	train	381	en-US	play_music	-	please open my music application and play games by disturbed
+train	massive-382	train	382	ar-SA	play_music	-	لوسمحت شغلي أغنية يانجمة ليه طالعة لواحدك لعبدالحليم نويرة
+train	massive-382	train	382	en-US	play_music	-	please play the song games by disturbed
+train	massive-396	train	396	ar-SA	play_music	-	شغل انت عشق ل فهد الكبيسي
+train	massive-396	train	396	en-US	play_music	-	play why do you sing by kirk franklin
+train	massive-401	train	401	ar-SA	play_music	-	موسيقى لو سمحت
+train	massive-401	train	401	en-US	play_music	-	music please
+train	massive-436	train	436	ar-SA	play_music	-	شغل فهد بن فصلا كيف حالك
+train	massive-436	train	436	en-US	play_music	-	play bad religion folder
+train	massive-446	train	446	ar-SA	play_music	-	شغل أصالة
+train	massive-446	train	446	en-US	play_music	-	play metallica
+train	massive-447	train	447	ar-SA	play_music	-	عيد الميلاد على الطراز القديم
+train	massive-447	train	447	en-US	play_music	-	play old-fashioned christmas music
+train	massive-461	train	461	ar-SA	play_music	-	أبغى أسمع موسيقى كلاسيكية
+train	massive-461	train	461	en-US	play_music	-	i want to listen classical music
+train	massive-462	train	462	ar-SA	play_music	-	أبغى أسمع موسيقى جاز
+train	massive-462	train	462	en-US	play_music	-	i want to listen jazz
+train	massive-472	train	472	ar-SA	play_music	-	شغل أغاني نبيل شعيل
+train	massive-472	train	472	en-US	play_music	-	play songs by sia
+train	massive-474	train	474	ar-SA	play_music	-	شغل أغاني لراشد
+train	massive-474	train	474	en-US	play_music	-	open songs by prince
+train	massive-518	train	518	ar-SA	play_music	-	افتح اكثر ال اغاني اللي اللي اشغلها دايم
+train	massive-518	train	518	en-US	play_music	-	play my most played songs
+train	massive-545	train	545	ar-SA	play_music	-	شغل قايمة الأغاني
+train	massive-545	train	545	en-US	play_music	-	play the playlist
+train	massive-546	train	546	ar-SA	play_music	-	playlist
+train	massive-546	train	546	en-US	play_music	-	hey olly play the playlist
+train	massive-556	train	556	ar-SA	play_music	-	some background music
+train	massive-556	train	556	en-US	play_music	-	can i get some background music
+train	massive-577	train	577	ar-SA	play_music	-	one through ten list
+train	massive-577	train	577	en-US	play_music	-	play one through ten on list
+train	massive-578	train	578	ar-SA	play_music	-	من فضلك شغل فنان الأول في أهواك
+train	massive-578	train	578	en-US	play_music	-	please play artist first in queue
+train	massive-592	train	592	ar-SA	play_music	-	music my favorites songs
+train	massive-592	train	592	en-US	play_music	-	please turn on the music i want to hear my favorites songs
+train	massive-593	train	593	ar-SA	play_music	-	هل أقدر أسمع افضل خمسين صوت الي يمكن اسمعها عأجهزة الراديو الحين
+train	massive-593	train	593	en-US	play_music	-	can i hear the fifty hits that you can hear on radios now
+train	massive-594	train	594	ar-SA	play_music	-	من فضلك شغل موسيقى كلاسيكية على العشاء الحين
+train	massive-594	train	594	en-US	play_music	-	please turn on classic music for the dinner now
+train	massive-596	train	596	ar-SA	play_music	-	ممكن تشغل أشهر أغنية لداليا مبارك
+train	massive-596	train	596	en-US	play_music	-	can you turn on the hit song of lady gaga
+train	massive-597	train	597	ar-SA	play_music	-	ابي اسمع اغنيتي المفضلة من انغامي
+train	massive-597	train	597	en-US	play_music	-	i want to hear my favorite song from iron maiden
+train	massive-613	train	613	ar-SA	play_music	-	شغلي قايمة التشغيل رقم سبعة
+train	massive-613	train	613	en-US	play_music	-	play playlist number seven
+train	massive-615	train	615	ar-SA	play_music	-	شغل أغاني قائمة الأغاني الخاص بي
+train	massive-615	train	615	en-US	play_music	-	play songs from my playlist
+train	massive-627	train	627	ar-SA	play_music	-	سجل اخر بارت ل أغنية ل كاظم الساهر من آخر ألبوم
+train	massive-627	train	627	en-US	play_music	-	play the last hit song of metallica last album please
+train	massive-639	train	639	ar-SA	play_music	-	تذكر تشغيل أغنية الليلة
+train	massive-639	train	639	en-US	play_music	-	remind me to play this song tonight
+train	massive-640	train	640	ar-SA	play_music	-	شغل لو سمحت أغنية من قائمة المفضلة حقي
+train	massive-640	train	640	en-US	play_music	-	please play me a song from my favorite list
+train	massive-641	train	641	ar-SA	play_music	-	شغل لي أغنية
+train	massive-641	train	641	en-US	play_music	-	play me a song
+train	massive-642	train	642	ar-SA	play_music	-	شغل لي أغنية لوعد
+train	massive-642	train	642	en-US	play_music	-	play me a song of adele
+train	massive-653	train	653	ar-SA	play_music	-	تقدري تلاقي شوية موسيقى رومانسي
+train	massive-653	train	653	en-US	play_music	-	can locate some gospel music
+train	massive-654	train	654	ar-SA	play_music	-	أبغى أسمع شوية موسيقى رومانسية
+train	massive-654	train	654	en-US	play_music	-	i want to listen to some gospel music
+train	massive-683	train	683	ar-SA	play_music	-	last song
+train	massive-683	train	683	en-US	play_music	-	can you play my last song
+train	massive-684	train	684	ar-SA	play_music	-	michael jackson song drop
+train	massive-684	train	684	en-US	play_music	-	play the song by michael jackson
+train	massive-685	train	685	ar-SA	play_music	-	أغنية اخر مساء في السادسة مساء
+train	massive-685	train	685	en-US	play_music	-	play the song from last night at six p. m.
+train	massive-706	train	706	ar-SA	play_music	-	radio head
+train	massive-706	train	706	en-US	play_music	-	i want to hear radio head please
+train	massive-727	train	727	ar-SA	play_music	-	songs of adele
+train	massive-727	train	727	en-US	play_music	-	i want to hear the songs of adele
+train	massive-728	train	728	ar-SA	play_music	-	شغل اغنية عبد المجيد عبدالله بعد هذي الأغنية
+train	massive-728	train	728	en-US	play_music	-	play enrique iglesias song after this one
+train	massive-729	train	729	ar-SA	play_music	-	latest songs by senelena gomez after this one
+train	massive-729	train	729	en-US	play_music	-	play the latest songs by senelena gomez after this one
+train	massive-734	train	734	ar-SA	play_music	-	music i liked
+train	massive-734	train	734	en-US	play_music	-	play music i have liked
+train	massive-742	train	742	ar-SA	play_music	-	شغل كل الأغاني الخليجية الجديدة
+train	massive-742	train	742	en-US	play_music	-	play all the latest pop songs
+train	massive-744	train	744	ar-SA	play_music	-	شغل قائمة تشغيل مفرحه التاية
+train	massive-744	train	744	en-US	play_music	-	play happy playlist next
+train	massive-747	train	747	ar-SA	play_music	-	trance list
+train	massive-747	train	747	en-US	play_music	-	play song from my trance list
+train	massive-780	train	780	ar-SA	play_music	-	girl from impanema by frank sinatra
+train	massive-780	train	780	en-US	play_music	-	listen to girl from impanema by frank sinatra
+train	massive-784	train	784	ar-SA	play_music	-	all songs rock
+train	massive-784	train	784	en-US	play_music	-	stream all songs from rock
+train	massive-785	train	785	ar-SA	play_music	-	أضف يقوقون مجموعة الأغاني الحالية
+train	massive-785	train	785	en-US	play_music	-	add shape of you to the current queue
+train	massive-811	train	811	ar-SA	play_music	-	gaga
+train	massive-811	train	811	en-US	play_music	-	play new gaga playlist
+train	massive-812	train	812	ar-SA	play_music	-	ابدأ قيمة جيدة حق حسين الجسمي
+train	massive-812	train	812	en-US	play_music	-	start new lady gaga playlist
+train	massive-813	train	813	ar-SA	play_music	-	شغل أغنية تناديك راشد الماجد و ماجد المهندس
+train	massive-813	train	813	en-US	play_music	-	play lady gaga starting with poker face
+train	massive-816	train	816	ar-SA	play_music	-	some music
+train	massive-816	train	816	en-US	play_music	-	play some music
+train	massive-818	train	818	ar-SA	play_music	-	twenty one pilots
+train	massive-818	train	818	en-US	play_music	-	go to pandora find twenty one pilots radio play please
+train	massive-819	train	819	ar-SA	play_music	-	جوجل موسيقى شوف لي شوية أغاني حق حسين الجسمي أسمعها
+train	massive-819	train	819	en-US	play_music	-	google music find me some enya to listen to
+train	massive-828	train	828	ar-SA	play_music	-	شغل أجدد قايمة أغاني حق شيرين
+train	massive-828	train	828	en-US	play_music	-	play newest bob dylan playlist
+train	massive-829	train	829	ar-SA	play_music	-	newest bob dylan playlist spotify
+train	massive-829	train	829	en-US	play_music	-	play the newest bob dylan playlist
+train	massive-854	train	854	ar-SA	play_music	-	شغل أغاني طرب
+train	massive-854	train	854	en-US	play_music	-	play r. & b. music
+train	massive-855	train	855	ar-SA	play_music	-	أر بي
+train	massive-855	train	855	en-US	play_music	-	play r. & b.
+train	massive-856	train	856	ar-SA	play_music	-	موسيقى كلاسيكية
+train	massive-856	train	856	en-US	play_music	-	r. & b. music
+train	massive-875	train	875	ar-SA	play_music	-	خلي جمال يلعب الكريستال لويس للصليب عشاني
+train	massive-875	train	875	en-US	play_music	-	play crystal lewis's beauty of the cross for me
+train	massive-876	train	876	ar-SA	play_music	-	شغلي محمد عبده
+train	massive-876	train	876	en-US	play_music	-	play kari jobe for me
+train	massive-889	train	889	ar-SA	play_music	-	شغل اغاني لي
+train	massive-889	train	889	en-US	play_music	-	play some tunes for me
+train	massive-4539	train	4539	ar-SA	email_sendemail	-	ما كنت ابيك ترسل الرسالة هذيك استنى الين اقول ارسل
+train	massive-4539	train	4539	en-US	email_sendemail	-	i did not want you to send that text yet wait until i say send
+train	massive-7177	train	7177	ar-SA	email_sendemail	-	لو سمحت ارسل إيميل الى الأستاذ خالد إني بقابله في واحد فبراير ألفين وسبعطعش في الساعة خمسة العصر في هذا المكتب
+train	massive-7177	train	7177	en-US	email_sendemail	-	please send a mail to mr. richard stating that i going to met him on first of february twenty seventeen at five p. m. at this office
+train	massive-7178	train	7178	ar-SA	email_sendemail	-	بالله ارسل بريد صوتي لسيد عبدالله تقوله عن اجتماعه في واحد فبراير الفين واثنين وعشرين على الساعة خمسة بعد الظهر
+train	massive-7178	train	7178	en-US	email_sendemail	-	please send a voicemail to mr. richard office about meting him on first of february twenty seventeen at five p. m.
+train	massive-7793	train	7793	ar-SA	email_sendemail	-	ارسل email إلى مها عن عيد الفطر اليوم
+train	massive-7793	train	7793	en-US	email_sendemail	-	send an email to sarah about brunch today
+train	massive-15748	train	15748	ar-SA	email_sendemail	-	أرسل email لهند وقول لها ليلة أمس كانت مجنونة
+train	massive-15748	train	15748	en-US	email_sendemail	-	send email to martha saying last evening was wild
+train	massive-15749	train	15749	ar-SA	email_sendemail	-	أرسل لعبدالله انه أنا في الطريق
+train	massive-15749	train	15749	en-US	email_sendemail	-	reply to patrick that i am on my way
+train	massive-15750	train	15750	ar-SA	email_sendemail	-	أرسل رسالة إلى باسم أكتب فيها أن أنا بكون متأخر
+train	massive-15750	train	15750	en-US	email_sendemail	-	drop a message to jan write i will be late
+train	massive-15755	train	15755	ar-SA	email_sendemail	-	أرسل email لأخويا
+train	massive-15755	train	15755	en-US	email_sendemail	-	send email to my brother
+train	massive-15758	train	15758	ar-SA	email_sendemail	-	مرحبا email مها عن اجتماعنا
+train	massive-15758	train	15758	en-US	email_sendemail	-	hey email jan about our meeting
+train	massive-15759	train	15759	ar-SA	email_sendemail	-	أرسل email لمحمد مع تنبيه
+train	massive-15759	train	15759	en-US	email_sendemail	-	please send email to pawel with reminder
+train	massive-15760	train	15760	ar-SA	email_sendemail	-	أرسل email لمحمد بخصوص الأخبار الأخيرة
+train	massive-15760	train	15760	en-US	email_sendemail	-	email to pawel regarding latest news
+train	massive-15764	train	15764	ar-SA	email_sendemail	-	سلام تكفى رد على آخر email من عمر
+train	massive-15764	train	15764	en-US	email_sendemail	-	hey please reply to last pawel's email
+train	massive-15766	train	15766	ar-SA	email_sendemail	-	ممكن ترسل لماجد هاذي الإجابة لو سمحت
+train	massive-15766	train	15766	en-US	email_sendemail	-	could you please send back to pawel this answer
+train	massive-15768	train	15768	ar-SA	email_sendemail	-	اكتب البريد الإلكتروني ل محمد وارسله إلى الموقع الإلكتروني لمحمد
+train	massive-15768	train	15768	en-US	email_sendemail	-	create an email to toby at tobytoday dot com
+train	massive-15779	train	15779	ar-SA	email_sendemail	-	أرسل email لسلمان وقول المشروع انتهى أرسلي الفاتورة لو سمحت
+train	massive-15779	train	15779	en-US	email_sendemail	-	email to matthew with content project finished send me invoice please
+train	massive-15780	train	15780	ar-SA	email_sendemail	-	أرسل email إلى مها قول لها شخبارك تقدرين ترسلين لي تحديثات على آخر مشروع إسمه tomasz
+train	massive-15780	train	15780	en-US	email_sendemail	-	email to caroline how are you can you send me updates on last project cheers tomasz
+train	massive-15781	train	15781	ar-SA	email_sendemail	-	مرحبًا أرسل بريدًا إلكترونيًا من google إلى مها كيف يمكنك إرسال تحديثات إليّ بشأن أصحاب ولا أعز
+train	massive-15781	train	15781	en-US	email_sendemail	-	hey google email to caroline how are you can you send me updates on last project cheers tomasz
+train	massive-15803	train	15803	ar-SA	email_sendemail	-	أرسل email لأختي عبير وش رايك نرتب حفلة عيد ميلاد أمي في الحديقة
+train	massive-15803	train	15803	en-US	email_sendemail	-	email my sister about mom's birthday jane we should think about arranging the party at the park
+train	massive-15804	train	15804	ar-SA	email_sendemail	-	أرسل email إلى محمد عن ألعاب الكرة اللينة اللي نحتاجها عشان ناخذ شوي من المشروبات قبل الروحه
+train	massive-15804	train	15804	en-US	email_sendemail	-	email james about the softball game james we need to get some refreshments before heading over
+train	massive-15826	train	15826	ar-SA	email_sendemail	-	رد على الكل انه أنا جاي في الطريق
+train	massive-15826	train	15826	en-US	email_sendemail	-	respond to all that i am on my way
+train	massive-15827	train	15827	ar-SA	email_sendemail	-	بالله عليك تروح عل جهات الاتصال حقي وضف لي ايميل جديد
+train	massive-15827	train	15827	en-US	email_sendemail	-	go to contacts and add a new email to the list
+train	massive-15830	train	15830	ar-SA	email_sendemail	-	أرسل هذا
+train	massive-15830	train	15830	en-US	email_sendemail	-	send that
+train	massive-15831	train	15831	ar-SA	email_sendemail	-	سو email جديد ل
+train	massive-15831	train	15831	en-US	email_sendemail	-	start a new email to
+train	massive-15832	train	15832	ar-SA	email_sendemail	-	أرسل email لجهة الإتصال يقول
+train	massive-15832	train	15832	en-US	email_sendemail	-	send to the contact an email as follows
+train	massive-15833	train	15833	ar-SA	email_sendemail	-	روح للإيميل وأرسل رسالة الى
+train	massive-15833	train	15833	en-US	email_sendemail	-	go to email and send message to
+train	massive-15835	train	15835	ar-SA	email_sendemail	-	تكفى رد على آخر email وصلني
+train	massive-15835	train	15835	en-US	email_sendemail	-	please reply to my most recent email
+train	massive-15840	train	15840	ar-SA	email_sendemail	-	أرسل email ليوسف
+train	massive-15840	train	15840	en-US	email_sendemail	-	send an email to ray
+train	massive-15842	train	15842	ar-SA	email_sendemail	-	شفلي ريان مستلم الايميل
+train	massive-15842	train	15842	en-US	email_sendemail	-	write an email recipient ray
+train	massive-15846	train	15846	ar-SA	email_sendemail	-	كيف وصلنا هذا
+train	massive-15846	train	15846	en-US	email_sendemail	-	how it's come to us
+train	massive-15848	train	15848	ar-SA	email_sendemail	-	ابعث ايميل إلى الوالدة حقتي
+train	massive-15848	train	15848	en-US	email_sendemail	-	email my mother
+train	massive-15850	train	15850	ar-SA	email_sendemail	-	أرسل email إلى sjobs at apple dot com
+train	massive-15850	train	15850	en-US	email_sendemail	-	send an email to sjobs at apple dot com
+train	massive-15854	train	15854	ar-SA	email_sendemail	-	أرسل عنوان الإيميل لإيميلي الجديد يا olly
+train	massive-15854	train	15854	en-US	email_sendemail	-	forward email address to my new email olly
+train	massive-15855	train	15855	ar-SA	email_sendemail	-	ارجع ارسل عنوان الإيميل لإيميلي الجديد
+train	massive-15855	train	15855	en-US	email_sendemail	-	forward email address to my new email
+train	massive-15856	train	15856	ar-SA	email_sendemail	-	أرسل email لعنوان الإيميل ذا
+train	massive-15856	train	15856	en-US	email_sendemail	-	send email to current email address
+train	massive-15859	train	15859	ar-SA	email_sendemail	-	ارسل هذا المحتوى بالايميل الى norah at gmail dot com
+train	massive-15859	train	15859	en-US	email_sendemail	-	forward shown content to blahblah at blah dot com with email
+train	massive-15860	train	15860	ar-SA	email_sendemail	-	ارسل ايميل لماما اسألها عن الجو
+train	massive-15860	train	15860	en-US	email_sendemail	-	send email to mom asking about the weather
+train	massive-15875	train	15875	ar-SA	email_sendemail	-	أرسل email لمحمد انه أنا راجع البيت
+train	massive-15875	train	15875	en-US	email_sendemail	-	send an email to john that i am on my way to home
+train	massive-15876	train	15876	ar-SA	email_sendemail	-	أرسل نسخ من الفواتير لماجد بالإيميل
+train	massive-15876	train	15876	en-US	email_sendemail	-	send a copy of the bills to mecky by email
+train	massive-15883	train	15883	ar-SA	email_sendemail	-	أبغى أرد على تسنيم
+train	massive-15883	train	15883	en-US	email_sendemail	-	i want to reply to allen
+train	massive-15887	train	15887	ar-SA	email_sendemail	-	تكفى أرسل email لزوجي
+train	massive-15887	train	15887	en-US	email_sendemail	-	could you please send an email to my husband
+train	massive-15888	train	15888	ar-SA	email_sendemail	-	ممكن تسوي قائمة بالمطاعم المحلية وترسلها في email لزوجي
+train	massive-15888	train	15888	en-US	email_sendemail	-	could you please gather a list of local restaurants and email them to my husband
+train	massive-15889	train	15889	ar-SA	email_sendemail	-	ابعث ايميل حق صديقتي خلود خبرها ما رح اروح المسجد بكرة
+train	massive-15889	train	15889	en-US	email_sendemail	-	could you please send and email to my friend susie letting her know i won't be at church tomorrow
+train	massive-15892	train	15892	ar-SA	email_sendemail	-	أرسل email لسلمى
+train	massive-15892	train	15892	en-US	email_sendemail	-	send an email to adele
+train	massive-15896	train	15896	ar-SA	email_sendemail	-	اربط muhammad at gmail dot com بمحمد في جهات الإتصال
+train	massive-15896	train	15896	en-US	email_sendemail	-	link john at gmail dot com to john in contacts
+train	massive-15898	train	15898	ar-SA	email_sendemail	-	أرسل كل عام وأنت بخير في email لسلطان
+train	massive-15898	train	15898	en-US	email_sendemail	-	email happy new year to john
+train	massive-15902	train	15902	ar-SA	email_sendemail	-	لو سمحت رد على بريد أخوياي بخصوص استفسارهم
+train	massive-15902	train	15902	en-US	email_sendemail	-	please reply to my colleagues mail about his query
+train	massive-15907	train	15907	ar-SA	email_sendemail	-	رد تمام شكرا على آخر رسالة من خالد
+train	massive-15907	train	15907	en-US	email_sendemail	-	send will do thanks to john as a reply to his last message
+train	massive-15908	train	15908	ar-SA	email_sendemail	-	ارسل email رد شكرا مره الى fahad at gmail dot com
+train	massive-15908	train	15908	en-US	email_sendemail	-	send a reply email thank you very much to john at gmail dot com
+train	massive-15912	train	15912	ar-SA	email_sendemail	-	email محمد
+train	massive-15912	train	15912	en-US	email_sendemail	-	email gary
+train	massive-15925	train	15925	ar-SA	email_sendemail	-	أرسل email لأهلي
+train	massive-15925	train	15925	en-US	email_sendemail	-	email family
+train	massive-15926	train	15926	ar-SA	email_sendemail	-	أرسل email لخلود وقول لها اشتغل جوالي
+train	massive-15926	train	15926	en-US	email_sendemail	-	send an email to rae telling her my phone is back in service
+train	massive-15927	train	15927	ar-SA	email_sendemail	-	أرسل email لهنادي وخلها تعرف اني بقابلها يوم السبت الساعة وحده الظهر
+train	massive-15927	train	15927	en-US	email_sendemail	-	send an email to julie that i can meet up with her on saturday at one p. m.
+train	massive-15928	train	15928	ar-SA	email_sendemail	-	أرسل email لمحمد وقول آسف ما كنت أدري انه تعبان مره
+train	massive-15928	train	15928	en-US	email_sendemail	-	send an email to bill that i'm sorry i didn't realize he was so sick
+train	massive-15940	train	15940	ar-SA	email_sendemail	-	رد على اخر ايميل
+train	massive-15940	train	15940	en-US	email_sendemail	-	reply to the latest email
+train	massive-15941	train	15941	ar-SA	email_sendemail	-	رد على هذا الايميل
+train	massive-15941	train	15941	en-US	email_sendemail	-	please reply to the email
+train	massive-15944	train	15944	ar-SA	email_sendemail	-	أرسل email للمسؤول
+train	massive-15944	train	15944	en-US	email_sendemail	-	mail administrator
+train	massive-15949	train	15949	ar-SA	email_sendemail	-	رد على email ماجد
+train	massive-15949	train	15949	en-US	email_sendemail	-	reply to the email from john
+train	massive-15951	train	15951	ar-SA	email_sendemail	-	اكتب مسودة عشان نرد على email أحمد
+train	massive-15951	train	15951	en-US	email_sendemail	-	draft response to john's email
+train	massive-15952	train	15952	ar-SA	email_sendemail	-	أرسل email لمحمد واسأله متى بيطلع من الدوام
+train	massive-15952	train	15952	en-US	email_sendemail	-	send an email to james asking when he is getting off of work
+train	massive-15953	train	15953	ar-SA	email_sendemail	-	olly أرسل email لنايف واسأله متى بيطلع من الدوام
+train	massive-15953	train	15953	en-US	email_sendemail	-	olly send an email to james asking when he is getting off of work
+train	massive-15954	train	15954	ar-SA	email_sendemail	-	olly أرسل الجدول الجديد حق اجتماع بكره في email لروان
+train	massive-15954	train	15954	en-US	email_sendemail	-	olly email jennifer the new schedule of the meeting for tomorrow
+train	massive-15956	train	15956	ar-SA	email_sendemail	-	olly أرسل email لمها وخلها تعرف اننا في الطريق
+train	massive-15956	train	15956	en-US	email_sendemail	-	olly email alice to let her know we are on the way
+train	massive-15959	train	15959	ar-SA	email_sendemail	-	اكتب email لبتول
+train	massive-15959	train	15959	en-US	email_sendemail	-	compose an email to parisa
+train	massive-15960	train	15960	ar-SA	email_sendemail	-	أرسل لعبد العزيز email
+train	massive-15960	train	15960	en-US	email_sendemail	-	send danielle an email
+train	massive-15961	train	15961	ar-SA	email_sendemail	-	أبغى أرسل email لندى
+train	massive-15961	train	15961	en-US	email_sendemail	-	i need to send an email to laura
+train	massive-15962	train	15962	ar-SA	email_sendemail	-	افتح outlook ابي أرسل email
+train	massive-15962	train	15962	en-US	email_sendemail	-	pull up outlook i need to send a email
+train	massive-15980	train	15980	ar-SA	email_sendemail	-	ارسل ردك الى محمد
+train	massive-15980	train	15980	en-US	email_sendemail	-	send answer to george
+train	massive-15981	train	15981	ar-SA	email_sendemail	-	رد على email رتيل
+train	massive-15981	train	15981	en-US	email_sendemail	-	answer email from sally
+train	massive-15991	train	15991	ar-SA	email_sendemail	-	ايميل من إسراء العلي مرفق العمل p. d. f. مع اطيب تمنياتي
+train	massive-15991	train	15991	en-US	email_sendemail	-	email ashwin patel my best wishes and an attachment of work p. d. f.
+train	massive-15992	train	15992	ar-SA	email_sendemail	-	أرسل email لخالد العتيبي بالتوفيق ورابط ملف workpdf
+train	massive-15992	train	15992	en-US	email_sendemail	-	email ashwin patel my best wishes and an attachment of workpdf
+train	massive-15996	train	15996	ar-SA	email_sendemail	-	أرسل email إلى الموظفين عن توزيع مجموعات اجتماع بكرا
+train	massive-15996	train	15996	en-US	email_sendemail	-	email staff group distribution about tomorrow's meeting
+train	massive-16004	train	16004	ar-SA	email_sendemail	-	سلام أبي أرسل email لصديقتي
+train	massive-16004	train	16004	en-US	email_sendemail	-	hey i want to send an email to my friend
+train	massive-16012	train	16012	ar-SA	email_sendemail	-	olly أرسل email لعلي
+train	massive-16012	train	16012	en-US	email_sendemail	-	olly send an email to jesse
+train	massive-16014	train	16014	ar-SA	email_sendemail	-	ممكن تبدأ email عشاني
+train	massive-16014	train	16014	en-US	email_sendemail	-	can you create an email for me
+train	massive-16015	train	16015	ar-SA	email_sendemail	-	تكفى ابدأ email ليوسف
+train	massive-16015	train	16015	en-US	email_sendemail	-	please start an email to jesse
+train	massive-16031	train	16031	ar-SA	email_sendemail	-	اعمل لي ايميل جديد ل زميلي بدل ايميل هادا
+train	massive-16031	train	16031	en-US	email_sendemail	-	olly open new email to this coworker at this email
+train	massive-16033	train	16033	ar-SA	email_sendemail	-	ارسل ايميل لمحمد اسألة عن السداد المستحق
+train	massive-16033	train	16033	en-US	email_sendemail	-	send a mail to alex asking about the due payment
+train	massive-16034	train	16034	ar-SA	email_sendemail	-	سجل ايميل جديد للإيميل فاطمة الشعلان
+train	massive-16034	train	16034	en-US	email_sendemail	-	compose new email to david davis email address
+train	massive-16043	train	16043	ar-SA	email_sendemail	-	أرسل محمد بريدًا إلكترونيًا للتقرير المالي ألفان وسبعة عشر
+train	massive-16043	train	16043	en-US	email_sendemail	-	send john a mail for financial report two thousand and seventeen
+train	massive-16044	train	16044	ar-SA	email_sendemail	-	أرسل إيميل ل مها بخصوص جدول تمرينات الجسم
+train	massive-16044	train	16044	en-US	email_sendemail	-	send mail to sanantha about body exercise schedule
+train	massive-162	train	162	ar-SA	iot_coffee	-	سويلي قهوة
+train	massive-162	train	162	en-US	iot_coffee	-	make me a coffee
+train	massive-163	train	163	ar-SA	iot_coffee	-	olly سويلي قهوة
+train	massive-163	train	163	en-US	iot_coffee	-	olly make me a coffee
+train	massive-164	train	164	ar-SA	iot_coffee	-	أحتاج قهوة
+train	massive-164	train	164	en-US	iot_coffee	-	i need a coffee
+train	massive-165	train	165	ar-SA	iot_coffee	-	ودي في شوية قهوة الحين
+train	massive-165	train	165	en-US	iot_coffee	-	i fancy some coffee now
+train	massive-339	train	339	ar-SA	iot_coffee	-	سلام أبي قهوة الحين
+train	massive-339	train	339	en-US	iot_coffee	-	yo i need a coffee now
+train	massive-340	train	340	ar-SA	iot_coffee	-	لقد ساعدت فقيرًا محتاجًا اليوم
+train	massive-340	train	340	en-US	iot_coffee	-	i helped a poor needy today olly
+train	massive-341	train	341	ar-SA	iot_coffee	-	ابدأ آلة صنع القهوة
+train	massive-341	train	341	en-US	iot_coffee	-	start the coffee machine
+train	massive-342	train	342	ar-SA	iot_coffee	-	احصل على فنجان قهوة جاهز الآن
+train	massive-342	train	342	en-US	iot_coffee	-	get a cup of coffee ready now
+train	massive-449	train	449	ar-SA	iot_coffee	-	سوي قهوة
+train	massive-449	train	449	en-US	iot_coffee	-	make coffee
+train	massive-450	train	450	ar-SA	iot_coffee	-	olly جهز القهوة
+train	massive-450	train	450	en-US	iot_coffee	-	make coffee olly
+train	massive-808	train	808	ar-SA	iot_coffee	-	سوي قهوة الساعة ثمنية الصبح
+train	massive-808	train	808	en-US	iot_coffee	-	make coffee at eight am
+train	massive-809	train	809	ar-SA	iot_coffee	-	اشرب القهوة في الظهيرة
+train	massive-809	train	809	en-US	iot_coffee	-	brew coffee at noon
+train	massive-1166	train	1166	ar-SA	iot_coffee	-	olly أبغى espresso
+train	massive-1166	train	1166	en-US	iot_coffee	-	olly i'd like an espresso
+train	massive-1167	train	1167	ar-SA	iot_coffee	-	ودي في espresso
+train	massive-1167	train	1167	en-US	iot_coffee	-	i'd like an espresso
+train	massive-1168	train	1168	ar-SA	iot_coffee	-	فيني احصل على مقهى أمريكانو من فضلك
+train	massive-1168	train	1168	en-US	iot_coffee	-	can i please have a cafe americano
+train	massive-1169	train	1169	ar-SA	iot_coffee	-	القهوة
+train	massive-1169	train	1169	en-US	iot_coffee	-	i need coffee
+train	massive-1170	train	1170	ar-SA	iot_coffee	-	olly أبغا قهوة
+train	massive-1170	train	1170	en-US	iot_coffee	-	olly i need coffee
+train	massive-1275	train	1275	ar-SA	iot_coffee	-	سوري لي coffee خرافي
+train	massive-1275	train	1275	en-US	iot_coffee	-	please make me nice coffee
+train	massive-1410	train	1410	ar-SA	iot_coffee	-	some coffee
+train	massive-1410	train	1410	en-US	iot_coffee	-	make me some coffee
+train	massive-1411	train	1411	ar-SA	iot_coffee	-	olly سويلي شوية قهوة
+train	massive-1411	train	1411	en-US	iot_coffee	-	olly make me some coffee
+train	massive-1412	train	1412	ar-SA	iot_coffee	-	ممكن تسوي لي شوية قهوة
+train	massive-1412	train	1412	en-US	iot_coffee	-	can you make me some coffee
+train	massive-1414	train	1414	ar-SA	iot_coffee	-	بعض القهوة المصنوعة
+train	massive-1414	train	1414	en-US	iot_coffee	-	i need some coffee made olly
+train	massive-1519	train	1519	ar-SA	iot_coffee	-	شغل إبريق القهوة
+train	massive-1519	train	1519	en-US	iot_coffee	-	turn on the coffee pot
+train	massive-1570	train	1570	ar-SA	iot_coffee	-	حضر لي كابتشينو
+train	massive-1570	train	1570	en-US	iot_coffee	-	make me a capuccino
+train	massive-1572	train	1572	ar-SA	iot_coffee	-	قهوة بالحليب
+train	massive-1572	train	1572	en-US	iot_coffee	-	get me some latte please
+train	massive-1609	train	1609	ar-SA	iot_coffee	-	ابدأ التخمير من فضلك
+train	massive-1609	train	1609	en-US	iot_coffee	-	start brewing please
+train	massive-1610	train	1610	ar-SA	iot_coffee	-	ابدأ قهوة
+train	massive-1610	train	1610	en-US	iot_coffee	-	start coffee
+train	massive-1618	train	1618	ar-SA	iot_coffee	-	اريد قهوة الان
+train	massive-1618	train	1618	en-US	iot_coffee	-	i want a coffee now
+train	massive-1619	train	1619	ar-SA	iot_coffee	-	سوي لي قهوة
+train	massive-1619	train	1619	en-US	iot_coffee	-	get me a coffee
+train	massive-1620	train	1620	ar-SA	iot_coffee	-	olly جيب لي كوفي
+train	massive-1620	train	1620	en-US	iot_coffee	-	olly get me a coffee
+train	massive-1813	train	1813	ar-SA	iot_coffee	-	تكفى أبغى قهوة وياليت تكون حاره
+train	massive-1813	train	1813	en-US	iot_coffee	-	i need coffee please preferably hot
+train	massive-1814	train	1814	ar-SA	iot_coffee	-	تكفى ساعدني جيب لي قهوة من دون سكر
+train	massive-1814	train	1814	en-US	iot_coffee	-	please help serve me coffee with a no sugar
+train	massive-1815	train	1815	ar-SA	iot_coffee	-	olly اطلب قهوة وحده من مقهى starbucks
+train	massive-1815	train	1815	en-US	iot_coffee	-	olly order one coffee to starbucks coffee shop
+train	massive-1816	train	1816	ar-SA	iot_coffee	-	اطلب واحد قهوة لمقهى starbucks
+train	massive-1816	train	1816	en-US	iot_coffee	-	order one coffee to starbucks coffee shop
+train	massive-1817	train	1817	ar-SA	iot_coffee	-	اطلبلي كوب قهوة من أقرب مقهى
+train	massive-1817	train	1817	en-US	iot_coffee	-	order one coffee from nearest coffee shop
+train	massive-1916	train	1916	ar-SA	iot_coffee	-	القهوة جاهزة ولا لا
+train	massive-1916	train	1916	en-US	iot_coffee	-	is the coffee ready
+train	massive-2024	train	2024	ar-SA	iot_coffee	-	ابدأ في صنع بعض القهوة
+train	massive-2024	train	2024	en-US	iot_coffee	-	start making some coffee
+train	massive-2025	train	2025	ar-SA	iot_coffee	-	تكفى سويلي قهوة على حسب مفضلاتي اللي قبل
+train	massive-2025	train	2025	en-US	iot_coffee	-	please make coffee according to my earlier preference
+train	massive-2284	train	2284	ar-SA	iot_coffee	-	olly سوي لي قهوة الساعة ثمنية الصبح
+train	massive-2284	train	2284	en-US	iot_coffee	-	olly make me coffee at eight am
+train	massive-2285	train	2285	ar-SA	iot_coffee	-	six am
+train	massive-2285	train	2285	en-US	iot_coffee	-	make coffee at six am
+train	massive-2287	train	2287	ar-SA	iot_coffee	-	olly جهز القهوة ستة الصبح
+train	massive-2287	train	2287	en-US	iot_coffee	-	olly start coffee at six am
+train	massive-2290	train	2290	ar-SA	iot_coffee	-	ضبط الة القهوة يسوي لي coffee مفلتر ويكون جاهز خلال عشر دقايق
+train	massive-2290	train	2290	en-US	iot_coffee	-	instruct the coffee maker to make a filter coffee ready in ten minutes
+train	massive-2291	train	2291	ar-SA	iot_coffee	-	filter ten minutes coffee maker with a
+train	massive-2291	train	2291	en-US	iot_coffee	-	i will need my filter coffee in ten minutes please ask the coffee maker accordingly
+train	massive-2305	train	2305	ar-SA	iot_coffee	-	هل يمكنك تجهيز بعض القهوة لي
+train	massive-2305	train	2305	en-US	iot_coffee	-	could you fix me some coffee
+train	massive-2307	train	2307	ar-SA	iot_coffee	-	كاس قهوة هذا وقته الحين
+train	massive-2307	train	2307	en-US	iot_coffee	-	i cup of joe would be nice right now
+train	massive-2443	train	2443	ar-SA	iot_coffee	-	اصنع قهوتي أولي
+train	massive-2443	train	2443	en-US	iot_coffee	-	olly make my coffee
+train	massive-2444	train	2444	ar-SA	iot_coffee	-	اشرب قهوتي
+train	massive-2444	train	2444	en-US	iot_coffee	-	brew my coffee
+train	massive-2445	train	2445	ar-SA	iot_coffee	-	olly جهزقهوتي
+train	massive-2445	train	2445	en-US	iot_coffee	-	olly brew my coffee
+train	massive-2446	train	2446	ar-SA	iot_coffee	-	olly جهزي قهوتي
+train	massive-2446	train	2446	en-US	iot_coffee	-	olly prepare my coffee
+train	massive-2513	train	2513	ar-SA	iot_coffee	-	كيف اضبط الوقت في آلة القهوة
+train	massive-2513	train	2513	en-US	iot_coffee	-	how do i set the timer on my coffee machine
+train	massive-2694	train	2694	ar-SA	iot_coffee	-	حضر كم فنجان قهوة حقنا
+train	massive-2694	train	2694	en-US	iot_coffee	-	prepare some cups of coffee for us
+train	massive-2695	train	2695	ar-SA	iot_coffee	-	اطبخي القهوة
+train	massive-2695	train	2695	en-US	iot_coffee	-	cook some coffees
+train	massive-2731	train	2731	ar-SA	iot_coffee	-	أبغى قهوة من الآلة
+train	massive-2731	train	2731	en-US	iot_coffee	-	i want coffee from the machine
+train	massive-2732	train	2732	ar-SA	iot_coffee	-	من فضلك ابدأ لي ببعض قهوة
+train	massive-2732	train	2732	en-US	iot_coffee	-	please start me some coffee
+train	massive-2750	train	2750	ar-SA	iot_coffee	-	أبغى كوب قهوة
+train	massive-2750	train	2750	en-US	iot_coffee	-	i need one cup of coffee
+train	massive-2751	train	2751	ar-SA	iot_coffee	-	ممكن تشغل مكينة القهوة عشاني
+train	massive-2751	train	2751	en-US	iot_coffee	-	can you start the coffee machine for me
+train	massive-2752	train	2752	ar-SA	iot_coffee	-	سويلي كوب قهوة لو سمحت
+train	massive-2752	train	2752	en-US	iot_coffee	-	make me a cup of coffee please
+train	massive-2805	train	2805	ar-SA	iot_coffee	-	سويلي كوب قهوة
+train	massive-2805	train	2805	en-US	iot_coffee	-	brew me a cup of coffee
+train	massive-2806	train	2806	ar-SA	iot_coffee	-	أبغى منجان قهوة لو سمحت
+train	massive-2806	train	2806	en-US	iot_coffee	-	i'd like a cup of coffee please
+train	massive-2807	train	2807	ar-SA	iot_coffee	-	من فضلك أحضر لي كأس من القهوة
+train	massive-2807	train	2807	en-US	iot_coffee	-	can you get me a cup of coffee
+train	massive-2813	train	2813	ar-SA	iot_coffee	-	دعني أحضر فنجان قهوة من فضلك
+train	massive-2813	train	2813	en-US	iot_coffee	-	let me get a cup of coffee please
+train	massive-2830	train	2830	ar-SA	iot_coffee	-	olly تكفى سويلي قهوة
+train	massive-2830	train	2830	en-US	iot_coffee	-	olly please make ke a coffee
+train	massive-2831	train	2831	ar-SA	iot_coffee	-	اعملي قهوة من فضلك
+train	massive-2831	train	2831	en-US	iot_coffee	-	please make coffee
+train	massive-2832	train	2832	ar-SA	iot_coffee	-	olly شغل ألة القهوة
+train	massive-2832	train	2832	en-US	iot_coffee	-	olly start the coffee maker
+train	massive-2867	train	2867	ar-SA	iot_coffee	-	أريد من آلة صنع القهوة أن تعمل لي قهوه
+train	massive-2867	train	2867	en-US	iot_coffee	-	i want the coffee machine to make me coffee
+train	massive-2972	train	2972	ar-SA	iot_coffee	-	أولي هل يمكنك البدء في الشراب
+train	massive-2972	train	2972	en-US	iot_coffee	-	olly can you begin the brew
+train	massive-2973	train	2973	ar-SA	iot_coffee	-	ابدأ تجهيز القهوة
+train	massive-2973	train	2973	en-US	iot_coffee	-	commence coffee making
+train	massive-3136	train	3136	ar-SA	iot_coffee	-	أريد فنجان قهوة مع ملعقة واحدة من الكريم و ثلاث ملاعق سكر
+train	massive-3136	train	3136	en-US	iot_coffee	-	i would like a cup of coffee with one cream and three sugars
+train	massive-3137	train	3137	ar-SA	iot_coffee	-	coffee with one cream and three sugars
+train	massive-3137	train	3137	en-US	iot_coffee	-	olly i would like a cup of coffee with one cream and three sugars
+train	massive-3197	train	3197	ar-SA	iot_coffee	-	مهلا هل يمكنك أن تجعل لي قهوة بالكريما من فضلك
+train	massive-3197	train	3197	en-US	iot_coffee	-	hey can you please make me a creamy coffee
+train	massive-3198	train	3198	ar-SA	iot_coffee	-	أبغى اصحصح سويلي أقوى قهوة تقدر تسويها
+train	massive-3198	train	3198	en-US	iot_coffee	-	i need to wake up make me the strongest coffee you can make
+train	massive-3230	train	3230	ar-SA	iot_coffee	-	تكفى سوي لي قهوة
+train	massive-3230	train	3230	en-US	iot_coffee	-	make me a coffee please
+train	massive-3231	train	3231	ar-SA	iot_coffee	-	olly سويلي قهوة لو سمحت
+train	massive-3231	train	3231	en-US	iot_coffee	-	make me a coffee please olly
+train	massive-3232	train	3232	ar-SA	iot_coffee	-	جهز القهوة
+train	massive-3232	train	3232	en-US	iot_coffee	-	start making a coffee
+train	massive-3233	train	3233	ar-SA	iot_coffee	-	سويلي قهوة الله يسعدك
+train	massive-3233	train	3233	en-US	iot_coffee	-	do a coffee for me please
+train	massive-3322	train	3322	ar-SA	iot_coffee	-	olly تكفى سويلي كوب قهوة
+train	massive-3322	train	3322	en-US	iot_coffee	-	olly please make me a cup of coffee
+train	massive-3417	train	3417	ar-SA	iot_coffee	-	my coffee machine four p. m. time turn on
+train	massive-3417	train	3417	en-US	iot_coffee	-	please set my coffee machine to start at four p. m. time
+train	massive-3419	train	3419	ar-SA	iot_coffee	-	ممكن تضبط آلة القهوة عشان تسوي قهوة الساعة ثلاثة بعد الظهر كل يوم في الأسبوع
+train	massive-3419	train	3419	en-US	iot_coffee	-	can you set the coffee machine to make coffee at three p. m. time every week day
+train	massive-3424	train	3424	ar-SA	iot_coffee	-	ممكن تضبط آلة القهوة حقي عشان تسويلي قهوة الساعة أربعة العصر
+train	massive-3424	train	3424	en-US	iot_coffee	-	can you set my coffee machine to make me coffee at four p. m. time
+train	massive-3425	train	3425	ar-SA	iot_coffee	-	فيك تحضر لي القهوة الآن
+train	massive-3425	train	3425	en-US	iot_coffee	-	can you make me coffee now
+calibration	massive-691	dev	691	ar-SA	audio_volume_up	device	ما أقدر اسمع بس ارفع الصوت
+calibration	massive-691	dev	691	en-US	audio_volume_up	device	i can't hear just increase the volume
+calibration	massive-1365	dev	1365	ar-SA	audio_volume_up	device	ارفع الصوت شوي بس
+calibration	massive-1365	dev	1365	en-US	audio_volume_up	device	just increase the volume a little
+development	massive-1680	dev	1680	ar-SA	audio_volume_up	device	ارفع صوت الموسيقى لتسعين
+development	massive-1680	dev	1680	en-US	audio_volume_up	device	increase the volume of the music to ninety
+development	massive-3466	dev	3466	ar-SA	audio_volume_up	device	ارفع الصوت من فضلك
+development	massive-3466	dev	3466	en-US	audio_volume_up	device	increase volume please
+calibration	massive-4398	dev	4398	ar-SA	audio_volume_up	device	من فضلك حط الصوت على أعلى ضبط
+calibration	massive-4398	dev	4398	en-US	audio_volume_up	device	please turn the volume to the loudest setting
+calibration	massive-4579	dev	4579	ar-SA	audio_volume_up	device	ارفع صوت السماعة لو سمحت
+calibration	massive-4579	dev	4579	en-US	audio_volume_up	device	please turn up the speaker volume
+development	massive-5105	dev	5105	ar-SA	audio_volume_up	device	olly ارفع الصوت
+development	massive-5105	dev	5105	en-US	audio_volume_up	device	olly turn the volume up
+calibration	massive-5755	dev	5755	ar-SA	audio_volume_up	device	شغل الصوت
+calibration	massive-5755	dev	5755	en-US	audio_volume_up	device	audio on
+development	massive-115	dev	115	ar-SA	audio_volume_down	device	اضبط الصوت على منخفض
+development	massive-115	dev	115	en-US	audio_volume_down	device	set the volume to low
+calibration	massive-331	dev	331	ar-SA	audio_volume_down	device	أنعم
+calibration	massive-331	dev	331	en-US	audio_volume_down	device	softer
+calibration	massive-737	dev	737	ar-SA	audio_volume_down	device	تقدرين تقصري الصوت
+calibration	massive-737	dev	737	en-US	audio_volume_down	device	could you please lower the tone
+calibration	massive-806	dev	806	ar-SA	audio_volume_down	device	خفض كل الأصوات على السماعات لو سمحت
+calibration	massive-806	dev	806	en-US	audio_volume_down	device	lower all volume on speakers please
+calibration	massive-3139	dev	3139	ar-SA	audio_volume_down	device	وطي صوتك لو سمحت
+calibration	massive-3139	dev	3139	en-US	audio_volume_down	device	lower your volume please
+development	massive-3811	dev	3811	ar-SA	audio_volume_down	device	خفض صوت السماعة
+development	massive-3811	dev	3811	en-US	audio_volume_down	device	slow the volume speaker
+development	massive-4979	dev	4979	ar-SA	audio_volume_down	device	تكلم بهدوء معايا لو سمحت
+development	massive-4979	dev	4979	en-US	audio_volume_down	device	please speak quieter to me
+development	massive-516	dev	516	ar-SA	audio_volume_mute	device	اكتم طول الساعة التالية
+development	massive-516	dev	516	en-US	audio_volume_mute	device	mute for the next hour please
+calibration	massive-803	dev	803	ar-SA	audio_volume_mute	device	سلام olly اكتم مكبرات الصوت
+calibration	massive-803	dev	803	en-US	audio_volume_mute	device	hey olly mute the speakers
+calibration	massive-2003	dev	2003	ar-SA	audio_volume_mute	device	من فضلك اغلق
+calibration	massive-2003	dev	2003	en-US	audio_volume_mute	device	please shut off
+calibration	massive-2069	dev	2069	ar-SA	audio_volume_mute	device	المس زر كتم الصوت
+calibration	massive-2069	dev	2069	en-US	audio_volume_mute	device	touch the mute button
+development	massive-2323	dev	2323	ar-SA	audio_volume_mute	device	اكتم صوت السماعة
+development	massive-2323	dev	2323	en-US	audio_volume_mute	device	mute the speaker please
+calibration	massive-2622	dev	2622	ar-SA	audio_volume_mute	device	اكتم كل الردود الحين
+calibration	massive-2622	dev	2622	en-US	audio_volume_mute	device	mute all responses now
+development	massive-2623	dev	2623	ar-SA	audio_volume_mute	device	لا تتكلم لو سمحت
+development	massive-2623	dev	2623	en-US	audio_volume_mute	device	no speaking please
+calibration	massive-2797	dev	2797	ar-SA	audio_volume_mute	device	اكتم الصوت حق السماعات
+calibration	massive-2797	dev	2797	en-US	audio_volume_mute	device	mute sound from speakers
+calibration	massive-3454	dev	3454	ar-SA	audio_volume_mute	device	روح نام
+calibration	massive-3454	dev	3454	en-US	audio_volume_mute	device	go to sleep
+calibration	massive-4243	dev	4243	ar-SA	audio_volume_mute	device	تكفى لا ترد
+calibration	massive-4243	dev	4243	en-US	audio_volume_mute	device	please do not respond
+calibration	massive-4422	dev	4422	ar-SA	audio_volume_mute	device	وقف الملف الصوتي
+calibration	massive-4422	dev	4422	en-US	audio_volume_mute	device	stop the audio
+calibration	massive-4497	dev	4497	ar-SA	audio_volume_mute	device	اكتم الإعدادات
+calibration	massive-4497	dev	4497	en-US	audio_volume_mute	device	mute the settings
+calibration	massive-5526	dev	5526	ar-SA	audio_volume_mute	device	سوي كتم حتى أقلك شي ثاني
+calibration	massive-5526	dev	5526	en-US	audio_volume_mute	device	set mute until said otherwise
+calibration	massive-5957	dev	5957	ar-SA	audio_volume_mute	device	ممكن تخليك صامت شوية
+calibration	massive-5957	dev	5957	en-US	audio_volume_mute	device	can you please be muted for a while
+calibration	massive-638	dev	638	ar-SA	general_joke	chat	أغعثرلي على نكتة حيوانات
+calibration	massive-638	dev	638	en-US	general_joke	chat	can you find an animal joke for me
+development	massive-1257	dev	1257	ar-SA	general_joke	chat	أوجد لي أفضل نكتة حزر فزر على الانترنت
+development	massive-1257	dev	1257	en-US	general_joke	chat	find me the best knock knock joke on the internet
+calibration	massive-1478	dev	1478	ar-SA	general_joke	chat	ابحث عن نكتة جديدة
+calibration	massive-1478	dev	1478	en-US	general_joke	chat	search for new jokes
+development	massive-1948	dev	1948	ar-SA	general_joke	chat	نكتة تضحك
+development	massive-1948	dev	1948	en-US	general_joke	chat	funny joke
+calibration	massive-2196	dev	2196	ar-SA	general_joke	chat	نكتة
+calibration	massive-2196	dev	2196	en-US	general_joke	chat	hey share me some joke to make me happy
+calibration	massive-4156	dev	4156	ar-SA	general_joke	chat	سلام olly قول لي نكتة
+calibration	massive-4156	dev	4156	en-US	general_joke	chat	hey olly tell me a joke
+development	massive-4745	dev	4745	ar-SA	general_joke	chat	أبغى نكتة مميزة
+development	massive-4745	dev	4745	en-US	general_joke	chat	i want a nerd joke
+calibration	massive-4775	dev	4775	ar-SA	general_joke	chat	تكفى قول لي نكتة حلوة
+calibration	massive-4775	dev	4775	en-US	general_joke	chat	can you tell me a nice joke
+calibration	massive-4908	dev	4908	ar-SA	general_joke	chat	افتح لي شوية نكت تضحك
+calibration	massive-4908	dev	4908	en-US	general_joke	chat	open some cools jokes
+development	massive-5183	dev	5183	ar-SA	general_joke	chat	خبر نكتة
+development	massive-5183	dev	5183	en-US	general_joke	chat	tell a joke
+development	massive-6136	dev	6136	ar-SA	general_joke	chat	كون مرح عشاني
+development	massive-6136	dev	6136	en-US	general_joke	chat	be funny for me
+development	massive-6490	dev	6490	ar-SA	general_joke	chat	نكت سخرية
+development	massive-6490	dev	6490	en-US	general_joke	chat	sarcastic jokes
+development	massive-6607	dev	6607	ar-SA	general_joke	chat	نكت
+development	massive-6607	dev	6607	en-US	general_joke	chat	jokes
+calibration	massive-12144	dev	12144	ar-SA	transport_taxi	-	ابحر الشمالية نص ساعة اوبر
+calibration	massive-12144	dev	12144	en-US	transport_taxi	-	i am going to chinatown in half an hour book an uber for me
+calibration	massive-12205	dev	12205	ar-SA	transport_taxi	-	أوبر المنزل خمسطعش دقيقه
+calibration	massive-12205	dev	12205	en-US	transport_taxi	-	could you please have uber be at my house in fifteen minutes
+calibration	massive-12206	dev	12206	ar-SA	transport_taxi	-	تاكسي المطار
+calibration	massive-12206	dev	12206	en-US	transport_taxi	-	i need a taxi to take me to the airport please
+development	massive-12232	dev	12232	ar-SA	transport_taxi	-	taxi البيت
+development	massive-12232	dev	12232	en-US	transport_taxi	-	look for a taxi to go home
+calibration	massive-12236	dev	12236	ar-SA	transport_taxi	-	أوبر الى بيتي
+calibration	massive-12236	dev	12236	en-US	transport_taxi	-	book uber from my home
+development	massive-12352	dev	12352	ar-SA	transport_taxi	-	طالى عمرك اريد تكسي إلى المطار باشر الصبح
+development	massive-12352	dev	12352	en-US	transport_taxi	-	book a taxi to the airport for tomorrow morning
+development	massive-12363	dev	12363	ar-SA	transport_taxi	-	ليا أقرب taxi
+development	massive-12363	dev	12363	en-US	transport_taxi	-	book my nearest available taxi
+calibration	massive-12451	dev	12451	ar-SA	transport_taxi	-	هل تهتم بتوصيله
+calibration	massive-12451	dev	12451	en-US	transport_taxi	-	catch a ride
+development	massive-12464	dev	12464	ar-SA	transport_taxi	-	taxi بكرة ثمنية الصباح
+development	massive-12464	dev	12464	en-US	transport_taxi	-	need a taxi tomorrow at eight in the morning
+development	massive-12478	dev	12478	ar-SA	transport_taxi	-	أوبر الليلة عشرة مساء
+development	massive-12478	dev	12478	en-US	transport_taxi	-	find an uber driver available for tonight after ten p. m.
+calibration	massive-12527	dev	12527	ar-SA	transport_taxi	-	خدمة تاكسي أجرة
+calibration	massive-12527	dev	12527	en-US	transport_taxi	-	get me the number for local taxi service
+calibration	massive-12554	dev	12554	ar-SA	transport_taxi	-	اتصل على تاكسي
+calibration	massive-12554	dev	12554	en-US	transport_taxi	-	i need to get to location call a cab
+calibration	massive-12656	dev	12656	ar-SA	transport_taxi	-	تاكسي ثمنية بكرة الصبح الى الشغل
+calibration	massive-12656	dev	12656	en-US	transport_taxi	-	i need a taxi at eight tomorrow morning to take me to work
+calibration	massive-12712	dev	12712	ar-SA	transport_taxi	-	مول العرب
+calibration	massive-12712	dev	12712	en-US	transport_taxi	-	find me a ride to the mall of america please
+development	massive-12715	dev	12715	ar-SA	transport_taxi	-	اريد تكسي تاخدني الحين
+development	massive-12715	dev	12715	en-US	transport_taxi	-	call a taxi to pick me up right now
+calibration	massive-12781	dev	12781	ar-SA	transport_taxi	-	تاكسي من اوبر
+calibration	massive-12781	dev	12781	en-US	transport_taxi	-	request a taxi from udrive service
+calibration	massive-12877	dev	12877	ar-SA	transport_taxi	-	تاكسي ساعة
+calibration	massive-12877	dev	12877	en-US	transport_taxi	-	book a taxi for pickup at my current location in one hour's time
+calibration	massive-12888	dev	12888	ar-SA	transport_taxi	-	تاكسي مطار الجمعة خمسة ونص الفجر
+calibration	massive-12888	dev	12888	en-US	transport_taxi	-	get me a taxi to take me to the airport on friday at five thirty am
+development	massive-12919	dev	12919	ar-SA	transport_taxi	-	أوبر تطبيق سيارة
+development	massive-12919	dev	12919	en-US	transport_taxi	-	open the uber app and get me a car please
+calibration	massive-1210	dev	1210	ar-SA	takeaway_order	-	بطلب وجبة من مطعم لذيذ
+calibration	massive-1210	dev	1210	en-US	takeaway_order	-	order a meal from a nice restaurant
+calibration	massive-1416	dev	1416	ar-SA	takeaway_order	-	اكل عالماشي
+calibration	massive-1416	dev	1416	en-US	takeaway_order	-	order some takeaway food
+calibration	massive-2478	dev	2478	ar-SA	takeaway_order	-	اطلب سفري
+calibration	massive-2478	dev	2478	en-US	takeaway_order	-	order take-out
+development	massive-2687	dev	2687	ar-SA	takeaway_order	-	اكدي الطلب
+development	massive-2687	dev	2687	en-US	takeaway_order	-	confirm the order
+development	massive-2901	dev	2901	ar-SA	takeaway_order	-	اطلب سمبوسة سفري
+development	massive-2901	dev	2901	en-US	takeaway_order	-	order general t'so eggroll to go
+development	massive-3046	dev	3046	ar-SA	takeaway_order	-	أنا حقاً أتوق إلى طعام لبناني في الوقت الحالي واسمحوا لي أن أطلبه
+development	massive-3046	dev	3046	en-US	takeaway_order	-	i am really craving for chinese food right now please let me order take out
+development	massive-3082	dev	3082	ar-SA	takeaway_order	-	ابي اثنين pizza بالخضار
+development	massive-3082	dev	3082	en-US	takeaway_order	-	i need two pizzas stat
+calibration	massive-3134	dev	3134	ar-SA	takeaway_order	-	اطلب توصيل قريب
+calibration	massive-3134	dev	3134	en-US	takeaway_order	-	what places can i order take-out from near by
+development	massive-3528	dev	3528	ar-SA	takeaway_order	-	جيبلي اكل سفري
+development	massive-3528	dev	3528	en-US	takeaway_order	-	get me takeaway food
+calibration	massive-3704	dev	3704	ar-SA	takeaway_order	-	البيتزا وقطع الاجنحة الحارة مطعم الجوهرة
+calibration	massive-3704	dev	3704	en-US	takeaway_order	-	order two large pizzas and pieces of hot wings from dominoes
+calibration	massive-3843	dev	3843	ar-SA	takeaway_order	-	اكل صيني
+calibration	massive-3843	dev	3843	en-US	takeaway_order	-	order me chinese food
+development	massive-4161	dev	4161	ar-SA	takeaway_order	-	ودي أطلب أكل حجازي الليلة مين إلي بيوصلي
+development	massive-4161	dev	4161	en-US	takeaway_order	-	i want to order some chinese food tonight what's delivering to me
+calibration	massive-4338	dev	4338	ar-SA	takeaway_order	-	ورني مطعم التوصيل القريب مني
+calibration	massive-4338	dev	4338	en-US	takeaway_order	-	show me delivery near me
+development	massive-4339	dev	4339	ar-SA	takeaway_order	-	افتح الانترنت
+development	massive-4339	dev	4339	en-US	takeaway_order	-	open the internet
+calibration	massive-4545	dev	4545	ar-SA	takeaway_order	-	اطلب برجر بلحم العجل و بصل مقلي و جبن شيدر ابيض
+calibration	massive-4545	dev	4545	en-US	takeaway_order	-	order a double bacon cheeseburger with bacon an white american cheese
+development	massive-4867	dev	4867	ar-SA	takeaway_order	-	طلباتي بيض بلحمة
+development	massive-4867	dev	4867	en-US	takeaway_order	-	call pf chang's to order me egg foo young
+calibration	massive-5596	dev	5596	ar-SA	takeaway_order	-	وين أقرب مطعم عدنان
+calibration	massive-5596	dev	5596	en-US	takeaway_order	-	closest chipotle
+calibration	massive-5968	dev	5968	ar-SA	takeaway_order	-	ابي اطلب اكل
+calibration	massive-5968	dev	5968	en-US	takeaway_order	-	i want to order food
+development	massive-6111	dev	6111	ar-SA	takeaway_order	-	جوانح مع بطاطا مقلية المطعم الصيني
+development	massive-6111	dev	6111	en-US	takeaway_order	-	hey olly order two wings with french fries from the chinese food store
+calibration	massive-6115	dev	6115	ar-SA	takeaway_order	-	يا olly أطلب بيتزا مع زيادة جبنه
+calibration	massive-6115	dev	6115	en-US	takeaway_order	-	hey olly order a pizza pie with extra cheese
+development	massive-67	dev	67	ar-SA	play_music	-	أريد أسمع سيناء الخاص بالملكة
+development	massive-67	dev	67	en-US	play_music	-	i'd like to hear queen's barcelona
+development	massive-68	dev	68	ar-SA	play_music	-	شغل لي شو المانع حق نجوى كرم
+development	massive-68	dev	68	en-US	play_music	-	play me barcelona by queen
+calibration	massive-107	dev	107	ar-SA	play_music	-	شغلل كان يا مكان
+calibration	massive-107	dev	107	en-US	play_music	-	play hurts like heaven
+development	massive-112	dev	112	ar-SA	play_music	-	شغل لعبد المجيد
+development	massive-112	dev	112	en-US	play_music	-	play some david bowie
+development	massive-147	dev	147	ar-SA	play_music	-	أريد أسمع jazz
+development	massive-147	dev	147	en-US	play_music	-	i like to listen to jazz
+calibration	massive-148	dev	148	ar-SA	play_music	-	olly أحب أسمع موسيقى jazz
+calibration	massive-148	dev	148	en-US	play_music	-	olly i like to listen to jazz
+calibration	massive-251	dev	251	ar-SA	play_music	-	فرقة شعبية
+calibration	massive-251	dev	251	en-US	play_music	-	olly death metal now
+calibration	massive-298	dev	298	ar-SA	play_music	-	شغل رابح
+calibration	massive-298	dev	298	en-US	play_music	-	play chopin
+calibration	massive-392	dev	392	ar-SA	play_music	-	شغل أغنية من مفضلاتي
+calibration	massive-392	dev	392	en-US	play_music	-	play a song from my favorites
+calibration	massive-406	dev	406	ar-SA	play_music	-	أريد اسمع موسيقى بوب
+calibration	massive-406	dev	406	en-US	play_music	-	i would like to listen to pop music please
+development	massive-517	dev	517	ar-SA	play_music	-	شغلي الأغنية المفضلة حقتي
+development	massive-517	dev	517	en-US	play_music	-	play my favorite song
+calibration	massive-541	dev	541	ar-SA	play_music	-	قم بتشغيل أغنية الاماكن
+calibration	massive-541	dev	541	en-US	play_music	-	play the song immediately
+development	massive-595	dev	595	ar-SA	play_music	-	من فضلك أريد أسمع عمري نهر من محمد عبده
+development	massive-595	dev	595	en-US	play_music	-	please i want to hear we will rock you from queen
+development	massive-616	dev	616	ar-SA	play_music	-	my playlist songs on
+development	massive-616	dev	616	en-US	play_music	-	olly play songs from my playlist
+calibration	massive-626	dev	626	ar-SA	play_music	-	من فضلك أسمعني عظيم إحساسي
+calibration	massive-626	dev	626	en-US	play_music	-	please let me hear six hundred and sixty six the number of the beast
+calibration	massive-707	dev	707	ar-SA	play_music	-	chopin now
+calibration	massive-707	dev	707	en-US	play_music	-	i want to hear chopin now
+development	massive-741	dev	741	ar-SA	play_music	-	اغاني راب و روح نوع
+development	massive-741	dev	741	en-US	play_music	-	play songs from the r. & b. and soul genre
+development	massive-778	dev	778	ar-SA	play_music	-	شغل boogie in your butt ل eddie murphy
+development	massive-778	dev	778	en-US	play_music	-	play boogie in your butt by eddie murphy
+development	massive-817	dev	817	ar-SA	play_music	-	بعض موسيقى
+development	massive-817	dev	817	en-US	play_music	-	ok google play some music
+development	massive-921	dev	921	ar-SA	play_music	-	شغل موسيقى للفنان المفضل حقي
+development	massive-921	dev	921	en-US	play_music	-	play music from my favorite artist
+calibration	massive-1122	dev	1122	ar-SA	play_music	-	العب سيدة كيني روجرز الآن
+calibration	massive-1122	dev	1122	en-US	play_music	-	play lady by kenny rogers now
+calibration	massive-1192	dev	1192	ar-SA	play_music	-	ابي اسمع ما أرضى عليه حق جابر الكاسر الحين
+calibration	massive-1192	dev	1192	en-US	play_music	-	i need to hear notorious thugs by bone thugs now
+calibration	massive-1222	dev	1222	ar-SA	play_music	-	leviathan
+calibration	massive-1222	dev	1222	en-US	play_music	-	please play leviathan
+calibration	massive-1430	dev	1430	ar-SA	play_music	-	ابحث عن جميع أغاني راشد الماجد واصطفها في قائمة الانتظار وقم بتشغيلها كلها بدون خلط
+calibration	massive-1430	dev	1430	en-US	play_music	-	find and queue all songs of kate perry and play all without shuffling
+development	massive-1446	dev	1446	ar-SA	play_music	-	قم بعمل قائمة تشغيل لجميع أغاني إيمينيم واللعب مع المنطق
+development	massive-1446	dev	1446	en-US	play_music	-	make a playlist of all songs of eminem and play with shuffle
+calibration	massive-1468	dev	1468	ar-SA	play_music	-	الموسيقى شغالة
+calibration	massive-1468	dev	1468	en-US	play_music	-	music on
+development	massive-1525	dev	1525	ar-SA	play_music	-	اريد اسمع عزف عود
+development	massive-1525	dev	1525	en-US	play_music	-	i want to listen to soft rock
+calibration	massive-1544	dev	1544	ar-SA	play_music	-	أبغى اسمع موسيقى رومانسية
+calibration	massive-1544	dev	1544	en-US	play_music	-	i want to listen to up beat music
+development	massive-1545	dev	1545	ar-SA	play_music	-	شغلي أفضل عشر اغاني من علوم وفنون الموسيقى
+development	massive-1545	dev	1545	en-US	play_music	-	play the billboard top ten
+development	massive-1558	dev	1558	ar-SA	play_music	-	شغل شوية pop
+development	massive-1558	dev	1558	en-US	play_music	-	play me something pop
+calibration	massive-1566	dev	1566	ar-SA	play_music	-	شغل موسيقى من قائمة التشغيل
+calibration	massive-1566	dev	1566	en-US	play_music	-	play music from the playlist
+calibration	massive-1834	dev	1834	ar-SA	play_music	-	شغلي افضل اغاني حقي سمعتها
+calibration	massive-1834	dev	1834	en-US	play_music	-	play my most listened songs
+development	massive-8101	dev	8101	ar-SA	email_sendemail	-	olly أرسل ايميلات لمواعيدي وخلهم يحددون مواعيد ثانية
+development	massive-8101	dev	8101	en-US	email_sendemail	-	olly email my appointments to reschedule
+development	massive-13024	dev	13024	ar-SA	email_sendemail	-	أرسل email لصديقتي
+development	massive-13024	dev	13024	en-US	email_sendemail	-	email friend
+calibration	massive-15778	dev	15778	ar-SA	email_sendemail	-	أرسل email لتهاني وقول انا بتأخر لا تنتظريني عالعشا
+calibration	massive-15778	dev	15778	en-US	email_sendemail	-	send email to emilia saying i will be late please don't wait with dinner
+calibration	massive-15795	dev	15795	ar-SA	email_sendemail	-	لو سمحت تقدر ترسل email إلى مها
+calibration	massive-15795	dev	15795	en-US	email_sendemail	-	can you send an email to chelsea please
+calibration	massive-15805	dev	15805	ar-SA	email_sendemail	-	أرسل email لخالد عن اجتماع بكره خالد وش رايك نخلي الإجتماع في الظهرية
+calibration	massive-15805	dev	15805	en-US	email_sendemail	-	email david about the meeting tomorrow david can we have the meeting in the afternoon
+development	massive-15836	dev	15836	ar-SA	email_sendemail	-	شفلي اخر ايميل حقي و رد عليه
+development	massive-15836	dev	15836	en-US	email_sendemail	-	open my most recent email and reply
+calibration	massive-15858	dev	15858	ar-SA	email_sendemail	-	أرسل هذا الكلام في email
+calibration	massive-15858	dev	15858	en-US	email_sendemail	-	send this content via email
+development	massive-15861	dev	15861	ar-SA	email_sendemail	-	إرسال بريد إلكتروني إلى ماما موضوع الطقس الجسم ما هي حالة الطقس هناك هذا الأسبوع
+development	massive-15861	dev	15861	en-US	email_sendemail	-	send an email to mom subject weather body what is the weather like there this week
+development	massive-15897	dev	15897	ar-SA	email_sendemail	-	أرسل كل عام وانت بخير على abdullah at gmail dot com
+development	massive-15897	dev	15897	en-US	email_sendemail	-	send happy new year to john at gmail dot com
+calibration	massive-15903	dev	15903	ar-SA	email_sendemail	-	أرسل رد على سؤال صديقي
+calibration	massive-15903	dev	15903	en-US	email_sendemail	-	send a reply to my friend for his question
+development	massive-15939	dev	15939	ar-SA	email_sendemail	-	أرسل email الثاني إلى جهة الإتصال هذي لوسمحت
+development	massive-15939	dev	15939	en-US	email_sendemail	-	email the following message to this contact please
+calibration	massive-15993	dev	15993	ar-SA	email_sendemail	-	أرسل عمار أجدد مواضيعه التقنية المتوفرة
+calibration	massive-15993	dev	15993	en-US	email_sendemail	-	send ashmit his latest tech topics available
+calibration	massive-16025	dev	16025	ar-SA	email_sendemail	-	ممكن ترسل email لصاحبي نايف يقول أنا مشغول بكره
+calibration	massive-16025	dev	16025	en-US	email_sendemail	-	can you send email to my friend rohit which says i am busy tomorrow
+calibration	massive-16027	dev	16027	ar-SA	email_sendemail	-	سلام ابدأ email لزميلي في الشغل
+calibration	massive-16027	dev	16027	en-US	email_sendemail	-	hey start an email to coworker
+development	massive-16030	dev	16030	ar-SA	email_sendemail	-	افتح email جديد لزميلي في العمل على هذا الايميل
+development	massive-16030	dev	16030	en-US	email_sendemail	-	open new email to this coworker at this email
+development	massive-16066	dev	16066	ar-SA	email_sendemail	-	أرسله تحية بعد
+development	massive-16066	dev	16066	en-US	email_sendemail	-	send a hi to
+development	massive-16081	dev	16081	ar-SA	email_sendemail	-	أرسل email لمديرتي
+development	massive-16081	dev	16081	en-US	email_sendemail	-	send an email to my manager
+calibration	massive-16085	dev	16085	ar-SA	email_sendemail	-	email مهند الخالدي
+calibration	massive-16085	dev	16085	en-US	email_sendemail	-	email george brown
+calibration	massive-16104	dev	16104	ar-SA	email_sendemail	-	ارسل email لصديقتي تقول فيها كل عام وانتي بخير
+calibration	massive-16104	dev	16104	en-US	email_sendemail	-	send an email to my friend say birthday wishes
+calibration	massive-16132	dev	16132	ar-SA	email_sendemail	-	أبي أظيف هذا email الجديد إلى جهات الإتصال حقي
+calibration	massive-16132	dev	16132	en-US	email_sendemail	-	i would like this new email should be added to my contacts
+development	massive-16135	dev	16135	ar-SA	email_sendemail	-	أرسل email إلى مها وقول لها برسل الملفات بكرة
+development	massive-16135	dev	16135	en-US	email_sendemail	-	send email to enalen i'm going to send the files the next day
+development	massive-16160	dev	16160	ar-SA	email_sendemail	-	افتح الرد
+development	massive-16160	dev	16160	en-US	email_sendemail	-	open reply
+development	massive-16173	dev	16173	ar-SA	email_sendemail	-	أرسل ايميل إلى ليلى تخبرها أن جيما تحبها وتبغى تقضي عطلة نهاية أسبوع زينة
+development	massive-16173	dev	16173	en-US	email_sendemail	-	send email to gbaby tell her gma loves her and hopes she has a great weekend
+development	massive-16176	dev	16176	ar-SA	email_sendemail	-	ابدأ رد
+development	massive-16176	dev	16176	en-US	email_sendemail	-	compose reply
+development	massive-16206	dev	16206	ar-SA	email_sendemail	-	إرسل هذي الرسالة إلى قروب العائلة يبدأ ب
+development	massive-16206	dev	16206	en-US	email_sendemail	-	send this message to the family group starts with a
+development	massive-16232	dev	16232	ar-SA	email_sendemail	-	olly يرجى الرد على الايميل حق جورج واخبريه أن فكرته رائعة
+development	massive-16232	dev	16232	en-US	email_sendemail	-	olly please respond to greg's email stating that his idea is fantastic
+calibration	massive-16241	dev	16241	ar-SA	email_sendemail	-	أرسل email إلى المدير نجتمع لتقييم الأداء
+calibration	massive-16241	dev	16241	en-US	email_sendemail	-	send email to boss to meet for performance review
+calibration	massive-16279	dev	16279	ar-SA	email_sendemail	-	أرسل هاذي الرسالة سلام وش رايك تتعشا عندنا الليلة لأخويا في email
+calibration	massive-16279	dev	16279	en-US	email_sendemail	-	email the message hi come down for dinner tonight to bro
+calibration	massive-16286	dev	16286	ar-SA	email_sendemail	-	أرسل email للشاب اللي بيبيع القارب وقول له فلوسي جاهزة
+calibration	massive-16286	dev	16286	en-US	email_sendemail	-	send an email to guy selling the boat telling him that i have the money
+development	massive-16305	dev	16305	ar-SA	email_sendemail	-	ارسل لي ايميل
+development	massive-16305	dev	16305	en-US	email_sendemail	-	send an email for me
+development	massive-16319	dev	16319	ar-SA	email_sendemail	-	رد على الكل
+development	massive-16319	dev	16319	en-US	email_sendemail	-	reply to all
+calibration	massive-16322	dev	16322	ar-SA	email_sendemail	-	خبر أحمد الطويل
+calibration	massive-16322	dev	16322	en-US	email_sendemail	-	tell bob smith
+calibration	massive-807	dev	807	ar-SA	iot_coffee	-	أعملي قهوة هالحين
+calibration	massive-807	dev	807	en-US	iot_coffee	-	make coffee now
+calibration	massive-1569	dev	1569	ar-SA	iot_coffee	-	من فضلك حضر لي قهوة
+calibration	massive-1569	dev	1569	en-US	iot_coffee	-	can i have an espresso please
+development	massive-2599	dev	2599	ar-SA	iot_coffee	-	أبي قهوة الحين
+development	massive-2599	dev	2599	en-US	iot_coffee	-	i would like coffee now
+calibration	massive-2693	dev	2693	ar-SA	iot_coffee	-	اصنع لي فنجانا من القهوة
+calibration	massive-2693	dev	2693	en-US	iot_coffee	-	make a cup of coffee for me
+calibration	massive-2749	dev	2749	ar-SA	iot_coffee	-	شغل لي ماكينة القهوة
+calibration	massive-2749	dev	2749	en-US	iot_coffee	-	start up the coffee machine
+calibration	massive-2814	dev	2814	ar-SA	iot_coffee	-	قم بتخمير بعض القهوة
+calibration	massive-2814	dev	2814	en-US	iot_coffee	-	brew some coffee
+development	massive-2971	dev	2971	ar-SA	iot_coffee	-	تكفى جهز القهوة
+development	massive-2971	dev	2971	en-US	iot_coffee	-	please start the coffee
+development	massive-3563	dev	3563	ar-SA	iot_coffee	-	تكفى سويلي قهوة
+development	massive-3563	dev	3563	en-US	iot_coffee	-	please make me a coffee
+development	massive-5150	dev	5150	ar-SA	iot_coffee	-	هلا تعد آلة صنع القهوة
+development	massive-5150	dev	5150	en-US	iot_coffee	-	would you set the coffee maker running
+calibration	massive-5989	dev	5989	ar-SA	iot_coffee	-	أبغى قهوة الحين
+calibration	massive-5989	dev	5989	en-US	iot_coffee	-	i would like some coffee now
+development	massive-5990	dev	5990	ar-SA	iot_coffee	-	جهز قهوة الصبح حقي
+development	massive-5990	dev	5990	en-US	iot_coffee	-	prepare my morning coffee
+calibration	massive-6001	dev	6001	ar-SA	iot_coffee	-	وقت القهوة
+calibration	massive-6001	dev	6001	en-US	iot_coffee	-	it's coffee time
+test	massive-261	test	261	ar-SA	audio_volume_up	device	ما أسمعك مره
+test	massive-261	test	261	en-US	audio_volume_up	device	i can barely hear you
+test	massive-1300	test	1300	ar-SA	audio_volume_up	device	بسرعة
+test	massive-1300	test	1300	en-US	audio_volume_up	device	fast
+test	massive-1374	test	1374	ar-SA	audio_volume_up	device	تقدر ترفع صوتك
+test	massive-1374	test	1374	en-US	audio_volume_up	device	can you turn up your volume
+test	massive-1630	test	1630	ar-SA	audio_volume_up	device	ارفع صوت هاذي الموسيقى
+test	massive-1630	test	1630	en-US	audio_volume_up	device	raise the volume of the current music
+test	massive-1640	test	1640	ar-SA	audio_volume_up	device	ارفع هذا أولي
+test	massive-1640	test	1640	en-US	audio_volume_up	device	turn it up olly
+test	massive-3349	test	3349	ar-SA	audio_volume_up	device	وين السيارة
+test	massive-3349	test	3349	en-US	audio_volume_up	device	where is the car
+test	massive-3590	test	3590	ar-SA	audio_volume_up	device	تكلم بصوت عالي
+test	massive-3590	test	3590	en-US	audio_volume_up	device	speak loudly
+test	massive-4090	test	4090	ar-SA	audio_volume_up	device	ارفع الصوت على السماعات حقي
+test	massive-4090	test	4090	en-US	audio_volume_up	device	turn up the volume on my speakers
+test	massive-4702	test	4702	ar-SA	audio_volume_up	device	من فضلك جوجل شغل السماعات حقتي
+test	massive-4702	test	4702	en-US	audio_volume_up	device	please turn my speakers on google
+test	massive-1715	test	1715	ar-SA	audio_volume_down	device	وطي الصوت بنسبة خمسين في المية
+test	massive-1715	test	1715	en-US	audio_volume_down	device	lower volume by fifty percent
+test	massive-3474	test	3474	ar-SA	audio_volume_down	device	تكفى وط صوت الموسيقى
+test	massive-3474	test	3474	en-US	audio_volume_down	device	please lower music volume
+test	massive-3486	test	3486	ar-SA	audio_volume_down	device	تكلم بصوت أنعم الله يسعدك
+test	massive-3486	test	3486	en-US	audio_volume_down	device	speak softer please
+test	massive-5823	test	5823	ar-SA	audio_volume_down	device	وطيه عشرين في الميه
+test	massive-5823	test	5823	en-US	audio_volume_down	device	decrease twenty percent
+test	massive-315	test	315	ar-SA	audio_volume_mute	device	من فضلك كون هادي كمان ساعة ثانية
+test	massive-315	test	315	en-US	audio_volume_mute	device	please be quiet for another hour
+test	massive-317	test	317	ar-SA	audio_volume_mute	device	لا تتكلم اليوم
+test	massive-317	test	317	en-US	audio_volume_mute	device	do not speak today
+test	massive-751	test	751	ar-SA	audio_volume_mute	device	لا تتكلم الين أنا اقولك
+test	massive-751	test	751	en-US	audio_volume_mute	device	don't talk until i ask you to
+test	massive-804	test	804	ar-SA	audio_volume_mute	device	هاي سيري اكتمي السماعات
+test	massive-804	test	804	en-US	audio_volume_mute	device	hey siri mute the speakers
+test	massive-1509	test	1509	ar-SA	audio_volume_mute	device	لا تسوي أي ضجة حتى منبه الصباح
+test	massive-1509	test	1509	en-US	audio_volume_mute	device	do not make any noise until morning alarm
+test	massive-1510	test	1510	ar-SA	audio_volume_mute	device	شغل الوضع الهادي الين أوصل البيت من الشغل
+test	massive-1510	test	1510	en-US	audio_volume_mute	device	quiet mode on until i am home from work
+test	massive-2205	test	2205	ar-SA	audio_volume_mute	device	صامت لمدة ساعتين
+test	massive-2205	test	2205	en-US	audio_volume_mute	device	silence for two hours
+test	massive-2206	test	2206	ar-SA	audio_volume_mute	device	من الحين اضبط على كتم
+test	massive-2206	test	2206	en-US	audio_volume_mute	device	from now on mute
+test	massive-2207	test	2207	ar-SA	audio_volume_mute	device	ضبط صامت
+test	massive-2207	test	2207	en-US	audio_volume_mute	device	silently adjust
+test	massive-2796	test	2796	ar-SA	audio_volume_mute	device	صوت السماعات صامت
+test	massive-2796	test	2796	en-US	audio_volume_mute	device	silence volume on speakers
+test	massive-3175	test	3175	ar-SA	audio_volume_mute	device	طفي السماعات
+test	massive-3175	test	3175	en-US	audio_volume_mute	device	turn off the speakers
+test	massive-3460	test	3460	ar-SA	audio_volume_mute	device	وقت الهدوء
+test	massive-3460	test	3460	en-US	audio_volume_mute	device	quiet time
+test	massive-3582	test	3582	ar-SA	audio_volume_mute	device	اكتم من فضلك
+test	massive-3582	test	3582	en-US	audio_volume_mute	device	mute please
+test	massive-3812	test	3812	ar-SA	audio_volume_mute	device	اكتم لمدة خمسطعش دقيقة
+test	massive-3812	test	3812	en-US	audio_volume_mute	device	mute for fifteen minutes
+test	massive-3837	test	3837	ar-SA	audio_volume_mute	device	قفل الموسيقى
+test	massive-3837	test	3837	en-US	audio_volume_mute	device	mute the music
+test	massive-4241	test	4241	ar-SA	audio_volume_mute	device	تكفى اسكت
+test	massive-4241	test	4241	en-US	audio_volume_mute	device	please stop talking
+test	massive-4653	test	4653	ar-SA	audio_volume_mute	device	حط السماعات على صامت
+test	massive-4653	test	4653	en-US	audio_volume_mute	device	set the speakers to mute
+test	massive-4659	test	4659	ar-SA	audio_volume_mute	device	لا تتكلم
+test	massive-4659	test	4659	en-US	audio_volume_mute	device	do not talk
+test	massive-4833	test	4833	ar-SA	audio_volume_mute	device	امسح البيانات
+test	massive-4833	test	4833	en-US	audio_volume_mute	device	clear data
+test	massive-4994	test	4994	ar-SA	audio_volume_mute	device	من فضلك اكتم السماعة حقي
+test	massive-4994	test	4994	en-US	audio_volume_mute	device	please mute my speaker
+test	massive-5221	test	5221	ar-SA	audio_volume_mute	device	وقف تشغيل الاهتزاز من السماعة
+test	massive-5221	test	5221	en-US	audio_volume_mute	device	turn the vibrate off from speaker
+test	massive-5525	test	5525	ar-SA	audio_volume_mute	device	اكتم الصوت لمدة ساعة
+test	massive-5525	test	5525	en-US	audio_volume_mute	device	mute for one hour
+test	massive-5550	test	5550	ar-SA	audio_volume_mute	device	ما ابي ولا صوت
+test	massive-5550	test	5550	en-US	audio_volume_mute	device	don't make any sounds
+test	massive-5958	test	5958	ar-SA	audio_volume_mute	device	ممكن توقف كلام لو سمحت
+test	massive-5958	test	5958	en-US	audio_volume_mute	device	can you please stop speaking
+test	massive-6064	test	6064	ar-SA	audio_volume_mute	device	لا تتكلم لمدة ساعة
+test	massive-6064	test	6064	en-US	audio_volume_mute	device	don't speak for an hour
+test	massive-6166	test	6166	ar-SA	audio_volume_mute	device	من فضلك اكتم لمدة خمس دقايق
+test	massive-6166	test	6166	en-US	audio_volume_mute	device	please mute for five minutes
+test	massive-46	test	46	ar-SA	general_greet	chat	كيفك اولي
+test	massive-46	test	46	en-US	general_greet	chat	what's up olly
+test	massive-122	test	122	ar-SA	general_joke	chat	ارسل قهقهة طريقي
+test	massive-122	test	122	en-US	general_joke	chat	send a giggle my way
+test	massive-124	test	124	ar-SA	general_joke	chat	أوللي خبرني نكتة
+test	massive-124	test	124	en-US	general_joke	chat	olly tell me a joke
+test	massive-1158	test	1158	ar-SA	general_joke	chat	احكي نكتة
+test	massive-1158	test	1158	en-US	general_joke	chat	crack a joke
+test	massive-1579	test	1579	ar-SA	general_joke	chat	خبرني نكتة عن الكورة
+test	massive-1579	test	1579	en-US	general_joke	chat	find me a joke related to baseball
+test	massive-3330	test	3330	ar-SA	general_joke	chat	اريد ان اسمع نكتة
+test	massive-3330	test	3330	en-US	general_joke	chat	i want to hear a joke
+test	massive-3364	test	3364	ar-SA	general_joke	chat	طقطقة
+test	massive-3364	test	3364	en-US	general_joke	chat	knock knock
+test	massive-4216	test	4216	ar-SA	general_joke	chat	خبرني بأظرف نكتة سمعتها عن الاطلاق
+test	massive-4216	test	4216	en-US	general_joke	chat	tell me the funniest joke that was ever told
+test	massive-4217	test	4217	ar-SA	general_joke	chat	ابي اسمع نكت تضحك
+test	massive-4217	test	4217	en-US	general_joke	chat	i would like to hear some good funny jokes
+test	massive-4913	test	4913	ar-SA	general_joke	chat	هل تعرف هذي النكتة
+test	massive-4913	test	4913	en-US	general_joke	chat	are you aware this joke
+test	massive-4982	test	4982	ar-SA	general_joke	chat	شنو النكتة الأكثر ضحك
+test	massive-4982	test	4982	en-US	general_joke	chat	what is the funniest joke ever
+test	massive-5952	test	5952	ar-SA	general_joke	chat	قول لي نكتة كويسة الحين
+test	massive-5952	test	5952	en-US	general_joke	chat	say a good joke for me right now
+test	massive-6147	test	6147	ar-SA	general_joke	chat	شوف نكت تضحك
+test	massive-6147	test	6147	en-US	general_joke	chat	find funny jokes
+test	massive-12121	test	12121	ar-SA	transport_taxi	-	سيارة أجرة مكة نصف ساعة
+test	massive-12121	test	12121	en-US	transport_taxi	-	book me a taxi to leith in half an hour
+test	massive-12160	test	12160	ar-SA	transport_taxi	-	احجزلي تذكرة اوبرا باكر
+test	massive-12160	test	12160	en-US	transport_taxi	-	can you book an uber tomorrow
+test	massive-12212	test	12212	ar-SA	transport_taxi	-	استدعاء تاكسي المدينة إلى المطار
+test	massive-12212	test	12212	en-US	transport_taxi	-	call city cab to airport
+test	massive-12213	test	12213	ar-SA	transport_taxi	-	تاكسي مطار
+test	massive-12213	test	12213	en-US	transport_taxi	-	get city cab here to airport
+test	massive-12244	test	12244	ar-SA	transport_taxi	-	سيارة أجرة السينما الواحدة
+test	massive-12244	test	12244	en-US	transport_taxi	-	book a taxi to go to the movies at one
+test	massive-12248	test	12248	ar-SA	transport_taxi	-	أوللي شوف أقرب تكسي
+test	massive-12248	test	12248	en-US	transport_taxi	-	olly find the nearest uber
+test	massive-12329	test	12329	ar-SA	transport_taxi	-	اتصل بمكتب تكسي
+test	massive-12329	test	12329	en-US	transport_taxi	-	call yellow cab
+test	massive-12452	test	12452	ar-SA	transport_taxi	-	أوبر المطار
+test	massive-12452	test	12452	en-US	transport_taxi	-	uber me to the airport
+test	massive-12548	test	12548	ar-SA	transport_taxi	-	البيت
+test	massive-12548	test	12548	en-US	transport_taxi	-	i need a ride home
+test	massive-12553	test	12553	ar-SA	transport_taxi	-	تاكسي الموقع
+test	massive-12553	test	12553	en-US	transport_taxi	-	book me a cab going to location
+test	massive-12608	test	12608	ar-SA	transport_taxi	-	taxi يستلمني الإثنين الظهر
+test	massive-12608	test	12608	en-US	transport_taxi	-	schedule taxi pickup for monday at noon
+test	massive-12710	test	12710	ar-SA	transport_taxi	-	اتصلي على taxi
+test	massive-12710	test	12710	en-US	transport_taxi	-	call taxi
+test	massive-12716	test	12716	ar-SA	transport_taxi	-	اطلب اوبر مقهى إكليل الجبل
+test	massive-12716	test	12716	en-US	transport_taxi	-	call an uberpool to get me at long island bar
+test	massive-12745	test	12745	ar-SA	transport_taxi	-	احجز سياة أوبر عشان تاخذني الحين
+test	massive-12745	test	12745	en-US	transport_taxi	-	book an uber to pick me up now
+test	massive-12779	test	12779	ar-SA	transport_taxi	-	احجز لي أقرب uber
+test	massive-12779	test	12779	en-US	transport_taxi	-	reserve the closest uber
+test	massive-12844	test	12844	ar-SA	transport_taxi	-	تاكسي مكتب
+test	massive-12844	test	12844	en-US	transport_taxi	-	book a cab to office for me
+test	massive-89	test	89	ar-SA	takeaway_order	-	عادي تطلب sushi عشان عشا الليلة
+test	massive-89	test	89	en-US	takeaway_order	-	could you order sushi for tonight dinner
+test	massive-668	test	668	ar-SA	takeaway_order	-	برغر الكوك
+test	massive-668	test	668	en-US	takeaway_order	-	i want two burgers and one coke order it fast
+test	massive-1042	test	1042	ar-SA	takeaway_order	-	افتح تطبيق مرسول
+test	massive-1042	test	1042	en-US	takeaway_order	-	open the folder app please
+test	massive-1043	test	1043	ar-SA	takeaway_order	-	اتصل على أقرب مطعم مندي عندهم توصيل
+test	massive-1043	test	1043	en-US	takeaway_order	-	call the nearest thai restaurant with delivery
+test	massive-1516	test	1516	ar-SA	takeaway_order	-	بيتزا نقانق من مايسترو
+test	massive-1516	test	1516	en-US	takeaway_order	-	order a pizza with sausage from domino's
+test	massive-1830	test	1830	ar-SA	takeaway_order	-	أريد أن آكل شيء حار
+test	massive-1830	test	1830	en-US	takeaway_order	-	i want to eat some spicy thing
+test	massive-1831	test	1831	ar-SA	takeaway_order	-	بيتزا بيتزا هت
+test	massive-1831	test	1831	en-US	takeaway_order	-	order one pizza from pizza hut
+test	massive-2255	test	2255	ar-SA	takeaway_order	-	عالماشي من مطعم الشرقي
+test	massive-2255	test	2255	en-US	takeaway_order	-	can i order take out from licari's
+test	massive-2336	test	2336	ar-SA	takeaway_order	-	اطلب مكرونة وحدة سفري
+test	massive-2336	test	2336	en-US	takeaway_order	-	noodles one pack make it as takeaway
+test	massive-2338	test	2338	ar-SA	takeaway_order	-	ابي وجبة مكرونة علبة وحدة وخلها سفري
+test	massive-2338	test	2338	en-US	takeaway_order	-	make an order for noodles one pack make it as takeaway order
+test	massive-2414	test	2414	ar-SA	takeaway_order	-	بيتزا مطعم الشرقي
+test	massive-2414	test	2414	en-US	takeaway_order	-	i want to order a pizza from michael's pizza
+test	massive-2447	test	2447	ar-SA	takeaway_order	-	مطعم شوربة دجاج غداء
+test	massive-2447	test	2447	en-US	takeaway_order	-	i feel like having soup for lunch order from wangs kitchen restaurant a chicken manchow soup
+test	massive-2480	test	2480	ar-SA	takeaway_order	-	اتصل على خدمات السفري
+test	massive-2480	test	2480	en-US	takeaway_order	-	call for take-out
+test	massive-3080	test	3080	ar-SA	takeaway_order	-	الحين وقت أكل جاهز
+test	massive-3080	test	3080	en-US	takeaway_order	-	it's time for junk food
+test	massive-3835	test	3835	ar-SA	takeaway_order	-	توصيل صيني
+test	massive-3835	test	3835	en-US	takeaway_order	-	i want to order chinese take-out
+test	massive-4544	test	4544	ar-SA	takeaway_order	-	اجنحة الخردل بالعسل سبرايت
+test	massive-4544	test	4544	en-US	takeaway_order	-	order a twelve piece honey mustard wing combo with seasonimg altnon the fries and a sprite as the drink
+test	massive-5488	test	5488	ar-SA	takeaway_order	-	اطلب البيتزا سفري
+test	massive-5488	test	5488	en-US	takeaway_order	-	order pizza for delivery
+test	massive-5570	test	5570	ar-SA	takeaway_order	-	اطلب اكل
+test	massive-5570	test	5570	en-US	takeaway_order	-	find food and order
+test	massive-5966	test	5966	ar-SA	takeaway_order	-	اكل
+test	massive-5966	test	5966	en-US	takeaway_order	-	can you please order some food for me
+test	massive-151	test	151	ar-SA	play_music	-	شغلها مرة ثانية لو سمحت
+test	massive-151	test	151	en-US	play_music	-	play it again please
+test	massive-182	test	182	ar-SA	play_music	-	شغل قايمة الشعبي حقي
+test	massive-182	test	182	en-US	play_music	-	play my rock playlist
+test	massive-185	test	185	ar-SA	play_music	-	افتح قائمة التشغيل حقي وشغل ثالث أغنية في الترتيب
+test	massive-185	test	185	en-US	play_music	-	turn on my playlist and play third song in the queue
+test	massive-220	test	220	ar-SA	play_music	-	شغل اغاني من قائمة أغاني رومانسية
+test	massive-220	test	220	en-US	play_music	-	play music from my rock list
+test	massive-250	test	250	ar-SA	play_music	-	احس اني في مود اسمع قصايد وانتي
+test	massive-250	test	250	en-US	play_music	-	i feel like jazz right now how about you
+test	massive-254	test	254	ar-SA	play_music	-	olly شغل أغنية حلوة من المفضلة حقي على مشغل موسيقى الجاز
+test	massive-254	test	254	en-US	play_music	-	olly play a good track from my favorite jazz player
+test	massive-296	test	296	ar-SA	play_music	-	شغل قايمة التشغيل اللبنانية
+test	massive-296	test	296	en-US	play_music	-	play a nirvana playlist
+test	massive-297	test	297	ar-SA	play_music	-	شغل اغاني عشوائية ل فيروز
+test	massive-297	test	297	en-US	play_music	-	shuffle songs by coldplay
+test	massive-329	test	329	ar-SA	play_music	-	المسافر راح
+test	massive-329	test	329	en-US	play_music	-	seven years
+test	massive-362	test	362	ar-SA	play_music	-	شغل الأغنية الثانية من أغاني تامر حسني
+test	massive-362	test	362	en-US	play_music	-	play the second song from anirudh's song
+test	massive-391	test	391	ar-SA	play_music	-	شغل أغنية عشوائية من قايمة الأغاني حقتي
+test	massive-391	test	391	en-US	play_music	-	play a random song from my playlist
+test	massive-393	test	393	ar-SA	play_music	-	شغل أغنية فيفا من قائمة التشغيل الخاص بي
+test	massive-393	test	393	en-US	play_music	-	play a retro song in my playlist
+test	massive-397	test	397	ar-SA	play_music	-	شغلي أي أغنية لنبيل سيف
+test	massive-397	test	397	en-US	play_music	-	play any song by joe prsaise
+test	massive-400	test	400	ar-SA	play_music	-	ابدأي التشغيل
+test	massive-400	test	400	en-US	play_music	-	start playing
+test	massive-407	test	407	ar-SA	play_music	-	تقدر تشغل موسيقى rock الساعة الجاية
+test	massive-407	test	407	en-US	play_music	-	can you play rock music for the next hour
+test	massive-437	test	437	ar-SA	play_music	-	افتحي ملف فيروز
+test	massive-437	test	437	en-US	play_music	-	open bad religion folder
+test	massive-473	test	473	ar-SA	play_music	-	شغل بحبك وحشتيني
+test	massive-473	test	473	en-US	play_music	-	play the weekend
+test	massive-506	test	506	ar-SA	play_music	-	افتح اغاني من نبيل شعيل
+test	massive-506	test	506	en-US	play_music	-	open songs from major lazer
+test	massive-540	test	540	ar-SA	play_music	-	شغل أغنية ولهان لراشد الماجد
+test	massive-540	test	540	en-US	play_music	-	play the song sung by katy perry
+test	massive-555	test	555	ar-SA	play_music	-	شغل أي شيء من كاظم الساهر
+test	massive-555	test	555	en-US	play_music	-	play mf doom anything
+test	massive-576	test	576	ar-SA	play_music	-	شغل الكل من قايمة التشغيل
+test	massive-576	test	576	en-US	play_music	-	play all by playlist
+test	massive-614	test	614	ar-SA	play_music	-	شغل قائمة التشغيل
+test	massive-614	test	614	en-US	play_music	-	start playlist
+test	massive-625	test	625	ar-SA	play_music	-	شغل اغنية الاماكن على الاذاعة
+test	massive-625	test	625	en-US	play_music	-	please play the radio gaga song
+test	massive-779	test	779	ar-SA	play_music	-	اريد سماع snow حق red hot chili peppers
+test	massive-779	test	779	en-US	play_music	-	i want to hear snow by red hot chili peppers
+test	massive-781	test	781	ar-SA	play_music	-	شغل المسافر راح
+test	massive-781	test	781	en-US	play_music	-	play bilando
+test	massive-782	test	782	ar-SA	play_music	-	شغل يا ابن الأوادم حق عبد المجيد عبد الله
+test	massive-782	test	782	en-US	play_music	-	play let me love you by ariana grande
+test	massive-783	test	783	ar-SA	play_music	-	شغل ملل حبك
+test	massive-783	test	783	en-US	play_music	-	play love songs
+test	massive-827	test	827	ar-SA	play_music	-	شغل قايمة أغاني حسين الجسمي
+test	massive-827	test	827	en-US	play_music	-	play bob dylan playlist
+test	massive-891	test	891	ar-SA	play_music	-	شغل شوية موسيقى شعبية
+test	massive-891	test	891	en-US	play_music	-	play some christian music
+test	massive-936	test	936	ar-SA	play_music	-	افتح وشغل الموسيقى من قايمة الركض حقتي
+test	massive-936	test	936	en-US	play_music	-	open up and play music from my jogging playlist
+test	massive-1007	test	1007	ar-SA	play_music	-	العقيدة حقي السعودية الشعبية قائمة تشغيل
+test	massive-1007	test	1007	en-US	play_music	-	play creed from my rock playlist
+test	massive-1047	test	1047	ar-SA	play_music	-	sad rock songs
+test	massive-1047	test	1047	en-US	play_music	-	i need a good cry can you play me sad rock songs
+test	massive-1108	test	1108	ar-SA	play_music	-	my desire some country music
+test	massive-1108	test	1108	en-US	play_music	-	my desire is to listen to some country music
+test	massive-1115	test	1115	ar-SA	play_music	-	coordinate all pop song genres vogue
+test	massive-1115	test	1115	en-US	play_music	-	coordinate all pop song genres
+test	massive-1121	test	1121	ar-SA	play_music	-	شغل ولهان حق راشد الماجد
+test	massive-1121	test	1121	en-US	play_music	-	play lady by kenny roger
+test	massive-1123	test	1123	ar-SA	play_music	-	شغل تاليا هلت سحايبها حق فلاح المسردي
+test	massive-1123	test	1123	en-US	play_music	-	next play justin bieber's sorry
+test	massive-1124	test	1124	ar-SA	play_music	-	خل ارتاح لمحمد عبده جاهزة عشان تشغلها بعد هذي
+test	massive-1124	test	1124	en-US	play_music	-	get sia's cheap thrills ready to play next
+test	massive-1127	test	1127	ar-SA	play_music	-	شغل لي جميع الأغاني بترتيب عشوائي
+test	massive-1127	test	1127	en-US	play_music	-	play all songs on shuffle
+test	massive-1144	test	1144	ar-SA	play_music	-	ابي موسيقى
+test	massive-1144	test	1144	en-US	play_music	-	i need some rap
+test	massive-1318	test	1318	ar-SA	play_music	-	شغل تطبيق الأغاني وشغل لي أغنية
+test	massive-1318	test	1318	en-US	play_music	-	start music app and play a song for me
+test	massive-8100	test	8100	ar-SA	email_sendemail	-	أرسل email لمواعيدي ياخذون مواعيد ثانية
+test	massive-8100	test	8100	en-US	email_sendemail	-	email my appointments to reschedule
+test	massive-15756	test	15756	ar-SA	email_sendemail	-	أرسل email لفريقي
+test	massive-15756	test	15756	en-US	email_sendemail	-	please email my team
+test	massive-15765	test	15765	ar-SA	email_sendemail	-	رد على email صالح
+test	massive-15765	test	15765	en-US	email_sendemail	-	answer to pawel's email
+test	massive-15796	test	15796	ar-SA	email_sendemail	-	أرسل email لبشاير
+test	massive-15796	test	15796	en-US	email_sendemail	-	email chelsea
+test	massive-15802	test	15802	ar-SA	email_sendemail	-	رد على ايميل نواف وقول له اني مو جاي الليلة
+test	massive-15802	test	15802	en-US	email_sendemail	-	reply an email to jason that i will not come tonight
+test	massive-15825	test	15825	ar-SA	email_sendemail	-	رد على الوالد واكنب له اني رح أتوخر
+test	massive-15825	test	15825	en-US	email_sendemail	-	reply to dad write i will be late
+test	massive-15828	test	15828	ar-SA	email_sendemail	-	هاد ايميل جديد ضيفه على القائمة
+test	massive-15828	test	15828	en-US	email_sendemail	-	here is a new email address to be added to the contacts
+test	massive-15829	test	15829	ar-SA	email_sendemail	-	روح لجهات الإتصال و أختار عنوان email جديد
+test	massive-15829	test	15829	en-US	email_sendemail	-	go to contacts and enter a new email address
+test	massive-15841	test	15841	ar-SA	email_sendemail	-	اكتب email جديد لسعود
+test	massive-15841	test	15841	en-US	email_sendemail	-	compose a new email to ray
+test	massive-15845	test	15845	ar-SA	email_sendemail	-	كيف يأتي لنا
+test	massive-15845	test	15845	en-US	email_sendemail	-	how its come to us
+test	massive-15847	test	15847	ar-SA	email_sendemail	-	أرسل email شلون ناخذ قرض
+test	massive-15847	test	15847	en-US	email_sendemail	-	how we can get credit
+test	massive-15849	test	15849	ar-SA	email_sendemail	-	ارسل ايميل الى المدير حقي
+test	massive-15849	test	15849	en-US	email_sendemail	-	send an email to my boss
+test	massive-15857	test	15857	ar-SA	email_sendemail	-	تكفى أرسل لعنوان الإيميل الجديد اللي سجلته
+test	massive-15857	test	15857	en-US	email_sendemail	-	please send to new email address listed
+test	massive-15906	test	15906	ar-SA	email_sendemail	-	رد شكرا على فهد
+test	massive-15906	test	15906	en-US	email_sendemail	-	reply thank you to john
+test	massive-15911	test	15911	ar-SA	email_sendemail	-	جهز email لسارة
+test	massive-15911	test	15911	en-US	email_sendemail	-	prepare email for susan
+test	massive-15942	test	15942	ar-SA	email_sendemail	-	ارسل هذا الإيميل للرد على رسائل البريد الالكتروني الأخيرة
+test	massive-15942	test	15942	en-US	email_sendemail	-	send this email to reply to the latest emails
+test	massive-15950	test	15950	ar-SA	email_sendemail	-	رد على email أحمد الثقفي
+test	massive-15950	test	15950	en-US	email_sendemail	-	respond to the email from john doe
+test	massive-15957	test	15957	ar-SA	email_sendemail	-	ارسل ايميل عشان أروى وخبرها اننا في الطريق
+test	massive-15957	test	15957	en-US	email_sendemail	-	email alice to let her know we are on the way
+test	massive-15994	test	15994	ar-SA	email_sendemail	-	أرسل email لفارس واسأله في أي وقت يناسبه الإجتماع
+test	massive-15994	test	15994	en-US	email_sendemail	-	send an email to john asking him what time works for the meeting
+test	massive-15995	test	15995	ar-SA	email_sendemail	-	أرسل email لمها عن اجتماع الميزانية
+test	massive-15995	test	15995	en-US	email_sendemail	-	email karen about the budget meeting
+test	massive-16005	test	16005	ar-SA	email_sendemail	-	أرسل email على bader at gmail dot com
+test	massive-16005	test	16005	en-US	email_sendemail	-	send email to joseph at gmail dot com
+test	massive-16024	test	16024	ar-SA	email_sendemail	-	أرسل email لصالح وقول أنا مشغول بكره
+test	massive-16024	test	16024	en-US	email_sendemail	-	send an email to rohit saying i am busy tomorrow
+test	massive-16028	test	16028	ar-SA	email_sendemail	-	سلام siri أرسلي email لزميلي في الشغل
+test	massive-16028	test	16028	en-US	email_sendemail	-	hey siri start an email to coworker
+test	massive-16029	test	16029	ar-SA	email_sendemail	-	تكفى اكتب email جديد لزميلي في الشغل
+test	massive-16029	test	16029	en-US	email_sendemail	-	please compose a new email to coworker
+test	massive-16032	test	16032	ar-SA	email_sendemail	-	تكفى أرسل email لشروق بخصوص اجتماع بكره
+test	massive-16032	test	16032	en-US	email_sendemail	-	please send an email to sally regarding tomorrows meeting
+test	massive-16045	test	16045	ar-SA	email_sendemail	-	ابعث ايميل الى اسماعيل عن برنامج افتتاح المكتب
+test	massive-16045	test	16045	en-US	email_sendemail	-	send mail to ismail for office opening time table
+test	massive-16049	test	16049	ar-SA	email_sendemail	-	أبغى أرسل email لأهلي تكفى ساعدني
+test	massive-16049	test	16049	en-US	email_sendemail	-	i want to send an email to my family do you help me
+test	massive-16056	test	16056	ar-SA	email_sendemail	-	رد على email
+test	massive-16056	test	16056	en-US	email_sendemail	-	reply to email
+test	massive-16072	test	16072	ar-SA	email_sendemail	-	ارسل بريد الكتروني إلى مدير حقي خبره اني سأتأخر اليوم لحالة طارئة واعتذر على تفويت الاجتماع
+test	massive-16072	test	16072	en-US	email_sendemail	-	email my boss that i will be late today because of an emergency and apologize to him for missing the meeting
+test	massive-16082	test	16082	ar-SA	email_sendemail	-	أرسل email لماجد واسأله كيفه الحين واذا يبيني أساعده في شي
+test	massive-16082	test	16082	en-US	email_sendemail	-	send an email to peter and ask him how is he now can i do something to help him
+test	massive-16103	test	16103	ar-SA	email_sendemail	-	أرسل email لأخويا وقول ذكرى عيد زواج
+test	massive-16103	test	16103	en-US	email_sendemail	-	send an email to my brother and say wedding anniversary
+test	massive-16120	test	16120	ar-SA	email_sendemail	-	أرسل ساعديني بس لأماني
+test	massive-16120	test	16120	en-US	email_sendemail	-	help is to be sent only to jane
+test	massive-16131	test	16131	ar-SA	email_sendemail	-	ضيف الإيميل الجديد هذا لجهات الإتصال حقتي
+test	massive-16131	test	16131	en-US	email_sendemail	-	this new email should be added to my contact
+test	massive-16148	test	16148	ar-SA	email_sendemail	-	رد سريع على محمد عشان كذا لو سمحت إرسل البريد
+test	massive-16148	test	16148	en-US	email_sendemail	-	quick reply to jack so please send a mail
+test	massive-16162	test	16162	ar-SA	email_sendemail	-	أرسل رد
+test	massive-16162	test	16162	en-US	email_sendemail	-	send reply
+test	massive-16166	test	16166	ar-SA	email_sendemail	-	ممكن ترد على عهد انه أنا بكون مشغولة في المشاريع الثلاثة الأسابيع الجاية
+test	massive-16166	test	16166	en-US	email_sendemail	-	can you reply to charlotte that i am going to be busy with the projects for next three weeks
+test	massive-16201	test	16201	ar-SA	email_sendemail	-	تكفى اكتب email جديد لمحمد وأرسل الرسالة الحين
+test	massive-16201	test	16201	en-US	email_sendemail	-	please load new email for bruce and send message now
+test	massive-16221	test	16221	ar-SA	email_sendemail	-	دور على email ريم واكتبلها اني بعطيها خبر
+test	massive-16221	test	16221	en-US	email_sendemail	-	pull up kate's email and write that i will let her know
+test	massive-16245	test	16245	ar-SA	email_sendemail	-	أرسل email على omar at a.o.l. dot com
+test	massive-16245	test	16245	en-US	email_sendemail	-	send email to joe at a. o. l. dot com
+test	massive-16266	test	16266	ar-SA	email_sendemail	-	اكتب email لأهلي وقولهم أحبكم كلكم
+test	massive-16266	test	16266	en-US	email_sendemail	-	write an email to my family saying i love you all
+test	massive-448	test	448	ar-SA	iot_coffee	-	run coffee maker with vinegar
+test	massive-448	test	448	en-US	iot_coffee	-	run coffee maker
+test	massive-1276	test	1276	ar-SA	iot_coffee	-	أبغى قهوة
+test	massive-1276	test	1276	en-US	iot_coffee	-	i want a coffee
+test	massive-1413	test	1413	ar-SA	iot_coffee	-	ممكن تسويلي شوية قهوة يا olly
+test	massive-1413	test	1413	en-US	iot_coffee	-	can you make me some coffee olly
+test	massive-1812	test	1812	ar-SA	iot_coffee	-	اترجاك حضري لي قهوة بدون سكر
+test	massive-1812	test	1812	en-US	iot_coffee	-	please make me coffee without sweetener
+test	massive-2026	test	2026	ar-SA	iot_coffee	-	سوي قهوة الحين
+test	massive-2026	test	2026	en-US	iot_coffee	-	coffee make now
+test	massive-2288	test	2288	ar-SA	iot_coffee	-	ابدأ القهوة السادسة صباحا
+test	massive-2288	test	2288	en-US	iot_coffee	-	start coffee at six am
+test	massive-2512	test	2512	ar-SA	iot_coffee	-	coffee machine
+test	massive-2512	test	2512	en-US	iot_coffee	-	how do i set my coffee machine to make coffee
+test	massive-2733	test	2733	ar-SA	iot_coffee	-	ابدأ في فنجان قهوة من فضلك
+test	massive-2733	test	2733	en-US	iot_coffee	-	start a pot of coffee please
+test	massive-2812	test	2812	ar-SA	iot_coffee	-	ممكن تسويلي كوب قهوة
+test	massive-2812	test	2812	en-US	iot_coffee	-	can you make me a cup of coffee
+test	massive-2868	test	2868	ar-SA	iot_coffee	-	خل آلة القهوة تشتغل عشان تسويلي كوفي
+test	massive-2868	test	2868	en-US	iot_coffee	-	please get the coffee machine to make me some coffee
+test	massive-3138	test	3138	ar-SA	iot_coffee	-	سويلي فنجان قهوة مع كريم بنكهة الكراميل المملح
+test	massive-3138	test	3138	en-US	iot_coffee	-	make me a cup of coffee with salted carmel flavored cream
+test	massive-3196	test	3196	ar-SA	iot_coffee	-	أوللي ممكن لو سمحت تسويلي قهوة كريمية
+test	massive-3196	test	3196	en-US	iot_coffee	-	hey olly can you please make me a creamy coffee
+test	massive-3320	test	3320	ar-SA	iot_coffee	-	من فضلك نشط ألة صنع القهوة الخاص بي
+test	massive-3320	test	3320	en-US	iot_coffee	-	please activate my coffee pot for me
+test	massive-3321	test	3321	ar-SA	iot_coffee	-	اعملي شوية قهوة
+test	massive-3321	test	3321	en-US	iot_coffee	-	please make me a cup of coffee
+test	massive-3323	test	3323	ar-SA	iot_coffee	-	من فضلك شغل أبريق القهوة الخاص بي
+test	massive-3323	test	3323	en-US	iot_coffee	-	please turn on my coffee pot
+test	massive-3418	test	3418	ar-SA	iot_coffee	-	فيك تضبط لي آلة القهوة حقي لتحضير القهوة في السابعة صباحا
+test	massive-3418	test	3418	en-US	iot_coffee	-	can you set my coffee machine to make me coffee at seven am
+test	massive-3568	test	3568	ar-SA	iot_coffee	-	اضبط آلة القهوة حقي
+test	massive-3568	test	3568	en-US	iot_coffee	-	set my coffee machine
+test	massive-4244	test	4244	ar-SA	iot_coffee	-	coffee machine coffee maker
+test	massive-4244	test	4244	en-US	iot_coffee	-	olly turn on the coffee machine to make me some coffee
+test	massive-4271	test	4271	ar-SA	iot_coffee	-	جهز القهوة الحين
+test	massive-4271	test	4271	en-US	iot_coffee	-	prepare coffee now
+test	massive-4272	test	4272	ar-SA	iot_coffee	-	قهوتي بردت تكفى سو لي قهوة ثانية
+test	massive-4272	test	4272	en-US	iot_coffee	-	my coffee is cold please make more coffee
+test	massive-4442	test	4442	ar-SA	iot_coffee	-	حضر القهوه عند الثالثة
+test	massive-4442	test	4442	en-US	iot_coffee	-	make coffee at three
+test	massive-4443	test	4443	ar-SA	iot_coffee	-	شغل آلة القهوة الساعة ثلاثة
+test	massive-4443	test	4443	en-US	iot_coffee	-	start the coffee machine at three
+test	massive-4554	test	4554	ar-SA	iot_coffee	-	ممكن تسويلي شوية قهوة
+test	massive-4554	test	4554	en-US	iot_coffee	-	can you make some coffee
+test	massive-4798	test	4798	ar-SA	iot_coffee	-	أريد قهوة كل يوم
+test	massive-4798	test	4798	en-US	iot_coffee	-	i want coffee everyday
+test	massive-4988	test	4988	ar-SA	iot_coffee	-	جهزلي كوب قهوة
+test	massive-4988	test	4988	en-US	iot_coffee	-	prepare a cup of coffee for me
+test	massive-5010	test	5010	ar-SA	iot_coffee	-	اجعل المعتاد
+test	massive-5010	test	5010	en-US	iot_coffee	-	make my usual
+test	massive-5017	test	5017	ar-SA	iot_coffee	-	تكفى سوي قهوة
+test	massive-5017	test	5017	en-US	iot_coffee	-	can you please make a coffee
+test	massive-5149	test	5149	ar-SA	iot_coffee	-	شغل آلة القهوة
+test	massive-5149	test	5149	en-US	iot_coffee	-	set the coffee maker to on
+test	massive-6034	test	6034	ar-SA	iot_coffee	-	قهوة
+test	massive-6034	test	6034	en-US	iot_coffee	-	coffee
+test	massive-6060	test	6060	ar-SA	iot_coffee	-	شغلي آلة القهوة
+test	massive-6060	test	6060	en-US	iot_coffee	-	please start the coffee pot
+test	massive-6061	test	6061	ar-SA	iot_coffee	-	سوي القهوة
+test	massive-6061	test	6061	en-US	iot_coffee	-	make the coffee
+test	massive-11914	test	11914	ar-SA	iot_coffee	-	ابغى شراب
+test	massive-11914	test	11914	en-US	iot_coffee	-	olly i need a drink
+test	massive-11915	test	11915	ar-SA	iot_coffee	-	اريد مشروب
+test	massive-11915	test	11915	en-US	iot_coffee	-	i need a drink
+test	massive-3212	test	3212	ar-SA	calendar_set	-	ذكرني أسوي حاجة بعدين
+test	massive-3212	test	3212	en-US	calendar_set	-	remind me to do something then
+test	massive-3600	test	3600	ar-SA	calendar_set	-	ذكرني بعد عشرة دقائق
+test	massive-3600	test	3600	en-US	calendar_set	-	remind me after ten minutes
+test	massive-4589	test	4589	ar-SA	calendar_set	-	حط تنبيه للمباريات
+test	massive-4589	test	4589	en-US	calendar_set	-	set a notification for sports game
+test	massive-4890	test	4890	ar-SA	calendar_set	-	حط علامة على الكارثة المناخية في أميركا
+test	massive-4890	test	4890	en-US	calendar_set	-	set notifications on the current weather disasters in america
+test	massive-6539	test	6539	ar-SA	calendar_set	-	علم اليوم كبداية الرجيم حقي
+test	massive-6539	test	6539	en-US	calendar_set	-	mark today as the start of my diet
+test	massive-6725	test	6725	ar-SA	calendar_set	-	ذكرني عن الجدول حقي بعد الظهر
+test	massive-6725	test	6725	en-US	calendar_set	-	remind me about my schedule for the afternoon
+test	massive-6732	test	6732	ar-SA	calendar_set	-	اجتماع الاحد حقي حماي
+test	massive-6732	test	6732	en-US	calendar_set	-	add meeting reminder for sunday with my parents in law
+test	massive-6744	test	6744	ar-SA	calendar_set	-	حط اجتماع مع عمر بكرا عشرة الصباح
+test	massive-6744	test	6744	en-US	calendar_set	-	put meeting with pawel for tomorrow ten am
+test	massive-6746	test	6746	ar-SA	calendar_set	-	سجل الأسبوع الأول من يونيو اجازة في التقويم حقي
+test	massive-6746	test	6746	en-US	calendar_set	-	set first week of june as holiday in my calendar
+test	massive-6764	test	6764	ar-SA	calendar_set	-	ذكرني بغسيل الدريشه
+test	massive-6764	test	6764	en-US	calendar_set	-	remind me to wash the windows
+test	massive-6774	test	6774	ar-SA	calendar_set	-	سجل موعد للجمعة
+test	massive-6774	test	6774	en-US	calendar_set	-	set an event for friday
+test	massive-6789	test	6789	ar-SA	calendar_set	-	ريم السبت الرابعة مساء
+test	massive-6789	test	6789	en-US	calendar_set	-	set meeting with joanna on saturday four p. m.
+test	massive-6815	test	6815	ar-SA	calendar_set	-	ذكرني بعيد ميلاد ماما قبلها بأسبوع
+test	massive-6815	test	6815	en-US	calendar_set	-	remind me my mom's birthday a week before
+test	massive-6819	test	6819	ar-SA	calendar_set	-	olly فيه فرقة بتغني الليلة على الساعة تسعة في البوليفارد ابي اروحه
+test	massive-6819	test	6819	en-US	calendar_set	-	olly there's a good band playing tonight at nine at jazz bar i want to go
+test	massive-6836	test	6836	ar-SA	calendar_set	-	ذكرني باجتماع بكره على الساعه ستة
+test	massive-6836	test	6836	en-US	calendar_set	-	remind me about the meeting tomorrow at six
+test	massive-6856	test	6856	ar-SA	calendar_set	-	بكرة اجتماع العاشرة صباحا
+test	massive-6856	test	6856	en-US	calendar_set	-	give me a reminder notification on tomorrow's meeting at ten am
+test	massive-6865	test	6865	ar-SA	calendar_set	-	حط تنبيه لااجتماع بكره الساعة عشرة
+test	massive-6865	test	6865	en-US	calendar_set	-	set up a notification about tomorrow's meeting at ten
+test	massive-6878	test	6878	ar-SA	calendar_set	-	موعد مع قسم المحاسبة ثنتين ونص الظهر الجمعة
+test	massive-6878	test	6878	en-US	calendar_set	-	schedule a meeting with the accounting department on two thirty p. m. on friday
+test	massive-6897	test	6897	ar-SA	calendar_set	-	تذكير حمل لينا على خمسة المساء سبعة هالشهر
+test	massive-6897	test	6897	en-US	calendar_set	-	remind me to pick up linda at five in the evening on seventh
+test	massive-6901	test	6901	ar-SA	calendar_set	-	ذكرني الإجتماع الساعة عشرة الصبح بكره
+test	massive-6901	test	6901	en-US	calendar_set	-	remind me tomorrow at ten am about the meeting
+test	massive-6902	test	6902	ar-SA	calendar_set	-	حط تذكير الشهر الجاي عشان أغير الزيت
+test	massive-6902	test	6902	en-US	calendar_set	-	set a reminder up next month to get my oil changed
+test	massive-6923	test	6923	ar-SA	calendar_set	-	ذكرني اطبع المستندات الصباح يوم الثلوث
+test	massive-6923	test	6923	en-US	calendar_set	-	set reminder to print the documents on tuesday morning
+test	massive-6936	test	6936	ar-SA	calendar_set	-	دواء التاسعة صباحا
+test	massive-6936	test	6936	en-US	calendar_set	-	remind me to take my medicine at nine am
+test	massive-6937	test	6937	ar-SA	calendar_set	-	الظهر الغداء مع المدير
+test	massive-6937	test	6937	en-US	calendar_set	-	set reminder for noon to get lunch with boss
+test	massive-6959	test	6959	ar-SA	calendar_set	-	اجتماع ساعة
+test	massive-6959	test	6959	en-US	calendar_set	-	remind me about my meeting an hour before it begins
+test	massive-6962	test	6962	ar-SA	calendar_set	-	انا السبت السادسة بعد الظهر
+test	massive-6962	test	6962	en-US	calendar_set	-	can i know what i have to do the next saturday at six p. m.
+test	massive-6964	test	6964	ar-SA	calendar_set	-	إجتماع مديري ساعة وحدة
+test	massive-6964	test	6964	en-US	calendar_set	-	can you remind my next meeting with my boss one hour before it will happen
+test	massive-6973	test	6973	ar-SA	calendar_set	-	مؤتمر بكرة مكة المكرمة
+test	massive-6973	test	6973	en-US	calendar_set	-	add a reminder of a conference for tomorrow in new york
+test	massive-6974	test	6974	ar-SA	calendar_set	-	عمل الرياض غدا ذكرني
+test	massive-6974	test	6974	en-US	calendar_set	-	i have a function at washington tomorrow remind it
+test	massive-6994	test	6994	ar-SA	calendar_set	-	ذكرني
+test	massive-6994	test	6994	en-US	calendar_set	-	remind me at
+test	massive-7000	test	7000	ar-SA	calendar_set	-	مناسبة جديدة
+test	massive-7000	test	7000	en-US	calendar_set	-	new event
+test	massive-7004	test	7004	ar-SA	calendar_set	-	كل عام
+test	massive-7004	test	7004	en-US	calendar_set	-	add a reminder to my calendar every year on this date
+test	massive-7039	test	7039	ar-SA	calendar_set	-	رتب لي اجتماع الثلاثاء الجاي الساعة احدعش الصبح مع أحمد
+test	massive-7039	test	7039	en-US	calendar_set	-	set me a meeting next tuesday at eleven am with jesse
+test	massive-7044	test	7044	ar-SA	calendar_set	-	ذكرني أن أكون جاهز في الخامسة مساء من فضلك
+test	massive-7044	test	7044	en-US	calendar_set	-	remind me to start getting ready by five p. m. please
+test	massive-7046	test	7046	ar-SA	calendar_set	-	أضف اجتماع عن بعد في واحد وعشرين الساعة سبعة
+test	massive-7046	test	7046	en-US	calendar_set	-	add tal meeting on twenty first at seven
+test	massive-7055	test	7055	ar-SA	calendar_set	-	رتب لي اجتماع مع محمد الساعة حدعش الظهر يوم الخميس
+test	massive-7055	test	7055	en-US	calendar_set	-	schedule a meeting with matt at eleven am on thursday
+test	massive-7057	test	7057	ar-SA	calendar_set	-	حدد موعد اجتماع الغدا مع فيصل الأربعاء الظهر
+test	massive-7057	test	7057	en-US	calendar_set	-	schedule a lunch meeting with brent on wednesday at noon
+test	massive-7061	test	7061	ar-SA	calendar_set	-	ذكرني قبل أربعة وعشرين ساعة من اجتماعي يوم الجمعة مع مهند
+test	massive-7061	test	7061	en-US	calendar_set	-	give me a reminder twenty four hours before my friday meeting with edg
+test	massive-7073	test	7073	ar-SA	calendar_set	-	دور في التقويم حقي عن المناسبة الجاية ونبهني قبل ما تصير
+test	massive-7073	test	7073	en-US	calendar_set	-	search my calendar for my next event and notify me before it occurs
+test	massive-7098	test	7098	ar-SA	calendar_set	-	ضيف مصاريف سيارتي للتقويم حقي يوم اثنعش
+test	massive-7098	test	7098	en-US	calendar_set	-	add my car payment on the twelfth in my calendar
+test	massive-100	test	100	ar-SA	weather_query	-	ما هي توقعات الاسبوع
+test	massive-100	test	100	en-US	weather_query	-	what's the week's forecast
+test	massive-102	test	102	ar-SA	weather_query	-	ما هو الطقس هذا الأسبوع
+test	massive-102	test	102	en-US	weather_query	-	what's this week's weather
+test	massive-103	test	103	ar-SA	weather_query	-	قل لي الطقس هذا الاسبوع
+test	massive-103	test	103	en-US	weather_query	-	tell me the weather this week
+test	massive-216	test	216	ar-SA	weather_query	-	كيف سيكون الجو اليوم
+test	massive-216	test	216	en-US	weather_query	-	how is the weather like today
+test	massive-219	test	219	ar-SA	weather_query	-	تنصحني آخذ المظلة معي بكره
+test	massive-219	test	219	en-US	weather_query	-	should i bring an umbrella tomorrow
+test	massive-279	test	279	ar-SA	weather_query	-	ما هي توقعات الحين المدينة المنورة
+test	massive-279	test	279	en-US	weather_query	-	what is today's forecast for berlin
+test	massive-319	test	319	ar-SA	weather_query	-	أخبرني عن حالة الطقس في مدريد لليومين الجايين
+test	massive-319	test	319	en-US	weather_query	-	tell me the weather in barcelona in two days from now
+test	massive-333	test	333	ar-SA	weather_query	-	ما هي حالة الطقس في الرياض
+test	massive-333	test	333	en-US	weather_query	-	what is the weather condition in new york
+test	massive-334	test	334	ar-SA	weather_query	-	أتمنى أن أعرف الطقس في جدة
+test	massive-334	test	334	en-US	weather_query	-	i wish to know the weather in san fransico
+test	massive-344	test	344	ar-SA	weather_query	-	هل سيكون الطقس ماطر بكرة
+test	massive-344	test	344	en-US	weather_query	-	will it be rainy tomorrow
+test	massive-348	test	348	ar-SA	weather_query	-	تتوقع تمطر بكره
+test	massive-348	test	348	en-US	weather_query	-	will it rain tomorrow
+test	massive-430	test	430	ar-SA	weather_query	-	كيف هو الطقس الآن
+test	massive-430	test	430	en-US	weather_query	-	what is the weather like right now
+test	massive-491	test	491	ar-SA	weather_query	-	هل الطقس بارد برا
+test	massive-491	test	491	en-US	weather_query	-	is it cold outside
+test	massive-512	test	512	ar-SA	weather_query	-	ملحم بركات
+test	massive-512	test	512	en-US	weather_query	-	by get marks
+test	massive-590	test	590	ar-SA	weather_query	-	ما هو الطقس الحالي
+test	massive-590	test	590	en-US	weather_query	-	what is the current weather
+test	massive-726	test	726	ar-SA	weather_query	-	تلخيص تفاصيل الطقس الأسبوع
+test	massive-726	test	726	en-US	weather_query	-	summarize week's weather details
+test	massive-738	test	738	ar-SA	weather_query	-	كم هو الجو بارد اليوم
+test	massive-738	test	738	en-US	weather_query	-	how cold is it outside today
+test	massive-764	test	764	ar-SA	weather_query	-	ما هي توقعات الطقس هذا الاسبوع
+test	massive-764	test	764	en-US	weather_query	-	what is the weather forecast for this week
+test	massive-790	test	790	ar-SA	weather_query	-	طقس معتدل أو شديد
+test	massive-790	test	790	en-US	weather_query	-	mild or heavy weather
+test	massive-826	test	826	ar-SA	weather_query	-	ما هي درجة الحرارة الحالية في الخارج
+test	massive-826	test	826	en-US	weather_query	-	what is the current temperature outside
+test	massive-832	test	832	ar-SA	weather_query	-	ما توقعات الطقس بكرة
+test	massive-832	test	832	en-US	weather_query	-	hey what will be the predicted weather for tomorrow
+test	massive-951	test	951	ar-SA	weather_query	-	كيف هو الطقس الآن في الطائف
+test	massive-951	test	951	en-US	weather_query	-	what's the weather like right now in new york
+test	massive-1160	test	1160	ar-SA	weather_query	-	هل الجو بارد كل مساء هذا الاسبوع
+test	massive-1160	test	1160	en-US	weather_query	-	how cold will it get each night this week
+test	massive-1249	test	1249	ar-SA	weather_query	-	كيف ستكون حالة الطقس هذا الأسبوع
+test	massive-1249	test	1249	en-US	weather_query	-	how is the weather likely to be this week
+test	massive-1308	test	1308	ar-SA	weather_query	-	الحصول على توقعات المناخ اليوم هنا
+test	massive-1308	test	1308	en-US	weather_query	-	get todays climate forecast here
+test	massive-1351	test	1351	ar-SA	weather_query	-	هل سيكون الجو جميل في الخارج هذا الأسبوع
+test	massive-1351	test	1351	en-US	weather_query	-	will it be nice outside this week
+test	massive-1400	test	1400	ar-SA	weather_query	-	أنا غالبا منتبه
+test	massive-1400	test	1400	en-US	weather_query	-	i mostly pay attention
+test	massive-1401	test	1401	ar-SA	weather_query	-	أحيانًا أنتبه
+test	massive-1401	test	1401	en-US	weather_query	-	i occasionally pay attention
+test	massive-1404	test	1404	ar-SA	weather_query	-	هل يمكنني من فضلك الحصول على الطقس ليوم بكرة هنا في الشارقة
+test	massive-1404	test	1404	en-US	weather_query	-	can i please have the weather for tomorrow here in costa mesa
+test	massive-1458	test	1458	ar-SA	weather_query	-	كم هو حار في الكويت
+test	massive-1458	test	1458	en-US	weather_query	-	how hot is it in quebec
+test	massive-1513	test	1513	ar-SA	weather_query	-	ما هي درجة الحرارة في الخارج
+test	massive-1513	test	1513	en-US	weather_query	-	what's the temperature outside
+test	massive-1542	test	1542	ar-SA	weather_query	-	الشمس مشرقة هل سيكون الطقس كذلك لبقية اليوم
+test	massive-1542	test	1542	en-US	weather_query	-	the sun is shinning bright will we have this weather for the rest of the day
+test	massive-1547	test	1547	ar-SA	weather_query	-	ما هو الطقس للموقع حقي هاذ الأسبوع
+test	massive-1547	test	1547	en-US	weather_query	-	what's the weather for my location this week
+test	massive-1549	test	1549	ar-SA	weather_query	-	هل سوف تمطر هذا الأسبوع
+test	massive-1549	test	1549	en-US	weather_query	-	will it rain this week
+test	massive-1589	test	1589	ar-SA	weather_query	-	هل سيكون الجو مشمس الثلاثاء المقبل
+test	massive-1589	test	1589	en-US	weather_query	-	is it going to be sunny next tuesday
+test	massive-1653	test	1653	ar-SA	weather_query	-	متى سوف تمطر المرة القادمة
+test	massive-1653	test	1653	en-US	weather_query	-	when is the next time it will rain
+test	massive-1655	test	1655	ar-SA	weather_query	-	هل سوف تثلج غدًا الظهر
+test	massive-1655	test	1655	en-US	weather_query	-	will it snow tomorrow at noon
+test	massive-1683	test	1683	ar-SA	weather_query	-	درجة الحرارة بكرة رح يكون حار نعم أو لا
+test	massive-1683	test	1683	en-US	weather_query	-	tomorrow's temperature is to be hot yes or no
+test	massive-1684	test	1684	ar-SA	weather_query	-	نعم أو لا ستكون درجة الحرارة الغد حار
+test	massive-1684	test	1684	en-US	weather_query	-	yes or no tomorrow's temperature is to be hot
+test	massive-1722	test	1722	ar-SA	weather_query	-	ما هي درجة الحرارة الصغرى في الرياض
+test	massive-1722	test	1722	en-US	weather_query	-	what is the minimum temperature of london

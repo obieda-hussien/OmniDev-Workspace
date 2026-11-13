@@ -14,6 +14,10 @@ on:
       - 'scripts/train_rich_text.sh'
       - 'scripts/prepare_fresh_intent_eval.py'
       - 'scripts/test_rich_text_data.py'
+      - 'scripts/prepare_massive_refusal.py'
+      - 'scripts/test_massive_refusal.py'
+      - 'scripts/train_public_refusal.sh'
+      - 'scripts/train_public_decision.sh'
       - '.github/scripts/run-neural-android-tests.sh'
       - '.github/scripts/neural-emulator-cleanup.sh'
       - 'scripts/test_neural_emulator_cleanup.py'
@@ -34,6 +38,10 @@ on:
       - 'scripts/train_rich_text.sh'
       - 'scripts/prepare_fresh_intent_eval.py'
       - 'scripts/test_rich_text_data.py'
+      - 'scripts/prepare_massive_refusal.py'
+      - 'scripts/test_massive_refusal.py'
+      - 'scripts/train_public_refusal.sh'
+      - 'scripts/train_public_decision.sh'
       - '.github/scripts/run-neural-android-tests.sh'
       - '.github/scripts/neural-emulator-cleanup.sh'
       - 'scripts/test_neural_emulator_cleanup.py'
@@ -121,6 +129,35 @@ jobs:
         with:
           name: rich-text-${{ github.run_id }}
           path: build/rich-text/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  public-bilingual-training:
+    name: Public Arabic-English training + checkpoint parity
+    needs: java-compat
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify public provenance, train four bounded fits and check exports
+        run: |
+          python3 scripts/test_massive_refusal.py
+          bash scripts/train_public_refusal.sh
+          bash scripts/train_public_decision.sh
+      - name: Upload public experiment evidence, including failed quality gates
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: public-bilingual-${{ github.run_id }}
+          path: |
+            build/public-refusal/
+            build/public-decision/
           if-no-files-found: ignore
           retention-days: 30
 

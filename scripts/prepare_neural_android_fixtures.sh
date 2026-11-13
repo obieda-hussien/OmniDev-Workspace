@@ -12,6 +12,7 @@ compile_java() {
   else java -m jdk.compiler/com.sun.tools.javac.Main "$@"; fi
 }
 python3 scripts/import_clinc_rejection.py --verify neural-core/fixtures/clinc-subset
+python3 scripts/prepare_massive_refusal.py --verify
 compile_java "${compat[@]}" -encoding UTF-8 -d "$fixture_classes" \
   neural-core/src/main/java/com/omnidev/workspace/domain/neural/*.java \
   neural-core/training/com/omnidev/workspace/domain/neural/*.java
@@ -25,7 +26,8 @@ java -cp "$fixture_classes" com.omnidev.workspace.domain.neural.GatedRejectionEx
 compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_classes" \
   "$fixture_classes/TrainedRefusalGateCheckpoint.java" \
   neural-core/checkpoints/bilingual-refusal-v1/TrainedBilingualRefusalCheckpoint.java \
-  neural-core/checkpoints/rich-text-v1/*.java neural-core/smoke/AndroidFixtureExporter.java
+  neural-core/checkpoints/rich-text-v1/*.java neural-core/checkpoints/public-refusal-v1/*.java \
+  neural-core/checkpoints/public-decision-v1/*.java neural-core/smoke/AndroidFixtureExporter.java
 java -cp "$fixture_classes" AndroidFixtureExporter "$fixture_output"
 fixture_package="$fixture_output/java/com/omnidev/workspace/neural/probe"
 mkdir -p "$fixture_package"
@@ -34,7 +36,7 @@ for checkpoint in TrainedTextIntentCheckpoint TrainedRefusalGateCheckpoint; do
 done
 { echo 'package com.omnidev.workspace.neural.probe;'; cat neural-core/checkpoints/bilingual-refusal-v1/TrainedBilingualRefusalCheckpoint.java; } \
   > "$fixture_package/TrainedBilingualRefusalCheckpoint.java"
-for checkpoint in neural-core/checkpoints/rich-text-v1/*.java; do
+for checkpoint in neural-core/checkpoints/rich-text-v1/*.java neural-core/checkpoints/public-refusal-v1/*.java neural-core/checkpoints/public-decision-v1/*.java; do
   { echo 'package com.omnidev.workspace.neural.probe;'; cat "$checkpoint"; } > "$fixture_package/$(basename "$checkpoint")"
 done
 python3 - "$fixture_output" <<'PY'
@@ -48,5 +50,6 @@ PY
 # Compile and exercise the exact packaged checkpoints/contract used by ART.
 compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_classes" \
   "$fixture_package/"*.java neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/NeuralProbeContract.java \
+  neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/PublicNeuralProbeContract.java \
   neural-core/smoke/AndroidProbeSmoke.java
-java -cp "$fixture_classes" AndroidProbeSmoke "$fixture_output/assets/probes.tsv" "$fixture_output/assets/bilingual-cascade.tsv" "$fixture_output/assets/rich-presence.tsv"
+java -cp "$fixture_classes" AndroidProbeSmoke "$fixture_output/assets/probes.tsv" "$fixture_output/assets/bilingual-cascade.tsv" "$fixture_output/assets/rich-presence.tsv" "$fixture_output/assets/public-probes.tsv"

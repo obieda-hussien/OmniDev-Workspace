@@ -8,22 +8,39 @@ public final class RichIntentRefusalModel {
     private final TinyNeuralRuntime presence;
     private final double threshold;
     private final boolean requireMatch;
+    private final TinyNeuralRuntime refusal;
+    private final double refusalCutoff;
 
     public RichIntentRefusalModel(GatedTextIntentModel prior, RichTextEncoder encoder, TinyNeuralRuntime presence,
                                  double threshold, boolean requireMatch, String version, String expectedVocabularyHash) {
+        this(prior, encoder, presence, threshold, requireMatch, version, expectedVocabularyHash, null, 1);
+    }
+    /** Optional calibrated sigmoid head shares the existing representation and can only refuse. */
+    public RichIntentRefusalModel(GatedTextIntentModel prior, RichTextEncoder encoder, TinyNeuralRuntime presence,
+                                 double threshold, boolean requireMatch, String version, String expectedVocabularyHash,
+                                 TinyNeuralRuntime refusal, double refusalCutoff) {
         if (prior == null || encoder == null || presence == null || !RichTextEncoder.VERSION.equals(version) ||
                 presence.inputSize() != RichTextEncoder.DIMENSIONS || presence.outputSize() != 5 || presence.parameterCount() > 6000 ||
                 !encoder.fingerprint().equals(expectedVocabularyHash) || !Double.isFinite(threshold) || threshold < 0 || threshold > 1) throw new IllegalArgumentException("Invalid fused presence contract");
         this.prior = prior; this.encoder = encoder; this.presence = presence;
         this.threshold = threshold; this.requireMatch = requireMatch;
+        if (!Double.isFinite(refusalCutoff) || refusalCutoff < 0 || refusalCutoff > 1 || refusal != null &&
+                (refusal.inputSize() != RichTextEncoder.DIMENSIONS || refusal.outputSize() != 1 || refusal.parameterCount() > 1100)) {
+            throw new IllegalArgumentException("Invalid optional rich refusal head");
+        }
+        this.refusal = refusal; this.refusalCutoff = refusalCutoff;
     }
     public TinyDecisionModel.Decision classify(String text, double minimumProbability, double minimumMargin) {
         String normalized = BilingualTextEncoder.normalize(text);
         float[] base = BilingualTextEncoder.encodeNormalized(normalized);
         TinyDecisionModel.Decision original = prior.classifyFeatures(base, minimumProbability, minimumMargin);
         if (original.status == TinyDecisionModel.Status.ABSTAIN) return original;
-        float[] scores = presence.infer(encoder.extendNormalized(normalized, base));
-        return refine(original, scores, threshold, requireMatch);
+        float[] features = encoder.extendNormalized(normalized, base);
+        TinyDecisionModel.Decision decision = refine(original, presence.infer(features), threshold, requireMatch);
+        if (decision.status == TinyDecisionModel.Status.ABSTAIN || refusal == null) return decision;
+        float score = refusal.infer(features)[0];
+        if (!Float.isFinite(score) || score < 0 || score > 1) throw new IllegalArgumentException("Refusal score outside probability range");
+        return score >= refusalCutoff ? decision.asAbstention() : decision;
     }
     static TinyDecisionModel.Decision refine(TinyDecisionModel.Decision original, float[] scores, double threshold, boolean requireMatch) {
         if (original.status == TinyDecisionModel.Status.ABSTAIN) return original;

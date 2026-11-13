@@ -1,0 +1,13 @@
+{
+  "version": "massive-refusal-v1",
+  "frozen_before_fit": true,
+  "source": "MASSIVE 1.1 original archive checksum, Saudi Arabic and US English, attribution retained",
+  "mapping": "Supported volume up/down/mute -> device; greet/joke -> chat. Unsupported taxi, takeaway order, play music, send email and make coffee under the experimental five-domain contract. Exclude ambiguous knowledge/quirky/audio-other intents. Calendar-set/weather are test-only topics. These mappings do not describe production tool capabilities.",
+  "selection": "Numeric source ID order per upstream intent/partition, at most 80 train, 32 dev, 40 test groups. Share each ID across translations; split original dev by SHA256(ID) parity into development/calibration. Drop whole pairs on normalized duplicates or overlap with prior corpora. No test augmentation.",
+  "representation": "Frozen rich-text-v1 1024-dimensional encoder; original domain/refusal/presence checkpoints unchanged. No vocabulary fitting on this dataset.",
+  "fitting": "Train one binary linear supported/refuse head using existing train rows plus new train rows; seeds 42 and 97, <=200 epochs, development macro NLL early stopping every 5 epochs with patience 25. Balance language/outcome strata, retain group disjointness. Select seed on development only, temperature on separate calibration grid .5/.75/1/1.5/2/3/5.",
+  "policy": "Fold calibrated binary log-odds into one 1024x1 sigmoid (1025 parameters). Cutoff grid .5/.6/.7/.8/.9/.95/.975/.99/.999/1. Maximize development unsupported refusal macro over source/language, subject to zero additional lost rich-v1 known development choices across old and new data. Ties prefer larger cutoff. No test-driven refit or selection.",
+  "measurement": "Export before scoring test rows. Compare rich-v1 against the extra refusal head on old observed regressions and new MASSIVE test groups by language and supported/refusal/held-out-topic strata. Preserve original label/probability/abstention invariants. Report known-choice loss explicitly; production eligibility remains false regardless of this result.",
+  "performance": "Share rich encoding and skip additional work for previous refusals. Rotated warmed host whole-text timings with raw batch means, no latency guarantee or physical-phone claim.",
+  "production_eligible": false
+}

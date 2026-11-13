@@ -51,3 +51,7 @@ and calibration against deterministic baselines, test API 30 on hardware, then u
 The separate [bilingual text experiment](TEXT_INTENT_EXPERIMENT.md) now exercises a bounded text encoder,
 an authored multilingual corpus, a centroid comparison and text-checkpoint parity. Its results do not
 authorize production integration.
+
+## Public bilingual follow-up
+
+See [PUBLIC_BILINGUAL_TRAINING.md](PUBLIC_BILINGUAL_TRAINING.md) for 2,240 pinned public Arabic/English utterances, conservative refusal training and a separate six-class classifier. The latter improves selective performance but fails development preservation and regresses older correct cases; it is explicitly not eligible for production.
