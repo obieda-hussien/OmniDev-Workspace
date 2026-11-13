@@ -53,3 +53,7 @@ temporarily with encoder version, label order and temperature, compiled and relo
 Future deployment requires fresh independent bilingual evaluation, regression repair,
 OOD/ambiguity coverage and actual API 30 hardware latency/memory measurements. Do not
 tune against the already-observed tests and report them as unseen generalization.
+
+The [separate refusal gate](SEPARATE_REJECTION_GATE.md) explores freezing the original
+domain head to avoid the joint model's domain-score regression. It retains explicit
+accepted-coverage counters and includes whole-text timing, not just kernel timing.

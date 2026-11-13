@@ -8,7 +8,7 @@ import java.util.*;
 public final class RejectTrainingExperiment {
     private static final String[] LABELS = {"repository", "build", "device", "knowledge", "chat", "__reject__"};
     private static volatile double sink;
-    private static final class Row {
+    static final class Row {
         final String split, id, text;
         final int label;
         final float[] features;
@@ -123,7 +123,7 @@ public final class RejectTrainingExperiment {
     private static double checksum(float[] values) {
         double result = 0; for (float value : values) result += value; return result;
     }
-    private static List<Row> read(String file, String header) throws Exception {
+    static List<Row> read(String file, String header) throws Exception {
         Path path = Paths.get(file);
         if (Files.size(path) > 1_000_000) throw new IllegalArgumentException("Bounded dataset required");
         List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
@@ -132,7 +132,7 @@ public final class RejectTrainingExperiment {
         for (String line : lines) { String[] c = line.split("\t", -1); if (c.length != 5) throw new IllegalArgumentException("Invalid row"); rows.add(new Row(c[0], c[1], c[2], c[4])); }
         return rows;
     }
-    private static List<Row> filter(List<Row> rows, String split) {
+    static List<Row> filter(List<Row> rows, String split) {
         List<Row> result = new ArrayList<>(); for (Row row : rows) if (row.split.equals(split)) result.add(row); return result;
     }
     private static List<OfflineDecisionTrainer.Example> examples(List<Row> rows, String split) {
