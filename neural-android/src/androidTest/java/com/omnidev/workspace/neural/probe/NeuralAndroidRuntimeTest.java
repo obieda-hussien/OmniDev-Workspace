@@ -22,16 +22,20 @@ public final class NeuralAndroidRuntimeTest {
         NeuralProbeContract.verify(probes);
         verifyCascade(probes);
         verifyRich(probes);
-        int publicProbes, residualProbes;
+        int publicProbes, residualProbes, utilityProbes;
         try (Reader reader = new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("public-probes.tsv"), StandardCharsets.UTF_8)) {
             publicProbes = PublicNeuralProbeContract.verify(reader);
         }
         try (Reader reader = new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("residual-probes.tsv"), StandardCharsets.UTF_8)) {
             residualProbes = ResidualNeuralProbeContract.verify(reader);
         }
+        try(Reader reader=new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("utility-probes.tsv"),StandardCharsets.UTF_8)){
+            utilityProbes=UtilityNeuralProbeContract.verify(reader);
+        }
         writeReport("correctness.json", environment().put("parity_passed", true).put("probes", probes.size())
                 .put("cascade_parity_passed", true).put("rich_parity_passed", true).put("public_parity_passed", true).put("public_probes", publicProbes)
                 .put("residual_parity_passed", true).put("residual_probes", residualProbes)
+                .put("utility_parity_passed", true).put("utility_probes", utilityProbes)
                 .put("host_art_probability_tolerance", 1e-6).put("dense_sparse_exact", true));
     }
 
@@ -43,6 +47,11 @@ public final class NeuralAndroidRuntimeTest {
         rejects(() -> model.classify(new String(oversized), 0.6, 0.15));
         rejects(() -> model.classify(new String(expanding), 0.6, 0.15));
         rejects(() -> model.classify("source", Double.NaN, 0.15));
+        UtilityExpertDecisionModel utility=UtilityNeuralProbeContract.model(true);
+        rejects(() -> utility.classify(null,0.6,0.15));
+        rejects(() -> utility.classify(new String(oversized),0.6,0.15));
+        rejects(() -> utility.classify(new String(expanding),0.6,0.15));
+        rejects(() -> utility.classify("source",Double.NaN,0.15));
     }
 
     @Test public void optInWholeTextBenchmark() throws Exception {
