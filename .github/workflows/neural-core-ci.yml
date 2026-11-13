@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'neural-core/**'
+      - 'neural-android/**'
+      - 'scripts/prepare_neural_android_fixtures.sh'
+      - '.github/scripts/run-neural-android-tests.sh'
       - 'scripts/test_neural_training.sh'
       - 'scripts/import_clinc_rejection.py'
       - 'settings.gradle.kts'
@@ -13,6 +16,9 @@ on:
     branches: [main]
     paths:
       - 'neural-core/**'
+      - 'neural-android/**'
+      - 'scripts/prepare_neural_android_fixtures.sh'
+      - '.github/scripts/run-neural-android-tests.sh'
       - 'scripts/test_neural_training.sh'
       - 'scripts/import_clinc_rejection.py'
       - 'settings.gradle.kts'
@@ -48,3 +54,43 @@ jobs:
           ./gradlew --no-daemon --max-workers 1 :neural-core:test --stacktrace
       - name: Train numerical fixtures and verify portable checkpoints
         run: bash scripts/test_neural_training.sh
+      - name: Verify Android fixture generation and host contract
+        run: bash scripts/prepare_neural_android_fixtures.sh /tmp/omni-android-fixtures
+
+  android-runtime:
+    name: Experimental neural ART parity (API 30)
+    needs: java-compat
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0 emulator system-images;android-30;google_apis;x86_64'
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Exercise standalone test APK and collect descriptive emulator timings
+        env:
+          CI_GRADLE_JVMARGS: '-Xmx2g -Dfile.encoding=UTF-8'
+          NEURAL_BENCHMARK: 'true'
+        run: bash .github/scripts/run-neural-android-tests.sh --emulator
+      - name: Upload ART evidence and provenance
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: neural-art-api30-${{ github.run_id }}
+          path: |
+            neural-android/build/reports/**
+            neural-android/build/outputs/androidTest-results/**
+          if-no-files-found: ignore
+          retention-days: 14

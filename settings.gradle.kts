@@ -44,3 +44,7 @@ include(":app")
 
 include(":oem-system-contract", ":oem-system")
 include(":neural-core")
+// Standalone test APK only; normal builds do not configure this experiment.
+if (providers.gradleProperty("includeNeuralAndroidTests").orNull == "true") {
+    include(":neural-android")
+}
