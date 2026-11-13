@@ -80,7 +80,7 @@ public final class MultiIntentExperiment {
         for (Row row : rows) { TinyDecisionModel.Decision d = selected.classify(row.text, 0.6, 0.15); expected.add(d.status + "\t" + (d.choice == null ? "-" : d.choice)); }
         Files.write(output.resolve("expected.tsv"), expected, StandardCharsets.UTF_8);
     }
-    private static boolean present(Row row, int domain) {
+    static boolean present(Row row, int domain) {
         if (row.kind.equals("composed_cross")) return parent(row.parentA).equals(LABELS[domain]) || parent(row.parentB).equals(LABELS[domain]);
         return row.expectedDomain.equals(LABELS[domain]);
     }
@@ -89,15 +89,18 @@ public final class MultiIntentExperiment {
         if (prefix.equals("repo")) return "repository"; if (prefix.equals("know")) return "knowledge"; return prefix;
     }
     private static Map<String, List<OfflineDecisionTrainer.Example>> examples(List<Row> rows, int domain) {
+        return examples(rows, domain, null);
+    }
+    static Map<String, List<OfflineDecisionTrainer.Example>> examples(List<Row> rows, int domain, Map<Row, float[]> encoded) {
         Map<String, List<OfflineDecisionTrainer.Example>> result = new TreeMap<>();
         for (Row row : rows) { int label = present(row, domain) ? 1 : 0;
-            result.computeIfAbsent(row.language + ":" + label, key -> new ArrayList<>()).add(new OfflineDecisionTrainer.Example(row.group, row.features, label)); }
+            result.computeIfAbsent(row.language + ":" + label, key -> new ArrayList<>()).add(new OfflineDecisionTrainer.Example(row.group, encoded == null ? row.features : encoded.get(row), label)); }
         return result;
     }
-    private static List<OfflineDecisionTrainer.Example> flatten(Map<String, List<OfflineDecisionTrainer.Example>> groups) {
+    static List<OfflineDecisionTrainer.Example> flatten(Map<String, List<OfflineDecisionTrainer.Example>> groups) {
         List<OfflineDecisionTrainer.Example> result = new ArrayList<>(); for (List<OfflineDecisionTrainer.Example> g : groups.values()) result.addAll(g); return result;
     }
-    private static List<OfflineDecisionTrainer.Example> balance(Map<String, List<OfflineDecisionTrainer.Example>> groups) {
+    static List<OfflineDecisionTrainer.Example> balance(Map<String, List<OfflineDecisionTrainer.Example>> groups) {
         if (groups.size() != 6) throw new IllegalArgumentException("Missing presence/language stratum");
         int max = 0; for (List<OfflineDecisionTrainer.Example> g : groups.values()) max = Math.max(max, g.size());
         List<OfflineDecisionTrainer.Example> result = new ArrayList<>();

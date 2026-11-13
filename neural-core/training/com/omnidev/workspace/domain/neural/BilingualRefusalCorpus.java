@@ -88,6 +88,22 @@ public final class BilingualRefusalCorpus {
         }
         return rows;
     }
+    static List<Row> freshEnglish(Path path) throws Exception {
+        if (Files.size(path) > 100_000) throw new IllegalArgumentException("Fresh evaluation bounds exceeded");
+        StringBuilder checksum = new StringBuilder();
+        for (byte b : MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path))) checksum.append(String.format(Locale.ROOT, "%02x", b & 255));
+        if (!checksum.toString().equals("e76fc84ba71146ca181d21e648997bfd76ab2790091334125ea9d35107e9ecc0")) throw new IllegalArgumentException("Frozen fresh evaluation hash changed");
+        List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
+        if (lines.isEmpty() || !lines.get(0).equals("id\tintent\texpected_domain\ttext") || lines.size() > 121) throw new IllegalArgumentException("Invalid fresh evaluation schema");
+        List<Row> rows = new ArrayList<>(); Set<String> ids = new HashSet<>();
+        for (String line : lines.subList(1, lines.size())) {
+            String[] c = line.split("\t", -1);
+            if (c.length != 4 || !c[0].startsWith("clinc-test-") || !ids.add(c[0]) ||
+                    !Arrays.asList("-", "repository", "build", "device", "knowledge", "chat").contains(c[2])) throw new IllegalArgumentException("Invalid fresh evaluation row");
+            rows.add(new Row(new String[] {"test", c[0], c[2].equals("-") ? "refuse" : "supported", c[2], "en", "fresh_english", "-", "-", c[3]}));
+        }
+        return rows;
+    }
     static List<OfflineDecisionTrainer.Example> examples(List<Row> rows) {
         List<OfflineDecisionTrainer.Example> result = new ArrayList<>(); for (Row row : rows) result.add(row.example()); return result;
     }

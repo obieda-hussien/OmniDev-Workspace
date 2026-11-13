@@ -31,8 +31,8 @@ The committed bilingual refusal checkpoint adds a separate golden status/choice
 file over the same 139 inputs. Correctness additionally checks the two-refusal-head
 cascade against JVM observations, exact dense/sparse parity and preservation of
 every prior refusal. This is still regression validation, not a fresh quality test.
-The four-mode timing benchmark below covers the original single gate; the new
-two-refusal-head cascade has no timing claim in this experiment.
+The timing benchmark covers the original single gate and the rich presence path;
+the two-refusal-head binary cascade has no timing claim in this experiment.
 
 An additional ART test rejects null, oversized or normalization-expanded text and
 non-finite thresholds before inference. The benchmark is a third opt-in test.
@@ -59,13 +59,26 @@ does not launch Omni, and does not change system performance settings or permiss
 Omit `NEURAL_BENCHMARK=true` for correctness only. No remote provider is required.
 Each scripted run passes a fresh ID and rejects reports from another invocation.
 
+## Rich representation extension
+
+The rich fitted-vocabulary checkpoint is also androidTest only. Additional goldens on
+the same 139 inputs verify paired vocabulary hashes, exact feature hashes, five sigmoid
+scores within `2e-6`, typed decisions and exact dense/sparse behavior. These are runtime
+regressions, not an additional language-quality test. The runner requires the new rich
+parity field and the invocation ID before accepting a correctness report.
+
+The opt-in Android benchmark now rotates six modes over twelve batches: the original
+dense/sparse single and gated paths, plus rich dense/sparse. It still excludes model
+construction/cold start and has no timing assertions or physical-phone claim. See
+[the full experiment](RICH_TEXT_PRESENCE.md) for quality and host-cost tradeoffs.
+
 ## Measurement limits
 
-The opt-in measurement compares dense/sparse single-head and dense/sparse shared
-two-head classification, including encoding, inference, decision allocation and
+The opt-in measurement compares dense/sparse single-head, shared gated and rich
+presence classification, including encoding, inference, decision allocation and
 consumption of all returned probabilities. Construction, correctness checks and
 file I/O are outside the timed region. Each mode receives 256 warmup calls and
-eight batches of 139 calls over all probes. Four mode orders rotate each round.
+twelve batches of 139 calls over all probes. Six mode orders rotate each round.
 Reports contain raw batch averages and their median, not individual-request p95.
 There are no flaky timing assertions or automatic promotion based on speed.
 

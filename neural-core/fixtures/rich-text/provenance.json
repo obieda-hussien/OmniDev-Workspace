@@ -1,0 +1,34 @@
+{
+  "revision": "828f8093932c8fe6ca7936c3d2e52903b1c523de",
+  "source_sha256": "36923c3705a59e08fe9c3883d8bc2dd966ef93e22cb78ac41171782a698d56e0",
+  "rows": 114,
+  "counts": {
+    "greeting": 6,
+    "thank_you": 8,
+    "tell_joke": 10,
+    "change_volume": 10,
+    "book_flight": 10,
+    "book_hotel": 10,
+    "restaurant_reservation": 10,
+    "transfer": 10,
+    "weather": 10,
+    "calendar": 10,
+    "calculator": 10,
+    "shopping_list": 10
+  },
+  "excluded_ids": [
+    "clinc-test-3560",
+    "clinc-test-3561",
+    "clinc-test-3562",
+    "clinc-test-3563",
+    "clinc-test-1973",
+    "clinc-test-1974"
+  ],
+  "files": {
+    "neural-core/fixtures/bilingual-refusal/corpus.tsv": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e",
+    "neural-core/fixtures/decision-challenges.tsv": "4378e3ebc46396f732a5bd1d18d5bd79e3a0e9c2cc98d70c0c894fea3b43f869",
+    "neural-core/fixtures/bilingual-refusal/rich-text-protocol.json": "a18b905b9f61eb90edc6cc51f2ebc699ec6b93a33aab0500488ce97e0d14392c",
+    "neural-core/fixtures/rich-text/fresh-english.tsv": "e76fc84ba71146ca181d21e648997bfd76ab2790091334125ea9d35107e9ecc0"
+  },
+  "note": "New utterances from existing remapped topics; English only, not the standard CLINC benchmark. Read model scores only after selection/export."
+}

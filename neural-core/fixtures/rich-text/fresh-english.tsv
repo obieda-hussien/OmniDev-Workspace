@@ -1,0 +1,115 @@
+id	intent	expected_domain	text
+clinc-test-3564	greeting	chat	i want to know how you are doing
+clinc-test-3565	greeting	chat	i need to know how you are doing today
+clinc-test-3566	greeting	chat	hello there ai
+clinc-test-3567	greeting	chat	will you tell me how the ai is doing
+clinc-test-3568	greeting	chat	would you tell me how the ai is doing
+clinc-test-3569	greeting	chat	hola!
+clinc-test-1970	thank_you	chat	thank you very much
+clinc-test-1971	thank_you	chat	that answer was very helpful, thanks
+clinc-test-1972	thank_you	chat	great, thanks!
+clinc-test-1975	thank_you	chat	thanks for that answer
+clinc-test-1976	thank_you	chat	thank you for that reply
+clinc-test-1977	thank_you	chat	thanks for the reply
+clinc-test-1978	thank_you	chat	thanks for that response
+clinc-test-1979	thank_you	chat	thank you for that response
+clinc-test-4160	tell_joke	chat	can you share something funny about traveling
+clinc-test-4161	tell_joke	chat	i want to hear your best joke
+clinc-test-4162	tell_joke	chat	tell me a good joke
+clinc-test-4163	tell_joke	chat	tell me something funny about horses
+clinc-test-4164	tell_joke	chat	i want to hear something funny about history
+clinc-test-4165	tell_joke	chat	can you share a humorous joke with me
+clinc-test-4166	tell_joke	chat	i want to hear something funny about politicsi
+clinc-test-4167	tell_joke	chat	let's hear a joke from you please
+clinc-test-4168	tell_joke	chat	tell me something funny about the middle ages
+clinc-test-4169	tell_joke	chat	do you know any jokes
+clinc-test-2690	change_volume	device	can you speak quieter
+clinc-test-2691	change_volume	device	turn to volume 4
+clinc-test-2692	change_volume	device	set 4 as the volume
+clinc-test-2693	change_volume	device	turn volume to 4
+clinc-test-2694	change_volume	device	volume 4 set
+clinc-test-2695	change_volume	device	volume set to 4
+clinc-test-2696	change_volume	device	i can't hear you and need you to turn up the volume
+clinc-test-2697	change_volume	device	turn up your speaker volume
+clinc-test-2698	change_volume	device	can you speak louder
+clinc-test-2699	change_volume	device	can you turn up the volume for your speaker
+clinc-test-3770	book_flight	-	i want to a book a roundtrip flight from san antonio to dtw departing on friday and returning on wednesday
+clinc-test-3771	book_flight	-	i'm looking for a flight from billings to cleveland on may 2 and a return on may 9
+clinc-test-3772	book_flight	-	i'm looking for flights that depart on the 3rd and return on z from monday to friday
+clinc-test-3773	book_flight	-	what roundtrip flights from orlando to vegas are available from thursday to monday
+clinc-test-3774	book_flight	-	are there any roundtrip flights from shanghai to seatac that depart on wednesday and return on the thirty first
+clinc-test-3775	book_flight	-	make sure i get a delta flight from pittsburgh to arizona
+clinc-test-3776	book_flight	-	book a delta flight to arizona from pittsburgh
+clinc-test-3777	book_flight	-	schedule a flight from pittsburgh to arizona on delta
+clinc-test-3778	book_flight	-	i want to fly to atlanta for under 300 from pittsburgh
+clinc-test-3779	book_flight	-	i need a flight for under 300 from pittsburgh to atlanta
+clinc-test-3200	book_hotel	-	i need your help to find a good reviewed hotel in washington
+clinc-test-3201	book_hotel	-	can you find me a good reviewed hotel in japan
+clinc-test-3202	book_hotel	-	i need a hotel between january 1st through 3rd in jacksonville near the stadium
+clinc-test-3203	book_hotel	-	find me a place to stay in jacksonville near the stadium from january 1st through 3rd
+clinc-test-3204	book_hotel	-	book me a hotel in jacksonville near the stadium from january 1st to 3rd
+clinc-test-3205	book_hotel	-	id like a room in jacksonville near the stadium between january 1st to 3rd
+clinc-test-3206	book_hotel	-	find me a room near the jacksonville stadium between january 1st through january 3rd
+clinc-test-3207	book_hotel	-	get me a hotel room big enough for 4 people from may 3 to may 5 in boston
+clinc-test-3208	book_hotel	-	i'm travelling to boston on march 2 until march 4 please make a hotel reservation for me
+clinc-test-3209	book_hotel	-	i need a hotel room for 4 people from may 3 to may 5 in boston
+clinc-test-740	restaurant_reservation	-	martins needs a table for 5 people at tropicana at 8pm precisely
+clinc-test-741	restaurant_reservation	-	the table should be reserved at 8pm at tropicana using martins name and it should be for 5 people
+clinc-test-742	restaurant_reservation	-	are there any open reservations at outback tonight
+clinc-test-743	restaurant_reservation	-	make a reservation for 2 tonight at 7:00 at outback steakhouse
+clinc-test-744	restaurant_reservation	-	michael will reserve a table for two at 7:00pm for olive garden
+clinc-test-745	restaurant_reservation	-	a table for two needs to be reserved for 7:00pm at olive garden using the name michael
+clinc-test-746	restaurant_reservation	-	please reserve a table for two at olive garden at 7:00pm for michael
+clinc-test-747	restaurant_reservation	-	get reservations at olive garden for two at 7:00pm under michael
+clinc-test-748	restaurant_reservation	-	reservations for two need to be made using michael's name for 7:00pm at olive garden
+clinc-test-749	restaurant_reservation	-	i want to eat at seven in the restaurant for two people
+clinc-test-50	transfer	-	how much money can i transfer today
+clinc-test-51	transfer	-	add funds to the retirement account from the pnc account only
+clinc-test-52	transfer	-	would you move 100 dollars from the checking and put it into savings
+clinc-test-53	transfer	-	repeat what the weather will be like
+clinc-test-54	transfer	-	i would like to put 100 dollars from the checking into the savings account now
+clinc-test-55	transfer	-	please transfer $5000 to money market from checking account
+clinc-test-56	transfer	-	i need $360 transfered from savings to checking account
+clinc-test-57	transfer	-	make an immediate transfer of ten thousand from money market to checking
+clinc-test-58	transfer	-	i'd like to transfer $400 from household to savings account
+clinc-test-59	transfer	-	transer $800 from my checking to savings account
+clinc-test-3260	weather	-	how is the weather in austin
+clinc-test-3261	weather	-	what is happening with the weather in austin
+clinc-test-3262	weather	-	how is that weather
+clinc-test-3263	weather	-	how does the weather feel
+clinc-test-3264	weather	-	need to know the weather now
+clinc-test-3265	weather	-	give weather update now
+clinc-test-3266	weather	-	want to know the weather
+clinc-test-3267	weather	-	tell me the weather for today
+clinc-test-3268	weather	-	what is the current weather like
+clinc-test-3269	weather	-	las vegas weather today
+clinc-test-1700	calendar	-	tell me what's on my calendar for march 22nd
+clinc-test-1701	calendar	-	is the marathon on friday added to my calendar
+clinc-test-1702	calendar	-	what's on my calendar for march 20th
+clinc-test-1703	calendar	-	what's on my calendar on march 10th
+clinc-test-1704	calendar	-	check my calendar for me, please
+clinc-test-1705	calendar	-	is event on my calendar
+clinc-test-1706	calendar	-	retrieve events on my calendar
+clinc-test-1707	calendar	-	is bowling on my calendar
+clinc-test-1708	calendar	-	on tuesday you are supposed to have a meeting
+clinc-test-1709	calendar	-	you have yo go to school on calendar
+clinc-test-1760	calculator	-	find the square root of 1243435
+clinc-test-1761	calculator	-	what is the square root of 36
+clinc-test-1762	calculator	-	what is 592 minus 124
+clinc-test-1763	calculator	-	i need to know what 25 times 38 is
+clinc-test-1764	calculator	-	can you calculate the square root of 172
+clinc-test-1765	calculator	-	i bought 6 shirts at $499 each what was my total expenditure for them
+clinc-test-1766	calculator	-	i spent 34 dollars for 12 gallons of paint what is the average price for each gallon
+clinc-test-1767	calculator	-	what is the sum of eleven and ten
+clinc-test-1768	calculator	-	what is the solution to sixty times thirty
+clinc-test-1769	calculator	-	how do i ask the ai to help me with math problem
+clinc-test-3800	shopping_list	-	are carrots added to the grocery list
+clinc-test-3801	shopping_list	-	is garlic on my grocery list
+clinc-test-3802	shopping_list	-	did carrots get on my shopping list
+clinc-test-3803	shopping_list	-	what things are on my shopping list today
+clinc-test-3804	shopping_list	-	tell me the items in my shopping list
+clinc-test-3805	shopping_list	-	what does my shopping list contain
+clinc-test-3806	shopping_list	-	i need to know what's on my shopping list
+clinc-test-3807	shopping_list	-	what is on the shopping list
+clinc-test-3808	shopping_list	-	please let me know what is on my shopping list
+clinc-test-3809	shopping_list	-	let me know what's on my shopping list

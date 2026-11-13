@@ -1,0 +1,399 @@
+{
+  "production_eligible": false,
+  "old_evaluation_status": "observed_regressions",
+  "fresh_evaluation": "new_english_utterances_from_existing_topics",
+  "encoder": "ar-en-word-bigram-idf768-hash256-v1",
+  "vocabulary_size": 768,
+  "input_dimensions": 1024,
+  "fused_parameters": 5125,
+  "unfused_parameters": 10250,
+  "heads": [
+    {
+      "domain": 0,
+      "seed": 97,
+      "epoch": 45,
+      "development_macro_nll": 0.176131784,
+      "temperature": 0.5
+    },
+    {
+      "domain": 1,
+      "seed": 42,
+      "epoch": 5,
+      "development_macro_nll": 0.360576604,
+      "temperature": 0.5
+    },
+    {
+      "domain": 2,
+      "seed": 42,
+      "epoch": 5,
+      "development_macro_nll": 0.3944966,
+      "temperature": 0.5
+    },
+    {
+      "domain": 3,
+      "seed": 42,
+      "epoch": 50,
+      "development_macro_nll": 0.110626359,
+      "temperature": 1.0
+    },
+    {
+      "domain": 4,
+      "seed": 42,
+      "epoch": 5,
+      "development_macro_nll": 0.542404623,
+      "temperature": 0.5
+    }
+  ],
+  "threshold": 0.9,
+  "require_match": false,
+  "maximum_fusion_probability_difference": 4.45394929826648e-08,
+  "evaluations": {
+    "development": {
+      "known": 70,
+      "required_refusals": 112,
+      "prior": {
+        "accepted": 113,
+        "accepted_correct": 52,
+        "accepted_errors": 61,
+        "known_accepted": 62,
+        "refused": 61
+      },
+      "previous_presence": {
+        "accepted": 108,
+        "accepted_correct": 52,
+        "accepted_errors": 56,
+        "known_accepted": 61,
+        "refused": 65
+      },
+      "rich_fused": {
+        "accepted": 109,
+        "accepted_correct": 52,
+        "accepted_errors": 57,
+        "known_accepted": 62,
+        "refused": 65
+      }
+    },
+    "fresh_english": {
+      "known": 34,
+      "required_refusals": 80,
+      "prior": {
+        "accepted": 59,
+        "accepted_correct": 25,
+        "accepted_errors": 34,
+        "known_accepted": 28,
+        "refused": 49
+      },
+      "previous_presence": {
+        "accepted": 58,
+        "accepted_correct": 24,
+        "accepted_errors": 34,
+        "known_accepted": 27,
+        "refused": 49
+      },
+      "rich_fused": {
+        "accepted": 59,
+        "accepted_correct": 25,
+        "accepted_errors": 34,
+        "known_accepted": 28,
+        "refused": 49
+      }
+    },
+    "test": {
+      "known": 40,
+      "required_refusals": 92,
+      "prior": {
+        "accepted": 54,
+        "accepted_correct": 28,
+        "accepted_errors": 26,
+        "known_accepted": 34,
+        "refused": 72
+      },
+      "previous_presence": {
+        "accepted": 54,
+        "accepted_correct": 28,
+        "accepted_errors": 26,
+        "known_accepted": 34,
+        "refused": 72
+      },
+      "rich_fused": {
+        "accepted": 54,
+        "accepted_correct": 28,
+        "accepted_errors": 26,
+        "known_accepted": 34,
+        "refused": 72
+      }
+    },
+    "regression": {
+      "known": 100,
+      "required_refusals": 160,
+      "prior": {
+        "accepted": 188,
+        "accepted_correct": 85,
+        "accepted_errors": 103,
+        "known_accepted": 90,
+        "refused": 62
+      },
+      "previous_presence": {
+        "accepted": 153,
+        "accepted_correct": 80,
+        "accepted_errors": 73,
+        "known_accepted": 85,
+        "refused": 92
+      },
+      "rich_fused": {
+        "accepted": 172,
+        "accepted_correct": 85,
+        "accepted_errors": 87,
+        "known_accepted": 90,
+        "refused": 78
+      }
+    },
+    "original": {
+      "known": 30,
+      "required_refusals": 0,
+      "prior": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "known_accepted": 28,
+        "refused": 0
+      },
+      "previous_presence": {
+        "accepted": 27,
+        "accepted_correct": 24,
+        "accepted_errors": 3,
+        "known_accepted": 27,
+        "refused": 0
+      },
+      "rich_fused": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "known_accepted": 28,
+        "refused": 0
+      }
+    },
+    "composed_cross": {
+      "known": 0,
+      "required_refusals": 120,
+      "prior": {
+        "accepted": 92,
+        "accepted_correct": 0,
+        "accepted_errors": 92,
+        "known_accepted": 0,
+        "refused": 28
+      },
+      "previous_presence": {
+        "accepted": 62,
+        "accepted_correct": 0,
+        "accepted_errors": 62,
+        "known_accepted": 0,
+        "refused": 58
+      },
+      "rich_fused": {
+        "accepted": 76,
+        "accepted_correct": 0,
+        "accepted_errors": 76,
+        "known_accepted": 0,
+        "refused": 44
+      }
+    },
+    "composed_same": {
+      "known": 30,
+      "required_refusals": 0,
+      "prior": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "known_accepted": 30,
+        "refused": 0
+      },
+      "previous_presence": {
+        "accepted": 26,
+        "accepted_correct": 26,
+        "accepted_errors": 0,
+        "known_accepted": 26,
+        "refused": 0
+      },
+      "rich_fused": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "known_accepted": 30,
+        "refused": 0
+      }
+    },
+    "unseen_topic": {
+      "known": 0,
+      "required_refusals": 40,
+      "prior": {
+        "accepted": 15,
+        "accepted_correct": 0,
+        "accepted_errors": 15,
+        "known_accepted": 0,
+        "refused": 25
+      },
+      "previous_presence": {
+        "accepted": 15,
+        "accepted_correct": 0,
+        "accepted_errors": 15,
+        "known_accepted": 0,
+        "refused": 25
+      },
+      "rich_fused": {
+        "accepted": 15,
+        "accepted_correct": 0,
+        "accepted_errors": 15,
+        "known_accepted": 0,
+        "refused": 25
+      }
+    },
+    "prior_clinc": {
+      "known": 40,
+      "required_refusals": 40,
+      "prior": {
+        "accepted": 38,
+        "accepted_correct": 30,
+        "accepted_errors": 8,
+        "known_accepted": 32,
+        "refused": 34
+      },
+      "previous_presence": {
+        "accepted": 38,
+        "accepted_correct": 30,
+        "accepted_errors": 8,
+        "known_accepted": 32,
+        "refused": 34
+      },
+      "rich_fused": {
+        "accepted": 38,
+        "accepted_correct": 30,
+        "accepted_errors": 8,
+        "known_accepted": 32,
+        "refused": 34
+      }
+    },
+    "additional_clinc": {
+      "known": 40,
+      "required_refusals": 40,
+      "prior": {
+        "accepted": 35,
+        "accepted_correct": 28,
+        "accepted_errors": 7,
+        "known_accepted": 34,
+        "refused": 39
+      },
+      "previous_presence": {
+        "accepted": 35,
+        "accepted_correct": 28,
+        "accepted_errors": 7,
+        "known_accepted": 34,
+        "refused": 39
+      },
+      "rich_fused": {
+        "accepted": 35,
+        "accepted_correct": 28,
+        "accepted_errors": 7,
+        "known_accepted": 34,
+        "refused": 39
+      }
+    },
+    "old_challenge": {
+      "known": 5,
+      "required_refusals": 20,
+      "prior": {
+        "accepted": 22,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "known_accepted": 5,
+        "refused": 3
+      },
+      "previous_presence": {
+        "accepted": 21,
+        "accepted_correct": 5,
+        "accepted_errors": 16,
+        "known_accepted": 5,
+        "refused": 4
+      },
+      "rich_fused": {
+        "accepted": 22,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "known_accepted": 5,
+        "refused": 3
+      }
+    }
+  },
+  "all_observation_fusion_max_difference": 4.803667752462104e-08,
+  "host_benchmark": {
+    "phone_measurement": false,
+    "encoding_included": true,
+    "calls_per_batch": 192,
+    "language_counts": {
+      "ar": 64,
+      "en": 64,
+      "mixed": 64
+    },
+    "batches": 8,
+    "prior": {
+      "batch_average_ns": [
+        59771,
+        32602,
+        48279,
+        26032,
+        43167,
+        26368,
+        32367,
+        62980
+      ],
+      "median_batch_average_ns": 37884
+    },
+    "previous_presence": {
+      "batch_average_ns": [
+        35101,
+        47340,
+        49506,
+        40511,
+        39344,
+        45068,
+        40806,
+        80463
+      ],
+      "median_batch_average_ns": 42937
+    },
+    "rich_fused": {
+      "batch_average_ns": [
+        57653,
+        46423,
+        45932,
+        56555,
+        54988,
+        45088,
+        65802,
+        59635
+      ],
+      "median_batch_average_ns": 55771
+    },
+    "rich_unfused": {
+      "batch_average_ns": [
+        88430,
+        48430,
+        74564,
+        96079,
+        87265,
+        58244,
+        64481,
+        78874
+      ],
+      "median_batch_average_ns": 76719
+    }
+  },
+  "artifact_sha256": {
+    "neural-core/checkpoints/rich-text-v1/TrainedRichVocabulary.java": "b277f2a7c97d549632d399929f029c12479d6492eef0deb9aaf2973ab7a37a1d",
+    "neural-core/checkpoints/rich-text-v1/TrainedRichPresence.java": "397a27d1a7736f41ebd15a311d289307e715f0d6c7ed03a05fe6926a61f55e45",
+    "neural-core/fixtures/bilingual-refusal/rich-text-protocol.json": "a18b905b9f61eb90edc6cc51f2ebc699ec6b93a33aab0500488ce97e0d14392c",
+    "neural-core/fixtures/rich-text/fresh-english.tsv": "e76fc84ba71146ca181d21e648997bfd76ab2790091334125ea9d35107e9ecc0",
+    "neural-core/fixtures/bilingual-refusal/corpus.tsv": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e"
+  },
+  "observed_known_retention_passed": true
+}

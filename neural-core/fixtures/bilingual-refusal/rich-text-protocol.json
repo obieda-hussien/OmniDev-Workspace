@@ -1,0 +1,14 @@
+{
+  "version": "rich-text-presence-v1",
+  "data": "Frozen bilingual corpus cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e; all old test results are now observed regressions",
+  "fresh_english": "Select previously unused upstream test positions 20-29 for the eight mapped CLINC intents and four test-only topics; deduplicate against all older corpora/challenges before any new fitting. Read scores only after final export.",
+  "encoder": "1024 features: unchanged 256 hash features scaled by sqrt(0.5), plus up to 768 train-only unigram/bigram log-TF/IDF features with a separate sqrt(0.5) normalized branch",
+  "vocabulary": "Scenario-group DF >=2, rank by maximum domain-presence chi-square, reserve up to 192 Arabic and 192 non-Arabic terms, fill to 768, lexical ties; IDF=1+log((groups+1)/(DF+1)). At most 256 words of length <=64; long words break bigram adjacency. Original hash backoff still covers the bounded full text.",
+  "heads": "Five independent linear absent/present heads, seeds 42/97, <=200 epochs, existing five-epoch checks and patience 25",
+  "selection": "Per-head development macro NLL across target/language strata, temperature on calibration only",
+  "fusion": "Subtract binary logit weights, divide by calibrated temperature, cast once to FP32, concatenate as one 1024x5 sigmoid layer (5125 parameters). Compare probabilities within 2e-6 and use fused scores for all policy selection.",
+  "thresholds": [0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.95, 0.99, 1.0],
+  "policy": "Evaluate multi-only and unique-matching-domain refusal. Reject any configuration that loses even one prior known development choice. Maximize development refusal recall macro over kind/language; ties retain the first config. No test-driven tuning.",
+  "performance": "Rotated, warmed whole-text host batch measurements for prior, previous presence, rich five-head and rich fused paths; consume every returned probability, no timing assertions or physical phone claim",
+  "production_eligible": false
+}

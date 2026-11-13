@@ -30,8 +30,13 @@ public final class BilingualTextEncoder {
     }
 
     public static float[] encode(String text) {
+        return encodeNormalized(normalize(text));
+    }
+
+    static float[] encodeNormalized(String normalized) {
+        if (normalized == null || normalized.length() > MAX_CHARS) throw new IllegalArgumentException("Invalid bounded normalized text");
         float[] features = new float[DIMENSIONS];
-        Matcher words = WORD.matcher(normalize(text));
+        Matcher words = WORD.matcher(normalized);
         while (words.find()) {
             String word = words.group();
             add(features, "w:" + word);

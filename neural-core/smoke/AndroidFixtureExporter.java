@@ -42,6 +42,18 @@ public final class AndroidFixtureExporter {
             cascadeRows.append(i).append('\t').append(decision.status).append('\t').append(decision.choice == null ? "-" : decision.choice).append('\n');
         }
         Files.write(assets.resolve("bilingual-cascade.tsv"), cascadeRows.toString().getBytes(StandardCharsets.UTF_8));
+        RichTextEncoder richEncoder = TrainedRichVocabulary.encoder(); TinyNeuralRuntime richNetwork = TrainedRichPresence.model();
+        RichIntentRefusalModel rich = new RichIntentRefusalModel(gated, richEncoder, richNetwork, TrainedRichVocabulary.THRESHOLD,
+                TrainedRichVocabulary.REQUIRE_MATCH, TrainedRichVocabulary.VERSION, TrainedRichPresence.VOCABULARY_SHA256);
+        StringBuilder richRows = new StringBuilder("id\tfeature_sha256\tstatus\tchoice\tscores\n");
+        for (int i = 0; i < texts.size(); i++) {
+            String text = texts.get(i); float[] features = richEncoder.encode(text); TinyDecisionModel.Decision decision = rich.classify(text, 0.6, 0.15);
+            richRows.append(i).append('\t').append(featureHash(features)).append('\t').append(decision.status).append('\t').append(decision.choice == null ? "-" : decision.choice).append('\t');
+            float[] scores = richNetwork.infer(features);
+            for (int j = 0; j < scores.length; j++) { if (j > 0) richRows.append(','); richRows.append(scores[j]); }
+            richRows.append('\n');
+        }
+        Files.write(assets.resolve("rich-presence.tsv"), richRows.toString().getBytes(StandardCharsets.UTF_8));
         StringBuilder manifest = new StringBuilder("Previously observed regression inputs. Not a fresh evaluation or production model.\n");
         for (String file : new String[] {"neural-core/fixtures/text-intents.tsv", "neural-core/fixtures/clinc-subset/rejection.tsv",
                 "neural-core/fixtures/decision-challenges.tsv", "neural-core/fixtures/clinc-subset/provenance.json"}) {
@@ -49,6 +61,7 @@ public final class AndroidFixtureExporter {
         }
         manifest.append("probe_count=").append(texts.size()).append("\nencoder=").append(BilingualTextEncoder.VERSION)
                 .append("\nparameters=").append(domain.parameterCount() + refusal.parameterCount()).append('\n');
+        manifest.append("rich_vocabulary_sha256=").append(richEncoder.fingerprint()).append("\nrich_parameters=").append(richNetwork.parameterCount()).append('\n');
         Files.write(assets.resolve("provenance.txt"), manifest.toString().getBytes(StandardCharsets.UTF_8));
         for (String file : new String[] {"LICENSE", "NOTICE.md"}) {
             Files.copy(Paths.get("neural-core/fixtures/clinc-subset/" + file), assets.resolve("CLINC-" + file), StandardCopyOption.REPLACE_EXISTING);
