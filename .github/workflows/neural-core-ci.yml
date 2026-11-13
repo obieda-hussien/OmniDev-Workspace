@@ -10,6 +10,7 @@ on:
       - 'scripts/prepare_bilingual_refusal.py'
       - 'scripts/test_bilingual_refusal.py'
       - 'scripts/train_bilingual_refusal.sh'
+      - 'scripts/train_multi_intent.sh'
       - '.github/scripts/run-neural-android-tests.sh'
       - 'scripts/test_neural_training.sh'
       - 'scripts/import_clinc_rejection.py'
@@ -24,6 +25,7 @@ on:
       - 'scripts/prepare_bilingual_refusal.py'
       - 'scripts/test_bilingual_refusal.py'
       - 'scripts/train_bilingual_refusal.sh'
+      - 'scripts/train_multi_intent.sh'
       - '.github/scripts/run-neural-android-tests.sh'
       - 'scripts/test_neural_training.sh'
       - 'scripts/import_clinc_rejection.py'
@@ -72,6 +74,16 @@ jobs:
         with:
           name: bilingual-refusal-${{ github.run_id }}
           path: build/bilingual-refusal-v1/
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Train independent domain-presence heads and verify compiled exports
+        run: bash scripts/train_multi_intent.sh
+      - name: Upload multi-intent experiment evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: multi-intent-${{ github.run_id }}
+          path: build/multi-intent/
           if-no-files-found: ignore
           retention-days: 30
 

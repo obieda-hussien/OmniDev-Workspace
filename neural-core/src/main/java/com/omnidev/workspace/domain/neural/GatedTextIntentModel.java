@@ -36,7 +36,11 @@ public final class GatedTextIntentModel {
     }
 
     public TinyDecisionModel.Decision classify(String text, double minimumProbability, double minimumMargin) {
-        float[] features = BilingualTextEncoder.encode(text);
+        return classifyFeatures(BilingualTextEncoder.encode(text), minimumProbability, minimumMargin);
+    }
+
+    // Internal adapters may reuse the same bounded encoding; no tool/permission decisions enter here.
+    TinyDecisionModel.Decision classifyFeatures(float[] features, double minimumProbability, double minimumMargin) {
         boolean signal = false;
         for (float value : features) if (value != 0) { signal = true; break; }
         TinyDecisionModel.Decision original = domain.decide(features, minimumProbability, minimumMargin);

@@ -1,5 +1,7 @@
 # Bilingual hard-negative refusal training
 
+Follow-up: [explicit domain-presence training and its false-refusal tradeoff](MULTI_INTENT_REFUSAL.md).
+
 Starting main: `3394cc832e359343109a736de9e218ca23032926` (PR #252).
 This is a real offline training/evaluation experiment, not a production promotion,
 Jev/RLCD implementation or completion of P9. The original domain classifier is frozen.

@@ -3,6 +3,8 @@
 Sources inspected on 2026-11-13. These are research candidates, not implemented
 algorithms or reproduced performance results unless explicitly stated below.
 Our actual [bilingual experiment](BILINGUAL_REFUSAL_TRAINING.md) remains separate.
+The subsequent [independent domain-presence baseline](MULTI_INTENT_REFUSAL.md) is also
+implemented and measured; it is not a reproduction of any algorithm in the table.
 
 ## Findings and boundaries
 
