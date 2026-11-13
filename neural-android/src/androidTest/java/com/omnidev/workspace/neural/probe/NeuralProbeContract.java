@@ -66,6 +66,28 @@ public final class NeuralProbeContract {
             exact(b, sparseCandidate.classify(probe.text, 0.6, 0.15));
         }
     }
+    public static GatedTextIntentModel cascade(TinyNeuralRuntime domain, TinyNeuralRuntime prior, TinyNeuralRuntime extra) {
+        require(BilingualTextEncoder.VERSION.equals(TrainedBilingualRefusalCheckpoint.ENCODER_VERSION), "New gate encoder mismatch");
+        return new GatedTextIntentModel(domain, TrainedTextIntentCheckpoint.labels(), TrainedTextIntentCheckpoint.TEMPERATURE, BilingualTextEncoder.VERSION,
+                new GatedTextIntentModel.RefusalHead(prior, TrainedRefusalGateCheckpoint.TEMPERATURE, TrainedRefusalGateCheckpoint.CUTOFF),
+                new GatedTextIntentModel.RefusalHead(extra, TrainedBilingualRefusalCheckpoint.TEMPERATURE, TrainedBilingualRefusalCheckpoint.CUTOFF));
+    }
+    public static void verifyCascade(List<Probe> probes, Reader reader) throws Exception {
+        require(probes.size() == EXPECTED_PROBES, "Missing regression probes");
+        BufferedReader input = new BufferedReader(reader); require("id\tstatus\tchoice".equals(input.readLine()), "Invalid cascade probe header");
+        TinyNeuralRuntime domain = TrainedTextIntentCheckpoint.model(), prior = TrainedRefusalGateCheckpoint.model(), extra = TrainedBilingualRefusalCheckpoint.model();
+        GatedTextIntentModel dense = cascade(domain, prior, extra), sparse = cascade(domain.withSparseInput(), prior.withSparseInput(), extra.withSparseInput());
+        for (int i = 0; i < probes.size(); i++) {
+            String line = input.readLine(); require(line != null && line.length() <= 256, "Missing cascade probe");
+            String[] cells = line.split("\t", -1); require(cells.length == 3 && cells[0].equals(Integer.toString(i)), "Invalid cascade probe order");
+            Probe probe = probes.get(i); TinyDecisionModel.Decision actual = dense.classify(probe.text, 0.6, 0.15);
+            checkDecision(actual, cells[1], cells[2], probe.probabilities);
+            exact(actual, sparse.classify(probe.text, 0.6, 0.15));
+            require(!probe.gateStatus.equals("ABSTAIN") || actual.status == TinyDecisionModel.Status.ABSTAIN, "Cascade undid prior refusal");
+            require(actual.status != TinyDecisionModel.Status.CHOICE || Objects.equals(actual.choice, probe.baseChoice), "Cascade invented choice");
+        }
+        require(input.readLine() == null, "Unexpected extra cascade probes");
+    }
     private static void checkDecision(TinyDecisionModel.Decision d, String status, String choice, double[] expected) {
         require(d.status.name().equals(status) && Objects.equals(d.choice == null ? "-" : d.choice, choice), "JVM/ART decision mismatch");
         double[] actual = d.probabilitiesCopy();

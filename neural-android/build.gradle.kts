@@ -4,7 +4,7 @@ val fixtureDirectory = layout.buildDirectory.dir("generated/neuralFixtures")
 val prepareFixtures by tasks.registering(Exec::class) {
     workingDir(rootProject.projectDir)
     inputs.files(rootProject.fileTree("neural-core/src/main/java"),
-        rootProject.fileTree("neural-core/training"), rootProject.fileTree("neural-core/fixtures"),
+        rootProject.fileTree("neural-core/training"), rootProject.fileTree("neural-core/fixtures"), rootProject.fileTree("neural-core/checkpoints"),
         rootProject.file("neural-core/smoke/AndroidFixtureExporter.java"),
         rootProject.file("neural-core/smoke/AndroidProbeSmoke.java"),
         file("src/androidTest/java/com/omnidev/workspace/neural/probe/NeuralProbeContract.java"),

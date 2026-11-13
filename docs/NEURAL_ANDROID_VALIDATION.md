@@ -27,6 +27,13 @@ The same contract runs on the host before test packaging and on Android ART:
 - The gate preserves domain probabilities and never invents or upgrades a choice.
 - Fixed probe count/order and bounded, finite, normalized observations.
 
+The committed bilingual refusal checkpoint adds a separate golden status/choice
+file over the same 139 inputs. Correctness additionally checks the two-refusal-head
+cascade against JVM observations, exact dense/sparse parity and preservation of
+every prior refusal. This is still regression validation, not a fresh quality test.
+The four-mode timing benchmark below covers the original single gate; the new
+two-refusal-head cascade has no timing claim in this experiment.
+
 An additional ART test rejects null, oversized or normalization-expanded text and
 non-finite thresholds before inference. The benchmark is a third opt-in test.
 

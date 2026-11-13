@@ -1,0 +1,25 @@
+split	group	kind	en	ar	mixed
+train	flight-change	unsupported	Change my airline reservation to next Monday	غير ميعاد حجز الطيارة للاتنين الجاي	غير flight reservation للاتنين
+train	hotel-room	unsupported	Reserve a double hotel room for two nights	احجز أوضة مزدوجة في فندق لمدة ليلتين	اعمل hotel booking ليلتين
+train	dining-table	unsupported	Reserve a restaurant table for four people	احجز ترابيزة في مطعم لأربع أشخاص	احجز restaurant table لأربعة
+train	bank-transfer	unsupported	Send money from my savings account to another bank	حول فلوس من حساب التوفير لبنك تاني	اعمل bank transfer من حساب التوفير
+train	buy-shoes	unsupported	Buy a pair of running shoes in size forty	اشتري جزمة جري مقاس أربعين	اشتري running shoes مقاس أربعين
+train	bank-balance	unsupported	Tell me the remaining balance on my debit card	قولي الرصيد الباقي في بطاقة البنك	شوف debit card balance عندي
+train	cook-soup	unsupported	Give me a recipe for lentil soup tonight	اديني وصفة شوربة عدس للعشا	هات recipe لشوربة العدس
+train	taxi-ride	unsupported	Order a taxi to take me to the train station	اطلب تاكسي يوديني محطة القطر	اطلب taxi ride لمحطة القطر
+train	vague-start	vague	Start whatever needs doing without any details	ابدأ الحاجة المطلوبة من غير تفاصيل	ابدأ whatever needs doing دلوقتي
+train	vague-fix	vague	Fix that unspecified thing for me	صلح الحاجة دي وخلاص	اعمل fix للحاجة دي
+train	vague-choice	vague	Choose something for me without saying which options	اختار لي حاجة من غير ما أحدد الاختيارات	اعمل choose من غير options محددة
+train	vague-followup	vague	Continue the previous unspecified request	كمل الطلب اللي فات من غير ما أحدده	كمل previous request وخلاص
+development	car-hire	unsupported	Rent a small car for the coming week	أجر عربية صغيرة للأسبوع الجاي	اعمل car rental الأسبوع الجاي
+development	meal-calories	unsupported	Count the calories in this breakfast	احسب سعرات الفطار ده	احسب breakfast calories دي
+development	vague-permission	vague	Go ahead with it although the action is unspecified	نفذها مع إن العملية مش متحددة	اعمل go ahead بس العملية مش متحددة
+development	vague-previous	vague	Use the earlier thing without stating what it was	استخدم الحاجة القديمة من غير ما أقول هي إيه	استخدم earlier thing من غير تحديد
+calibration	parcel-delivery	unsupported	Track the delivery date of my parcel order	تتبع ميعاد توصيل الطرد اللي طلبته	شوف parcel delivery date بتاعي
+calibration	travel-visa	unsupported	Apply for a tourist visa for my summer trip	قدم لي على تأشيرة سياحة لرحلة الصيف	اعمل tourist visa application لرحلتي
+calibration	vague-action	vague	Perform the action but I have not named an action	اعمل العملية بس أنا مسميتش عملية معينة	نفذ action من غير اسم معين
+calibration	vague-again	vague	Do it again without saying what it refers to	كررها تاني من غير ما أوضح المقصود	اعمل it again من غير توضيح
+test	unseen-weather	unsupported	Will heavy rain affect the coast this Friday	هل فيه مطر شديد على الساحل الجمعة دي	شوف heavy rain على الساحل الجمعة
+test	unseen-calendar	unsupported	Add a dentist appointment to next week's calendar	ضيف ميعاد دكتور الأسنان في تقويم الأسبوع الجاي	ضيف dentist appointment في calendar
+test	unseen-calculator	unsupported	Compute the percentage increase from eighty to one hundred	احسب نسبة الزيادة من تمانين لمية	احسب percentage increase من تمانين لمية
+test	unseen-shopping-list	unsupported	Add milk and apples to my grocery list	ضيف لبن وتفاح لقائمة البقالة بتاعتي	ضيف milk وapples للgrocery list

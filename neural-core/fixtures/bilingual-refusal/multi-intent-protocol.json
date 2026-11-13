@@ -1,0 +1,18 @@
+{
+  "version": "multi-intent-presence-v1",
+  "test_status": "all test observations were already seen in the preceding binary-refusal experiment",
+  "corpus_sha256": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e",
+  "domain_order": ["repository", "build", "device", "knowledge", "chat"],
+  "targets": "Known rows activate their expected domain; composed_cross activates both parent domains; unsupported/vague rows activate none",
+  "architecture": "five independent linear 256-to-2 presence heads, 2570 total parameters",
+  "seeds_per_head": [42, 97],
+  "selection": "Per-head development macro NLL across binary target and language strata; retain the best early-stop epoch; ties retain the first seed",
+  "early_stopping": "At most 200 epochs, evaluate every 5, strict best immutable snapshot, patience 25; legacy optimizer unchanged",
+  "balancing": "Per head, repeat its six train target/language strata to the largest stratum",
+  "temperature": "Per-head calibration macro NLL on the existing fixed temperature grid",
+  "threshold_grid": [0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.99, 1.0],
+  "policies": ["reject multiple active domains", "require exactly one active domain matching the prior proposal"],
+  "policy_selection": "Development macro refusal recall across kind/language strata with at most floor(5% of prior known choices) extra refusals per language; ties prefer fewer known losses then the first configuration",
+  "runtime": "One encoding, maximum five heads and 10000 extra parameters, never change label/scores or upgrade a prior refusal",
+  "production_eligible": false
+}

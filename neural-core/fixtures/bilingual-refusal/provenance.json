@@ -1,0 +1,46 @@
+{
+  "revision": "828f8093932c8fe6ca7936c3d2e52903b1c523de",
+  "source_sha256": "36923c3705a59e08fe9c3883d8bc2dd966ef93e22cb78ac41171782a698d56e0",
+  "mapping": {
+    "greeting": "supported",
+    "thank_you": "supported",
+    "tell_joke": "supported",
+    "change_volume": "supported",
+    "book_flight": "refuse",
+    "book_hotel": "refuse",
+    "restaurant_reservation": "refuse",
+    "transfer": "refuse"
+  },
+  "unseen_test_intents": [
+    "weather",
+    "calendar",
+    "calculator",
+    "shopping_list"
+  ],
+  "files": {
+    "neural-core/fixtures/text-intents.tsv": "e1aac35b6d45015e0798bb039ab8f6bee33e96720fa72f3f4ebb42c477ba4fd1",
+    "neural-core/fixtures/clinc-subset/rejection.tsv": "ecc3598ed5c2385ecbcd5ab3fef3e5d4ba36112342b0239287ff0a0bf65b1843",
+    "neural-core/fixtures/decision-challenges.tsv": "4378e3ebc46396f732a5bd1d18d5bd79e3a0e9c2cc98d70c0c894fea3b43f869",
+    "neural-core/fixtures/bilingual-refusal/authored.tsv": "e421425159c39348fd686171c51d1e025637e6c594373f0d99ea2e1316f61aa1",
+    "neural-core/fixtures/bilingual-refusal/protocol.json": "6c9b8ed31c19d5aba853a163996a20374cd2315f99aac556dc608da28999868f",
+    "neural-core/fixtures/bilingual-refusal/corpus.tsv": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e"
+  },
+  "split_counts": {
+    "train": 796,
+    "development": 182,
+    "calibration": 181,
+    "regression": 260,
+    "test": 132
+  },
+  "excluded_ids": [
+    "clinc-train-6534",
+    "clinc-train-6539",
+    "clinc-train-13825",
+    "clinc-val-2376",
+    "clinc-test-3550",
+    "clinc-test-3552",
+    "clinc-test-3555",
+    "clinc-test-3559"
+  ],
+  "note": "English public utterances plus authored/synthetic bilingual fixtures; not a standard benchmark or human-reviewed Arabic evaluation."
+}

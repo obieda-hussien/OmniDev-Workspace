@@ -20,8 +20,9 @@ public final class NeuralAndroidRuntimeTest {
     @Test public void trainedCheckpointsMatchJvmAndSparseRuntime() throws Exception {
         List<NeuralProbeContract.Probe> probes = probes();
         NeuralProbeContract.verify(probes);
+        verifyCascade(probes);
         writeReport("correctness.json", environment().put("parity_passed", true).put("probes", probes.size())
-                .put("host_art_probability_tolerance", 1e-6).put("dense_sparse_exact", true));
+                .put("cascade_parity_passed", true).put("host_art_probability_tolerance", 1e-6).put("dense_sparse_exact", true));
     }
 
     @Test public void boundedContractsRejectInvalidInputsOnArt() {
@@ -92,6 +93,11 @@ public final class NeuralAndroidRuntimeTest {
                 .put("emulator_detected", emulator).put("physical_device_verified", false)
                 .put("production_eligible", false).put("encoder", BilingualTextEncoder.VERSION)
                 .put("parameters", TrainedTextIntentCheckpoint.model().parameterCount() + TrainedRefusalGateCheckpoint.model().parameterCount());
+    }
+    private static void verifyCascade(List<NeuralProbeContract.Probe> probes) throws Exception {
+        try (Reader reader = new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("bilingual-cascade.tsv"), StandardCharsets.UTF_8)) {
+            NeuralProbeContract.verifyCascade(probes, reader);
+        }
     }
     private static void writeReport(String name, JSONObject json) throws Exception {
         File output = new File(InstrumentationRegistry.getInstrumentation().getContext().getFilesDir(), name);

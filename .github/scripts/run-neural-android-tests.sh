@@ -14,11 +14,8 @@ bash .github/scripts/gradle-with-retry.sh "${gradle_args[@]}" :neural-android:as
 cp neural-android/build/generated/neuralFixtures/assets/provenance.txt "$report_dir/provenance.txt"
 neural_emulator_pid=
 neural_avd_dir=
-cleanup() {
-  if [[ -n "$neural_emulator_pid" ]]; then kill "$neural_emulator_pid" 2>/dev/null || true; fi
-  if [[ -n "$neural_avd_dir" ]]; then rm -rf "$neural_avd_dir"; fi
-}
-trap cleanup EXIT
+source "$(dirname "${BASH_SOURCE[0]}")/neural-emulator-cleanup.sh"
+trap cleanup_neural_emulator EXIT
 if [[ "${1:-}" == --emulator ]]; then
   neural_avd_dir=$(mktemp -d)
   export ANDROID_AVD_HOME="$neural_avd_dir"
@@ -60,7 +57,7 @@ python3 - "$report_dir" "$neural_benchmark" "$neural_run_id" <<'PY'
 import json, pathlib, sys
 directory = pathlib.Path(sys.argv[1])
 report = json.loads((directory / 'correctness.json').read_text())
-assert report['parity_passed'] and report['probes'] == 139 and report['run_id'] == sys.argv[3]
+assert report['parity_passed'] and report['cascade_parity_passed'] and report['probes'] == 139 and report['run_id'] == sys.argv[3]
 if sys.argv[2] == 'true':
     benchmark = json.loads((directory / 'benchmark.json').read_text())
     assert benchmark['encoding_included'] and benchmark['timing_assertions'] is False and benchmark['run_id'] == sys.argv[3]

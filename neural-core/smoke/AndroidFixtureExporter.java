@@ -32,6 +32,16 @@ public final class AndroidFixtureExporter {
             rows.append('\n');
         }
         Files.write(assets.resolve("probes.tsv"), rows.toString().getBytes(StandardCharsets.UTF_8));
+        GatedTextIntentModel cascade = new GatedTextIntentModel(domain, TrainedTextIntentCheckpoint.labels(),
+                TrainedTextIntentCheckpoint.TEMPERATURE, BilingualTextEncoder.VERSION,
+                new GatedTextIntentModel.RefusalHead(refusal, TrainedRefusalGateCheckpoint.TEMPERATURE, TrainedRefusalGateCheckpoint.CUTOFF),
+                new GatedTextIntentModel.RefusalHead(TrainedBilingualRefusalCheckpoint.model(), TrainedBilingualRefusalCheckpoint.TEMPERATURE, TrainedBilingualRefusalCheckpoint.CUTOFF));
+        StringBuilder cascadeRows = new StringBuilder("id\tstatus\tchoice\n");
+        for (int i = 0; i < texts.size(); i++) {
+            TinyDecisionModel.Decision decision = cascade.classify(texts.get(i), 0.6, 0.15);
+            cascadeRows.append(i).append('\t').append(decision.status).append('\t').append(decision.choice == null ? "-" : decision.choice).append('\n');
+        }
+        Files.write(assets.resolve("bilingual-cascade.tsv"), cascadeRows.toString().getBytes(StandardCharsets.UTF_8));
         StringBuilder manifest = new StringBuilder("Previously observed regression inputs. Not a fresh evaluation or production model.\n");
         for (String file : new String[] {"neural-core/fixtures/text-intents.tsv", "neural-core/fixtures/clinc-subset/rejection.tsv",
                 "neural-core/fixtures/decision-challenges.tsv", "neural-core/fixtures/clinc-subset/provenance.json"}) {

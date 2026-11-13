@@ -1,0 +1,236 @@
+{
+  "production_eligible": false,
+  "test_status": "already_observed_regressions",
+  "extra_parameters": 2570,
+  "heads": [
+    {
+      "label": "repository",
+      "seed": 97,
+      "epoch": 20,
+      "development_macro_nll": 0.18904429,
+      "temperature": 1.0
+    },
+    {
+      "label": "build",
+      "seed": 97,
+      "epoch": 5,
+      "development_macro_nll": 0.540156885,
+      "temperature": 0.5
+    },
+    {
+      "label": "device",
+      "seed": 97,
+      "epoch": 5,
+      "development_macro_nll": 0.489273741,
+      "temperature": 0.75
+    },
+    {
+      "label": "knowledge",
+      "seed": 97,
+      "epoch": 10,
+      "development_macro_nll": 0.269409538,
+      "temperature": 2.0
+    },
+    {
+      "label": "chat",
+      "seed": 97,
+      "epoch": 5,
+      "development_macro_nll": 0.527088286,
+      "temperature": 0.5
+    }
+  ],
+  "threshold": 0.75,
+  "require_match": false,
+  "evaluations": {
+    "development": {
+      "known": 70,
+      "required_refusals": 112,
+      "prior": {
+        "accepted": 113,
+        "accepted_correct": 52,
+        "accepted_errors": 61,
+        "known_accepted": 62,
+        "refused": 61
+      },
+      "multi_intent": {
+        "accepted": 108,
+        "accepted_correct": 52,
+        "accepted_errors": 56,
+        "known_accepted": 61,
+        "refused": 65
+      }
+    },
+    "test": {
+      "known": 40,
+      "required_refusals": 92,
+      "prior": {
+        "accepted": 54,
+        "accepted_correct": 28,
+        "accepted_errors": 26,
+        "known_accepted": 34,
+        "refused": 72
+      },
+      "multi_intent": {
+        "accepted": 54,
+        "accepted_correct": 28,
+        "accepted_errors": 26,
+        "known_accepted": 34,
+        "refused": 72
+      }
+    },
+    "regression": {
+      "known": 100,
+      "required_refusals": 160,
+      "prior": {
+        "accepted": 188,
+        "accepted_correct": 85,
+        "accepted_errors": 103,
+        "known_accepted": 90,
+        "refused": 62
+      },
+      "multi_intent": {
+        "accepted": 153,
+        "accepted_correct": 80,
+        "accepted_errors": 73,
+        "known_accepted": 85,
+        "refused": 92
+      }
+    },
+    "original": {
+      "known": 30,
+      "required_refusals": 0,
+      "prior": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "known_accepted": 28,
+        "refused": 0
+      },
+      "multi_intent": {
+        "accepted": 27,
+        "accepted_correct": 24,
+        "accepted_errors": 3,
+        "known_accepted": 27,
+        "refused": 0
+      }
+    },
+    "composed_cross": {
+      "known": 0,
+      "required_refusals": 120,
+      "prior": {
+        "accepted": 92,
+        "accepted_correct": 0,
+        "accepted_errors": 92,
+        "known_accepted": 0,
+        "refused": 28
+      },
+      "multi_intent": {
+        "accepted": 62,
+        "accepted_correct": 0,
+        "accepted_errors": 62,
+        "known_accepted": 0,
+        "refused": 58
+      }
+    },
+    "composed_same": {
+      "known": 30,
+      "required_refusals": 0,
+      "prior": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "known_accepted": 30,
+        "refused": 0
+      },
+      "multi_intent": {
+        "accepted": 26,
+        "accepted_correct": 26,
+        "accepted_errors": 0,
+        "known_accepted": 26,
+        "refused": 0
+      }
+    },
+    "unseen_topic": {
+      "known": 0,
+      "required_refusals": 40,
+      "prior": {
+        "accepted": 15,
+        "accepted_correct": 0,
+        "accepted_errors": 15,
+        "known_accepted": 0,
+        "refused": 25
+      },
+      "multi_intent": {
+        "accepted": 15,
+        "accepted_correct": 0,
+        "accepted_errors": 15,
+        "known_accepted": 0,
+        "refused": 25
+      }
+    },
+    "prior_clinc": {
+      "known": 40,
+      "required_refusals": 40,
+      "prior": {
+        "accepted": 38,
+        "accepted_correct": 30,
+        "accepted_errors": 8,
+        "known_accepted": 32,
+        "refused": 34
+      },
+      "multi_intent": {
+        "accepted": 38,
+        "accepted_correct": 30,
+        "accepted_errors": 8,
+        "known_accepted": 32,
+        "refused": 34
+      }
+    },
+    "additional_clinc": {
+      "known": 40,
+      "required_refusals": 40,
+      "prior": {
+        "accepted": 35,
+        "accepted_correct": 28,
+        "accepted_errors": 7,
+        "known_accepted": 34,
+        "refused": 39
+      },
+      "multi_intent": {
+        "accepted": 35,
+        "accepted_correct": 28,
+        "accepted_errors": 7,
+        "known_accepted": 34,
+        "refused": 39
+      }
+    },
+    "old_challenge": {
+      "known": 5,
+      "required_refusals": 20,
+      "prior": {
+        "accepted": 22,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "known_accepted": 5,
+        "refused": 3
+      },
+      "multi_intent": {
+        "accepted": 21,
+        "accepted_correct": 5,
+        "accepted_errors": 16,
+        "known_accepted": 5,
+        "refused": 4
+      }
+    }
+  },
+  "corpus_sha256": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e",
+  "protocol_sha256": "4c04931f71a0541f266ca464f0e301e29bfb6eab0f8a41079711f8fd2295ee21",
+  "checkpoint_sha256": {
+    "TrainedMultiIntent0.java": "ae1b0d52f5ee5bbecb718b4a6c7cf4de2bfe7e1f5c068810a991dc715a04d0f1",
+    "TrainedMultiIntent1.java": "6e0cb097f845b46d8e04bf7e43727f64294d1fd97d63abdd0bfa75f8023e717c",
+    "TrainedMultiIntent2.java": "5e79d4e60493974ead417f2f43444cbb6c561a5d4292c8019e8baa02f894e055",
+    "TrainedMultiIntent3.java": "c47a1fc1e684bbad840ee3a01957335a449d45b4b856f5f321a2643d4018ff5b",
+    "TrainedMultiIntent4.java": "c99bb6f0e647a3364dd42c35f93cc2c039fbf81eb35a8bf77f663b1bda2fd17e",
+    "TrainedMultiIntentManifest.java": "018e58a42103e65fe396eda1c03ee8360da42557a72ee63205000b7257b9e29e"
+  }
+}

@@ -7,7 +7,13 @@ on:
       - 'neural-core/**'
       - 'neural-android/**'
       - 'scripts/prepare_neural_android_fixtures.sh'
+      - 'scripts/prepare_bilingual_refusal.py'
+      - 'scripts/test_bilingual_refusal.py'
+      - 'scripts/train_bilingual_refusal.sh'
+      - 'scripts/train_multi_intent.sh'
       - '.github/scripts/run-neural-android-tests.sh'
+      - '.github/scripts/neural-emulator-cleanup.sh'
+      - 'scripts/test_neural_emulator_cleanup.py'
       - 'scripts/test_neural_training.sh'
       - 'scripts/import_clinc_rejection.py'
       - 'settings.gradle.kts'
@@ -18,7 +24,13 @@ on:
       - 'neural-core/**'
       - 'neural-android/**'
       - 'scripts/prepare_neural_android_fixtures.sh'
+      - 'scripts/prepare_bilingual_refusal.py'
+      - 'scripts/test_bilingual_refusal.py'
+      - 'scripts/train_bilingual_refusal.sh'
+      - 'scripts/train_multi_intent.sh'
       - '.github/scripts/run-neural-android-tests.sh'
+      - '.github/scripts/neural-emulator-cleanup.sh'
+      - 'scripts/test_neural_emulator_cleanup.py'
       - 'scripts/test_neural_training.sh'
       - 'scripts/import_clinc_rejection.py'
       - 'settings.gradle.kts'
@@ -32,7 +44,7 @@ jobs:
   java-compat:
     name: Java 8 compatibility + isolated smoke
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -56,6 +68,29 @@ jobs:
         run: bash scripts/test_neural_training.sh
       - name: Verify Android fixture generation and host contract
         run: bash scripts/prepare_neural_android_fixtures.sh /tmp/omni-android-fixtures
+      - name: Verify bilingual corpus guards and train six bounded candidates
+        run: |
+          python3 scripts/test_neural_emulator_cleanup.py
+          python3 scripts/test_bilingual_refusal.py
+          bash scripts/train_bilingual_refusal.sh
+      - name: Upload experimental bilingual checkpoint and report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bilingual-refusal-${{ github.run_id }}
+          path: build/bilingual-refusal-v1/
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Train independent domain-presence heads and verify compiled exports
+        run: bash scripts/train_multi_intent.sh
+      - name: Upload multi-intent experiment evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: multi-intent-${{ github.run_id }}
+          path: build/multi-intent/
+          if-no-files-found: ignore
+          retention-days: 30
 
   android-runtime:
     name: Experimental neural ART parity (API 30)

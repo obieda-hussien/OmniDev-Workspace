@@ -114,7 +114,41 @@ public final class OfflineDecisionTrainer {
         }
     }
 
+    public static final class TrainingResult {
+        public final Model model;
+        public final int bestEpoch, epochsRun;
+        public final double validationLoss;
+        private TrainingResult(Model model, int bestEpoch, int epochsRun, double validationLoss) {
+            this.model = model; this.bestEpoch = bestEpoch; this.epochsRun = epochsRun; this.validationLoss = validationLoss;
+        }
+    }
+
     public static Model fit(List<Example> training, int classes, int hidden, int epochs, long seed) {
+        return fitInternal(training, classes, hidden, epochs, seed, null).model;
+    }
+
+    /** Check every five epochs, retain best macro-stratum NLL, stop after 25 epochs without improvement. */
+    public static TrainingResult fitEarlyStopped(List<Example> training, int classes, int hidden, int epochs,
+                                                  long seed, List<List<Example>> validationStrata) {
+        validate(training, classes);
+        if (validationStrata == null || validationStrata.isEmpty() || validationStrata.size() > 64) {
+            throw new IllegalArgumentException("Invalid bounded validation strata");
+        }
+        List<List<Example>> snapshot = new ArrayList<>(); List<Example> combined = new ArrayList<>();
+        for (List<Example> stratum : validationStrata) {
+            validate(stratum, classes);
+            for (Example example : stratum) if (example.features.length != training.get(0).features.length) {
+                throw new IllegalArgumentException("Validation feature schema mismatch");
+            }
+            if (combined.size() + stratum.size() > 100_000) throw new IllegalArgumentException("Validation bounds exceeded");
+            snapshot.add(new ArrayList<>(stratum)); combined.addAll(stratum);
+        }
+        requireDisjointGroups(training, combined);
+        return fitInternal(training, classes, hidden, epochs, seed, snapshot);
+    }
+
+    private static TrainingResult fitInternal(List<Example> training, int classes, int hidden, int epochs,
+                                              long seed, List<List<Example>> validationStrata) {
         validate(training, classes);
         int inputs = training.get(0).features.length;
         if (hidden < 0 || hidden > 64 || epochs < 1 || epochs > 1000) {
@@ -129,6 +163,7 @@ public final class OfflineDecisionTrainer {
         float[] last = new float[width * classes], lastBias = new float[classes];
         initialize(first, random, inputs); initialize(last, random, width);
         List<Example> order = new ArrayList<>(training);
+        Model best = null; double bestLoss = Double.POSITIVE_INFINITY; int bestEpoch = 0, epochsRun = 0;
         for (int epoch = 0; epoch < epochs; epoch++) {
             Collections.shuffle(order, random);
             double rate = 0.06 / (1 + epoch * 0.015);
@@ -170,10 +205,19 @@ public final class OfflineDecisionTrainer {
                     }
                 }
             }
+            epochsRun = epoch + 1;
+            if (validationStrata != null && (epochsRun % 5 == 0 || epochsRun == epochs)) {
+                Model checkpoint = new Model(inputs, hidden, classes, first, firstBias, last, lastBias, training);
+                double loss = 0;
+                for (List<Example> stratum : validationStrata) loss += logLoss(checkpoint, stratum, 1);
+                loss /= validationStrata.size();
+                if (loss < bestLoss) { best = checkpoint; bestLoss = loss; bestEpoch = epochsRun; }
+                if (epochsRun - bestEpoch >= 25) break;
+            }
         }
-        Model result = new Model(inputs, hidden, classes, first, firstBias, last, lastBias, training);
+        Model result = best == null ? new Model(inputs, hidden, classes, first, firstBias, last, lastBias, training) : best;
         result.runtime(); // Validate exported shapes and finite learned parameters.
-        return result;
+        return new TrainingResult(result, validationStrata == null ? epochsRun : bestEpoch, epochsRun, bestLoss);
     }
 
     /** Select a temperature using calibration data only; holdout is not accepted here. */
