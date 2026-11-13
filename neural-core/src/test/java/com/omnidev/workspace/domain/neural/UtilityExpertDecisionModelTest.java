@@ -115,6 +115,56 @@ public final class UtilityExpertDecisionModelTest {
             width, b.length, new float[width * b.length], b, TinyNeuralRuntime.Activation.LINEAR));
   }
 
+  @Test
+  public void callerConfidenceAndMarginRemainRequiredForAnAlternativeProposal() {
+    RichTextEncoder encoder =
+        new RichTextEncoder(new String[] {"w:source"}, new float[] {1}, RichTextEncoder.VERSION);
+    GatedTextIntentModel base =
+        new GatedTextIntentModel(
+            bias(256, 10, 0, 0, 0, 0),
+            MultiIntentRefusalModel.labels(),
+            1,
+            bias(256, 10, 0),
+            1,
+            .99,
+            BilingualTextEncoder.VERSION);
+    RichIntentRefusalModel teacher =
+        new RichIntentRefusalModel(
+            base,
+            encoder,
+            bias(1024, 0, 0, 0, 0, 0),
+            .7,
+            false,
+            RichTextEncoder.VERSION,
+            encoder.fingerprint());
+    double[] reject = {1.1, 1.1, 1.1, 1.1, 1.1}, change = {.6, 1.1, 1.1, 1.1, 1.1};
+    UtilityExpertDecisionModel model =
+        new UtilityExpertDecisionModel(
+            teacher,
+            encoder,
+            bias(1024, 0, 0, 3, 0, 0, 0),
+            1,
+            reject,
+            change,
+            encoder.fingerprint());
+    assertEquals("device", model.classify("source", .6, .15).choice);
+    assertEquals("repository", model.classify("source", .95, .15).choice);
+    assertEquals("repository", model.classify("source", .6, .9).choice);
+    assertEquals("repository", model.classifyUnshared("source", .95, .15).choice);
+    assertEquals("repository", model.classifyUnshared("source", .6, .9).choice);
+  }
+
+  @Test
+  public void teacherDistributionMustHaveTheExactOwnedSchema() {
+    TinyDecisionModel.Decision foreign =
+        TinyDecisionModel.fromDistribution(
+            new double[] {.8, .1, .1}, new String[] {"repository", "build", "device"}, 0, 0);
+    rejects(() -> UtilityExpertDecisionModel.choose(foreign, decision(2, 6, .9), .8, .8));
+    rejects(
+        () ->
+            UtilityExpertDecisionModel.choose(foreign.asAbstention(), decision(2, 6, .9), .8, .8));
+  }
+
   private static void rejects(Runnable action) {
     try {
       action.run();

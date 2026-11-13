@@ -75,6 +75,11 @@ public final class UtilityNeuralProbeContract {
       exact(after, s);
       if (before.status == TinyDecisionModel.Status.ABSTAIN) exact(before, after);
       require(!"__reject__".equals(after.choice), "Reject escaped as a proposal");
+      TinyDecisionModel.Decision strict = a.classify(c[1], .95, .9);
+      require(
+          strict.status != TinyDecisionModel.Status.CHOICE
+              || strict.probability >= .95 && strict.margin > .9,
+          "Expert bypassed caller confidence or margin");
     }
     require(count == EXPECTED_PROBES, "Missing utility probes");
     return count;

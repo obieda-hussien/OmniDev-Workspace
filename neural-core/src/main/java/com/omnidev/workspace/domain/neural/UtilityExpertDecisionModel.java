@@ -63,24 +63,30 @@ public final class UtilityExpertDecisionModel {
   public TinyDecisionModel.Decision classify(String text, double probability, double margin) {
     RichIntentRefusalModel.Prepared prepared = teacher.prepare(text, probability, margin);
     TinyDecisionModel.Decision before = prepared.decision;
+    validateTeacher(before);
     if (before.status == TinyDecisionModel.Status.ABSTAIN) return before;
     int domain = domain(before.choice);
     if (reject[domain] == DISABLED && change[domain] == DISABLED) return before;
-    return withFeatures(before, prepared.features, domain);
+    return withFeatures(before, prepared.features, domain, probability, margin);
   }
 
   // Controlled host ablation of the same policy and weights; normal inference shares the teacher
   // encoding.
   TinyDecisionModel.Decision classifyUnshared(String text, double probability, double margin) {
     TinyDecisionModel.Decision before = teacher.classify(text, probability, margin);
+    validateTeacher(before);
     if (before.status == TinyDecisionModel.Status.ABSTAIN) return before;
     int domain = domain(before.choice);
     if (reject[domain] == DISABLED && change[domain] == DISABLED) return before;
-    return withFeatures(before, encoder.encode(text), domain);
+    return withFeatures(before, encoder.encode(text), domain, probability, margin);
   }
 
   private TinyDecisionModel.Decision withFeatures(
-      TinyDecisionModel.Decision before, float[] features, int domain) {
+      TinyDecisionModel.Decision before,
+      float[] features,
+      int domain,
+      double probability,
+      double margin) {
     TinyDecisionModel.Decision candidate = expert.decide(features, 0, 0);
     double score =
         support[domain] == DISABLED
@@ -88,7 +94,15 @@ public final class UtilityExpertDecisionModel {
                 || candidate.probability < reject[domain]
             ? 0
             : teacher.domainSupport(features)[domain];
-    return choose(before, candidate, reject[domain], change[domain], score, support[domain]);
+    return choose(
+        before,
+        candidate,
+        reject[domain],
+        change[domain],
+        score,
+        support[domain],
+        probability,
+        margin);
   }
 
   static TinyDecisionModel.Decision choose(
@@ -106,6 +120,18 @@ public final class UtilityExpertDecisionModel {
       double change,
       double domainSupport,
       double supportCutoff) {
+    return choose(before, expert, reject, change, domainSupport, supportCutoff, .6, .15);
+  }
+
+  private static TinyDecisionModel.Decision choose(
+      TinyDecisionModel.Decision before,
+      TinyDecisionModel.Decision expert,
+      double reject,
+      double change,
+      double domainSupport,
+      double supportCutoff,
+      double minimumProbability,
+      double minimumMargin) {
     if (before == null
         || expert == null
         || !threshold(reject)
@@ -113,7 +139,14 @@ public final class UtilityExpertDecisionModel {
         || !threshold(supportCutoff)
         || !Double.isFinite(domainSupport)
         || domainSupport < 0
-        || domainSupport > 1) throw new IllegalArgumentException("Invalid utility decision");
+        || domainSupport > 1
+        || !Double.isFinite(minimumProbability)
+        || minimumProbability < 0
+        || minimumProbability > 1
+        || !Double.isFinite(minimumMargin)
+        || minimumMargin < 0
+        || minimumMargin > 1) throw new IllegalArgumentException("Invalid utility decision");
+    validateTeacher(before);
     if (before.status == TinyDecisionModel.Status.ABSTAIN) return before;
     domain(before.choice);
     if (expert.probabilitiesCopy().length != 6)
@@ -125,7 +158,15 @@ public final class UtilityExpertDecisionModel {
           : before;
     domain(expert.choice);
     if (expert.choice.equals(before.choice)) return before;
-    return expert.probability >= change && expert.margin > 0.15 ? expert : before;
+    return expert.probability >= Math.max(change, minimumProbability)
+            && expert.margin > Math.max(.15, minimumMargin)
+        ? expert
+        : before;
+  }
+
+  private static void validateTeacher(TinyDecisionModel.Decision decision) {
+    if (decision == null || decision.probabilitiesCopy().length != 5)
+      throw new IllegalArgumentException("Foreign teacher distribution");
   }
 
   static int domain(String label) {
