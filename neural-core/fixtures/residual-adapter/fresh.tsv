@@ -1,0 +1,161 @@
+source_id	source_partition	locale	intent	expected_domain	text
+1440	test	ar-SA	play_music	-	قم بتشغيل آخر أغاني خليجية رومانسية
+1440	test	en-US	play_music	-	play the latest rock songs having rating of four or above
+1467	test	ar-SA	play_music	-	شغلي كاظم الساهر
+1467	test	en-US	play_music	-	play slayer
+1489	test	ar-SA	play_music	-	شغل أخر أغاني لوعد
+1489	test	en-US	play_music	-	play the latest songs by dalida
+1546	test	ar-SA	play_music	-	summer jams playlist
+1546	test	en-US	play_music	-	play my summer jams playlist
+1671	test	ar-SA	play_music	-	شغلي بس الاغاني اللي بين سنة الف و تسعامية و تسعين و الفين
+1671	test	en-US	play_music	-	play only all music released between the year one thousand nine hundred and ninety and two thousand
+1692	test	ar-SA	play_music	-	دور بعظ smooth jazz لي
+1692	test	en-US	play_music	-	find some smooth jazz for me
+1811	test	ar-SA	play_music	-	ابدالي التشغيل وشغلي الموسيقى
+1811	test	en-US	play_music	-	start playlist and play music
+1832	test	ar-SA	play_music	-	شغل البوم انغامي
+1832	test	en-US	play_music	-	play coldplay album
+1833	test	ar-SA	play_music	-	فينا نعمل تكرار مواضيع قائمة التشغيل
+1833	test	en-US	play_music	-	can you loop the playlist themes
+1940	test	ar-SA	play_music	-	song title
+1940	test	en-US	play_music	-	play the song title
+1962	test	ar-SA	play_music	-	playlist wacky my
+1962	test	en-US	play_music	-	hi google play me playlist wacky in my gaana application
+1994	test	ar-SA	play_music	-	my itunes
+1994	test	en-US	play_music	-	can you open my itunes
+1995	test	ar-SA	play_music	-	شغل نبيل شعيل
+1995	test	en-US	play_music	-	play the beatles
+2007	test	ar-SA	play_music	-	thirteen
+2007	test	en-US	play_music	-	please play thirteen
+2062	test	ar-SA	play_music	-	some jazz music
+2062	test	en-US	play_music	-	i want some jazz music to play
+2085	test	ar-SA	play_music	-	ابي اسمع اي اغنية كلاسيكية ما عدا اصاله و ماجد المهندس
+2085	test	en-US	play_music	-	alexa i'dl like to hear any classical except for bach or schubert
+2108	test	ar-SA	play_music	-	summer lovin
+2108	test	en-US	play_music	-	next play summer lovin
+2225	test	ar-SA	play_music	-	شغل نقاده حق رابح صقر
+2225	test	en-US	play_music	-	play ella fitzgerals get happy
+2271	test	ar-SA	play_music	-	لو سمحت شغل الأغاني الي شريتها وحطيتها في المفضلة
+2271	test	en-US	play_music	-	please play songs i've purchased and favorited
+2396	test	ar-SA	play_music	-	شغل أغاني نبيل سيف
+2396	test	en-US	play_music	-	start celine dion songs
+16280	test	ar-SA	email_sendemail	-	لو سمحت أرسل email إلى شوق الموجودة في قائمة أهلي وصديقاتي
+16280	test	en-US	email_sendemail	-	please send an email to cassy who is there on my family and friend list
+16282	test	ar-SA	email_sendemail	-	أرسل email للسكرتيرة ليلى وخلها تكنسل كل مواعيد بكره
+16282	test	en-US	email_sendemail	-	send an email to my assistant clara to cancel all appointments for tomorrow
+16296	test	ar-SA	email_sendemail	-	أرسل email لأمي وقول لها حفلة عيد ميلاد فيصل بتكون يوم الأحد
+16296	test	en-US	email_sendemail	-	send an email to mom to tell her wyatt's birthday party is on sunday
+16297	test	ar-SA	email_sendemail	-	ابعث ايميل حق محمد تخبره شكرا
+16297	test	en-US	email_sendemail	-	send an email to jake to tell him thank you
+16314	test	ar-SA	email_sendemail	-	أرسل email لمريم
+16314	test	en-US	email_sendemail	-	send an email to margaret
+16320	test	ar-SA	email_sendemail	-	ابغى أرد على email سالم الحارثي
+16320	test	en-US	email_sendemail	-	i want to reply to bob smith's email
+16375	test	ar-SA	email_sendemail	-	اكتب email لمحمد
+16375	test	en-US	email_sendemail	-	compose an email to bob
+16376	test	ar-SA	email_sendemail	-	أليكسا يرجى إرسال البريد الإلكتروني إلى ماما
+16376	test	en-US	email_sendemail	-	alexa please send an email to mom
+16377	test	ar-SA	email_sendemail	-	اسل ايميل لوالدتي الحين
+16377	test	en-US	email_sendemail	-	send mom an email now
+16398	test	ar-SA	email_sendemail	-	الله يسعدك أرسل email لكمال
+16398	test	en-US	email_sendemail	-	please send the email to jeff
+16401	test	ar-SA	email_sendemail	-	أرسل email لشهد سلام وش بتسوين اليوم
+16401	test	en-US	email_sendemail	-	text an email to donna hey what are you doing today
+16402	test	ar-SA	email_sendemail	-	أرسل email لتهاني بخطط اليوم
+16402	test	en-US	email_sendemail	-	email donna plans for today
+16406	test	ar-SA	email_sendemail	-	alexa ابدأي email
+16406	test	en-US	email_sendemail	-	alexa start email
+16410	test	ar-SA	email_sendemail	-	ابدأ email
+16410	test	en-US	email_sendemail	-	compose email
+16419	test	ar-SA	email_sendemail	-	لو سمحت ارسل email إلى العم عبدالله وقول له ايه اقدر اسويه
+16419	test	en-US	email_sendemail	-	please send an email to uncle john with the following yes i can make it
+16430	test	ar-SA	email_sendemail	-	تكفى ارسل email لماما و بابا واسألهم عن أخبارهم
+16430	test	en-US	email_sendemail	-	please send mom and dad an email asking how they are
+16437	test	ar-SA	email_sendemail	-	لو ماعليك أمر أرسل هذا email لخويي
+16437	test	en-US	email_sendemail	-	please sent this email to my friend
+16438	test	ar-SA	email_sendemail	-	ابيك ترسل هذا الإيميل الحين
+16438	test	en-US	email_sendemail	-	i need this email sent now
+16459	test	ar-SA	email_sendemail	-	رسالة جديدة الى newmail at gmail dot com
+16459	test	en-US	email_sendemail	-	new message to newmail at gmail dot com
+16496	test	ar-SA	email_sendemail	-	أرسل email ورد فيه
+16496	test	en-US	email_sendemail	-	send a replay email
+7100	test	ar-SA	calendar_set	-	ذكريني قبل يوم من موعد استحقاق السيارة حقتي
+7100	test	en-US	calendar_set	-	remind me the day before my car is due
+7122	test	ar-SA	calendar_set	-	ممكن تكرر هذا الموعد
+7122	test	en-US	calendar_set	-	could you repeat this event
+7140	test	ar-SA	calendar_set	-	حط منبه عشان ينبهني قبل ساعة من اجتماع الغدا
+7140	test	en-US	calendar_set	-	set a reminder to notify me one hour before lunch meeting
+7151	test	ar-SA	calendar_set	-	حدد تذكير حق كل يوم أحد فردي
+7151	test	en-US	calendar_set	-	for every odd numbered sunday set a reminder for
+7152	test	ar-SA	calendar_set	-	سجل الغدا كل يوم الساعة اثنعش ونص
+7152	test	en-US	calendar_set	-	set lunch every day at twelve thirty
+7161	test	ar-SA	calendar_set	-	ذكرني هاذي المناسبة في المستقبل
+7161	test	en-US	calendar_set	-	remind this event in future
+7170	test	ar-SA	calendar_set	-	اليوم عيد ميلاد أمي ارسل لي إشعار كل عام في نفس التاريخ
+7170	test	en-US	calendar_set	-	it's my mother's birthday today send me a notification every year on this date
+7181	test	ar-SA	calendar_set	-	صحيني الساعة ستة الصبح يوم الخميس عشان يكون عندي وقت للإجتماع
+7181	test	en-US	calendar_set	-	wake me at six am thursday so i have time for the meeting
+7194	test	ar-SA	calendar_set	-	سجل انه عندي اجتماع بكره
+7194	test	en-US	calendar_set	-	i am having a meeting on tomorrow set it
+7196	test	ar-SA	calendar_set	-	ذكرني الإجتماع مع مريم يوم خمسطعش مارس
+7196	test	en-US	calendar_set	-	remind me the meeting with allen on fifteenth march
+7199	test	ar-SA	calendar_set	-	حدد إشعار لمدة ثلاث ساعتين وساعة وحدة قبل نهائي اللغة الإنجليزية الأسبوع الجاي
+7199	test	en-US	calendar_set	-	set a notification for three two and one hours before next week's english final
+7209	test	ar-SA	calendar_set	-	ممكن تذكرني اطلع الزبالة يوم الثلاثاء
+7209	test	en-US	calendar_set	-	can you remind me to take the garbage out on tuesday
+7257	test	ar-SA	calendar_set	-	ذكرني اتصل على أمي خلال نص ساعة
+7257	test	en-US	calendar_set	-	please remind me to call mom in half an hour
+7258	test	ar-SA	calendar_set	-	تذكير حق إرسال بريد الكتروني إلى المدير بعد ساعة واحدة
+7258	test	en-US	calendar_set	-	remind me to send email to boss after one hour
+7262	test	ar-SA	calendar_set	-	ضف تذكير لااجتماع بكره
+7262	test	en-US	calendar_set	-	create a notification reminder for meeting tomorrow
+7278	test	ar-SA	calendar_set	-	ذكرني حق عيد ميلاد راوية قبلها بأربع وعشرين ساعة
+7278	test	en-US	calendar_set	-	remind me of rita's birthday twenty four hours in advance
+7287	test	ar-SA	calendar_set	-	ذكرني حول الذكرى السنوية قبل يوم
+7287	test	en-US	calendar_set	-	remind me about my anniversary in one day advance
+7291	test	ar-SA	calendar_set	-	منع ساعة وحدة من الساعة عشرة الصبح بكرة
+7291	test	en-US	calendar_set	-	block one hour from ten tomorrow morning
+7292	test	ar-SA	calendar_set	-	حط علامة بقائمتي اني مشغوله بكرة من الساعة أربعة للساعة ستة باليل
+7292	test	en-US	calendar_set	-	i am unavailable from four to six in the evening tomorrow mark my calendar
+7293	test	ar-SA	calendar_set	-	حدد موعد على الجدول لمدة ساعة واحدة يوم السبت
+7293	test	en-US	calendar_set	-	schedule a one hour appointment for saturday
+1866	test	ar-SA	weather_query	-	تقرير الطقس الحين
+1866	test	en-US	weather_query	-	weather report now
+1933	test	ar-SA	weather_query	-	هل سيكون هناك هبوط في درجة الحرارة الليلة
+1933	test	en-US	weather_query	-	will there be a fall in temperature by tonight
+2178	test	ar-SA	weather_query	-	ما هي حالة الطقس الحالية في عسير
+2178	test	en-US	weather_query	-	what is the current weather condition in my place
+2220	test	ar-SA	weather_query	-	طقس الرياض
+2220	test	en-US	weather_query	-	weather in paris
+2258	test	ar-SA	weather_query	-	هل أحتاج إلى سترة اليوم
+2258	test	en-US	weather_query	-	do i need a sweater today
+2265	test	ar-SA	weather_query	-	أخبرني إيش الطقس في الرياض هالحين
+2265	test	en-US	weather_query	-	tell me what the weather is doing in grand rapids mi right now
+2320	test	ar-SA	weather_query	-	ما هو الطقس هذا الجمعة
+2320	test	en-US	weather_query	-	what is the weather this friday
+2322	test	ar-SA	weather_query	-	كيف سيكون الطقس بكرة
+2322	test	en-US	weather_query	-	what's the weather like tomorrow
+2423	test	ar-SA	weather_query	-	تكفى أعطيني توقعات الطقس اليوم لمدينة أبها
+2423	test	en-US	weather_query	-	please give me todays forecast for new york city
+2545	test	ar-SA	weather_query	-	كيف الجو
+2545	test	en-US	weather_query	-	how is the weather
+2611	test	ar-SA	weather_query	-	توقعات الطقس الحين
+2611	test	en-US	weather_query	-	current weather forecast
+2615	test	ar-SA	weather_query	-	هل سأحتاج إلى ارتداء جاكيت الاربعاء المقبل
+2615	test	en-US	weather_query	-	will i need to wear a jacket next wednesday
+2678	test	ar-SA	weather_query	-	هل تمطر الليلة
+2678	test	en-US	weather_query	-	is it raining tonight
+2679	test	ar-SA	weather_query	-	هل ستبقى درجة الحرارة كما هي تقريبًا أم ستزداد برودة
+2679	test	en-US	weather_query	-	will the temperature stay about the same or is it going to get colder
+2777	test	ar-SA	weather_query	-	هل يجب أن أحضر انا مظلة اليوم
+2777	test	en-US	weather_query	-	should i bring an umbrella today
+2917	test	ar-SA	weather_query	-	تقرير الطقس الاسبوعي
+2917	test	en-US	weather_query	-	weekly weather report
+3034	test	ar-SA	weather_query	-	اخبرني درجة الحرارة
+3034	test	en-US	weather_query	-	tell me the temperature
+3096	test	ar-SA	weather_query	-	كيف الطقس في الرياض
+3096	test	en-US	weather_query	-	how's the weather like in new jersey
+3253	test	ar-SA	weather_query	-	هل نتوقع هطول بعد الظهر هذا اليوم
+3253	test	en-US	weather_query	-	should we expect rain this afternoon
+3305	test	ar-SA	weather_query	-	ما هو الطقس هذا الاسبوع في الرياض
+3305	test	en-US	weather_query	-	what is the weather this week for miami

@@ -22,12 +22,16 @@ public final class NeuralAndroidRuntimeTest {
         NeuralProbeContract.verify(probes);
         verifyCascade(probes);
         verifyRich(probes);
-        int publicProbes;
+        int publicProbes, residualProbes;
         try (Reader reader = new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("public-probes.tsv"), StandardCharsets.UTF_8)) {
             publicProbes = PublicNeuralProbeContract.verify(reader);
         }
+        try (Reader reader = new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("residual-probes.tsv"), StandardCharsets.UTF_8)) {
+            residualProbes = ResidualNeuralProbeContract.verify(reader);
+        }
         writeReport("correctness.json", environment().put("parity_passed", true).put("probes", probes.size())
                 .put("cascade_parity_passed", true).put("rich_parity_passed", true).put("public_parity_passed", true).put("public_probes", publicProbes)
+                .put("residual_parity_passed", true).put("residual_probes", residualProbes)
                 .put("host_art_probability_tolerance", 1e-6).put("dense_sparse_exact", true));
     }
 

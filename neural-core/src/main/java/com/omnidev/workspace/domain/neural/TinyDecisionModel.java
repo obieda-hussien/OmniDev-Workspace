@@ -76,4 +76,20 @@ public final class TinyDecisionModel {
     }
 
     private static boolean unit(double value) { return Double.isFinite(value) && value >= 0 && value <= 1; }
+
+    /** Package-only construction for bounded calibrated adapters; never a completion or authorization record. */
+    static Decision fromDistribution(double[] probabilities, String[] labels, double minimumProbability, double minimumMargin) {
+        if (probabilities == null || labels == null || probabilities.length < 2 || probabilities.length > 32 ||
+                probabilities.length != labels.length || !unit(minimumProbability) || !unit(minimumMargin)) throw new IllegalArgumentException("Invalid adapted distribution");
+        int best = 0; double sum = 0, second = 0; Set<String> unique = new HashSet<>();
+        for (int i = 0; i < probabilities.length; i++) {
+            if (!unit(probabilities[i]) || labels[i] == null || labels[i].trim().isEmpty() || labels[i].length() > 160 || !unique.add(labels[i])) throw new IllegalArgumentException("Invalid adapted probability/label");
+            sum += probabilities[i]; if (probabilities[i] > probabilities[best]) best = i;
+        }
+        if (Math.abs(sum - 1) > 1e-8) throw new IllegalArgumentException("Unnormalized adapted distribution");
+        for (int i = 0; i < probabilities.length; i++) if (i != best) second = Math.max(second, probabilities[i]);
+        double margin = probabilities[best] - second;
+        boolean abstain = probabilities[best] < minimumProbability || margin <= minimumMargin;
+        return new Decision(abstain ? Status.ABSTAIN : Status.CHOICE, abstain ? null : labels[best], probabilities, probabilities[best], margin);
+    }
 }
