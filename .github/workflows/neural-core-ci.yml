@@ -12,6 +12,8 @@ on:
       - 'scripts/train_bilingual_refusal.sh'
       - 'scripts/train_multi_intent.sh'
       - '.github/scripts/run-neural-android-tests.sh'
+      - '.github/scripts/neural-emulator-cleanup.sh'
+      - 'scripts/test_neural_emulator_cleanup.py'
       - 'scripts/test_neural_training.sh'
       - 'scripts/import_clinc_rejection.py'
       - 'settings.gradle.kts'
@@ -27,6 +29,8 @@ on:
       - 'scripts/train_bilingual_refusal.sh'
       - 'scripts/train_multi_intent.sh'
       - '.github/scripts/run-neural-android-tests.sh'
+      - '.github/scripts/neural-emulator-cleanup.sh'
+      - 'scripts/test_neural_emulator_cleanup.py'
       - 'scripts/test_neural_training.sh'
       - 'scripts/import_clinc_rejection.py'
       - 'settings.gradle.kts'
@@ -66,6 +70,7 @@ jobs:
         run: bash scripts/prepare_neural_android_fixtures.sh /tmp/omni-android-fixtures
       - name: Verify bilingual corpus guards and train six bounded candidates
         run: |
+          python3 scripts/test_neural_emulator_cleanup.py
           python3 scripts/test_bilingual_refusal.py
           bash scripts/train_bilingual_refusal.sh
       - name: Upload experimental bilingual checkpoint and report

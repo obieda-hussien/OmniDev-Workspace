@@ -14,11 +14,8 @@ bash .github/scripts/gradle-with-retry.sh "${gradle_args[@]}" :neural-android:as
 cp neural-android/build/generated/neuralFixtures/assets/provenance.txt "$report_dir/provenance.txt"
 neural_emulator_pid=
 neural_avd_dir=
-cleanup() {
-  if [[ -n "$neural_emulator_pid" ]]; then kill "$neural_emulator_pid" 2>/dev/null || true; fi
-  if [[ -n "$neural_avd_dir" ]]; then rm -rf "$neural_avd_dir"; fi
-}
-trap cleanup EXIT
+source "$(dirname "${BASH_SOURCE[0]}")/neural-emulator-cleanup.sh"
+trap cleanup_neural_emulator EXIT
 if [[ "${1:-}" == --emulator ]]; then
   neural_avd_dir=$(mktemp -d)
   export ANDROID_AVD_HOME="$neural_avd_dir"
