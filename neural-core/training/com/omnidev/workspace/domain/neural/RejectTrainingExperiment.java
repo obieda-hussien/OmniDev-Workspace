@@ -105,7 +105,7 @@ public final class RejectTrainingExperiment {
     }
     private static void benchmark(TinyNeuralRuntime dense, TinyNeuralRuntime sparse, List<Row> rows) {
         // Interleave order, warm both paths, measure batch means; not phone latency or end-to-end text time.
-        for (int i = 0; i < 4000; i++) { sink += dense.infer(rows.get(i % rows.size()).features)[0]; sink += sparse.infer(rows.get(i % rows.size()).features)[0]; }
+        for (int i = 0; i < 4000; i++) { sink += checksum(dense.infer(rows.get(i % rows.size()).features)); sink += checksum(sparse.infer(rows.get(i % rows.size()).features)); }
         long[] a = new long[12], b = new long[12];
         for (int round = 0; round < a.length; round++) {
             if (round % 2 == 0) { a[round] = timing(dense, rows); b[round] = timing(sparse, rows); }
@@ -117,8 +117,11 @@ public final class RejectTrainingExperiment {
     }
     private static long timing(TinyNeuralRuntime model, List<Row> rows) {
         long start = System.nanoTime(); double sum = 0;
-        for (int i = 0; i < 1000; i++) sum += model.infer(rows.get(i % rows.size()).features)[0];
+        for (int i = 0; i < 1000; i++) sum += checksum(model.infer(rows.get(i % rows.size()).features));
         long elapsed = System.nanoTime() - start; sink = sum; return elapsed / 1000;
+    }
+    private static double checksum(float[] values) {
+        double result = 0; for (float value : values) result += value; return result;
     }
     private static List<Row> read(String file, String header) throws Exception {
         Path path = Paths.get(file);
