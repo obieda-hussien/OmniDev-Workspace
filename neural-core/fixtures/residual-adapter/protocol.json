@@ -1,0 +1,11 @@
+{
+  "version": "bounded-residual-v1",
+  "before_fit": true,
+  "data": "Old bilingual corpus and pinned public MASSIVE subset. Fit known training rows only, retain translations and scenario groups, development early stopping, calibration only sets a maximum gain. Reserve previously unused official test groups before fitting; old tests are observed regressions.",
+  "teacher": "Freeze the rich-v1 plus conservative public-refusal-v1 cascade. Never upgrade its abstentions. Reuse frozen 1024 features and five original calibrated domain probabilities.",
+  "adapter": "Zero-initialized 1024x5 tanh residual, 5125 parameters, per-logit correction bounded by gain <=1. Corrected distribution softmax(log(teacher probabilities)+gain*residual). Gain zero returns original decision exactly. No new tool execution or authorization.",
+  "training": "Six fits: anchor coefficients 1/4/16, seeds42/97, <=100 epochs, SGD .04/(1+.02*epoch), weight decay .005, gradient CE(true)+anchor*KL(teacher||corrected) on old known rows, CE on new public known rows. Balance known language/domain strata. Check development known macro NLL every5 epochs, patience20, retain immutable best snapshot; deterministic candidate selection by lower development NLL.",
+  "policy": "Calibration chooses maximum gain from .125/.25/.5/1 by known macro NLL. Development considers gains0/.125/.25/.5/1 up to that maximum using fixed .6 probability/.15 margin. Require zero previously correct known development decisions lost, maximize known correct macro over language, tie lower gain. No test-based refitting. Gain zero is a valid no-change result.",
+  "testing": "Export selection before scoring any fresh rows. Report known accepted correct, raw known classification, earlier correct cases lost, unsupported refusals and changed unsupported choices. All test retention failures remain explicit and prevent promotion.",
+  "production_eligible": false
+}

@@ -1,0 +1,21 @@
+{
+  "source_files": {
+    "ar-SA.jsonl": "b604b44d3bb94e4f71f64d041229e16ceb42d7b89385df7c82873d2514737186",
+    "en-US.jsonl": "c70f75c6a543a26e249ec383df67733ad9b1066f6c0406c2e04a3f03356e407e",
+    "LICENSE": "c2e6ea015269147de02117ebdd91f30ef09831251f5345fa8365273b1db1d435",
+    "NOTICE.md": "b90534ccd20c6f0e1e5239567af0d150496339542b75a15bfbc3e1e737593ddb"
+  },
+  "rows": 160,
+  "counts": {
+    "play_music": 40,
+    "email_sendemail": 40,
+    "calendar_set": 40,
+    "weather_query": 40
+  },
+  "files": {
+    "neural-core/fixtures/residual-adapter/fresh.tsv": "05add51a7760a1ad743f3830de7597522f32314f33764a7ea19d7451a2a8fffa",
+    "neural-core/fixtures/residual-adapter/protocol.json": "68a6612bab622a92efc8c206f85d35e5b9b07c283b461ce23590d792e27a696b",
+    "neural-core/fixtures/massive-refusal/corpus.tsv": "f300371ef4656d78fc22449066250918d5f6270afafb53595232351b1d95b6e8"
+  },
+  "limits": "Previously unused official test utterances, same existing remapped topics, Saudi Arabic/English translations. Coverage is determined by remaining unique groups; not all domains or Egyptian traffic."
+}

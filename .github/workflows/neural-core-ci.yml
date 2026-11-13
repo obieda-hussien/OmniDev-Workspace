@@ -18,6 +18,9 @@ on:
       - 'scripts/test_massive_refusal.py'
       - 'scripts/train_public_refusal.sh'
       - 'scripts/train_public_decision.sh'
+      - 'scripts/reserve_residual_eval.py'
+      - 'scripts/test_residual_data.py'
+      - 'scripts/train_residual_adapter.sh'
       - '.github/scripts/run-neural-android-tests.sh'
       - '.github/scripts/neural-emulator-cleanup.sh'
       - 'scripts/test_neural_emulator_cleanup.py'
@@ -42,6 +45,9 @@ on:
       - 'scripts/test_massive_refusal.py'
       - 'scripts/train_public_refusal.sh'
       - 'scripts/train_public_decision.sh'
+      - 'scripts/reserve_residual_eval.py'
+      - 'scripts/test_residual_data.py'
+      - 'scripts/train_residual_adapter.sh'
       - '.github/scripts/run-neural-android-tests.sh'
       - '.github/scripts/neural-emulator-cleanup.sh'
       - 'scripts/test_neural_emulator_cleanup.py'
@@ -158,6 +164,32 @@ jobs:
           path: |
             build/public-refusal/
             build/public-decision/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  residual-training:
+    name: Bounded residual training + preservation evidence
+    needs: java-compat
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify reservation, train six candidates and compare compiled checkpoints
+        run: |
+          python3 scripts/test_residual_data.py
+          bash scripts/train_residual_adapter.sh
+      - name: Upload residual evidence including the selected zero-gain policy
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: residual-adapter-${{ github.run_id }}
+          path: build/residual-adapter/
           if-no-files-found: ignore
           retention-days: 30
 

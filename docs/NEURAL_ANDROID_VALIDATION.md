@@ -97,3 +97,7 @@ JDK 17 and the stricter release-8 compilation before Android tests.
 ## Public checkpoint parity extension
 
 The standalone test APK also verifies the public refusal and separate six-class checkpoints on 699 observations (139 prior inputs plus 560 public test utterances). `public_parity_passed` and an exact `public_probes` count are required in the fresh correctness report. These are runtime-parity checks; the separate classifier failed its quality-preservation gate and remains experimental. No normal APK dependency or physical-device claim is introduced. See [PUBLIC_BILINGUAL_TRAINING.md](PUBLIC_BILINGUAL_TRAINING.md).
+
+## Residual numerical parity
+
+See [BOUNDED_RESIDUAL_TRAINING.md](BOUNDED_RESIDUAL_TRAINING.md) for the six-fit teacher-anchored experiment. Its selected gain is zero and no quality improvement is claimed. The isolated test APK adds 859 selected/forced-active numerical probes; this does not activate the adapter in the app.

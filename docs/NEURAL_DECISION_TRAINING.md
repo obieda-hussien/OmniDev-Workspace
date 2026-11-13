@@ -55,3 +55,7 @@ authorize production integration.
 ## Public bilingual follow-up
 
 See [PUBLIC_BILINGUAL_TRAINING.md](PUBLIC_BILINGUAL_TRAINING.md) for 2,240 pinned public Arabic/English utterances, conservative refusal training and a separate six-class classifier. The latter improves selective performance but fails development preservation and regresses older correct cases; it is explicitly not eligible for production.
+
+## Bounded residual follow-up
+
+See [BOUNDED_RESIDUAL_TRAINING.md](BOUNDED_RESIDUAL_TRAINING.md) for the six-fit teacher-anchored experiment. Its selected gain is zero and no quality improvement is claimed. The isolated test APK adds 859 selected/forced-active numerical probes; this does not activate the adapter in the app.

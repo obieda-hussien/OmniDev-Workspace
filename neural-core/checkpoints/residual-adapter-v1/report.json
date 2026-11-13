@@ -1,0 +1,323 @@
+{
+  "production_eligible": false,
+  "fresh_supported_rows": 0,
+  "fresh_limits": "160 unused utterances from four existing unsupported topics; no new known-domain positives",
+  "candidates": [
+    {
+      "anchor": 1.0,
+      "seed": 42,
+      "best_epoch": 5,
+      "epochs_run": 25,
+      "development_macro_nll": 0.655526249
+    },
+    {
+      "anchor": 1.0,
+      "seed": 97,
+      "best_epoch": 5,
+      "epochs_run": 25,
+      "development_macro_nll": 0.653834768
+    },
+    {
+      "anchor": 4.0,
+      "seed": 42,
+      "best_epoch": 5,
+      "epochs_run": 25,
+      "development_macro_nll": 0.65221726
+    },
+    {
+      "anchor": 4.0,
+      "seed": 97,
+      "best_epoch": 5,
+      "epochs_run": 25,
+      "development_macro_nll": 0.650361981
+    },
+    {
+      "anchor": 16.0,
+      "seed": 42,
+      "best_epoch": 20,
+      "epochs_run": 40,
+      "development_macro_nll": 0.556085347
+    },
+    {
+      "anchor": 16.0,
+      "seed": 97,
+      "best_epoch": 35,
+      "epochs_run": 55,
+      "development_macro_nll": 0.548554865
+    }
+  ],
+  "selected_anchor": 16.0,
+  "selected_seed": 97,
+  "selected_epoch": 35,
+  "calibration_maximum_gain": 0.5,
+  "development_policy_grid": [
+    {
+      "gain": 0.0,
+      "correct": 65,
+      "previous_correct_lost": 0,
+      "language_macro_correct": 0.64001554
+    },
+    {
+      "gain": 0.125,
+      "correct": 65,
+      "previous_correct_lost": 0,
+      "language_macro_correct": 0.64001554
+    },
+    {
+      "gain": 0.25,
+      "correct": 65,
+      "previous_correct_lost": 0,
+      "language_macro_correct": 0.64001554
+    },
+    {
+      "gain": 0.5,
+      "correct": 64,
+      "previous_correct_lost": 1,
+      "language_macro_correct": 0.627195027
+    }
+  ],
+  "gain": 0.0,
+  "extra_parameters": 5125,
+  "total_weight_parameters": 19618,
+  "train_known_rows": 886,
+  "balanced_train_known_rows": 3900,
+  "evaluations": {
+    "massive_ar": {
+      "rows": 280,
+      "known": 52,
+      "required_refusals": 228,
+      "teacher": {
+        "accepted": 166,
+        "accepted_correct": 14,
+        "accepted_errors": 152,
+        "unsupported_refused": 89,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      },
+      "residual": {
+        "accepted": 166,
+        "accepted_correct": 14,
+        "accepted_errors": 152,
+        "unsupported_refused": 89,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      }
+    },
+    "massive_en": {
+      "rows": 280,
+      "known": 52,
+      "required_refusals": 228,
+      "teacher": {
+        "accepted": 172,
+        "accepted_correct": 20,
+        "accepted_errors": 152,
+        "unsupported_refused": 97,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      },
+      "residual": {
+        "accepted": 172,
+        "accepted_correct": 20,
+        "accepted_errors": 152,
+        "unsupported_refused": 97,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      }
+    },
+    "regression_all": {
+      "rows": 531,
+      "known": 179,
+      "required_refusals": 352,
+      "teacher": {
+        "accepted": 307,
+        "accepted_correct": 143,
+        "accepted_errors": 164,
+        "unsupported_refused": 202,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      },
+      "residual": {
+        "accepted": 307,
+        "accepted_correct": 143,
+        "accepted_errors": 164,
+        "unsupported_refused": 202,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      }
+    },
+    "regression_old_original": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "teacher": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      },
+      "residual": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      }
+    },
+    "regression_old_composed_same": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "teacher": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      },
+      "residual": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      }
+    },
+    "regression_old_composed_cross": {
+      "rows": 120,
+      "known": 0,
+      "required_refusals": 120,
+      "teacher": {
+        "accepted": 76,
+        "accepted_correct": 0,
+        "accepted_errors": 76,
+        "unsupported_refused": 44,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      },
+      "residual": {
+        "accepted": 76,
+        "accepted_correct": 0,
+        "accepted_errors": 76,
+        "unsupported_refused": 44,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      }
+    },
+    "regression_old_fresh_english": {
+      "rows": 114,
+      "known": 34,
+      "required_refusals": 80,
+      "teacher": {
+        "accepted": 59,
+        "accepted_correct": 25,
+        "accepted_errors": 34,
+        "unsupported_refused": 49,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      },
+      "residual": {
+        "accepted": 59,
+        "accepted_correct": 25,
+        "accepted_errors": 34,
+        "unsupported_refused": 49,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      }
+    },
+    "regression_old_old_challenge": {
+      "rows": 25,
+      "known": 5,
+      "required_refusals": 20,
+      "teacher": {
+        "accepted": 22,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "unsupported_refused": 3,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      },
+      "residual": {
+        "accepted": 22,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "unsupported_refused": 3,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      }
+    },
+    "fresh_unsupported": {
+      "rows": 160,
+      "known": 0,
+      "required_refusals": 160,
+      "teacher": {
+        "accepted": 91,
+        "accepted_correct": 0,
+        "accepted_errors": 91,
+        "unsupported_refused": 69,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      },
+      "residual": {
+        "accepted": 91,
+        "accepted_correct": 0,
+        "accepted_errors": 91,
+        "unsupported_refused": 69,
+        "previous_correct_lost": 0,
+        "unsupported_choices_changed": 0
+      }
+    }
+  },
+  "host_timing": {
+    "physical_phone": false,
+    "encoding_included": true,
+    "calls_per_batch": 192,
+    "batches": 8,
+    "teacher": {
+      "batch_average_ns": [
+        20570,
+        20044,
+        21133,
+        19940,
+        20016,
+        21801,
+        20043,
+        19876
+      ],
+      "median_batch_average_ns": 20043
+    },
+    "residual": {
+      "batch_average_ns": [
+        20207,
+        20318,
+        19908,
+        20104,
+        20040,
+        27527,
+        19846,
+        19744
+      ],
+      "median_batch_average_ns": 20072
+    }
+  },
+  "artifact_sha256": {
+    "neural-core/checkpoints/rich-text-v1/TrainedRichPresence.java": "397a27d1a7736f41ebd15a311d289307e715f0d6c7ed03a05fe6926a61f55e45",
+    "neural-core/checkpoints/rich-text-v1/TrainedRichVocabulary.java": "b277f2a7c97d549632d399929f029c12479d6492eef0deb9aaf2973ab7a37a1d",
+    "neural-core/checkpoints/public-refusal-v1/TrainedPublicRefusal.java": "d79539ac9455ccbb84be796fd334ba3b35cd7193ae9a4d07a1dbd5528ead3fe0",
+    "neural-core/fixtures/residual-adapter/protocol.json": "68a6612bab622a92efc8c206f85d35e5b9b07c283b461ce23590d792e27a696b",
+    "neural-core/fixtures/residual-adapter/fresh.tsv": "05add51a7760a1ad743f3830de7597522f32314f33764a7ea19d7451a2a8fffa",
+    "neural-core/fixtures/residual-adapter/provenance.json": "b8d0e02c6612ac725ba0528f2bf3bc104d6797accfc68dfe0ba96468aba37ebc",
+    "neural-core/fixtures/bilingual-refusal/corpus.tsv": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e",
+    "neural-core/fixtures/massive-refusal/corpus.tsv": "f300371ef4656d78fc22449066250918d5f6270afafb53595232351b1d95b6e8",
+    "neural-core/fixtures/text-intents.tsv": "e1aac35b6d45015e0798bb039ab8f6bee33e96720fa72f3f4ebb42c477ba4fd1",
+    "neural-core/fixtures/clinc-subset/rejection.tsv": "ecc3598ed5c2385ecbcd5ab3fef3e5d4ba36112342b0239287ff0a0bf65b1843",
+    "neural-core/checkpoints/residual-adapter-v1/TrainedResidualAdapter.java": "486a63bb9ab8a6fa7456538da72f343d815321ae3e2f6c1c41b7cd7825770c08"
+  },
+  "observed_known_retention_passed": true,
+  "adapter_active": false,
+  "quality_improvement_demonstrated": false
+}

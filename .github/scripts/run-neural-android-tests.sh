@@ -59,6 +59,7 @@ directory = pathlib.Path(sys.argv[1])
 report = json.loads((directory / 'correctness.json').read_text())
 assert report['parity_passed'] and report['cascade_parity_passed'] and report['rich_parity_passed'] and report['probes'] == 139 and report['run_id'] == sys.argv[3]
 assert report['public_parity_passed'] and report['public_probes'] == 699
+assert report['residual_parity_passed'] and report['residual_probes'] == 859
 if sys.argv[2] == 'true':
     benchmark = json.loads((directory / 'benchmark.json').read_text())
     assert benchmark['encoding_included'] and benchmark['timing_assertions'] is False and benchmark['run_id'] == sys.argv[3]
