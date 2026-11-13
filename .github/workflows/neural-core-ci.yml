@@ -6,6 +6,7 @@ on:
     paths:
       - 'neural-core/**'
       - 'scripts/test_neural_training.sh'
+      - 'scripts/import_clinc_rejection.py'
       - 'settings.gradle.kts'
       - '.github/workflows/neural-core-ci.yml'
   push:
@@ -13,6 +14,7 @@ on:
     paths:
       - 'neural-core/**'
       - 'scripts/test_neural_training.sh'
+      - 'scripts/import_clinc_rejection.py'
       - 'settings.gradle.kts'
       - '.github/workflows/neural-core-ci.yml'
   workflow_dispatch:

@@ -1,0 +1,24 @@
+{
+  "repository": "https://github.com/clinc/oos-eval",
+  "revision": "828f8093932c8fe6ca7936c3d2e52903b1c523de",
+  "source": "data/data_full.json",
+  "source_sha256": "36923c3705a59e08fe9c3883d8bc2dd966ef93e22cb78ac41171782a698d56e0",
+  "mapping": {
+    "greeting": "chat",
+    "thank_you": "chat",
+    "tell_joke": "chat",
+    "change_volume": "device",
+    "book_flight": "__reject__",
+    "book_hotel": "__reject__",
+    "restaurant_reservation": "__reject__",
+    "transfer": "__reject__"
+  },
+  "rows": 360,
+  "language": "English only",
+  "excluded_duplicate_ids": [
+    "train:clinc-train-13820"
+  ],
+  "subset_sha256": "ecc3598ed5c2385ecbcd5ab3fef3e5d4ba36112342b0239287ff0a0bf65b1843",
+  "original_corpus_sha256": "e1aac35b6d45015e0798bb039ab8f6bee33e96720fa72f3f4ebb42c477ba4fd1",
+  "note": "Subset/remapping for Omni's narrow five-domain experiment; not the CLINC150 benchmark."
+}

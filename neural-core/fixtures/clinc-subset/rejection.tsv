@@ -1,0 +1,361 @@
+split	id	label	upstream_intent	text
+train	clinc-train-11800	chat	greeting	how's everything
+train	clinc-train-11801	chat	greeting	how are things going
+train	clinc-train-11802	chat	greeting	hello, anyone there
+train	clinc-train-11803	chat	greeting	are you okay right now
+train	clinc-train-11804	chat	greeting	are you doing okay
+train	clinc-train-11805	chat	greeting	how's it going right now
+train	clinc-train-11806	chat	greeting	ahoy hoy
+train	clinc-train-11807	chat	greeting	hey there!
+train	clinc-train-11808	chat	greeting	how is everything with you
+train	clinc-train-11809	chat	greeting	hey hey!
+train	clinc-train-11810	chat	greeting	how have you been doing
+train	clinc-train-11811	chat	greeting	it's nice to see you
+train	clinc-train-11812	chat	greeting	hello there!
+train	clinc-train-11813	chat	greeting	how is it going
+train	clinc-train-11814	chat	greeting	how are things with you
+train	clinc-train-11815	chat	greeting	hiya!
+train	clinc-train-11816	chat	greeting	what's up
+train	clinc-train-11817	chat	greeting	how're you doing
+train	clinc-train-11818	chat	greeting	it's good to see you
+train	clinc-train-11819	chat	greeting	is everything going okay
+train	clinc-train-11820	chat	greeting	how is everything going
+train	clinc-train-11821	chat	greeting	how goes it
+train	clinc-train-11822	chat	greeting	hello, ai
+train	clinc-train-11823	chat	greeting	hey, ai
+train	clinc-train-11824	chat	greeting	wake up, ai
+train	clinc-train-6500	chat	thank_you	you have been a big help, thank you so much
+train	clinc-train-6501	chat	thank_you	i appreciate your help, thank you
+train	clinc-train-6502	chat	thank_you	i really appreciate your help, thank you
+train	clinc-train-6503	chat	thank_you	i am very grateful
+train	clinc-train-6504	chat	thank_you	i appreciate the assistance
+train	clinc-train-6505	chat	thank_you	i want to thank you for helping
+train	clinc-train-6506	chat	thank_you	much obliged
+train	clinc-train-6507	chat	thank_you	your help is appreciated
+train	clinc-train-6508	chat	thank_you	gracias
+train	clinc-train-6509	chat	thank_you	i appreciate that
+train	clinc-train-6510	chat	thank_you	thanks so much!
+train	clinc-train-6511	chat	thank_you	many thanks
+train	clinc-train-6512	chat	thank_you	appreciate it
+train	clinc-train-6513	chat	thank_you	thanks!
+train	clinc-train-6514	chat	thank_you	i thank you
+train	clinc-train-6515	chat	thank_you	thank you kindly
+train	clinc-train-6516	chat	thank_you	thank you so very much
+train	clinc-train-6517	chat	thank_you	thank you for helping me
+train	clinc-train-6518	chat	thank_you	i'm grateful to you
+train	clinc-train-6519	chat	thank_you	you did a good job thank you
+train	clinc-train-6520	chat	thank_you	good looking out
+train	clinc-train-6521	chat	thank_you	i wish you were here earlier
+train	clinc-train-6522	chat	thank_you	it's so much easier with you around
+train	clinc-train-6523	chat	thank_you	you've been a great help
+train	clinc-train-6524	chat	thank_you	thanks for the help
+train	clinc-train-13800	chat	tell_joke	please, recite to me some good one liners
+train	clinc-train-13801	chat	tell_joke	do you know any good jokes about zebras
+train	clinc-train-13802	chat	tell_joke	can you tell me any truly funny knock knock jokes
+train	clinc-train-13803	chat	tell_joke	what do people find funny about food
+train	clinc-train-13804	chat	tell_joke	what are some funny things about food
+train	clinc-train-13805	chat	tell_joke	show me something funny about food
+train	clinc-train-13806	chat	tell_joke	indicate something funny on the topic of food
+train	clinc-train-13807	chat	tell_joke	what's a good joke
+train	clinc-train-13808	chat	tell_joke	i'd love to hear a joke
+train	clinc-train-13809	chat	tell_joke	can you tell a joke
+train	clinc-train-13810	chat	tell_joke	would you tell me a joke
+train	clinc-train-13811	chat	tell_joke	how about you tell me a joke
+train	clinc-train-13812	chat	tell_joke	will you tell a joke
+train	clinc-train-13813	chat	tell_joke	please tell me a joke
+train	clinc-train-13814	chat	tell_joke	make me laugh
+train	clinc-train-13815	chat	tell_joke	do you have any jokes
+train	clinc-train-13816	chat	tell_joke	tell me something funny
+train	clinc-train-13817	chat	tell_joke	hit me with a good joke
+train	clinc-train-13818	chat	tell_joke	what's the funniest joke you know
+train	clinc-train-13819	chat	tell_joke	tell me a joke if you'd like to
+train	clinc-train-13821	chat	tell_joke	i'd like you to tell me a joke
+train	clinc-train-13822	chat	tell_joke	do you know any good jokes
+train	clinc-train-13823	chat	tell_joke	know any jokes
+train	clinc-train-13824	chat	tell_joke	i wanna hear something funny
+train	clinc-train-13825	chat	tell_joke	i would like to listen to a funny joke
+train	clinc-train-8900	device	change_volume	raise the volume to 4 please
+train	clinc-train-8901	device	change_volume	please set the volume to 4
+train	clinc-train-8902	device	change_volume	please increase the volume to 4
+train	clinc-train-8903	device	change_volume	please raise the volume to 4
+train	clinc-train-8904	device	change_volume	set the volume to 4 please
+train	clinc-train-8905	device	change_volume	bring the volume up overall
+train	clinc-train-8906	device	change_volume	make the volume louder
+train	clinc-train-8907	device	change_volume	bring the sound up
+train	clinc-train-8908	device	change_volume	turn your speakers up
+train	clinc-train-8909	device	change_volume	make the speakers louder
+train	clinc-train-8910	device	change_volume	lower your volume
+train	clinc-train-8911	device	change_volume	go ahead and increase the volume to 4 please
+train	clinc-train-8912	device	change_volume	you must increase the volume to 4 please
+train	clinc-train-8913	device	change_volume	go ahead and your volume
+train	clinc-train-8914	device	change_volume	you must increase your volume
+train	clinc-train-8915	device	change_volume	please increase your volume
+train	clinc-train-8916	device	change_volume	please increase your speaker volume
+train	clinc-train-8917	device	change_volume	go now and increase the volume to 4 please
+train	clinc-train-8918	device	change_volume	please increase the volume to 4 please
+train	clinc-train-8919	device	change_volume	i want to increase your volume
+train	clinc-train-8920	device	change_volume	i need you to your volume
+train	clinc-train-8921	device	change_volume	please your volume
+train	clinc-train-8922	device	change_volume	go ahead and increase your speaker volume
+train	clinc-train-8923	device	change_volume	i want you to your volume
+train	clinc-train-8924	device	change_volume	i need you to increase your volume
+train	clinc-train-12500	__reject__	book_flight	what's the cheapest fares from lax to sfo for round trip flights leaving april 1st and returning april 7th
+train	clinc-train-12501	__reject__	book_flight	for the dates april 1st to the 7th, find me round trip air tickets from la to sfo
+train	clinc-train-12502	__reject__	book_flight	what southwest flights are there for lax to sfo arriving april 1st and returning april 7th
+train	clinc-train-12503	__reject__	book_flight	what airlines have flights round trip on april 1st to april 7th from lax to sfo
+train	clinc-train-12504	__reject__	book_flight	find me round trip flights out of lax to sfox
+train	clinc-train-12505	__reject__	book_flight	find me a flight from tijuana to guadalajara on volaris
+train	clinc-train-12506	__reject__	book_flight	i need a flight to be booked from san diego to boston through frontier
+train	clinc-train-12507	__reject__	book_flight	i want a flight booked from new york to san francisco with continental
+train	clinc-train-12508	__reject__	book_flight	get me a flight booked from houston to phoenix with american airlines
+train	clinc-train-12509	__reject__	book_flight	i want to fly southwest from dallas to phoenix
+train	clinc-train-12510	__reject__	book_flight	book a flight from chicago to dc on monday and returning on wednesday
+train	clinc-train-12511	__reject__	book_flight	i need to get a flight out of lax to dia on the 16th for under four hundred
+train	clinc-train-12512	__reject__	book_flight	book a flight from sacremento to tampa two weeks from now and returning a month after
+train	clinc-train-12513	__reject__	book_flight	i'm looking for a roundtrip flight from afw to dgb for tomorrow until next week
+train	clinc-train-12514	__reject__	book_flight	i'm looking for a roundtrip flight from oma to sps august 1st, 2019 to august 2nd, 2019
+train	clinc-train-12515	__reject__	book_flight	i need to get a flight out of tampa to chicago in a month for under $123
+train	clinc-train-12516	__reject__	book_flight	book a flight from denver to austin on the 16th and returning on the 20th
+train	clinc-train-12517	__reject__	book_flight	book a flight from bangor to las vegas on may 1st and returning july 4th
+train	clinc-train-12518	__reject__	book_flight	book a flight from seattle to dallas-fort worth on april the 1st and returning on april 5th
+train	clinc-train-12519	__reject__	book_flight	i need to get a flight out of seattle to dulles next week for under $500
+train	clinc-train-12520	__reject__	book_flight	i'm looking for a roundtrip flight from koa to mgj for june to july
+train	clinc-train-12521	__reject__	book_flight	i need to get a flight out of denver to houston on friday for under $250
+train	clinc-train-12522	__reject__	book_flight	i need to get a flight out of my local airport to england on monday, the 23rd for under a grand
+train	clinc-train-12523	__reject__	book_flight	i'm looking for a roundtrip flight from aaf to dia for february 23rd to february 28th
+train	clinc-train-12524	__reject__	book_flight	i'm looking for a roundtrip flight from fwa to hsv for march first to march fifth
+train	clinc-train-10600	__reject__	book_hotel	i need a bed in brownsburg near walmart from apil 4th until the 5th
+train	clinc-train-10601	__reject__	book_hotel	i need a room in indianapolis near the track from may 2nd through the 5th
+train	clinc-train-10602	__reject__	book_hotel	i need lodging in lizton near the ice cream parlor from may 3rd until the 8th
+train	clinc-train-10603	__reject__	book_hotel	need a place to crash in elizabeth near the refinery from june 4th until the 9th
+train	clinc-train-10604	__reject__	book_hotel	i need a place to stay in newark near a bodega from may 2nd through the 4th
+train	clinc-train-10605	__reject__	book_hotel	i want to book a hotel room for 10 people from monday to tuesday in manhattan
+train	clinc-train-10606	__reject__	book_hotel	is there a room big enough for 10 people from monday to tuesday in manhattan
+train	clinc-train-10607	__reject__	book_hotel	is it possible to book 10 people from monday to tuesday in manhattan
+train	clinc-train-10608	__reject__	book_hotel	i would like to reserve a hotel room that accomodates 10 people from monday to tuesday in manhattan
+train	clinc-train-10609	__reject__	book_hotel	i'm inquiring about the availability of a room that fits 10 people from monday to tuesday in manhattan
+train	clinc-train-10610	__reject__	book_hotel	book me a hotel in st louis near the arch from march 2nd to 5th
+train	clinc-train-10611	__reject__	book_hotel	i need a room in london for 2 people from march 1st to 3rd
+train	clinc-train-10612	__reject__	book_hotel	get me a hotel room for 3 people from march 12th to 14th in chicago
+train	clinc-train-10613	__reject__	book_hotel	book me a hotel in new york near the empire state building from marc 2nd to 4th
+train	clinc-train-10614	__reject__	book_hotel	book me a hotel in chicago near the water tower shopping from april 2nd to 4th
+train	clinc-train-10615	__reject__	book_hotel	get me a hotel room for 4 people from march 1st to 3rd in seattle
+train	clinc-train-10616	__reject__	book_hotel	in paris, get me a hotel room for 4 people from march 1st to 3rd
+train	clinc-train-10617	__reject__	book_hotel	can you find me a hotel for 2 people on april 1st to 4th in rome
+train	clinc-train-10618	__reject__	book_hotel	can you book me a hotel in los angeles near commerce casino from april 1st to the 5th
+train	clinc-train-10619	__reject__	book_hotel	book me a hotel in seattle near the space needle from march 3rd to 5th
+train	clinc-train-10620	__reject__	book_hotel	can you book me a room in new york city from april 2 through april 8
+train	clinc-train-10621	__reject__	book_hotel	are there any openings in new york city from april 2 through april 8
+train	clinc-train-10622	__reject__	book_hotel	are there any vacancies in new york city from april 2 through april 8
+train	clinc-train-10623	__reject__	book_hotel	how about any bookings in new york city from april 2 through april 8
+train	clinc-train-10624	__reject__	book_hotel	is there anything available in new york city from april 2 through april 8
+train	clinc-train-2400	__reject__	restaurant_reservation	you need to call the melt in lakewood for a table for at 2:00, monday, the first week in march
+train	clinc-train-2401	__reject__	restaurant_reservation	hey computer, make a reservation for 2 for my parents at red lobster on wednseday next, 2:00pm if possible
+train	clinc-train-2402	__reject__	restaurant_reservation	i think we should reserve dad's regular table friday for 6 people, use his name, make that close to 4:00 pm at the club
+train	clinc-train-2403	__reject__	restaurant_reservation	listen i need to get a reservation for , me and teresa at georgetown cafe on tuesday at 7:00 pm
+train	clinc-train-2404	__reject__	restaurant_reservation	can you make me a reservation for 4 pm on the 22nd at ruth's
+train	clinc-train-2405	__reject__	restaurant_reservation	i need a reservation at 8 on the 22nd of november at ruth's
+train	clinc-train-2406	__reject__	restaurant_reservation	can i make a reservation for 6 pm on the 21st at sidetracks
+train	clinc-train-2407	__reject__	restaurant_reservation	please reserve me a table at hell's kitchen on may 3rd at 8 pm
+train	clinc-train-2408	__reject__	restaurant_reservation	please reserve me a table for 2 pm at maxwell's on the 14th
+train	clinc-train-2409	__reject__	restaurant_reservation	can you make a reservation for me at the restaurant
+train	clinc-train-2410	__reject__	restaurant_reservation	can you make a reservation at the restaurant for tomorrow
+train	clinc-train-2411	__reject__	restaurant_reservation	can you book a table at the restaurant for me and my husband
+train	clinc-train-2412	__reject__	restaurant_reservation	can you make a reservation at the restaurant for tonight
+train	clinc-train-2413	__reject__	restaurant_reservation	can you get me a table for 6 at mark's at 11am
+train	clinc-train-2414	__reject__	restaurant_reservation	can you get me a table for 1 at the vega at 1pm
+train	clinc-train-2415	__reject__	restaurant_reservation	can you get a table for 5 at joe's at 5pm
+train	clinc-train-2416	__reject__	restaurant_reservation	can you get me a table for 3 at captain d's at 2pm
+train	clinc-train-2417	__reject__	restaurant_reservation	can you get me a table for 2 at mexico viejo at 3pm
+train	clinc-train-2418	__reject__	restaurant_reservation	can you get me a table for 2 at diablo
+train	clinc-train-2419	__reject__	restaurant_reservation	can you get me a table for 5 at johnnys
+train	clinc-train-2420	__reject__	restaurant_reservation	can you get me a table for 8 at johnnys
+train	clinc-train-2421	__reject__	restaurant_reservation	can you get me a table for 6 at johnnys
+train	clinc-train-2422	__reject__	restaurant_reservation	can you get me a table for 4 at steve's
+train	clinc-train-2423	__reject__	restaurant_reservation	reserve a table for 3 at outback steakhouse under the name lance at 7:00pm
+train	clinc-train-2424	__reject__	restaurant_reservation	reserve a table for 4 at red lobster under the name dave at 7:30pm
+train	clinc-train-100	__reject__	transfer	i need $20000 transferred from my savings to my checking
+train	clinc-train-101	__reject__	transfer	complete a transaction from savings to checking of $20000
+train	clinc-train-102	__reject__	transfer	transfer $20000 from my savings account to checking account
+train	clinc-train-103	__reject__	transfer	take $20000 from savings and put it in checking
+train	clinc-train-104	__reject__	transfer	put $20000 into my checking account from my savings account
+train	clinc-train-105	__reject__	transfer	send 100 dollars between bank of the west and bank of america acccounts
+train	clinc-train-106	__reject__	transfer	send 50 dollars between bank of america and chase accounts
+train	clinc-train-107	__reject__	transfer	send 2000 dollars between chase and rabobank accounts
+train	clinc-train-108	__reject__	transfer	send 1200 dollars between usaa and navy federal accounts
+train	clinc-train-109	__reject__	transfer	send 400 dollars between city bank and usaa accounts
+train	clinc-train-110	__reject__	transfer	take $40 and transfer it to account a from b
+train	clinc-train-111	__reject__	transfer	transfer $40 from account a to b
+train	clinc-train-112	__reject__	transfer	move $40 from account b to account a
+train	clinc-train-113	__reject__	transfer	put $40 from account a to b
+train	clinc-train-114	__reject__	transfer	take $40 from account a and transfer it to account b
+train	clinc-train-115	__reject__	transfer	i need to transfer from this account to that one
+train	clinc-train-116	__reject__	transfer	need to transfer from one account to my other one
+train	clinc-train-117	__reject__	transfer	i would like to transfer from one account to my second one
+train	clinc-train-118	__reject__	transfer	i need to transfer from one account to my second one
+train	clinc-train-119	__reject__	transfer	i have to transfer from one account to my other one
+train	clinc-train-120	__reject__	transfer	send fifty dollars from me to carrie
+train	clinc-train-121	__reject__	transfer	transfer sixty dollars to dad from my biggest accnt
+train	clinc-train-122	__reject__	transfer	send over a hundred dollars from huntington into saving
+train	clinc-train-123	__reject__	transfer	move 57 dollars from saving into mom
+train	clinc-train-124	__reject__	transfer	transfer two hundred dollars between my portfolio and my money market account
+development	clinc-val-2360	chat	greeting	how ya doin
+development	clinc-val-2361	chat	greeting	how ya been
+development	clinc-val-2362	chat	greeting	hows are ya
+development	clinc-val-2363	chat	greeting	heyo
+development	clinc-val-2364	chat	greeting	are you good
+development	clinc-val-1300	chat	thank_you	that you so much for the help
+development	clinc-val-1301	chat	thank_you	thanks for helping me
+development	clinc-val-1302	chat	thank_you	thanks for helping me out today
+development	clinc-val-1303	chat	thank_you	thanks for the assist
+development	clinc-val-1304	chat	thank_you	thank you for the help
+development	clinc-val-2760	chat	tell_joke	what's the funniest thing you've got
+development	clinc-val-2761	chat	tell_joke	let me hear something funny
+development	clinc-val-2762	chat	tell_joke	i want to hear anything you have that's funny
+development	clinc-val-2763	chat	tell_joke	i want to hear something hilarious
+development	clinc-val-2764	chat	tell_joke	tell me your funniest joke
+development	clinc-val-1780	device	change_volume	make your volume quieter please
+development	clinc-val-1781	device	change_volume	adjust the volume to level 4
+development	clinc-val-1782	device	change_volume	i want your volume decreased please
+development	clinc-val-1783	device	change_volume	could you please raise your volume
+development	clinc-val-1784	device	change_volume	i want your volume lowered
+development	clinc-val-2500	__reject__	book_flight	can you find me a round trip flight from denver international to new york international on the 3rd through the 7th
+development	clinc-val-2501	__reject__	book_flight	can you look for a denver international to new york international round trip flight for the 5th though 8th
+development	clinc-val-2502	__reject__	book_flight	can you find me a flight from denver international to new york international on the 4th for under 700 dollars
+development	clinc-val-2503	__reject__	book_flight	for under 700 i need a flight from denver international to new york international on the 3rd
+development	clinc-val-2504	__reject__	book_flight	i need a flight from denver international to new york international round trip for the 4th though the 8th
+development	clinc-val-2120	__reject__	book_hotel	by chance would it be possible to reserve me a hotel in afghanistan at the zoo for the 10th to the 15th
+development	clinc-val-2121	__reject__	book_hotel	is it possible for a hotel to be booked by you for me in afghanistan at the zoo for the 10th to the 15th
+development	clinc-val-2122	__reject__	book_hotel	could you book me a hotel in afghanistan at the zoo for the 10th to the 15th
+development	clinc-val-2123	__reject__	book_hotel	could a hotel be booked for me in afghanistan at the zoo for the 10th to the 15th
+development	clinc-val-2124	__reject__	book_hotel	can you reserve a hotel for myself a hotel in afghanistan at the zoo for the 10th to the 15th
+development	clinc-val-480	__reject__	restaurant_reservation	please reserve a table for 2 at lucky's under the name melissa at 7 pm
+development	clinc-val-481	__reject__	restaurant_reservation	i would like to reserve a table for 2 at sam's steakhouse under the name jessie at 6:30 pm
+development	clinc-val-482	__reject__	restaurant_reservation	help me reserve a table for 3 at lucky's under the name crystal at 8 pm
+development	clinc-val-483	__reject__	restaurant_reservation	would you please schedule a reservation for 2 at lucky's under the name sam at 7:30pm
+development	clinc-val-484	__reject__	restaurant_reservation	could you please reserve a table for 6 at lucille's under the name tom at 5pm
+development	clinc-val-20	__reject__	transfer	transfer ten dollars from my wells fargo account to my bank of america account
+development	clinc-val-21	__reject__	transfer	take one hundred and fifty bucks from my wells fargo checking account and put it in my wells fargo savings account
+development	clinc-val-22	__reject__	transfer	put one hundred and seventy five bucks in my wells fargo checking account from my citibank savings account
+development	clinc-val-23	__reject__	transfer	move two hundred dollars to my chase savings account to my wells fargo checking account
+development	clinc-val-24	__reject__	transfer	move three hundred and fifty dollars from my citibank savings account to my chase savings account
+calibration	clinc-val-2365	chat	greeting	how is it going my friend
+calibration	clinc-val-2366	chat	greeting	how you are
+calibration	clinc-val-2367	chat	greeting	tell me how are you
+calibration	clinc-val-2368	chat	greeting	hi what's up
+calibration	clinc-val-2369	chat	greeting	hey what's up
+calibration	clinc-val-1305	chat	thank_you	thanks for your help
+calibration	clinc-val-1306	chat	thank_you	thank you for your help
+calibration	clinc-val-1307	chat	thank_you	i'm thankful for your help
+calibration	clinc-val-1308	chat	thank_you	i am glad that you did that
+calibration	clinc-val-1309	chat	thank_you	i owe you one
+calibration	clinc-val-2765	chat	tell_joke	do you have any funny jokes
+calibration	clinc-val-2766	chat	tell_joke	give me your best joke
+calibration	clinc-val-2767	chat	tell_joke	tell my something funny
+calibration	clinc-val-2768	chat	tell_joke	tell me something to make me laugh
+calibration	clinc-val-2769	chat	tell_joke	i'm in the mood for a joke
+calibration	clinc-val-1785	device	change_volume	i want your volume louder
+calibration	clinc-val-1786	device	change_volume	i want the volume at 4 please
+calibration	clinc-val-1787	device	change_volume	i want the volume at level 4
+calibration	clinc-val-1788	device	change_volume	a volume of 4 is ideal please
+calibration	clinc-val-1789	device	change_volume	i need your volume increased
+calibration	clinc-val-2505	__reject__	book_flight	i want to find a round trip flight from denver international to new york international on the 8th to the 16th
+calibration	clinc-val-2506	__reject__	book_flight	i need a flight from denver international to new york for under 700 on the 3rd
+calibration	clinc-val-2507	__reject__	book_flight	i want to find a flight for under 700 on the 4th from denver international to new york international
+calibration	clinc-val-2508	__reject__	book_flight	on the third i am looking for a flight for under 700 from denver international to new york international
+calibration	clinc-val-2509	__reject__	book_flight	i need a flight from the 3rd to the 7th round rip from denver international to new york international
+calibration	clinc-val-2125	__reject__	book_hotel	i need to reserve a large room or suite for 2 couples for august 15th through august 18th in seattle
+calibration	clinc-val-2126	__reject__	book_hotel	i need to book a hotel room or suite for 2 adults and 2 children in orlando for july 1st through 5th
+calibration	clinc-val-2127	__reject__	book_hotel	i need a hotel room for 7 people in st louis for november 3rd through 5th
+calibration	clinc-val-2128	__reject__	book_hotel	i need a suite that can accommodate 3 adults and 1 child in san diego for may 15th, 16th, and 17th
+calibration	clinc-val-2129	__reject__	book_hotel	show me a hotel in boise that has positive reviews
+calibration	clinc-val-485	__reject__	restaurant_reservation	is there a reservation available at ruth chris today
+calibration	clinc-val-486	__reject__	restaurant_reservation	are there 8pm tables available at texas roadhouse
+calibration	clinc-val-487	__reject__	restaurant_reservation	book a reservation for 3 at xenophobe under the name zebee
+calibration	clinc-val-488	__reject__	restaurant_reservation	i need to book a reservation for 3 at xenophobe under the name zebee
+calibration	clinc-val-489	__reject__	restaurant_reservation	book 3 under the name zebee at xenophobe
+calibration	clinc-val-25	__reject__	transfer	move a dollar from my checkings to my savings
+calibration	clinc-val-26	__reject__	transfer	move my money to the other account
+calibration	clinc-val-27	__reject__	transfer	transfer funds to the other account
+calibration	clinc-val-28	__reject__	transfer	please transfer half of my funds to an alternate account
+calibration	clinc-val-29	__reject__	transfer	can you move my money to my savings
+test	clinc-test-3540	chat	greeting	how are you doing
+test	clinc-test-3541	chat	greeting	are you okay
+test	clinc-test-3542	chat	greeting	what are you feeling today
+test	clinc-test-3543	chat	greeting	is everything ok today
+test	clinc-test-3544	chat	greeting	are you doing alright
+test	clinc-test-3545	chat	greeting	hello, how's your day
+test	clinc-test-3546	chat	greeting	hey there, how are you today
+test	clinc-test-3547	chat	greeting	hello, how is it going
+test	clinc-test-3548	chat	greeting	hi there, how are you doing
+test	clinc-test-3549	chat	greeting	hey, how are you
+test	clinc-test-1950	chat	thank_you	thank you ever so much for that!
+test	clinc-test-1951	chat	thank_you	you’re the best thanks so much!
+test	clinc-test-1952	chat	thank_you	thanks for helping
+test	clinc-test-1953	chat	thank_you	i am grateful for the help
+test	clinc-test-1954	chat	thank_you	thank you for the heip
+test	clinc-test-1955	chat	thank_you	i apprecaite the help from you
+test	clinc-test-1956	chat	thank_you	thanks that was really helpful
+test	clinc-test-1957	chat	thank_you	thank you for your time and trying to help
+test	clinc-test-1958	chat	thank_you	thank you for your assistance
+test	clinc-test-1959	chat	thank_you	thanks for all your help
+test	clinc-test-4140	chat	tell_joke	i would like to hear something funny
+test	clinc-test-4141	chat	tell_joke	do you have any monkey jokes
+test	clinc-test-4142	chat	tell_joke	know any dad jokes
+test	clinc-test-4143	chat	tell_joke	tell me a dog joke
+test	clinc-test-4144	chat	tell_joke	heard any good jokes
+test	clinc-test-4145	chat	tell_joke	i want to hear a joke about elephants
+test	clinc-test-4146	chat	tell_joke	i'd like to hear a lawyer joke
+test	clinc-test-4147	chat	tell_joke	tell me a blonde joke
+test	clinc-test-4148	chat	tell_joke	do you know any dad jokes
+test	clinc-test-4149	chat	tell_joke	tell me a joke about elephants
+test	clinc-test-2670	device	change_volume	turn volume up to 4
+test	clinc-test-2671	device	change_volume	adjust volume setting to 4
+test	clinc-test-2672	device	change_volume	keep volume at 4 all the time
+test	clinc-test-2673	device	change_volume	put volume setting on number 4
+test	clinc-test-2674	device	change_volume	please make sure the volume stays at 4
+test	clinc-test-2675	device	change_volume	put the volume to 4
+test	clinc-test-2676	device	change_volume	volume to 4
+test	clinc-test-2677	device	change_volume	turn down your speaker
+test	clinc-test-2678	device	change_volume	decrease your decibel level
+test	clinc-test-2679	device	change_volume	be more quiet
+test	clinc-test-3750	__reject__	book_flight	book me a flight to jackson, mississippi from austin texas on american airlines
+test	clinc-test-3751	__reject__	book_flight	book me a place to chicago from atlanta united airlines
+test	clinc-test-3752	__reject__	book_flight	can you book me a flight to memphis from st louis on delta airlines
+test	clinc-test-3753	__reject__	book_flight	book a flight to los angeles from las vegas on american airlines
+test	clinc-test-3754	__reject__	book_flight	book me a flight to dallas from st, paul, minnesota on delta airlines
+test	clinc-test-3755	__reject__	book_flight	i need a flight on delta from los angeles to seattle
+test	clinc-test-3756	__reject__	book_flight	i need to book a flight on jet blue to boston from new york
+test	clinc-test-3757	__reject__	book_flight	can you get me a flight from san francisco to san jose using american airlines
+test	clinc-test-3758	__reject__	book_flight	i want a flight from new york to san francisco using delta
+test	clinc-test-3759	__reject__	book_flight	get me a flight from barcelona to paris from jet blue
+test	clinc-test-3180	__reject__	book_hotel	i really need you to find me a hotel with good reviews in phoenix
+test	clinc-test-3181	__reject__	book_hotel	i wanna book a place to stay in phoenix from the 5th to the 9th of march
+test	clinc-test-3182	__reject__	book_hotel	i wanna find a hotel with good reviews in phoenix
+test	clinc-test-3183	__reject__	book_hotel	i want a hotel in phoenix near chase field from january 4th to the 8th
+test	clinc-test-3184	__reject__	book_hotel	i would like to book a place to stay in phoenix from the 5th to the 9th of march
+test	clinc-test-3185	__reject__	book_hotel	i need a hotel in phoenix near chase field from january 4th to the 8th
+test	clinc-test-3186	__reject__	book_hotel	i need a hotel room that is big enough for eleven people from march 10th to the 15th in phoenix
+test	clinc-test-3187	__reject__	book_hotel	i must get a hotel in phoenix near chase field from january 4th to the 8th
+test	clinc-test-3188	__reject__	book_hotel	go ahead and find me a hotel with good reviews in phoenix
+test	clinc-test-3189	__reject__	book_hotel	find me a hotel with good reviews in phoenix
+test	clinc-test-720	__reject__	restaurant_reservation	i'd like to make a reservation at rooth chris, can you do that
+test	clinc-test-721	__reject__	restaurant_reservation	make a reservation for chik-fil-a at 3 o' clock please
+test	clinc-test-722	__reject__	restaurant_reservation	reserve a table for 3 at 7 for olive garden
+test	clinc-test-723	__reject__	restaurant_reservation	will you reserve a table at olive garden for 3 people at 7
+test	clinc-test-724	__reject__	restaurant_reservation	at 7, i need a table for 3 at olive garden
+test	clinc-test-725	__reject__	restaurant_reservation	i need a table for 3 at olive garden for 7
+test	clinc-test-726	__reject__	restaurant_reservation	get a table for me at 7 for 3 people at olive garden
+test	clinc-test-727	__reject__	restaurant_reservation	reserve table for 5 at red robin under the name sara at 3
+test	clinc-test-728	__reject__	restaurant_reservation	reverse a table for 5 at burger king under the name sara at 6
+test	clinc-test-729	__reject__	restaurant_reservation	can you reserve a table for 6 at red robin under the name mavrick at 5 clock
+test	clinc-test-30	__reject__	transfer	can you please provide me with assistance in moving money from one account to another
+test	clinc-test-31	__reject__	transfer	i would like help moving money between accounts
+test	clinc-test-32	__reject__	transfer	can you assist me in moving money from one account to another
+test	clinc-test-33	__reject__	transfer	i would like help moving money from one account to another
+test	clinc-test-34	__reject__	transfer	i would like assistance moving money from one account to another
+test	clinc-test-35	__reject__	transfer	can i move some money around
+test	clinc-test-36	__reject__	transfer	can i make a transfer between my accounts
+test	clinc-test-37	__reject__	transfer	i need to make a transfer of my money
+test	clinc-test-38	__reject__	transfer	can i move some money between my two accounts
+test	clinc-test-39	__reject__	transfer	i would like to distribute some money between my accounts
