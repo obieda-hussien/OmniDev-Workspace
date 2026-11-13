@@ -1,0 +1,26 @@
+id	kind	language	expected	text
+ood-weather-en	out_of_scope	en	abstain	What is the weather forecast for tomorrow?
+ood-weather-ar	out_of_scope	ar	abstain	درجة الحرارة بكرة هتبقى كام؟
+ood-food-en	out_of_scope	en	abstain	Order a vegetarian pizza for dinner
+ood-food-ar	out_of_scope	ar	abstain	اطلب لي بيتزا من أقرب مطعم
+ood-travel-en	out_of_scope	en	abstain	Book two train tickets to London
+ood-travel-ar	out_of_scope	ar	abstain	احجز لي تذكرة طيران الأسبوع الجاي
+ood-calendar-mixed	out_of_scope	mixed	abstain	ضيف appointment يوم السبت الساعة خمسة
+ood-shopping-mixed	out_of_scope	mixed	abstain	قارن أسعار headphones في المتاجر
+ood-math-en	out_of_scope	en	abstain	Calculate the integral of sine squared
+ood-math-ar	out_of_scope	ar	abstain	حل المعادلة التربيعية واشرح خطوات الحل
+amb-repo-device-en	ambiguous	en	abstain	Inspect the repository and change phone brightness
+amb-repo-device-ar	ambiguous	ar	abstain	راجع المستودع وبعدها ظبط سطوع الموبايل
+amb-build-chat-en	ambiguous	en	abstain	Run unit tests and tell me a joke
+amb-build-chat-ar	ambiguous	ar	abstain	شغل اختبارات جرادل واحكي نكتة
+amb-doc-device-mixed	ambiguous	mixed	abstain	هات documentation وبعدين غير media volume
+amb-repo-doc-mixed	ambiguous	mixed	abstain	راجع GitHub issue وابحث في saved notes
+amb-vague-en	ambiguous	en	abstain	Do the thing we discussed
+amb-vague-ar	ambiguous	ar	abstain	ظبط الحاجة اللي اتكلمنا عنها
+amb-pronoun-mixed	ambiguous	mixed	abstain	اعمل it دلوقتي
+amb-question-en	ambiguous	en	abstain	Which option should I choose?
+control-repo-en	known	en	repository	Inspect the repository branch and commit metadata
+control-build-en	known	en	build	Compile the project and run the test suite
+control-device-ar	known	ar	device	اعرض سطوع الشاشة واستهلاك بطارية الموبايل
+control-knowledge-ar	known	ar	knowledge	ابحث عن اقتباسات دقيقة في التوثيق الرسمي
+control-chat-mixed	known	mixed	chat	Hello يا منه يلا ندردش شوية

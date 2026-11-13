@@ -40,3 +40,6 @@ Future quality claims require a separate independently reviewed corpus and a fre
 feature/hyperparameter decisions, including ambiguity, out-of-domain, negation and mixed-task challenges.
 Only demonstrated improvements over deterministic baselines and real API 30 hardware measurements can justify
 a shadow adapter in the app. P0/P2/P5/P6 and flavor authorization remain final authorities.
+
+The [frozen-model risk audit](DECISION_RISK_EVALUATION.md) adds separate ambiguity/out-of-scope
+challenges and selective-error/calibration metrics. Its observed failures reinforce the deployment block.
