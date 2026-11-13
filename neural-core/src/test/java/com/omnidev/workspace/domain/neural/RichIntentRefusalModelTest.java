@@ -38,4 +38,31 @@ public final class RichIntentRefusalModelTest {
         rejects(() -> invalidScores.classify("source", 0.6, 0.15));
     }
     private static void rejects(Runnable action) { try { action.run(); } catch (IllegalArgumentException expected) { return; } fail("Expected rich contract rejection"); }
+    @Test public void optionalPublicGateCanOnlyRefuseWithoutChangingScores() {
+        RichTextEncoder e = encoder();
+        TinyNeuralRuntime presence = bias(1024, TinyNeuralRuntime.Activation.SIGMOID, 10, -10, -10, -10, -10);
+        RichIntentRefusalModel gate = new RichIntentRefusalModel(prior(false), e, presence, 0.7, false, RichTextEncoder.VERSION, e.fingerprint(),
+                bias(1024, TinyNeuralRuntime.Activation.SIGMOID, 10), 0.99);
+        TinyDecisionModel.Decision before = model(false, false, 10, -10, -10, -10, -10).classify("source", 0.6, 0.15), after = gate.classify("source", 0.6, 0.15);
+        assertEquals(TinyDecisionModel.Status.ABSTAIN, after.status); assertArrayEquals(before.probabilitiesCopy(), after.probabilitiesCopy(), 0);
+        RichIntentRefusalModel accept = new RichIntentRefusalModel(prior(false), e, presence, 0.7, false, RichTextEncoder.VERSION, e.fingerprint(),
+                bias(1024, TinyNeuralRuntime.Activation.SIGMOID, -10), 0.99);
+        assertEquals(before.choice, accept.classify("source", 0.6, 0.15).choice);
+    }
+    @Test public void optionalGateCannotUpgradePriorOrPresenceRefusalsAndSkipsItsWork() {
+        RichTextEncoder e = encoder(); TinyNeuralRuntime invalid = bias(1024, TinyNeuralRuntime.Activation.LINEAR, 2);
+        TinyNeuralRuntime presence = bias(1024, TinyNeuralRuntime.Activation.SIGMOID, 10, 10, -10, -10, -10);
+        for (boolean priorRefusal : new boolean[] {false, true}) {
+            RichIntentRefusalModel gate = new RichIntentRefusalModel(prior(priorRefusal), e, presence, 0.7, false, RichTextEncoder.VERSION, e.fingerprint(), invalid, 0.9);
+            assertEquals(TinyDecisionModel.Status.ABSTAIN, gate.classify("source", 0.6, 0.15).status);
+        }
+    }
+    @Test public void optionalGateRejectsInvalidShapeCutoffAndInferenceRange() {
+        RichTextEncoder e = encoder(); TinyNeuralRuntime presence = bias(1024, TinyNeuralRuntime.Activation.SIGMOID, 10, -10, -10, -10, -10);
+        rejects(() -> new RichIntentRefusalModel(prior(false), e, presence, 0.7, false, RichTextEncoder.VERSION, e.fingerprint(), bias(256, TinyNeuralRuntime.Activation.SIGMOID, 1), 0.9));
+        rejects(() -> new RichIntentRefusalModel(prior(false), e, presence, 0.7, false, RichTextEncoder.VERSION, e.fingerprint(), bias(1024, TinyNeuralRuntime.Activation.SIGMOID, 1), Double.NaN));
+        rejects(() -> new RichIntentRefusalModel(prior(false), e, presence, 0.7, false, RichTextEncoder.VERSION, e.fingerprint(), bias(1024, TinyNeuralRuntime.Activation.SIGMOID, 1, 1), 0.9));
+        RichIntentRefusalModel invalid = new RichIntentRefusalModel(prior(false), e, presence, 0.7, false, RichTextEncoder.VERSION, e.fingerprint(), bias(1024, TinyNeuralRuntime.Activation.LINEAR, 2), 0.9);
+        rejects(() -> invalid.classify("source", 0.6, 0.15));
+    }
 }

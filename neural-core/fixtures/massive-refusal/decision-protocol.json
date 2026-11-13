@@ -1,0 +1,11 @@
+{
+  "version": "public-decision-v1-followup",
+  "frozen_before_followup_fit": true,
+  "evaluation_status": "MASSIVE and all older test scores were observed in the preceding public refusal experiment; every score here is a follow-up regression, not a fresh independent test.",
+  "purpose": "Test whether retraining proposals improves the weak frozen Arabic domain classification. This is a separate experimental six-class proposal model, not a refusal-only replacement and not production authorization.",
+  "representation": "Keep the rich-text-v1 vocabulary/IDF fixed; 1024 features. Do not tune vocabulary on new tests.",
+  "training": "Use only original and MASSIVE training rows, six labels repository/build/device/knowledge/chat/__reject__, group/language/label balanced. Two linear fits, seeds 42/97, <=200 epochs with existing development macro-NLL early stopping every five epochs and patience25. Select smaller development macro NLL; calibrate temperature on calibration only using .5/.75/1/1.5/2/3/5.",
+  "policy": "Grid minimum probability .5/.6/.7/.8/.9 and margin 0/.1/.15/.25. Reject label always abstains. Require no previously correct rich-v1 known development choice to be lost or changed; maximize balanced development correct decisions across language and supported/refusal strata, tie first policy. If no feasible policy, export for analysis only with fixed .6/.15 and mark development_feasible false. Never alter settings using test outcomes.",
+  "bounds": "Single 1024x6 linear softmax, 6150 parameters. At most two fits, no iterative test-driven search, no production integration.",
+  "production_eligible": false
+}

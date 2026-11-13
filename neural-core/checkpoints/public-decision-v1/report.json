@@ -1,0 +1,279 @@
+{
+  "production_eligible": false,
+  "evaluation_status": "all_test_sets_already_observed_followup_regressions",
+  "development_feasible": false,
+  "parameters": 6150,
+  "representation": "fixed_rich_text_v1",
+  "candidates": [
+    {
+      "seed": 42,
+      "epoch": 5,
+      "epochs_run": 30,
+      "development_macro_nll": 1.059026004
+    },
+    {
+      "seed": 97,
+      "epoch": 5,
+      "epochs_run": 30,
+      "development_macro_nll": 1.076318294
+    }
+  ],
+  "selected_seed": 42,
+  "selected_epoch": 5,
+  "train_rows": 2162,
+  "balanced_train_rows": 12456,
+  "temperature": 1.0,
+  "minimum_probability": 0.6,
+  "minimum_margin": 0.15,
+  "evaluations": {
+    "massive_ar_all": {
+      "rows": 280,
+      "known": 52,
+      "required_refusals": 228,
+      "rich_prior": {
+        "accepted": 166,
+        "accepted_correct": 14,
+        "accepted_errors": 152,
+        "unsupported_refused": 89,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 24
+      },
+      "public_decision": {
+        "accepted": 27,
+        "accepted_correct": 23,
+        "accepted_errors": 4,
+        "unsupported_refused": 224,
+        "previous_correct_lost": 6,
+        "raw_known_correct": 38
+      }
+    },
+    "massive_ar_held_out_topic": {
+      "rows": 80,
+      "known": 0,
+      "required_refusals": 80,
+      "rich_prior": {
+        "accepted": 41,
+        "accepted_correct": 0,
+        "accepted_errors": 41,
+        "unsupported_refused": 39,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 0
+      },
+      "public_decision": {
+        "accepted": 2,
+        "accepted_correct": 0,
+        "accepted_errors": 2,
+        "unsupported_refused": 78,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 0
+      }
+    },
+    "massive_en_all": {
+      "rows": 280,
+      "known": 52,
+      "required_refusals": 228,
+      "rich_prior": {
+        "accepted": 182,
+        "accepted_correct": 20,
+        "accepted_errors": 162,
+        "unsupported_refused": 87,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 22
+      },
+      "public_decision": {
+        "accepted": 34,
+        "accepted_correct": 30,
+        "accepted_errors": 4,
+        "unsupported_refused": 224,
+        "previous_correct_lost": 5,
+        "raw_known_correct": 40
+      }
+    },
+    "massive_en_held_out_topic": {
+      "rows": 80,
+      "known": 0,
+      "required_refusals": 80,
+      "rich_prior": {
+        "accepted": 45,
+        "accepted_correct": 0,
+        "accepted_errors": 45,
+        "unsupported_refused": 35,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 0
+      },
+      "public_decision": {
+        "accepted": 2,
+        "accepted_correct": 0,
+        "accepted_errors": 2,
+        "unsupported_refused": 78,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 0
+      }
+    },
+    "regression_all": {
+      "rows": 531,
+      "known": 179,
+      "required_refusals": 352,
+      "rich_prior": {
+        "accepted": 307,
+        "accepted_correct": 143,
+        "accepted_errors": 164,
+        "unsupported_refused": 202,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 151
+      },
+      "public_decision": {
+        "accepted": 141,
+        "accepted_correct": 131,
+        "accepted_errors": 10,
+        "unsupported_refused": 343,
+        "previous_correct_lost": 34,
+        "raw_known_correct": 150
+      }
+    },
+    "regression_old_original": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "rich_prior": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 27
+      },
+      "public_decision": {
+        "accepted": 12,
+        "accepted_correct": 12,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 13,
+        "raw_known_correct": 19
+      }
+    },
+    "regression_old_composed_same": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "rich_prior": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 30
+      },
+      "public_decision": {
+        "accepted": 14,
+        "accepted_correct": 14,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 16,
+        "raw_known_correct": 16
+      }
+    },
+    "regression_old_composed_cross": {
+      "rows": 120,
+      "known": 0,
+      "required_refusals": 120,
+      "rich_prior": {
+        "accepted": 76,
+        "accepted_correct": 0,
+        "accepted_errors": 76,
+        "unsupported_refused": 44,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 0
+      },
+      "public_decision": {
+        "accepted": 4,
+        "accepted_correct": 0,
+        "accepted_errors": 4,
+        "unsupported_refused": 116,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 0
+      }
+    },
+    "regression_old_fresh_english": {
+      "rows": 114,
+      "known": 34,
+      "required_refusals": 80,
+      "rich_prior": {
+        "accepted": 59,
+        "accepted_correct": 25,
+        "accepted_errors": 34,
+        "unsupported_refused": 49,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 29
+      },
+      "public_decision": {
+        "accepted": 32,
+        "accepted_correct": 32,
+        "accepted_errors": 0,
+        "unsupported_refused": 80,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 33
+      }
+    },
+    "regression_old_old_challenge": {
+      "rows": 25,
+      "known": 5,
+      "required_refusals": 20,
+      "rich_prior": {
+        "accepted": 22,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "unsupported_refused": 3,
+        "previous_correct_lost": 0,
+        "raw_known_correct": 5
+      },
+      "public_decision": {
+        "accepted": 7,
+        "accepted_correct": 3,
+        "accepted_errors": 4,
+        "unsupported_refused": 16,
+        "previous_correct_lost": 2,
+        "raw_known_correct": 5
+      }
+    }
+  },
+  "host_timing": {
+    "physical_phone": false,
+    "whole_text_encoding_included": true,
+    "calls_per_batch": 192,
+    "batches": 8,
+    "rich_prior": {
+      "batch_average_ns": [
+        19574,
+        19474,
+        19536,
+        19400,
+        19576,
+        20097,
+        19552,
+        19421
+      ],
+      "median_batch_average_ns": 19544
+    },
+    "public_decision": {
+      "batch_average_ns": [
+        14859,
+        14948,
+        14899,
+        14995,
+        15037,
+        14886,
+        14694,
+        14909
+      ],
+      "median_batch_average_ns": 14904
+    }
+  },
+  "artifact_sha256": {
+    "neural-core/fixtures/massive-refusal/corpus.tsv": "f300371ef4656d78fc22449066250918d5f6270afafb53595232351b1d95b6e8",
+    "neural-core/fixtures/massive-refusal/decision-protocol.json": "113499a4b466eca779503f6af0fa477363e4fce5fec33a427d52caf5980c401f",
+    "neural-core/fixtures/massive-refusal/provenance.json": "56c2bc8f67c7be3c6612d82791bb598d50896b9ff18c4566c4346c94af61dbe0",
+    "neural-core/checkpoints/public-decision-v1/TrainedPublicDecision.java": "da4ba0234590894ff874ab35c2c557a4c9053c161528f7652034d5193313d464"
+  },
+  "observed_known_retention_passed": false
+}

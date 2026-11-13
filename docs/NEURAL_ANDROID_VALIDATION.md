@@ -93,3 +93,7 @@ runs still need separate inspection before making a phone performance claim.
 Local fallback `--source-target-only` preparation can exercise generation on an
 incomplete JDK; it does not prove `--release 8` or ART compatibility. CI uses full
 JDK 17 and the stricter release-8 compilation before Android tests.
+
+## Public checkpoint parity extension
+
+The standalone test APK also verifies the public refusal and separate six-class checkpoints on 699 observations (139 prior inputs plus 560 public test utterances). `public_parity_passed` and an exact `public_probes` count are required in the fresh correctness report. These are runtime-parity checks; the separate classifier failed its quality-preservation gate and remains experimental. No normal APK dependency or physical-device claim is introduced. See [PUBLIC_BILINGUAL_TRAINING.md](PUBLIC_BILINGUAL_TRAINING.md).

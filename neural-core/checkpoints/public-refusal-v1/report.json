@@ -1,0 +1,301 @@
+{
+  "production_eligible": false,
+  "fresh_test": "public_parallel_ar-SA_en-US_two_supported_domains",
+  "old_tests": "observed_regressions",
+  "corpus_sha256": "f300371ef4656d78fc22449066250918d5f6270afafb53595232351b1d95b6e8",
+  "candidates": [
+    {
+      "seed": 42,
+      "best_epoch": 5,
+      "epochs_run": 30,
+      "development_macro_nll": 0.488389484
+    },
+    {
+      "seed": 97,
+      "best_epoch": 10,
+      "epochs_run": 35,
+      "development_macro_nll": 0.504844504
+    }
+  ],
+  "selected_seed": 42,
+  "selected_epoch": 5,
+  "train_rows": 2162,
+  "balanced_train_rows": 4152,
+  "temperature": 0.75,
+  "cutoff": 0.99,
+  "extra_parameters": 1025,
+  "total_weight_parameters": 14493,
+  "vocabulary_sha256": "e3edfb2fc11c8aa04dd96de68886bdf8e0a34a26baf2ee3ae5d1c7aa69579112",
+  "maximum_fold_probability_difference": 4.769602712784149e-08,
+  "evaluations": {
+    "massive_ar_all": {
+      "rows": 280,
+      "known": 52,
+      "required_refusals": 228,
+      "rich_prior": {
+        "accepted": 166,
+        "accepted_correct": 14,
+        "accepted_errors": 152,
+        "known_accepted": 27,
+        "refused": 89,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      },
+      "public_gate": {
+        "accepted": 166,
+        "accepted_correct": 14,
+        "accepted_errors": 152,
+        "known_accepted": 27,
+        "refused": 89,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      }
+    },
+    "massive_ar_held_out_topic": {
+      "rows": 80,
+      "known": 0,
+      "required_refusals": 80,
+      "rich_prior": {
+        "accepted": 41,
+        "accepted_correct": 0,
+        "accepted_errors": 41,
+        "known_accepted": 0,
+        "refused": 39,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      },
+      "public_gate": {
+        "accepted": 41,
+        "accepted_correct": 0,
+        "accepted_errors": 41,
+        "known_accepted": 0,
+        "refused": 39,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      }
+    },
+    "massive_en_all": {
+      "rows": 280,
+      "known": 52,
+      "required_refusals": 228,
+      "rich_prior": {
+        "accepted": 182,
+        "accepted_correct": 20,
+        "accepted_errors": 162,
+        "known_accepted": 41,
+        "refused": 87,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      },
+      "public_gate": {
+        "accepted": 172,
+        "accepted_correct": 20,
+        "accepted_errors": 152,
+        "known_accepted": 41,
+        "refused": 97,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      }
+    },
+    "massive_en_held_out_topic": {
+      "rows": 80,
+      "known": 0,
+      "required_refusals": 80,
+      "rich_prior": {
+        "accepted": 45,
+        "accepted_correct": 0,
+        "accepted_errors": 45,
+        "known_accepted": 0,
+        "refused": 35,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      },
+      "public_gate": {
+        "accepted": 45,
+        "accepted_correct": 0,
+        "accepted_errors": 45,
+        "known_accepted": 0,
+        "refused": 35,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      }
+    },
+    "regression_all": {
+      "rows": 531,
+      "known": 179,
+      "required_refusals": 352,
+      "rich_prior": {
+        "accepted": 307,
+        "accepted_correct": 143,
+        "accepted_errors": 164,
+        "known_accepted": 157,
+        "refused": 202,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      },
+      "public_gate": {
+        "accepted": 307,
+        "accepted_correct": 143,
+        "accepted_errors": 164,
+        "known_accepted": 157,
+        "refused": 202,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      }
+    },
+    "regression_old_original": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "rich_prior": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "known_accepted": 28,
+        "refused": 0,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      },
+      "public_gate": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "known_accepted": 28,
+        "refused": 0,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      }
+    },
+    "regression_old_composed_same": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "rich_prior": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "known_accepted": 30,
+        "refused": 0,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      },
+      "public_gate": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "known_accepted": 30,
+        "refused": 0,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      }
+    },
+    "regression_old_composed_cross": {
+      "rows": 120,
+      "known": 0,
+      "required_refusals": 120,
+      "rich_prior": {
+        "accepted": 76,
+        "accepted_correct": 0,
+        "accepted_errors": 76,
+        "known_accepted": 0,
+        "refused": 44,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      },
+      "public_gate": {
+        "accepted": 76,
+        "accepted_correct": 0,
+        "accepted_errors": 76,
+        "known_accepted": 0,
+        "refused": 44,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      }
+    },
+    "regression_old_fresh_english": {
+      "rows": 114,
+      "known": 34,
+      "required_refusals": 80,
+      "rich_prior": {
+        "accepted": 59,
+        "accepted_correct": 25,
+        "accepted_errors": 34,
+        "known_accepted": 28,
+        "refused": 49,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      },
+      "public_gate": {
+        "accepted": 59,
+        "accepted_correct": 25,
+        "accepted_errors": 34,
+        "known_accepted": 28,
+        "refused": 49,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      }
+    },
+    "regression_old_old_challenge": {
+      "rows": 25,
+      "known": 5,
+      "required_refusals": 20,
+      "rich_prior": {
+        "accepted": 22,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "known_accepted": 5,
+        "refused": 3,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      },
+      "public_gate": {
+        "accepted": 22,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "known_accepted": 5,
+        "refused": 3,
+        "known_lost": 0,
+        "correct_known_lost": 0
+      }
+    }
+  },
+  "host_timing": {
+    "physical_phone": false,
+    "whole_text_encoding_included": true,
+    "calls_per_batch": 192,
+    "batches": 8,
+    "rich_prior": {
+      "batch_average_ns": [
+        21632,
+        19477,
+        19443,
+        19442,
+        20138,
+        19792,
+        19362,
+        19858
+      ],
+      "median_batch_average_ns": 19634
+    },
+    "public_gate": {
+      "batch_average_ns": [
+        21165,
+        20510,
+        20517,
+        20535,
+        22598,
+        20721,
+        20858,
+        21556
+      ],
+      "median_batch_average_ns": 20789
+    }
+  },
+  "artifact_sha256": {
+    "neural-core/fixtures/massive-refusal/corpus.tsv": "f300371ef4656d78fc22449066250918d5f6270afafb53595232351b1d95b6e8",
+    "neural-core/fixtures/massive-refusal/protocol.json": "79c460a0bf68879fcfeef90ecbd9e0769f6944ec705c55823a4d7d9699201461",
+    "neural-core/fixtures/massive-refusal/provenance.json": "56c2bc8f67c7be3c6612d82791bb598d50896b9ff18c4566c4346c94af61dbe0",
+    "neural-core/checkpoints/public-refusal-v1/TrainedPublicRefusal.java": "d79539ac9455ccbb84be796fd334ba3b35cd7193ae9a4d07a1dbd5528ead3fe0"
+  },
+  "observed_known_retention_passed": true
+}

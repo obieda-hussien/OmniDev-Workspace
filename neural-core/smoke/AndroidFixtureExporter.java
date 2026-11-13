@@ -54,6 +54,7 @@ public final class AndroidFixtureExporter {
             richRows.append('\n');
         }
         Files.write(assets.resolve("rich-presence.tsv"), richRows.toString().getBytes(StandardCharsets.UTF_8));
+        exportPublic(assets, texts, richEncoder, gated);
         StringBuilder manifest = new StringBuilder("Previously observed regression inputs. Not a fresh evaluation or production model.\n");
         for (String file : new String[] {"neural-core/fixtures/text-intents.tsv", "neural-core/fixtures/clinc-subset/rejection.tsv",
                 "neural-core/fixtures/decision-challenges.tsv", "neural-core/fixtures/clinc-subset/provenance.json"}) {
@@ -65,7 +66,28 @@ public final class AndroidFixtureExporter {
         Files.write(assets.resolve("provenance.txt"), manifest.toString().getBytes(StandardCharsets.UTF_8));
         for (String file : new String[] {"LICENSE", "NOTICE.md"}) {
             Files.copy(Paths.get("neural-core/fixtures/clinc-subset/" + file), assets.resolve("CLINC-" + file), StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(Paths.get("neural-core/fixtures/massive-refusal/" + file), assets.resolve("MASSIVE-" + file), StandardCopyOption.REPLACE_EXISTING);
         }
+    }
+    private static void exportPublic(Path assets, List<String> old, RichTextEncoder encoder, GatedTextIntentModel gated) throws Exception {
+        List<String> texts = new ArrayList<>(old);
+        for (String line : Files.readAllLines(Paths.get("neural-core/fixtures/massive-refusal/corpus.tsv"), StandardCharsets.UTF_8)) {
+            String[] c = line.split("\t", -1); if (c[0].equals("test")) texts.add(c[7]);
+        }
+        if (texts.size() != 699) throw new AssertionError("Public probe count changed");
+        RichIntentRefusalModel gate = new RichIntentRefusalModel(gated, encoder, TrainedRichPresence.model(), TrainedRichVocabulary.THRESHOLD,
+                TrainedRichVocabulary.REQUIRE_MATCH, RichTextEncoder.VERSION, TrainedPublicRefusal.VOCABULARY_SHA256, TrainedPublicRefusal.model(), TrainedPublicRefusal.CUTOFF);
+        RichTextDecisionModel decision = new RichTextDecisionModel(encoder, TrainedPublicDecision.model(), TrainedPublicDecision.TEMPERATURE, RichTextEncoder.VERSION, TrainedPublicDecision.VOCABULARY_SHA256);
+        StringBuilder rows = new StringBuilder("id\ttext\tfeature_sha256\trefusal_score\tgate_status\tgate_choice\tdecision_status\tdecision_choice\tdecision_probabilities\n");
+        for (int i = 0; i < texts.size(); i++) {
+            String text = texts.get(i); float[] features = encoder.encode(text);
+            TinyDecisionModel.Decision g = gate.classify(text, 0.6, 0.15), d = decision.classify(text, TrainedPublicDecision.MINIMUM_PROBABILITY, TrainedPublicDecision.MINIMUM_MARGIN);
+            rows.append(i).append('\t').append(text).append('\t').append(featureHash(features)).append('\t').append(TrainedPublicRefusal.model().infer(features)[0])
+                    .append('\t').append(g.status).append('\t').append(g.choice == null ? "-" : g.choice)
+                    .append('\t').append(d.status).append('\t').append(d.choice == null ? "-" : d.choice).append('\t');
+            double[] scores = d.probabilitiesCopy(); for (int j = 0; j < scores.length; j++) { if (j > 0) rows.append(','); rows.append(scores[j]); } rows.append('\n');
+        }
+        Files.write(assets.resolve("public-probes.tsv"), rows.toString().getBytes(StandardCharsets.UTF_8));
     }
     private static void addSplit(List<String> texts, String file, String split) throws Exception {
         for (String line : Files.readAllLines(Paths.get(file), StandardCharsets.UTF_8)) {
