@@ -56,6 +56,23 @@ public final class GatedTextIntentModelTest {
         rejects(() -> model(bias(0, 3), bias(0, 1), 0.8).classify("source", Double.NaN, 0));
     }
 
+    @Test public void boundedCascadePreservesScoresAndEveryEarlierRefusal() {
+        TinyNeuralRuntime domain = bias(0, 3);
+        GatedTextIntentModel.RefusalHead allow = new GatedTextIntentModel.RefusalHead(bias(10, 0), 1, 0.8);
+        GatedTextIntentModel.RefusalHead reject = new GatedTextIntentModel.RefusalHead(bias(0, 10), 1, 0.8);
+        GatedTextIntentModel.RefusalHead[] heads = {allow, reject};
+        GatedTextIntentModel cascade = new GatedTextIntentModel(domain, new String[] {"a", "b"}, 1, BilingualTextEncoder.VERSION, heads);
+        heads[1] = allow;
+        TinyDecisionModel.Decision d = cascade.classify("source", 0, 0);
+        assertEquals(TinyDecisionModel.Status.ABSTAIN, d.status);
+        assertArrayEquals(model(domain, bias(10, 0), 0.8).classify("source", 0, 0).probabilitiesCopy(), d.probabilitiesCopy(), 0);
+        assertEquals(TinyDecisionModel.Status.ABSTAIN, new GatedTextIntentModel(bias(0, 0), new String[] {"a", "b"}, 1,
+                BilingualTextEncoder.VERSION, allow, allow).classify("source", 0, 0).status);
+        rejects(() -> new GatedTextIntentModel(domain, new String[] {"a", "b"}, 1, BilingualTextEncoder.VERSION));
+        rejects(() -> new GatedTextIntentModel(domain, new String[] {"a", "b"}, 1, BilingualTextEncoder.VERSION, allow, reject, allow));
+        rejects(() -> new GatedTextIntentModel(domain, new String[] {"a", "b"}, 1, BilingualTextEncoder.VERSION, (GatedTextIntentModel.RefusalHead) null));
+    }
+
     private static void rejects(Runnable action) {
         try { action.run(); } catch (IllegalArgumentException expected) { return; }
         fail("Expected contract rejection");

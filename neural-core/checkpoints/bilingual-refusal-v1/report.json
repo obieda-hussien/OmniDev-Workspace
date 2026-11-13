@@ -1,0 +1,630 @@
+{
+  "production_eligible": false,
+  "authored_arabic_not_independent": true,
+  "corpus_sha256": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e",
+  "train_unique": 796,
+  "balanced_train": 1752,
+  "candidates": [
+    {
+      "hidden": 0,
+      "seed": 42,
+      "development_macro_nll": 0.538329807,
+      "parameters": 514,
+      "best_epoch": 5,
+      "epochs_run": 30
+    },
+    {
+      "hidden": 0,
+      "seed": 97,
+      "development_macro_nll": 0.540730232,
+      "parameters": 514,
+      "best_epoch": 5,
+      "epochs_run": 30
+    },
+    {
+      "hidden": 16,
+      "seed": 42,
+      "development_macro_nll": 0.778097337,
+      "parameters": 4146,
+      "best_epoch": 5,
+      "epochs_run": 30
+    },
+    {
+      "hidden": 16,
+      "seed": 97,
+      "development_macro_nll": 0.70929731,
+      "parameters": 4146,
+      "best_epoch": 5,
+      "epochs_run": 30
+    },
+    {
+      "hidden": 32,
+      "seed": 42,
+      "development_macro_nll": 0.763990349,
+      "parameters": 8290,
+      "best_epoch": 5,
+      "epochs_run": 30
+    },
+    {
+      "hidden": 32,
+      "seed": 97,
+      "development_macro_nll": 0.718672566,
+      "parameters": 8290,
+      "best_epoch": 5,
+      "epochs_run": 30
+    }
+  ],
+  "selected_hidden": 0,
+  "selected_seed": 42,
+  "selected_epoch": 5,
+  "temperature": 1.0,
+  "cutoff": 0.9,
+  "gate_parameters": 514,
+  "total_parameters": 4711,
+  "cascade_development_feasible": true,
+  "cascade_test_status": "followup_on_now_observed_regressions",
+  "evaluations": {
+    "development": {
+      "known": 70,
+      "raw_domain_correct": 55,
+      "required_refusals": 112,
+      "base": {
+        "accepted": 141,
+        "known_accepted": 62,
+        "accepted_correct": 52,
+        "accepted_errors": 89,
+        "refused": 33
+      },
+      "prior_gate": {
+        "accepted": 113,
+        "known_accepted": 62,
+        "accepted_correct": 52,
+        "accepted_errors": 61,
+        "refused": 61
+      },
+      "candidate": {
+        "accepted": 127,
+        "known_accepted": 62,
+        "accepted_correct": 52,
+        "accepted_errors": 75,
+        "refused": 47
+      },
+      "cascade": {
+        "accepted": 113,
+        "known_accepted": 62,
+        "accepted_correct": 52,
+        "accepted_errors": 61,
+        "refused": 61
+      }
+    },
+    "test": {
+      "known": 40,
+      "raw_domain_correct": 29,
+      "required_refusals": 92,
+      "base": {
+        "accepted": 75,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 47,
+        "refused": 51
+      },
+      "prior_gate": {
+        "accepted": 54,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 26,
+        "refused": 72
+      },
+      "candidate": {
+        "accepted": 67,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 39,
+        "refused": 59
+      },
+      "cascade": {
+        "accepted": 54,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 26,
+        "refused": 72
+      }
+    },
+    "test_ar": {
+      "known": 0,
+      "raw_domain_correct": 0,
+      "required_refusals": 4,
+      "base": {
+        "accepted": 2,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 2,
+        "refused": 2
+      },
+      "prior_gate": {
+        "accepted": 2,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 2,
+        "refused": 2
+      },
+      "candidate": {
+        "accepted": 2,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 2,
+        "refused": 2
+      },
+      "cascade": {
+        "accepted": 2,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 2,
+        "refused": 2
+      }
+    },
+    "test_en": {
+      "known": 40,
+      "raw_domain_correct": 29,
+      "required_refusals": 84,
+      "base": {
+        "accepted": 71,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 43,
+        "refused": 47
+      },
+      "prior_gate": {
+        "accepted": 50,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 22,
+        "refused": 68
+      },
+      "candidate": {
+        "accepted": 63,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 35,
+        "refused": 55
+      },
+      "cascade": {
+        "accepted": 50,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 22,
+        "refused": 68
+      }
+    },
+    "test_mixed": {
+      "known": 0,
+      "raw_domain_correct": 0,
+      "required_refusals": 4,
+      "base": {
+        "accepted": 2,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 2,
+        "refused": 2
+      },
+      "prior_gate": {
+        "accepted": 2,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 2,
+        "refused": 2
+      },
+      "candidate": {
+        "accepted": 2,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 2,
+        "refused": 2
+      },
+      "cascade": {
+        "accepted": 2,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 2,
+        "refused": 2
+      }
+    },
+    "regression": {
+      "known": 100,
+      "raw_domain_correct": 88,
+      "required_refusals": 160,
+      "base": {
+        "accepted": 204,
+        "known_accepted": 90,
+        "accepted_correct": 85,
+        "accepted_errors": 119,
+        "refused": 46
+      },
+      "prior_gate": {
+        "accepted": 188,
+        "known_accepted": 90,
+        "accepted_correct": 85,
+        "accepted_errors": 103,
+        "refused": 62
+      },
+      "candidate": {
+        "accepted": 195,
+        "known_accepted": 90,
+        "accepted_correct": 85,
+        "accepted_errors": 110,
+        "refused": 55
+      },
+      "cascade": {
+        "accepted": 184,
+        "known_accepted": 90,
+        "accepted_correct": 85,
+        "accepted_errors": 99,
+        "refused": 66
+      }
+    },
+    "regression_ar": {
+      "known": 20,
+      "raw_domain_correct": 19,
+      "required_refusals": 40,
+      "base": {
+        "accepted": 50,
+        "known_accepted": 20,
+        "accepted_correct": 19,
+        "accepted_errors": 31,
+        "refused": 10
+      },
+      "prior_gate": {
+        "accepted": 50,
+        "known_accepted": 20,
+        "accepted_correct": 19,
+        "accepted_errors": 31,
+        "refused": 10
+      },
+      "candidate": {
+        "accepted": 50,
+        "known_accepted": 20,
+        "accepted_correct": 19,
+        "accepted_errors": 31,
+        "refused": 10
+      },
+      "cascade": {
+        "accepted": 50,
+        "known_accepted": 20,
+        "accepted_correct": 19,
+        "accepted_errors": 31,
+        "refused": 10
+      }
+    },
+    "regression_en": {
+      "known": 60,
+      "raw_domain_correct": 50,
+      "required_refusals": 80,
+      "base": {
+        "accepted": 103,
+        "known_accepted": 51,
+        "accepted_correct": 48,
+        "accepted_errors": 55,
+        "refused": 28
+      },
+      "prior_gate": {
+        "accepted": 87,
+        "known_accepted": 51,
+        "accepted_correct": 48,
+        "accepted_errors": 39,
+        "refused": 44
+      },
+      "candidate": {
+        "accepted": 98,
+        "known_accepted": 51,
+        "accepted_correct": 48,
+        "accepted_errors": 50,
+        "refused": 33
+      },
+      "cascade": {
+        "accepted": 87,
+        "known_accepted": 51,
+        "accepted_correct": 48,
+        "accepted_errors": 39,
+        "refused": 44
+      }
+    },
+    "regression_mixed": {
+      "known": 20,
+      "raw_domain_correct": 19,
+      "required_refusals": 40,
+      "base": {
+        "accepted": 51,
+        "known_accepted": 19,
+        "accepted_correct": 18,
+        "accepted_errors": 33,
+        "refused": 8
+      },
+      "prior_gate": {
+        "accepted": 51,
+        "known_accepted": 19,
+        "accepted_correct": 18,
+        "accepted_errors": 33,
+        "refused": 8
+      },
+      "candidate": {
+        "accepted": 47,
+        "known_accepted": 19,
+        "accepted_correct": 18,
+        "accepted_errors": 29,
+        "refused": 12
+      },
+      "cascade": {
+        "accepted": 47,
+        "known_accepted": 19,
+        "accepted_correct": 18,
+        "accepted_errors": 29,
+        "refused": 12
+      }
+    },
+    "additional_clinc": {
+      "known": 40,
+      "raw_domain_correct": 29,
+      "required_refusals": 40,
+      "base": {
+        "accepted": 53,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 25,
+        "refused": 21
+      },
+      "prior_gate": {
+        "accepted": 35,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 7,
+        "refused": 39
+      },
+      "candidate": {
+        "accepted": 45,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 17,
+        "refused": 29
+      },
+      "cascade": {
+        "accepted": 35,
+        "known_accepted": 34,
+        "accepted_correct": 28,
+        "accepted_errors": 7,
+        "refused": 39
+      }
+    },
+    "authored_unsupported": {
+      "known": 0,
+      "raw_domain_correct": 0,
+      "required_refusals": 12,
+      "base": {
+        "accepted": 4,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 4,
+        "refused": 8
+      },
+      "prior_gate": {
+        "accepted": 4,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 4,
+        "refused": 8
+      },
+      "candidate": {
+        "accepted": 4,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 4,
+        "refused": 8
+      },
+      "cascade": {
+        "accepted": 4,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 4,
+        "refused": 8
+      }
+    },
+    "composed_cross": {
+      "known": 0,
+      "raw_domain_correct": 0,
+      "required_refusals": 120,
+      "base": {
+        "accepted": 92,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 92,
+        "refused": 28
+      },
+      "prior_gate": {
+        "accepted": 92,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 92,
+        "refused": 28
+      },
+      "candidate": {
+        "accepted": 88,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 88,
+        "refused": 32
+      },
+      "cascade": {
+        "accepted": 88,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 88,
+        "refused": 32
+      }
+    },
+    "composed_same": {
+      "known": 30,
+      "raw_domain_correct": 30,
+      "required_refusals": 0,
+      "base": {
+        "accepted": 30,
+        "known_accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "refused": 0
+      },
+      "prior_gate": {
+        "accepted": 30,
+        "known_accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "refused": 0
+      },
+      "candidate": {
+        "accepted": 30,
+        "known_accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "refused": 0
+      },
+      "cascade": {
+        "accepted": 30,
+        "known_accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "refused": 0
+      }
+    },
+    "original": {
+      "known": 30,
+      "raw_domain_correct": 27,
+      "required_refusals": 0,
+      "base": {
+        "accepted": 28,
+        "known_accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "refused": 0
+      },
+      "prior_gate": {
+        "accepted": 28,
+        "known_accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "refused": 0
+      },
+      "candidate": {
+        "accepted": 28,
+        "known_accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "refused": 0
+      },
+      "cascade": {
+        "accepted": 28,
+        "known_accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "refused": 0
+      }
+    },
+    "prior_clinc": {
+      "known": 40,
+      "raw_domain_correct": 31,
+      "required_refusals": 40,
+      "base": {
+        "accepted": 54,
+        "known_accepted": 32,
+        "accepted_correct": 30,
+        "accepted_errors": 24,
+        "refused": 18
+      },
+      "prior_gate": {
+        "accepted": 38,
+        "known_accepted": 32,
+        "accepted_correct": 30,
+        "accepted_errors": 8,
+        "refused": 34
+      },
+      "candidate": {
+        "accepted": 49,
+        "known_accepted": 32,
+        "accepted_correct": 30,
+        "accepted_errors": 19,
+        "refused": 23
+      },
+      "cascade": {
+        "accepted": 38,
+        "known_accepted": 32,
+        "accepted_correct": 30,
+        "accepted_errors": 8,
+        "refused": 34
+      }
+    },
+    "unseen_topic": {
+      "known": 0,
+      "raw_domain_correct": 0,
+      "required_refusals": 40,
+      "base": {
+        "accepted": 18,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 18,
+        "refused": 22
+      },
+      "prior_gate": {
+        "accepted": 15,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 15,
+        "refused": 25
+      },
+      "candidate": {
+        "accepted": 18,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 18,
+        "refused": 22
+      },
+      "cascade": {
+        "accepted": 15,
+        "known_accepted": 0,
+        "accepted_correct": 0,
+        "accepted_errors": 15,
+        "refused": 25
+      }
+    },
+    "old_challenge": {
+      "known": 5,
+      "raw_domain_correct": 5,
+      "required_refusals": 20,
+      "base": {
+        "accepted": 23,
+        "known_accepted": 5,
+        "accepted_correct": 5,
+        "accepted_errors": 18,
+        "refused": 2
+      },
+      "prior_gate": {
+        "accepted": 22,
+        "known_accepted": 5,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "refused": 3
+      },
+      "candidate": {
+        "accepted": 22,
+        "known_accepted": 5,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "refused": 3
+      },
+      "cascade": {
+        "accepted": 21,
+        "known_accepted": 5,
+        "accepted_correct": 5,
+        "accepted_errors": 16,
+        "refused": 4
+      }
+    }
+  },
+  "checkpoint_sha256": "ac2d2a93408d4c7aab7b389a0410566be99aa2c8998457a33df30e017080459d"
+}

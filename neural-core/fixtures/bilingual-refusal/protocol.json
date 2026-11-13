@@ -1,0 +1,19 @@
+{
+  "version": "bilingual-refusal-v1",
+  "domain_checkpoint": "unchanged original TrainedTextIntentCheckpoint",
+  "input_features": "unchanged ar-en-word-char-fnv256-v1",
+  "candidate_hidden_widths": [0, 16, 32],
+  "candidate_seeds": [42, 97],
+  "epochs": 200,
+  "early_stopping": "Check development macro-stratum NLL every 5 epochs and at max epoch; preserve the strict best immutable snapshot, stop after 25 epochs without improvement. Added after observing only development overfitting in full-epoch fits, before viewing test scores.",
+  "class_language_balancing": "repeat each of six train outcome/language buckets to the largest bucket, no test observations",
+  "architecture_selection": "minimum development mean NLL across the six outcome/language strata; ties prefer fewer parameters then smaller seed",
+  "temperature_selection": "calibration mean NLL across the six outcome/language strata on the existing fixed temperature grid",
+  "cutoff_grid": [0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.975, 0.99, 0.999, 1.0],
+  "cutoff_selection": "maximum development refusal recall averaged across kind/language strata among base choices, with at most floor(5% of known base choices) extra refusals in each language; ties prefer fewer known refusals then highest cutoff",
+  "base_minimum_probability": 0.6,
+  "base_minimum_margin": 0.15,
+  "evaluation": "test and old regression observations are evaluated only after checkpoint selection/export; no retraining based on their scores",
+  "production_eligible": false,
+  "limits": "Authored/synthetic Arabic and mixed fixtures, English-only public corpus, no human review or physical phone claim. Unsupported topics refer to this narrow classifier contract."
+}

@@ -23,17 +23,20 @@ java -cp "$fixture_classes" com.omnidev.workspace.domain.neural.GatedRejectionEx
   neural-core/fixtures/text-intents.tsv neural-core/fixtures/clinc-subset/rejection.tsv \
   "$fixture_classes/TrainedRefusalGateCheckpoint.java" neural-core/fixtures/decision-challenges.tsv
 compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_classes" \
-  "$fixture_classes/TrainedRefusalGateCheckpoint.java" neural-core/smoke/AndroidFixtureExporter.java
+  "$fixture_classes/TrainedRefusalGateCheckpoint.java" \
+  neural-core/checkpoints/bilingual-refusal-v1/TrainedBilingualRefusalCheckpoint.java neural-core/smoke/AndroidFixtureExporter.java
 java -cp "$fixture_classes" AndroidFixtureExporter "$fixture_output"
 fixture_package="$fixture_output/java/com/omnidev/workspace/neural/probe"
 mkdir -p "$fixture_package"
 for checkpoint in TrainedTextIntentCheckpoint TrainedRefusalGateCheckpoint; do
   { echo 'package com.omnidev.workspace.neural.probe;'; cat "$fixture_classes/$checkpoint.java"; } > "$fixture_package/$checkpoint.java"
 done
+{ echo 'package com.omnidev.workspace.neural.probe;'; cat neural-core/checkpoints/bilingual-refusal-v1/TrainedBilingualRefusalCheckpoint.java; } \
+  > "$fixture_package/TrainedBilingualRefusalCheckpoint.java"
 python3 - "$fixture_output" <<'PY'
 import hashlib, pathlib, sys
 root = pathlib.Path(sys.argv[1])
-paths = sorted((root / 'java').rglob('*.java')) + [root / 'assets/probes.tsv']
+paths = sorted((root / 'java').rglob('*.java')) + sorted((root / 'assets').glob('*.tsv'))
 with (root / 'assets/provenance.txt').open('a') as output:
     for path in paths:
         output.write(f'{path.relative_to(root)} sha256={hashlib.sha256(path.read_bytes()).hexdigest()}\n')
@@ -42,4 +45,4 @@ PY
 compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_classes" \
   "$fixture_package/"*.java neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/NeuralProbeContract.java \
   neural-core/smoke/AndroidProbeSmoke.java
-java -cp "$fixture_classes" AndroidProbeSmoke "$fixture_output/assets/probes.tsv"
+java -cp "$fixture_classes" AndroidProbeSmoke "$fixture_output/assets/probes.tsv" "$fixture_output/assets/bilingual-cascade.tsv"
