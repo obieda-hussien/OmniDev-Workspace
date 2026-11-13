@@ -1,5 +1,7 @@
 # Separate refusal gate experiment
 
+Android parity and measurement harness: [standalone validation](NEURAL_ANDROID_VALIDATION.md).
+
 Starting main: `b07e2e4aef20d3562df759245d27a4596e99cd82`. The previous joint six-class
 model improved a narrow English subset but changed the original five-domain classifier,
 reducing raw correctness on the old authored regression from 27/30 to 23/30. This new

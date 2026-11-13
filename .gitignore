@@ -10,6 +10,7 @@
 .DS_Store
 /build
 app/build
+neural-android/build/
 /captures
 .externalNativeBuild
 .cxx
