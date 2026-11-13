@@ -23,6 +23,10 @@ public final class TinyDecisionModel {
         }
 
         public double[] probabilitiesCopy() { return probabilities.clone(); }
+        /** A caller may refuse a proposal; this never upgrades abstention into a choice. */
+        public Decision asAbstention() {
+            return status == Status.ABSTAIN ? this : new Decision(Status.ABSTAIN, null, probabilities, probability, margin);
+        }
     }
 
     private final TinyNeuralRuntime network;

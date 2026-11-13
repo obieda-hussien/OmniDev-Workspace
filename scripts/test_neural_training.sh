@@ -28,3 +28,11 @@ java -cp "$training_out" com.omnidev.workspace.domain.neural.DecisionChallengeEx
   neural-core/fixtures/decision-challenges.tsv neural-core/fixtures/text-intents.tsv
 java -cp "$training_out" DecisionChallengeValidationSmoke \
   neural-core/fixtures/decision-challenges.tsv neural-core/fixtures/text-intents.tsv
+python3 scripts/import_clinc_rejection.py --verify neural-core/fixtures/clinc-subset
+java -cp "$training_out" com.omnidev.workspace.domain.neural.RejectTrainingExperiment \
+  neural-core/fixtures/text-intents.tsv neural-core/fixtures/clinc-subset/rejection.tsv \
+  "$training_out/TrainedRejectIntentCheckpoint.java" neural-core/fixtures/decision-challenges.tsv
+compile_java "${training_compat[@]}" -encoding UTF-8 -cp "$training_out" -d "$training_out" "$training_out/TrainedRejectIntentCheckpoint.java"
+java -cp "$training_out" com.omnidev.workspace.domain.neural.RejectTrainingExperiment \
+  neural-core/fixtures/text-intents.tsv neural-core/fixtures/clinc-subset/rejection.tsv \
+  --verify neural-core/fixtures/decision-challenges.tsv

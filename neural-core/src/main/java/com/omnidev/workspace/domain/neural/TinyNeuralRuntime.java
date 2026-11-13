@@ -35,11 +35,24 @@ public final class TinyNeuralRuntime {
         public float[] biasCopy() { return bias.clone(); }
 
         private float[] forward(float[] input) {
+            return forward(input, null);
+        }
+
+        private float[] forward(float[] input, int[] nonzero) {
             float[] result = new float[outputs];
             for (int output = 0; output < outputs; output++) {
                 double sum = bias[output];
                 int offset = output * inputs;
-                for (int i = 0; i < inputs; i++) sum += (double) weights[offset + i] * input[i];
+                if (nonzero == null) {
+                    for (int i = 0; i < inputs; i++) sum += (double) weights[offset + i] * input[i];
+                } else {
+                    for (int i : nonzero) sum += (double) weights[offset + i] * input[i];
+                    // Preserve signed-zero behavior as well as numerical results.
+                    if (sum == 0) {
+                        sum = bias[output];
+                        for (int i = 0; i < inputs; i++) sum += (double) weights[offset + i] * input[i];
+                    }
+                }
                 if (!Double.isFinite(sum)) throw new IllegalArgumentException("Non-finite activation");
                 double activated;
                 switch (activation) {
@@ -60,8 +73,13 @@ public final class TinyNeuralRuntime {
 
     private final Dense[] layers;
     private final int parameterCount;
+    private final boolean sparseInput;
 
     public TinyNeuralRuntime(Dense... layers) {
+        this(false, layers);
+    }
+
+    private TinyNeuralRuntime(boolean sparseInput, Dense... layers) {
         if (layers == null || layers.length == 0 || layers.length > 8) {
             throw new IllegalArgumentException("Network must have 1-8 layers");
         }
@@ -75,7 +93,11 @@ public final class TinyNeuralRuntime {
         }
         if (total > MAX_PARAMETERS) throw new IllegalArgumentException("Too many parameters");
         this.parameterCount = (int) total;
+        this.sparseInput = sparseInput;
     }
+
+    /** Opt-in first-layer optimization. Dense immutable weights are safely shared. */
+    public TinyNeuralRuntime withSparseInput() { return new TinyNeuralRuntime(true, layers); }
 
     public int parameterCount() { return parameterCount; }
     public int inputSize() { return layers[0].inputSize(); }
@@ -87,7 +109,18 @@ public final class TinyNeuralRuntime {
         }
         requireFinite(features);
         float[] current = Arrays.copyOf(features, features.length);
-        for (Dense layer : layers) current = layer.forward(current);
+        int[] nonzero = null;
+        if (sparseInput && features.length >= 64) {
+            int count = 0;
+            for (float value : current) if (value != 0) count++;
+            if (count <= features.length / 2) {
+                nonzero = new int[count];
+                int position = 0;
+                for (int i = 0; i < current.length; i++) if (current[i] != 0) nonzero[position++] = i;
+            }
+        }
+        current = layers[0].forward(current, nonzero);
+        for (int i = 1; i < layers.length; i++) current = layers[i].forward(current);
         return current;
     }
 
