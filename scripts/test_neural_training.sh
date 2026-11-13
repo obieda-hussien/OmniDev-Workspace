@@ -36,3 +36,10 @@ compile_java "${training_compat[@]}" -encoding UTF-8 -cp "$training_out" -d "$tr
 java -cp "$training_out" com.omnidev.workspace.domain.neural.RejectTrainingExperiment \
   neural-core/fixtures/text-intents.tsv neural-core/fixtures/clinc-subset/rejection.tsv \
   --verify neural-core/fixtures/decision-challenges.tsv
+java -cp "$training_out" com.omnidev.workspace.domain.neural.GatedRejectionExperiment \
+  neural-core/fixtures/text-intents.tsv neural-core/fixtures/clinc-subset/rejection.tsv \
+  "$training_out/TrainedRefusalGateCheckpoint.java" neural-core/fixtures/decision-challenges.tsv
+compile_java "${training_compat[@]}" -encoding UTF-8 -cp "$training_out" -d "$training_out" "$training_out/TrainedRefusalGateCheckpoint.java"
+java -cp "$training_out" com.omnidev.workspace.domain.neural.GatedRejectionExperiment \
+  neural-core/fixtures/text-intents.tsv neural-core/fixtures/clinc-subset/rejection.tsv \
+  --verify neural-core/fixtures/decision-challenges.tsv
