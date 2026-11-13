@@ -1,0 +1,22 @@
+{
+  "rows": 136,
+  "source_files": {
+    "ar-SA.jsonl": "b604b44d3bb94e4f71f64d041229e16ceb42d7b89385df7c82873d2514737186",
+    "en-US.jsonl": "c70f75c6a543a26e249ec383df67733ad9b1066f6c0406c2e04a3f03356e407e",
+    "LICENSE": "c2e6ea015269147de02117ebdd91f30ef09831251f5345fa8365273b1db1d435",
+    "NOTICE.md": "b90534ccd20c6f0e1e5239567af0d150496339542b75a15bfbc3e1e737593ddb"
+  },
+  "counts": {
+    "audio_volume_up": 28,
+    "audio_volume_mute": 28,
+    "play_music": 20,
+    "email_sendemail": 20,
+    "calendar_set": 20,
+    "weather_query": 20
+  },
+  "files": {
+    "neural-core/fixtures/utility-expert/fresh.tsv": "adc025471833aa05b2affa2f296bdf83fea1be7c50215aebbcc3706a41204213",
+    "neural-core/fixtures/utility-expert/protocol.json": "971eb9f14e258d67de61f069c056667ba6f15d58bc206692b281b3a801e40aaa"
+  },
+  "limits": "Supported positives withheld from unused upstream TRAIN groups, not official test; unsupported rows from unused official test groups. All are untouched by our fits, with no old source-ID/text overlap. Positive coverage is volume up/mute only, Saudi Arabic and English, not all domains or Egyptian/production validation."
+}
