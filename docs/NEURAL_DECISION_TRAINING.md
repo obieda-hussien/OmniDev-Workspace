@@ -16,6 +16,11 @@ supervised cross-entropy, seeded SGD and L2 regularization. Training inputs must
 vectors, with explicit limits on examples, dimensions, classes, hidden units and epochs. No external
 ML dependency, network calls, credentials or private user conversations are involved.
 
+The fitted rich-text experiment permits up to 1,024 input dimensions with a separate
+20,000-trained-parameter cap. All original <=256-dimensional shapes remain supported;
+the inference runtime's 100,000-parameter cap is unchanged. Wider linear binary heads
+can export an immutable calibrated log-odds layer for fused inference.
+
 Use scenario/group identifiers to keep paraphrases together. Call `requireDisjointGroups` on train,
 development, calibration and holdout before fitting. Select architecture on development only, fit
 temperature on separate calibration data, and inspect holdout only after both choices are fixed.
@@ -28,7 +33,7 @@ prediction parity. Binary log-odds exports support the existing six-feature Neur
 five-feature NeuralEvidenceReranker shapes. Real data must use those exact feature meanings and order;
 shape compatibility alone is not evidence of ranking quality.
 Exported arrays use helper methods with at most 256 assignments, keeping JVM methods bounded.
-The export/reload check also covers the largest trainer shape (256 inputs, 64 hidden units,
+The export/reload check also covers the original maximum-width trainer fixture (256 inputs, 64 hidden units,
 32 classes; 18,528 parameters), independently of the small learning fixture.
 
 Run `bash scripts/test_neural_training.sh` with a full JDK. It trains both architectures using a fixed

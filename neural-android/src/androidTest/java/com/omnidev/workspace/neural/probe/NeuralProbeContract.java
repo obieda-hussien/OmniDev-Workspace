@@ -88,6 +88,34 @@ public final class NeuralProbeContract {
         }
         require(input.readLine() == null, "Unexpected extra cascade probes");
     }
+    public static RichIntentRefusalModel richModel(TinyNeuralRuntime network) {
+        return new RichIntentRefusalModel(gated(TrainedTextIntentCheckpoint.model().withSparseInput(), TrainedRefusalGateCheckpoint.model().withSparseInput()),
+                TrainedRichVocabulary.encoder(), network, TrainedRichVocabulary.THRESHOLD, TrainedRichVocabulary.REQUIRE_MATCH,
+                TrainedRichVocabulary.VERSION, TrainedRichPresence.VOCABULARY_SHA256);
+    }
+    public static void verifyRich(List<Probe> probes, Reader reader) throws Exception {
+        require(probes.size() == EXPECTED_PROBES, "Missing rich regression probes");
+        BufferedReader input = new BufferedReader(reader); require("id\tfeature_sha256\tstatus\tchoice\tscores".equals(input.readLine()), "Invalid rich probe header");
+        RichTextEncoder encoder = TrainedRichVocabulary.encoder(); TinyNeuralRuntime dense = TrainedRichPresence.model(), sparse = dense.withSparseInput();
+        RichIntentRefusalModel a = richModel(dense), b = richModel(sparse);
+        for (int i = 0; i < probes.size(); i++) {
+            String line = input.readLine(); require(line != null && line.length() < 512, "Invalid rich probe bounds");
+            String[] c = line.split("\t", -1); require(c.length == 5 && c[0].equals(Integer.toString(i)), "Invalid rich probe order");
+            Probe probe = probes.get(i); float[] features = encoder.encode(probe.text);
+            require(c[1].equals(featureHash(features)), "Rich JVM/ART feature mismatch");
+            float[] scores = dense.infer(features); require(Arrays.equals(scores, sparse.infer(features)), "Rich dense/sparse score mismatch");
+            String[] expected = c[4].split(",", -1); require(expected.length == 5, "Rich score schema mismatch");
+            for (int j = 0; j < 5; j++) {
+                double reference = Double.parseDouble(expected[j]);
+                require(Double.isFinite(reference) && reference >= 0 && reference <= 1 && Math.abs(scores[j] - reference) <= 2e-6, "Rich JVM/ART score mismatch");
+            }
+            TinyDecisionModel.Decision actual = a.classify(probe.text, 0.6, 0.15);
+            checkDecision(actual, c[2], c[3], probe.probabilities); exact(actual, b.classify(probe.text, 0.6, 0.15));
+            require(!probe.gateStatus.equals("ABSTAIN") || actual.status == TinyDecisionModel.Status.ABSTAIN, "Rich guard undid a prior refusal");
+            require(actual.status != TinyDecisionModel.Status.CHOICE || Objects.equals(actual.choice, probe.baseChoice), "Rich guard invented a choice");
+        }
+        require(input.readLine() == null, "Unexpected extra rich probes");
+    }
     private static void checkDecision(TinyDecisionModel.Decision d, String status, String choice, double[] expected) {
         require(d.status.name().equals(status) && Objects.equals(d.choice == null ? "-" : d.choice, choice), "JVM/ART decision mismatch");
         double[] actual = d.probabilitiesCopy();

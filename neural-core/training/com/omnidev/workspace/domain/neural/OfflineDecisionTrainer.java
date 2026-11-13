@@ -9,6 +9,7 @@ import java.util.Set;
 
 /** Desktop-only supervised training. Not part of the Android dependency or runtime. */
 public final class OfflineDecisionTrainer {
+    public static final int MAX_TRAINED_PARAMETERS = 20_000;
     private OfflineDecisionTrainer() { }
 
     public static final class Example {
@@ -18,7 +19,7 @@ public final class OfflineDecisionTrainer {
 
         public Example(String group, float[] features, int label) {
             if (group == null || group.isEmpty() || group.length() > 160 || features == null ||
-                    features.length < 1 || features.length > 256 || label < 0 || label >= 32) {
+                    features.length < 1 || features.length > 1024 || label < 0 || label >= 32) {
                 throw new IllegalArgumentException("Invalid training example");
             }
             for (float value : features) if (!Float.isFinite(value) || Math.abs(value) > 1) {
@@ -67,6 +68,14 @@ public final class OfflineDecisionTrainer {
                     new TinyNeuralRuntime.Dense(inputs, hidden, first, firstBias, TinyNeuralRuntime.Activation.TANH), output);
         }
 
+        public TinyNeuralRuntime.Dense binaryLinearLayer(double temperature) {
+            if (hidden != 0 || classes != 2 || !Double.isFinite(temperature) || temperature <= 0) throw new IllegalArgumentException("Expected a linear binary head");
+            float[] weights = new float[inputs];
+            for (int i = 0; i < inputs; i++) weights[i] = (float) (((double) last[inputs + i] - last[i]) / temperature);
+            float[] bias = {(float) (((double) lastBias[1] - lastBias[0]) / temperature)};
+            return new TinyNeuralRuntime.Dense(inputs, 1, weights, bias, TinyNeuralRuntime.Activation.LINEAR);
+        }
+
         /** Portable Java checkpoint; no Python, native library or training code is needed to load it. */
         public String javaSource(double temperature) {
             return javaSource(temperature, "TrainedDecisionCheckpoint");
@@ -96,7 +105,7 @@ public final class OfflineDecisionTrainer {
             return out.append(",TinyNeuralRuntime.Activation.").append(activation).append(')');
         }
 
-        private static void appendArrayFactory(StringBuilder out, String name, float[] values) {
+        static void appendArrayFactory(StringBuilder out, String name, float[] values) {
             final int chunkSize = 256;
             out.append("  private static float[] ").append(name).append("() { float[] values = new float[")
                     .append(values.length).append("];\n");
@@ -151,7 +160,8 @@ public final class OfflineDecisionTrainer {
                                               long seed, List<List<Example>> validationStrata) {
         validate(training, classes);
         int inputs = training.get(0).features.length;
-        if (hidden < 0 || hidden > 64 || epochs < 1 || epochs > 1000) {
+        long parameterCount = hidden == 0 ? (long) inputs * classes + classes : (long) inputs * hidden + hidden + (long) hidden * classes + classes;
+        if (hidden < 0 || hidden > 64 || epochs < 1 || epochs > 1000 || parameterCount > MAX_TRAINED_PARAMETERS) {
             throw new IllegalArgumentException("Invalid bounded training configuration");
         }
         boolean[] present = new boolean[classes];

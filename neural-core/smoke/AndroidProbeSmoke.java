@@ -11,11 +11,14 @@ public final class AndroidProbeSmoke {
         try (Reader cascade = Files.newBufferedReader(Paths.get(args[1]), StandardCharsets.UTF_8)) {
             NeuralProbeContract.verifyCascade(NeuralProbeContract.read(new StringReader(fixture)), cascade);
         }
+        try (Reader rich = Files.newBufferedReader(Paths.get(args[2]), StandardCharsets.UTF_8)) {
+            NeuralProbeContract.verifyRich(NeuralProbeContract.read(new StringReader(fixture)), rich);
+        }
         reject(fixture.replaceFirst("[0-9a-f]{64}", "0000000000000000000000000000000000000000000000000000000000000000"));
         reject(fixture.substring(0, fixture.lastIndexOf('\n', fixture.length() - 2) + 1));
         reject(fixture.replaceFirst("[0-9a-f]{64}", "invalid-hash"));
         reject(fixture.replaceFirst("CHOICE", "FORGED_SUCCESS"));
-        System.out.println("Android probe contract: 139 original/cascade host parity cases + 4 corrupt-fixture rejections passed; ART execution still required.");
+        System.out.println("Android probe contract: 139 original/cascade/rich host parity cases + 4 corrupt-fixture rejections passed; ART execution still required.");
     }
     private static void reject(String fixture) throws Exception {
         try { NeuralProbeContract.verify(NeuralProbeContract.read(new StringReader(fixture))); }

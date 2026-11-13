@@ -21,8 +21,9 @@ public final class NeuralAndroidRuntimeTest {
         List<NeuralProbeContract.Probe> probes = probes();
         NeuralProbeContract.verify(probes);
         verifyCascade(probes);
+        verifyRich(probes);
         writeReport("correctness.json", environment().put("parity_passed", true).put("probes", probes.size())
-                .put("cascade_parity_passed", true).put("host_art_probability_tolerance", 1e-6).put("dense_sparse_exact", true));
+                .put("cascade_parity_passed", true).put("rich_parity_passed", true).put("host_art_probability_tolerance", 1e-6).put("dense_sparse_exact", true));
     }
 
     @Test public void boundedContractsRejectInvalidInputsOnArt() {
@@ -40,40 +41,45 @@ public final class NeuralAndroidRuntimeTest {
                 "true".equals(InstrumentationRegistry.getArguments().getString("neuralBenchmark")));
         List<NeuralProbeContract.Probe> probes = probes();
         NeuralProbeContract.verify(probes);
+        verifyRich(probes);
         // Construction, correctness assertions and file I/O are outside timed batches.
         TinyNeuralRuntime domain = TrainedTextIntentCheckpoint.model(), gate = TrainedRefusalGateCheckpoint.model();
         TextIntentModel dense = NeuralProbeContract.baseline(domain), sparse = NeuralProbeContract.baseline(domain.withSparseInput());
         GatedTextIntentModel gatedDense = NeuralProbeContract.gated(domain, gate);
         GatedTextIntentModel gatedSparse = NeuralProbeContract.gated(domain.withSparseInput(), gate.withSparseInput());
-        for (int mode = 0; mode < 4; mode++) for (int i = 0; i < 256; i++)
-            consume(classify(mode, probes.get(i % probes.size()).text, dense, sparse, gatedDense, gatedSparse));
+        RichIntentRefusalModel richDense = NeuralProbeContract.richModel(TrainedRichPresence.model());
+        RichIntentRefusalModel richSparse = NeuralProbeContract.richModel(TrainedRichPresence.model().withSparseInput());
+        for (int mode = 0; mode < 6; mode++) for (int i = 0; i < 256; i++)
+            consume(classify(mode, probes.get(i % probes.size()).text, dense, sparse, gatedDense, gatedSparse, richDense, richSparse));
         int calls = probes.size();
-        long[][] samples = new long[4][8];
-        for (int round = 0; round < 8; round++) for (int position = 0; position < 4; position++) {
-            int mode = (round + position) % 4;
+        long[][] samples = new long[6][12];
+        for (int round = 0; round < 12; round++) for (int position = 0; position < 6; position++) {
+            int mode = (round + position) % 6;
             long start = System.nanoTime();
-            for (int i = 0; i < calls; i++) consume(classify(mode, probes.get(i).text, dense, sparse, gatedDense, gatedSparse));
+            for (int i = 0; i < calls; i++) consume(classify(mode, probes.get(i).text, dense, sparse, gatedDense, gatedSparse, richDense, richSparse));
             samples[mode][round] = (System.nanoTime() - start) / calls;
         }
         JSONObject report = environment().put("encoding_included", true).put("cold_start_included", false)
-                .put("warmup_calls_per_mode", 256).put("calls_per_batch", calls).put("batches_per_mode", 8)
+                .put("warmup_calls_per_mode", 256).put("calls_per_batch", calls).put("batches_per_mode", 12)
                 .put("input_probe_count", probes.size())
                 .put("timing_assertions", false).put("checksum", sink);
-        String[] names = {"single_dense", "single_sparse", "gated_dense", "gated_sparse"};
-        for (int mode = 0; mode < 4; mode++) {
+        String[] names = {"single_dense", "single_sparse", "gated_dense", "gated_sparse", "rich_dense", "rich_sparse"};
+        for (int mode = 0; mode < 6; mode++) {
             JSONArray raw = new JSONArray(); for (long value : samples[mode]) raw.put(value);
             Arrays.sort(samples[mode]);
             report.put(names[mode], new JSONObject().put("batch_average_ns", raw)
-                    .put("median_batch_average_ns", (samples[mode][3] + samples[mode][4]) / 2));
+                    .put("median_batch_average_ns", (samples[mode][5] + samples[mode][6]) / 2));
         }
         writeReport("benchmark.json", report);
     }
     private static TinyDecisionModel.Decision classify(int mode, String text, TextIntentModel dense,
-            TextIntentModel sparse, GatedTextIntentModel gatedDense, GatedTextIntentModel gatedSparse) {
+            TextIntentModel sparse, GatedTextIntentModel gatedDense, GatedTextIntentModel gatedSparse,
+            RichIntentRefusalModel richDense, RichIntentRefusalModel richSparse) {
         if (mode == 0) return dense.classify(text, 0.6, 0.15);
         if (mode == 1) return sparse.classify(text, 0.6, 0.15);
         if (mode == 2) return gatedDense.classify(text, 0.6, 0.15);
-        return gatedSparse.classify(text, 0.6, 0.15);
+        if (mode == 3) return gatedSparse.classify(text, 0.6, 0.15);
+        return (mode == 4 ? richDense : richSparse).classify(text, 0.6, 0.15);
     }
     private static void consume(TinyDecisionModel.Decision d) { double total = 0; for (double p : d.probabilitiesCopy()) total += p * p; sink = total; }
     private static void rejects(Runnable action) {
@@ -97,6 +103,11 @@ public final class NeuralAndroidRuntimeTest {
     private static void verifyCascade(List<NeuralProbeContract.Probe> probes) throws Exception {
         try (Reader reader = new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("bilingual-cascade.tsv"), StandardCharsets.UTF_8)) {
             NeuralProbeContract.verifyCascade(probes, reader);
+        }
+    }
+    private static void verifyRich(List<NeuralProbeContract.Probe> probes) throws Exception {
+        try (Reader reader = new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("rich-presence.tsv"), StandardCharsets.UTF_8)) {
+            NeuralProbeContract.verifyRich(probes, reader);
         }
     }
     private static void writeReport(String name, JSONObject json) throws Exception {
