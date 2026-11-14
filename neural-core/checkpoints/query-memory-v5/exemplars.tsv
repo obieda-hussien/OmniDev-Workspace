@@ -1,0 +1,352 @@
+id	group	topic	text
+history-titles-0	old:history-titles	history-titles	How does Omni name a new chat?
+history-titles-1	old:history-titles	history-titles	Can a greeting produce a useful session title?
+history-titles-2	old:history-titles	history-titles	عنوان الشات بيتعمل لوحده إزاي؟
+history-titles-3	old:history-titles	history-titles	ليه المحادثة اسمها محادثة جديدة بعد التحية؟
+history-titles-4	old:history-titles	history-titles	Omni بيختار chat title منين؟
+history-titles-5	old:history-titles	history-titles	عايز أفهم automatic titles في السجل
+recover-task-0	old:recover-task	recover-task	How should I continue a task after process death?
+recover-task-1	old:recover-task	recover-task	What happens when an interrupted write has unknown outcome?
+recover-task-2	old:recover-task	recover-task	أكمل مهمة اتقطعت بعد قفل التطبيق إزاي؟
+recover-task-3	old:recover-task	recover-task	عملية كتابة نتيجتها مجهولة أكررها عادي؟
+recover-task-4	old:recover-task	recover-task	Team recovery بيحافظ على completed workers؟
+recover-task-5	old:recover-task	recover-task	إمتى resume يحتاج reconciliation؟
+github-access-0	old:github-access	github-access	Why are GitHub model credentials insufficient for repository actions?
+github-access-1	old:github-access	github-access	Where should I check repository read and write access?
+github-access-2	old:github-access	github-access	ليه تسجيل موديل جيتهوب مش بيديني صلاحية الريبو؟
+github-access-3	old:github-access	github-access	أتأكد من ربط حساب جيتهوب وصلاحياته إزاي؟
+github-access-4	old:github-access	github-access	GitHub Agent Access مختلف عن Models؟
+github-access-5	old:github-access	github-access	ريبو مخفي رجع 404 أراجع authorization فين؟
+shizuku-prerequisites-0	old:shizuku-prerequisites	shizuku-prerequisites	What must be running before rish can work?
+shizuku-prerequisites-1	old:shizuku-prerequisites	shizuku-prerequisites	Does a working Termux shell prove Shizuku readiness?
+shizuku-prerequisites-2	old:shizuku-prerequisites	shizuku-prerequisites	إيه المطلوب عشان أوامر شيزوكو تشتغل؟
+shizuku-prerequisites-3	old:shizuku-prerequisites	shizuku-prerequisites	هل نجاح شيل تيرمكس معناه التصريح المميز جاهز؟
+shizuku-prerequisites-4	old:shizuku-prerequisites	shizuku-prerequisites	rish مش بيلاقي Shizuku binder أراجع إيه؟
+shizuku-prerequisites-5	old:shizuku-prerequisites	shizuku-prerequisites	عايز prerequisites لمسار privileged backend
+discord-connected-0	old:discord-connected	discord-connected	Does choosing Connected apps in history activate a connection?
+discord-connected-1	old:discord-connected	discord-connected	What permission is needed before sending through an external service?
+discord-connected-2	old:discord-connected	discord-connected	فلتر التطبيقات المتصلة بيشغل الخدمة؟
+discord-connected-3	old:discord-connected	discord-connected	قبل الإرسال لديسكورد محتاج أتأكد من إيه؟
+discord-connected-4	old:discord-connected	discord-connected	Discord history filter لوحده يعمل send؟
+discord-connected-5	old:discord-connected	discord-connected	OmniLink receiver trust مطلوب للـ connected app؟
+mcp-tools-0	old:mcp-tools	mcp-tools	Why is a configured MCP tool missing from the exposed schema?
+mcp-tools-1	old:mcp-tools	mcp-tools	Does tool discovery grant execution permission?
+mcp-tools-2	old:mcp-tools	mcp-tools	ليه أداة مضافة في إم سي بي مش بتظهر؟
+mcp-tools-3	old:mcp-tools	mcp-tools	اكتشاف الأدوات بيدي تصريح تنفيذ؟
+mcp-tools-4	old:mcp-tools	mcp-tools	MCP discovery شغال لكن tool unavailable
+mcp-tools-5	old:mcp-tools	mcp-tools	تصحيح اسم أداة MCP يعدي contract إزاي؟
+provider-failure-0	old:provider-failure	provider-failure	What should I do when the provider host cannot resolve?
+provider-failure-1	old:provider-failure	provider-failure	Should an authentication failure trigger endless retries?
+provider-failure-2	old:provider-failure	provider-failure	أعمل إيه لما دومين مزود النموذج مش بيتحل؟
+provider-failure-3	old:provider-failure	provider-failure	خطأ مصادقة محتاج إعادة محاولات كتير؟
+provider-failure-4	old:provider-failure	provider-failure	Gemini DNS failure أوقف retries إزاي؟
+provider-failure-5	old:provider-failure	provider-failure	Provider rate limit ولا auth error أفرق بينهم إزاي؟
+model-routing-0	old:model-routing	model-routing	Are the experimental neural checkpoints active in the APK?
+model-routing-1	old:model-routing	model-routing	Can a neural routing confidence authorize tools?
+model-routing-2	old:model-routing	model-routing	النماذج العصبية التجريبية شغالة في التطبيق دلوقتي؟
+model-routing-3	old:model-routing	model-routing	الثقة العالية في المصنف تسمح باستخدام أداة؟
+model-routing-4	old:model-routing	model-routing	Neural Core shadow ولا production حاليًا؟
+model-routing-5	old:model-routing	model-routing	فشل retention gate يمنع تفعيل model؟
+local-model-size-0	old:local-model-size	local-model-size	Does labeling history require a large downloaded language model?
+local-model-size-1	old:local-model-size	local-model-size	Has the local title engine been benchmarked on a phone?
+local-model-size-2	old:local-model-size	local-model-size	التصنيف محتاج موديل كبير على موبايل أربعة رام؟
+local-model-size-3	old:local-model-size	local-model-size	فيه قياس فعلي لسرعة عناوين الشات على الهاتف؟
+local-model-size-4	old:local-model-size	local-model-size	4GB RAM محتاج model weights للعناوين؟
+local-model-size-5	old:local-model-size	local-model-size	محرك history فيه cloud inference ولا local rules؟
+support-diagnostics-0	old:support-diagnostics	support-diagnostics	What diagnostics should I provide for an Omni bug?
+support-diagnostics-1	old:support-diagnostics	support-diagnostics	How can I share an error without exposing account secrets?
+support-diagnostics-2	old:support-diagnostics	support-diagnostics	أبعت إيه عشان تشخص عطل في أومني؟
+support-diagnostics-3	old:support-diagnostics	support-diagnostics	أشارك رسالة الخطأ من غير أسرار الحساب إزاي؟
+support-diagnostics-4	old:support-diagnostics	support-diagnostics	Omni support محتاج edition وbuild ولا screenshots بس؟
+support-diagnostics-5	old:support-diagnostics	support-diagnostics	أراجع redacted error وpermission state ليه؟
+learned-routines-0	old:learned-routines	learned-routines	How should I validate a recorded routine before replay?
+learned-routines-1	old:learned-routines	learned-routines	Does teaching an action bypass permission requirements?
+learned-routines-2	old:learned-routines	learned-routines	أراجع روتين مسجل قبل إعادة تشغيله إزاي؟
+learned-routines-3	old:learned-routines	learned-routines	تعليم الوكيل خطوات بيلغي الصلاحيات؟
+learned-routines-4	old:learned-routines	learned-routines	Learned routine محتاجة verification بعد replay؟
+learned-routines-5	old:learned-routines	learned-routines	مهارة متعلمة تقدر تعمل mutation بدون approval؟
+media-jobs-0	old:media-jobs	media-jobs	Does a queued media job prove an image was delivered?
+media-jobs-1	old:media-jobs	media-jobs	What must be checked when generated audio or video is missing?
+media-jobs-2	old:media-jobs	media-jobs	الميديا اتحطت في الطابور كده اتبعتت خلاص؟
+media-jobs-3	old:media-jobs	media-jobs	أراجع إيه لو الصورة المتولدة موصلتش؟
+media-jobs-4	old:media-jobs	media-jobs	Media job queued مختلف عن delivered؟
+media-jobs-5	old:media-jobs	media-jobs	نجاح provider response يضمن video delivery؟
+profile-reference-0	old:profile-reference	profile-reference	Can an avatar automatically serve as a generation reference?
+profile-reference-1	old:profile-reference	profile-reference	How do profile settings affect image reference selection?
+profile-reference-2	old:profile-reference	profile-reference	صورة البروفايل بتتبعت تلقائي كمرجع للتوليد؟
+profile-reference-3	old:profile-reference	profile-reference	أختار مرجع الصورة من إعدادات الملف إزاي؟
+profile-reference-4	old:profile-reference	profile-reference	Profile reference محتاج consent قبل image generation؟
+profile-reference-5	old:profile-reference	profile-reference	avatar وreference image نفس الاستخدام؟
+little-omni-0	old:little-omni	little-omni	Can Lite use the small companion without privileged controls?
+little-omni-1	old:little-omni	little-omni	Does the companion enable linked accounts automatically?
+little-omni-2	old:little-omni	little-omni	المساعد الصغير متاح في النسخة الخفيفة؟
+little-omni-3	old:little-omni	little-omni	ظهور الرفيق الصغير بيفتح الحسابات المرتبطة؟
+little-omni-4	old:little-omni	little-omni	Little Omni في Lite يلتزم بحدود النسخة؟
+little-omni-5	old:little-omni	little-omni	virtual companion يمنح privileged access؟
+local-inference-0	old:local-inference	local-inference	What determines whether a downloaded local model can run?
+local-inference-1	old:local-inference	local-inference	Does local inference automatically enable experimental classifiers?
+local-inference-2	old:local-inference	local-inference	إيه اللي بيحدد الموديل المحلي المدعوم يشتغل؟
+local-inference-3	old:local-inference	local-inference	تشغيل نموذج محلي بيفعل المصنفات التجريبية؟
+local-inference-4	old:local-inference	local-inference	Local inference محتاج format وbackend متوافق؟
+local-inference-5	old:local-inference	local-inference	وجود neural checkpoint يعني متاح في model picker؟
+data4-history-titles-0-en	new:data4-history-titles-0	history-titles	Can a greeting produce a meaningful conversation name?
+data4-history-titles-0-ar	new:data4-history-titles-0	history-titles	التحية بس بتعمل عنوان مفيد للمحادثة؟
+data4-history-titles-0-mixed	new:data4-history-titles-0	history-titles	كتبت hello والسجل لسه بعنوان عام ليه؟
+data4-history-titles-1-en	new:data4-history-titles-1	history-titles	Will my manual conversation name survive another message?
+data4-history-titles-1-ar	new:data4-history-titles-1	history-titles	الاسم اللي اخترته للشات هيفضل بعد رسالة جديدة؟
+data4-history-titles-1-mixed	new:data4-history-titles-1	history-titles	عملت Rename للشات هل الاسم هيتغير تاني؟
+data4-history-titles-2-en	new:data4-history-titles-2	history-titles	Does naming a chat send its text to a provider?
+data4-history-titles-2-ar	new:data4-history-titles-2	history-titles	تسمية الشات بتبعت كلامي لمزود خارجي؟
+data4-history-titles-2-mixed	new:data4-history-titles-2	history-titles	عنوان history بيتعمل محلي ولا باستدعاء cloud؟
+data4-history-topics-0-en	new:data4-history-topics-0	history-topics	Can history show only programming conversations?
+data4-history-topics-0-ar	new:data4-history-topics-0	history-topics	السجل يقدر يعرض شات البرمجة بس؟
+data4-history-topics-0-mixed	new:data4-history-topics-0	history-topics	عايز history على Development بس
+data4-history-topics-1-en	new:data4-history-topics-1	history-topics	How do I change a conversation from Personal to Research?
+data4-history-topics-1-ar	new:data4-history-topics-1	history-topics	أغير موضوع محادثة من شخصي لبحث إزاي؟
+data4-history-topics-1-mixed	new:data4-history-topics-1	history-topics	أختار Category مختلفة للشات منين؟
+data4-history-topics-2-en	new:data4-history-topics-2	history-topics	Can I restore automatic topic assignment after choosing a label?
+data4-history-topics-2-ar	new:data4-history-topics-2	history-topics	ينفع أرجع التصنيف التلقائي بعد ما اخترت موضوع؟
+data4-history-topics-2-mixed	new:data4-history-topics-2	history-topics	إزاي أرجع Category إلى Automatic؟
+data4-history-sources-0-en	new:data4-history-sources-0	history-sources	Does discussing Telegram change an app conversation entry channel?
+data4-history-sources-0-ar	new:data4-history-sources-0	history-sources	الكلام عن تيليجرام يغير مصدر محادثة التطبيق؟
+data4-history-sources-0-mixed	new:data4-history-sources-0	history-sources	لو ذكرت Telegram داخل App مصدر الشات يتغير؟
+data4-history-sources-1-en	new:data4-history-sources-1	history-sources	Can source and mentioned service filters be combined?
+data4-history-sources-1-ar	new:data4-history-sources-1	history-sources	ينفع أجمع فلتر المصدر مع التطبيق المذكور؟
+data4-history-sources-1-mixed	new:data4-history-sources-1	history-sources	أجمع Sources مع Apps mentioned إزاي؟
+data4-history-sources-2-en	new:data4-history-sources-2	history-sources	How do I find app chats that mention GitHub?
+data4-history-sources-2-ar	new:data4-history-sources-2	history-sources	ألاقي محادثات التطبيق اللي ذكرت جيتهاب إزاي؟
+data4-history-sources-2-mixed	new:data4-history-sources-2	history-sources	عايز Source App والكلام عن GitHub
+data4-history-legacy-0-en	new:data4-history-legacy-0	history-legacy	Will filling history metadata erase pinned messages?
+data4-history-legacy-0-ar	new:data4-history-legacy-0	history-legacy	إضافة بيانات السجل هتمسح الرسائل المثبتة؟
+data4-history-legacy-0-mixed	new:data4-history-legacy-0	history-legacy	تحديث metadata هيحافظ على pinned chats؟
+data4-history-legacy-1-en	new:data4-history-legacy-1	history-legacy	Can an imported chat retain its external name?
+data4-history-legacy-1-ar	new:data4-history-legacy-1	history-legacy	الشات المستورد ينفع يحتفظ باسمه الخارجي؟
+data4-history-legacy-1-mixed	new:data4-history-legacy-1	history-legacy	محادثة external هتحتفظ بعنوانها الأصلي؟
+data4-history-legacy-2-en	new:data4-history-legacy-2	history-legacy	What happens to local metadata when a conversation is deleted?
+data4-history-legacy-2-ar	new:data4-history-legacy-2	history-legacy	بيانات التصنيف بتروح فين لما أمسح المحادثة؟
+data4-history-legacy-2-mixed	new:data4-history-legacy-2	history-legacy	حذف conversation بيحذف metadata بتاعتها؟
+data4-configure-provider-0-en	new:data4-configure-provider-0	configure-provider	Where do I enter a text provider credential?
+data4-configure-provider-0-ar	new:data4-configure-provider-0	configure-provider	أدخل بيانات مزود المحادثة فين؟
+data4-configure-provider-0-mixed	new:data4-configure-provider-0	configure-provider	أضيف API key لموديل النص منين؟
+data4-configure-provider-1-en	new:data4-configure-provider-1	configure-provider	Why does a custom compatible server need an endpoint?
+data4-configure-provider-1-ar	new:data4-configure-provider-1	configure-provider	السيرفر المتوافق المخصص محتاج عنوان ليه؟
+data4-configure-provider-1-mixed	new:data4-configure-provider-1	configure-provider	مزود OpenAI-compatible محتاج base URL إيه؟
+data4-configure-provider-2-en	new:data4-configure-provider-2	configure-provider	After saving my key where do I choose the text model?
+data4-configure-provider-2-ar	new:data4-configure-provider-2	configure-provider	بعد حفظ المفتاح أختار نموذج المحادثة منين؟
+data4-configure-provider-2-mixed	new:data4-configure-provider-2	configure-provider	حفظت key أروح Model Selection بعدها؟
+data4-choose-mode-0-en	new:data4-choose-mode-0	choose-mode	Is a team necessary for a short explanation?
+data4-choose-mode-0-ar	new:data4-choose-mode-0	choose-mode	هل محتاج فريق عشان شرح قصير؟
+data4-choose-mode-0-mixed	new:data4-choose-mode-0	choose-mode	سؤال شرح بسيط يحتاج Team ولا Chat؟
+data4-choose-mode-1-en	new:data4-choose-mode-1	choose-mode	Which mode performs a scoped sequence of tools?
+data4-choose-mode-1-ar	new:data4-choose-mode-1	choose-mode	أنهي وضع ينفذ سلسلة أدوات لمهمة محددة؟
+data4-choose-mode-1-mixed	new:data4-choose-mode-1	choose-mode	لشغل tools محدد أختار Agent ولا Chat؟
+data4-choose-mode-2-en	new:data4-choose-mode-2	choose-mode	When do dependent worker assignments justify team overhead?
+data4-choose-mode-2-ar	new:data4-choose-mode-2	choose-mode	إمتى تقسيم مهام مترابطة يستاهل تكلفة الفريق؟
+data4-choose-mode-2-mixed	new:data4-choose-mode-2	choose-mode	عندي workers بيعتمدوا على بعض أستخدم Team؟
+data4-edition-policy-0-en	new:data4-edition-policy-0	edition-policy	Does installing Admin automatically give root?
+data4-edition-policy-0-ar	new:data4-edition-policy-0	edition-policy	تثبيت نسخة أدمن بيدي روت تلقائي؟
+data4-edition-policy-0-mixed	new:data4-edition-policy-0	edition-policy	نسخة Admin معناها عندي root خلاص؟
+data4-edition-policy-1-en	new:data4-edition-policy-1	edition-policy	Can an edition change replace Android consent?
+data4-edition-policy-1-ar	new:data4-edition-policy-1	edition-policy	تغيير النسخة يعوض موافقة أندرويد؟
+data4-edition-policy-1-mixed	new:data4-edition-policy-1	edition-policy	تبديل edition يكفي بدل Android grants؟
+data4-edition-policy-2-en	new:data4-edition-policy-2	edition-policy	Why can Lite not use advanced linked account actions?
+data4-edition-policy-2-ar	new:data4-edition-policy-2	edition-policy	ليه لايت مينفعش يستخدم إجراءات الحسابات المتصلة المتقدمة؟
+data4-edition-policy-2-mixed	new:data4-edition-policy-2	edition-policy	حدود Lite في Linked Accounts إيه؟
+data4-finish-evidence-0-en	new:data4-finish-evidence-0	finish-evidence	Why does a worker saying done fail completion verification?
+data4-finish-evidence-0-ar	new:data4-finish-evidence-0	finish-evidence	ليه كلام العامل إنه خلص مش بيعدي تحقق الإكمال؟
+data4-finish-evidence-0-mixed	new:data4-finish-evidence-0	finish-evidence	worker قال done لكن finish رفضه ليه؟
+data4-finish-evidence-1-en	new:data4-finish-evidence-1	finish-evidence	Can discovering tools count as completing an implementation?
+data4-finish-evidence-1-ar	new:data4-finish-evidence-1	finish-evidence	اكتشاف الأدوات ينفع يتحسب تنفيذ تعديل؟
+data4-finish-evidence-1-mixed	new:data4-finish-evidence-1	finish-evidence	نجاح discover_tools يثبت implementation خلصت؟
+data4-finish-evidence-2-en	new:data4-finish-evidence-2	finish-evidence	Can team synthesis hide a skipped prerequisite?
+data4-finish-evidence-2-ar	new:data4-finish-evidence-2	finish-evidence	تلخيص الفريق يقدر يخفي متطلب متنفذش؟
+data4-finish-evidence-2-mixed	new:data4-finish-evidence-2	finish-evidence	synthesis يحول skipped worker لنجاح؟
+data4-recover-task-0-en	new:data4-recover-task-0	recover-task	Can a crashed team reuse verified completed workers?
+data4-recover-task-0-ar	new:data4-recover-task-0	recover-task	الفريق بعد الانهيار يقدر يحافظ على العمال المكتملين؟
+data4-recover-task-0-mixed	new:data4-recover-task-0	recover-task	بعد crash لازم Team يعيد workers الناجحين؟
+data4-recover-task-1-en	new:data4-recover-task-1	recover-task	A write started before interruption; is retry safe?
+data4-recover-task-1-ar	new:data4-recover-task-1	recover-task	كتابة بدأت قبل الانقطاع هل إعادتها آمنة؟
+data4-recover-task-1-mixed	new:data4-recover-task-1	recover-task	mutation بدأت ونتيجتها unknown أعيدها؟
+data4-recover-task-2-en	new:data4-recover-task-2	recover-task	Does restart remove a pending approval requirement?
+data4-recover-task-2-ar	new:data4-recover-task-2	recover-task	إعادة التشغيل تلغي موافقة لسه مطلوبة؟
+data4-recover-task-2-mixed	new:data4-recover-task-2	recover-task	بعد restart هل approval القديمة لسه لازمة؟
+data4-github-access-0-en	new:data4-github-access-0	github-access	Why do Copilot credentials not grant repository control?
+data4-github-access-0-ar	new:data4-github-access-0	github-access	ليه حساب مساعد الكود مش بيدي تحكم في المستودعات؟
+data4-github-access-0-mixed	new:data4-github-access-0	github-access	شغال Copilot بس GitHub Agent Access مش شغال؟
+data4-github-access-1-en	new:data4-github-access-1	github-access	Where do I authorize repository read and write scope?
+data4-github-access-1-ar	new:data4-github-access-1	github-access	أصرح بنطاق قراءة وكتابة المستودع منين؟
+data4-github-access-1-mixed	new:data4-github-access-1	github-access	أضبط repo selection وread write policy فين؟
+data4-github-access-2-en	new:data4-github-access-2	github-access	Can a repository 404 distinguish absence from access denial?
+data4-github-access-2-ar	new:data4-github-access-2	github-access	خطأ المستودع غير موجود بيفرق الغياب عن منع الوصول؟
+data4-github-access-2-mixed	new:data4-github-access-2	github-access	رد GitHub 404 يثبت إن الريبو مش موجود؟
+data4-git-environment-0-en	new:data4-git-environment-0	git-environment	What working directory does a local Git status need?
+data4-git-environment-0-ar	new:data4-git-environment-0	git-environment	حالة جيت المحلية محتاجة مجلد تشغيل إيه؟
+data4-git-environment-0-mixed	new:data4-git-environment-0	git-environment	git status لازم cwd يبقى checkout؟
+data4-git-environment-1-en	new:data4-git-environment-1	git-environment	Can I use a GitHub repository name as a shell path?
+data4-git-environment-1-ar	new:data4-git-environment-1	git-environment	ينفع اسم مستودع جيتهاب يكون مسار للشل؟
+data4-git-environment-1-mixed	new:data4-git-environment-1	git-environment	اسم owner/repo ينفع working directory؟
+data4-git-environment-2-en	new:data4-git-environment-2	git-environment	When can authorized remote GitHub replace a missing checkout?
+data4-git-environment-2-ar	new:data4-git-environment-2	git-environment	إمتى مسار جيتهاب البعيد ينفع بدل نسخة محلية ناقصة؟
+data4-git-environment-2-mixed	new:data4-git-environment-2	git-environment	مفيش local checkout أستخدم remote GitHub route؟
+data4-shizuku-prerequisites-0-en	new:data4-shizuku-prerequisites-0	shizuku-prerequisites	Does a working Termux terminal prove Shizuku is ready?
+data4-shizuku-prerequisites-0-ar	new:data4-shizuku-prerequisites-0	shizuku-prerequisites	ترمنال تيرمكس شغال يبقى شيزوكو جاهز؟
+data4-shizuku-prerequisites-0-mixed	new:data4-shizuku-prerequisites-0	shizuku-prerequisites	Termux shell شغال كفاية لجاهزية Shizuku؟
+data4-shizuku-prerequisites-1-en	new:data4-shizuku-prerequisites-1	shizuku-prerequisites	Can rish restore a missing service binder on its own?
+data4-shizuku-prerequisites-1-ar	new:data4-shizuku-prerequisites-1	shizuku-prerequisites	ريش يقدر يرجع اتصال خدمة مفقود لوحده؟
+data4-shizuku-prerequisites-1-mixed	new:data4-shizuku-prerequisites-1	shizuku-prerequisites	rish يعوض missing Shizuku binder؟
+data4-shizuku-prerequisites-2-en	new:data4-shizuku-prerequisites-2	shizuku-prerequisites	Which grants and service state precede privileged bridge use?
+data4-shizuku-prerequisites-2-ar	new:data4-shizuku-prerequisites-2	shizuku-prerequisites	إيه التصاريح وحالة الخدمة قبل استخدام الجسر المميز؟
+data4-shizuku-prerequisites-2-mixed	new:data4-shizuku-prerequisites-2	shizuku-prerequisites	قبل privileged bridge محتاج Shizuku grant؟
+data4-telegram-owner-0-en	new:data4-telegram-owner-0	telegram-owner	Can an outgoing chat destination authorize incoming commands?
+data4-telegram-owner-0-ar	new:data4-telegram-owner-0	telegram-owner	عنوان إرسال الرسائل يصرح بأوامر واردة؟
+data4-telegram-owner-0-mixed	new:data4-telegram-owner-0	telegram-owner	حفظ outgoing Chat ID يسمح بتحكم incoming؟
+data4-telegram-owner-1-en	new:data4-telegram-owner-1	telegram-owner	Where must the owner enter the temporary pairing code?
+data4-telegram-owner-1-ar	new:data4-telegram-owner-1	telegram-owner	المالك يدخل كود الربط المؤقت فين؟
+data4-telegram-owner-1-mixed	new:data4-telegram-owner-1	telegram-owner	كود Telegram pairing يتكتب في private bot chat؟
+data4-telegram-owner-2-en	new:data4-telegram-owner-2	telegram-owner	Are team commands allowed without an eligible target context?
+data4-telegram-owner-2-ar	new:data4-telegram-owner-2	telegram-owner	أوامر الفريق تنفع من غير سياق هدف مؤهل؟
+data4-telegram-owner-2-mixed	new:data4-telegram-owner-2	telegram-owner	Team command محتاج Target Context مناسب؟
+data4-whatsapp-bridge-0-en	new:data4-whatsapp-bridge-0	whatsapp-bridge	Where does the same phone messaging bridge run?
+data4-whatsapp-bridge-0-ar	new:data4-whatsapp-bridge-0	whatsapp-bridge	جسر واتساب على نفس التلفون بيتشغل فين؟
+data4-whatsapp-bridge-0-mixed	new:data4-whatsapp-bridge-0	whatsapp-bridge	WhatsApp bridge بيتشغل Node داخل Termux؟
+data4-whatsapp-bridge-1-en	new:data4-whatsapp-bridge-1	whatsapp-bridge	Which account and conversation does the bridge accept?
+data4-whatsapp-bridge-1-ar	new:data4-whatsapp-bridge-1	whatsapp-bridge	الجسر بيقبل أنهي حساب ومحادثة؟
+data4-whatsapp-bridge-1-mixed	new:data4-whatsapp-bridge-1	whatsapp-bridge	الWhatsApp bridge يقبل أي contact ولا own account؟
+data4-whatsapp-bridge-2-en	new:data4-whatsapp-bridge-2	whatsapp-bridge	Is the bridge bearer key safe to paste into a conversation?
+data4-whatsapp-bridge-2-ar	new:data4-whatsapp-bridge-2	whatsapp-bridge	مفتاح الجسر ينفع يتبعت في محادثة؟
+data4-whatsapp-bridge-2-mixed	new:data4-whatsapp-bridge-2	whatsapp-bridge	ينفع ألصق bridge bearer key في chat؟
+data4-discord-connected-0-en	new:data4-discord-connected-0	discord-connected	Does filtering Discord history connect my Discord account?
+data4-discord-connected-0-ar	new:data4-discord-connected-0	discord-connected	فلترة سجل ديسكورد بتوصل حسابي؟
+data4-discord-connected-0-mixed	new:data4-discord-connected-0	discord-connected	فلتر Discord في history يفعل integration؟
+data4-discord-connected-1-en	new:data4-discord-connected-1	discord-connected	Can a service name in the title authorize sending a message?
+data4-discord-connected-1-ar	new:data4-discord-connected-1	discord-connected	اسم خدمة في عنوان الشات يصرح بإرسال رسالة؟
+data4-discord-connected-1-mixed	new:data4-discord-connected-1	discord-connected	عنوان فيه Discord يعتبر send permission؟
+data4-discord-connected-2-en	new:data4-discord-connected-2	discord-connected	What must authorize an outgoing connected app message?
+data4-discord-connected-2-ar	new:data4-discord-connected-2	discord-connected	إيه اللي لازم يتصرح قبل إرسال رسالة لتطبيق متصل؟
+data4-discord-connected-2-mixed	new:data4-discord-connected-2	discord-connected	connected app send محتاج destination وconsent؟
+data4-mcp-tools-0-en	new:data4-mcp-tools-0	mcp-tools	Does discovering a tool grant permission to execute it?
+data4-mcp-tools-0-ar	new:data4-mcp-tools-0	mcp-tools	اكتشاف أداة بيدي إذن تنفيذها؟
+data4-mcp-tools-0-mixed	new:data4-mcp-tools-0	mcp-tools	نجاح discovery يمنح tool permission؟
+data4-mcp-tools-1-en	new:data4-mcp-tools-1	mcp-tools	Can a guessed corrected argument bypass schema validation?
+data4-mcp-tools-1-ar	new:data4-mcp-tools-1	mcp-tools	تخمين وسيط مصحح يتجاوز فحص العقد؟
+data4-mcp-tools-1-mixed	new:data4-mcp-tools-1	mcp-tools	تصحيح argument لازم يعدي exact schema؟
+data4-mcp-tools-2-en	new:data4-mcp-tools-2	mcp-tools	Why can a saved MCP server expose no eligible tools?
+data4-mcp-tools-2-ar	new:data4-mcp-tools-2	mcp-tools	ليه خادم أدوات محفوظ مش ظاهر منه أدوات مؤهلة؟
+data4-mcp-tools-2-mixed	new:data4-mcp-tools-2	mcp-tools	MCP server محفوظ بس exposed tools فاضية ليه؟
+data4-provider-failure-0-en	new:data4-provider-failure-0	provider-failure	How does a DNS error differ from a timed out request?
+data4-provider-failure-0-ar	new:data4-provider-failure-0	provider-failure	خطأ حل اسم المضيف مختلف عن انتهاء المهلة إزاي؟
+data4-provider-failure-0-mixed	new:data4-provider-failure-0	provider-failure	DNS lookup failure هو نفسه timeout؟
+data4-provider-failure-1-en	new:data4-provider-failure-1	provider-failure	Can a lost provider response prove a tool succeeded?
+data4-provider-failure-1-ar	new:data4-provider-failure-1	provider-failure	رد المزود الضايع يثبت إن الأداة نجحت؟
+data4-provider-failure-1-mixed	new:data4-provider-failure-1	provider-failure	provider response ضاعت معناها tool success؟
+data4-provider-failure-2-en	new:data4-provider-failure-2	provider-failure	Which account limits can interrupt a model request?
+data4-provider-failure-2-ar	new:data4-provider-failure-2	provider-failure	أنهي حدود للحساب ممكن تقطع طلب النموذج؟
+data4-provider-failure-2-mixed	new:data4-provider-failure-2	provider-failure	model request فشل أراجع quota وrate limit؟
+data4-model-routing-0-en	new:data4-model-routing-0	model-routing	Are experimental classifiers selecting production actions today?
+data4-model-routing-0-ar	new:data4-model-routing-0	model-routing	المصنفات التجريبية بتختار إجراءات الإنتاج دلوقتي؟
+data4-model-routing-0-mixed	new:data4-model-routing-0	model-routing	experimental neural weights بتتحكم في actions؟
+data4-model-routing-1-en	new:data4-model-routing-1	model-routing	Does a tiny intent head replace the conversational model?
+data4-model-routing-1-ar	new:data4-model-routing-1	model-routing	رأس تصنيف نوايا صغير يحل محل نموذج المحادثة؟
+data4-model-routing-1-mixed	new:data4-model-routing-1	model-routing	tiny intent model بديل عن conversational LLM؟
+data4-model-routing-2-en	new:data4-model-routing-2	model-routing	Are local chat title rules powered by the experimental weights?
+data4-model-routing-2-ar	new:data4-model-routing-2	model-routing	قواعد عنوان الشات المحلي بتستخدم الأوزان التجريبية؟
+data4-model-routing-2-mixed	new:data4-model-routing-2	model-routing	history title baseline هو neural intent model؟
+data4-local-model-size-0-en	new:data4-local-model-size-0	local-model-size	Does history categorization download a language model?
+data4-local-model-size-0-ar	new:data4-local-model-size-0	local-model-size	تصنيف السجل بينزل نموذج لغة؟
+data4-local-model-size-0-mixed	new:data4-local-model-size-0	local-model-size	history labels محتاجة model download؟
+data4-local-model-size-1-en	new:data4-local-model-size-1	local-model-size	How many short user inputs does local chat labeling inspect?
+data4-local-model-size-1-ar	new:data4-local-model-size-1	local-model-size	تصنيف الشات المحلي بيفحص كام رسالة قصيرة؟
+data4-local-model-size-1-mixed	new:data4-local-model-size-1	local-model-size	local history engine بيقرأ كام user inputs؟
+data4-local-model-size-2-en	new:data4-local-model-size-2	local-model-size	Is desktop inference timing a phone performance guarantee?
+data4-local-model-size-2-ar	new:data4-local-model-size-2	local-model-size	سرعة القياس على الكمبيوتر ضمان لأداء الهاتف؟
+data4-local-model-size-2-mixed	new:data4-local-model-size-2	local-model-size	desktop timing يثبت سرعة على 4 GB phone؟
+data4-future-knowledge-training-0-en	new:data4-future-knowledge-training-0	future-knowledge-training	Can private conversations enter the support training export?
+data4-future-knowledge-training-0-ar	new:data4-future-knowledge-training-0	future-knowledge-training	المحادثات الخاصة ينفع تدخل تصدير تدريب المساعدة؟
+data4-future-knowledge-training-0-mixed	new:data4-future-knowledge-training-0	future-knowledge-training	support corpus بيقرأ private chats؟
+data4-future-knowledge-training-1-en	new:data4-future-knowledge-training-1	future-knowledge-training	Which documentation is allowed as product support training input?
+data4-future-knowledge-training-1-ar	new:data4-future-knowledge-training-1	future-knowledge-training	أنهي توثيق مسموح يدخل تدريب دعم المنتج؟
+data4-future-knowledge-training-1-mixed	new:data4-future-knowledge-training-1	future-knowledge-training	training export مسموح له reviewed FAQ بس؟
+data4-future-knowledge-training-2-en	new:data4-future-knowledge-training-2	future-knowledge-training	Must Arabic and English translations stay in one data group?
+data4-future-knowledge-training-2-ar	new:data4-future-knowledge-training-2	future-knowledge-training	ترجمات عربي وإنجليزي لازم تفضل في مجموعة واحدة؟
+data4-future-knowledge-training-2-mixed	new:data4-future-knowledge-training-2	future-knowledge-training	translation pairs لازم نفس data group؟
+data4-support-diagnostics-0-en	new:data4-support-diagnostics-0	support-diagnostics	What environment details help diagnose a difficult Omni issue?
+data4-support-diagnostics-0-ar	new:data4-support-diagnostics-0	support-diagnostics	أنهي تفاصيل بيئة تساعد تشخيص مشكلة صعبة في أومني؟
+data4-support-diagnostics-0-mixed	new:data4-support-diagnostics-0	support-diagnostics	قبل diagnosis أقول edition وAndroid version؟
+data4-support-diagnostics-1-en	new:data4-support-diagnostics-1	support-diagnostics	What should a support assistant do when documentation is insufficient?
+data4-support-diagnostics-1-ar	new:data4-support-diagnostics-1	support-diagnostics	مساعد الدعم يعمل إيه لو التوثيق مش مكفي؟
+data4-support-diagnostics-1-mixed	new:data4-support-diagnostics-1	support-diagnostics	لو documentation ناقص لازم يوضح blocker؟
+data4-support-diagnostics-2-en	new:data4-support-diagnostics-2	support-diagnostics	Can proposing a settings change count as proving the fix worked?
+data4-support-diagnostics-2-ar	new:data4-support-diagnostics-2	support-diagnostics	اقتراح تغيير إعداد يعتبر دليل إن الإصلاح اشتغل؟
+data4-support-diagnostics-2-mixed	new:data4-support-diagnostics-2	support-diagnostics	setting suggestion يكفي لإعلان fix نجح؟
+data4-voice-wake-0-en	new:data4-voice-wake-0	voice-wake	Can voice wake work without granting microphone access?
+data4-voice-wake-0-ar	new:data4-voice-wake-0	voice-wake	التنبيه الصوتي يشتغل من غير تصريح الميكروفون؟
+data4-voice-wake-0-mixed	new:data4-voice-wake-0	voice-wake	Hi Omni يحتاج microphone grant؟
+data4-voice-wake-1-en	new:data4-voice-wake-1	voice-wake	Why do recognition assets need an explicit install?
+data4-voice-wake-1-ar	new:data4-voice-wake-1	voice-wake	ليه موارد التعرف على الصوت محتاجة تثبيت واضح؟
+data4-voice-wake-1-mixed	new:data4-voice-wake-1	voice-wake	local voice محتاج install للrecognition assets؟
+data4-voice-wake-2-en	new:data4-voice-wake-2	voice-wake	Does force stop guarantee the wake listener restarts itself?
+data4-voice-wake-2-ar	new:data4-voice-wake-2	voice-wake	الإيقاف الإجباري يضمن إن مستمع التنبيه يرجع لوحده؟
+data4-voice-wake-2-mixed	new:data4-voice-wake-2	voice-wake	بعد force-stop wake listener يشتغل تلقائي مضمون؟
+data4-screen-assistant-0-en	new:data4-screen-assistant-0	screen-assistant	Does opening an assistant panel allow tapping other apps?
+data4-screen-assistant-0-ar	new:data4-screen-assistant-0	screen-assistant	فتح لوحة المساعد يسمح بالضغط في التطبيقات؟
+data4-screen-assistant-0-mixed	new:data4-screen-assistant-0	screen-assistant	assistant panel شغال يعني يقدر tap apps؟
+data4-screen-assistant-1-en	new:data4-screen-assistant-1	screen-assistant	Which grant controls the floating restoration bubble?
+data4-screen-assistant-1-ar	new:data4-screen-assistant-1	screen-assistant	أنهي تصريح بيتحكم في فقاعة الاستعادة العائمة؟
+data4-screen-assistant-1-mixed	new:data4-screen-assistant-1	screen-assistant	restoration bubble محتاجة overlay permission؟
+data4-screen-assistant-2-en	new:data4-screen-assistant-2	screen-assistant	Can Lite gain live screen control from the assistant role?
+data4-screen-assistant-2-ar	new:data4-screen-assistant-2	screen-assistant	لايت يقدر يتحكم في الشاشة من دور المساعد؟
+data4-screen-assistant-2-mixed	new:data4-screen-assistant-2	screen-assistant	اختيار assistant role في Lite يفتح screen actions؟
+data4-learned-routines-0-en	new:data4-learned-routines-0	learned-routines	Can an approved recipe run without another language model call?
+data4-learned-routines-0-ar	new:data4-learned-routines-0	learned-routines	وصفة معتمدة تنفع تشتغل من غير طلب نموذج تاني؟
+data4-learned-routines-0-mixed	new:data4-learned-routines-0	learned-routines	approved routine تشتغل locally من غير LLM request؟
+data4-learned-routines-1-en	new:data4-learned-routines-1	learned-routines	What must I review before replaying a captured action?
+data4-learned-routines-1-ar	new:data4-learned-routines-1	learned-routines	أراجع إيه قبل إعادة إجراء متسجل؟
+data4-learned-routines-1-mixed	new:data4-learned-routines-1	learned-routines	قبل recipe replay أراجع selectors وapproval؟
+data4-learned-routines-2-en	new:data4-learned-routines-2	learned-routines	What happens when a recipe step is unsupported or uncertain?
+data4-learned-routines-2-ar	new:data4-learned-routines-2	learned-routines	إيه اللي يحصل لو خطوة الوصفة غير مدعومة أو مش مؤكدة؟
+data4-learned-routines-2-mixed	new:data4-learned-routines-2	learned-routines	routine step uncertain بتقف للمساعدة؟
+data4-media-jobs-0-en	new:data4-media-jobs-0	media-jobs	Where do I choose separate image video and music models?
+data4-media-jobs-0-ar	new:data4-media-jobs-0	media-jobs	أختار نماذج الصور والفيديو والموسيقى المنفصلة منين؟
+data4-media-jobs-0-mixed	new:data4-media-jobs-0	media-jobs	media models بتتحدد في Model Selection؟
+data4-media-jobs-1-en	new:data4-media-jobs-1	media-jobs	Should an interrupted known media operation be submitted again immediately?
+data4-media-jobs-1-ar	new:data4-media-jobs-1	media-jobs	عملية وسائط معروفة اتقطعت أطلب إنشاء جديد فورا؟
+data4-media-jobs-1-mixed	new:data4-media-jobs-1	media-jobs	media operation اتقطعت أستخدم Check existing job؟
+data4-media-jobs-2-en	new:data4-media-jobs-2	media-jobs	Does enabling media bypass model capability and quota checks?
+data4-media-jobs-2-ar	new:data4-media-jobs-2	media-jobs	تفعيل الوسائط يتجاوز إمكانيات النموذج وحصة الحساب؟
+data4-media-jobs-2-mixed	new:data4-media-jobs-2	media-jobs	enable media يلغي capability وquota checks؟
+data4-profile-reference-0-en	new:data4-profile-reference-0	profile-reference	Where do I save response style preferences?
+data4-profile-reference-0-ar	new:data4-profile-reference-0	profile-reference	أحفظ تفضيلات أسلوب الرد فين؟
+data4-profile-reference-0-mixed	new:data4-profile-reference-0	profile-reference	response style أضبطه من Your profile؟
+data4-profile-reference-1-en	new:data4-profile-reference-1	profile-reference	Does storing a photo prove every provider used it?
+data4-profile-reference-1-ar	new:data4-profile-reference-1	profile-reference	حفظ صورة يثبت إن كل مزود استخدمها؟
+data4-profile-reference-1-mixed	new:data4-profile-reference-1	profile-reference	reference photo محفوظة يبقى كل provider استلمها؟
+data4-profile-reference-2-en	new:data4-profile-reference-2	profile-reference	Which option enables using a reference photo in generation?
+data4-profile-reference-2-ar	new:data4-profile-reference-2	profile-reference	أنهي خيار يفعل استخدام الصورة المرجعية في التوليد؟
+data4-profile-reference-2-mixed	new:data4-profile-reference-2	profile-reference	لازم enable reference use قبل image generation؟
+data4-little-omni-0-en	new:data4-little-omni-0	little-omni	Is the virtual companion the external assistant overlay?
+data4-little-omni-0-ar	new:data4-little-omni-0	little-omni	الرفيق الافتراضي هو لوحة المساعد الخارجية؟
+data4-little-omni-0-mixed	new:data4-little-omni-0	little-omni	Little Omni هو assistant overlay؟
+data4-little-omni-1-en	new:data4-little-omni-1	little-omni	Where can I enable the local virtual companion?
+data4-little-omni-1-ar	new:data4-little-omni-1	little-omni	أفعل الرفيق الافتراضي المحلي منين؟
+data4-little-omni-1-mixed	new:data4-little-omni-1	little-omni	Little Omni بتتفعل من Settings؟
+data4-little-omni-2-en	new:data4-little-omni-2	little-omni	Does companion behavior authorize a device action?
+data4-little-omni-2-ar	new:data4-little-omni-2	little-omni	سلوك الرفيق يصرح بإجراء على الجهاز؟
+data4-little-omni-2-mixed	new:data4-little-omni-2	little-omni	companion expression تعتبر device authorization؟
+data4-memory-recall-0-en	new:data4-memory-recall-0	memory-recall	How do original chat references differ from saved knowledge snippets?
+data4-memory-recall-0-ar	new:data4-memory-recall-0	memory-recall	مراجع الشات الأصلية مختلفة عن قصاصات المعرفة المحفوظة إزاي؟
+data4-memory-recall-0-mixed	new:data4-memory-recall-0	memory-recall	chat recall مختلف عن knowledge snippets؟
+data4-memory-recall-1-en	new:data4-memory-recall-1	memory-recall	Can an external conversation browse unrelated saved archives?
+data4-memory-recall-1-ar	new:data4-memory-recall-1	memory-recall	محادثة خارجية ينفع تتصفح أرشيفات محفوظة مالهاش علاقة؟
+data4-memory-recall-1-mixed	new:data4-memory-recall-1	memory-recall	external conversation تقدر تقرا unrelated archives؟
+data4-memory-recall-2-en	new:data4-memory-recall-2	memory-recall	Are retrieved saved messages automatically true or authorized?
+data4-memory-recall-2-ar	new:data4-memory-recall-2	memory-recall	الرسائل المحفوظة المسترجعة تعتبر صح ومصرح بيها تلقائي؟
+data4-memory-recall-2-mixed	new:data4-memory-recall-2	memory-recall	chat recall يعتبر truth أوpermission لوحده؟
+data4-local-inference-0-en	new:data4-local-inference-0	local-inference	Does loading a native library demonstrate successful model inference?
+data4-local-inference-0-ar	new:data4-local-inference-0	local-inference	تحميل مكتبة أصلية يثبت إن النموذج نفذ استدلال؟
+data4-local-inference-0-mixed	new:data4-local-inference-0	local-inference	native library اتعملها load يبقى inference نجح؟
+data4-local-inference-1-en	new:data4-local-inference-1	local-inference	What does native model execution require beyond a model file?
+data4-local-inference-1-ar	new:data4-local-inference-1	local-inference	التنفيذ الأصلي للنموذج محتاج إيه غير ملف الأوزان؟
+data4-local-inference-1-mixed	new:data4-local-inference-1	local-inference	native inference محتاج compatible build وdevice support؟
+data4-local-inference-2-en	new:data4-local-inference-2	local-inference	Can downloaded chat models share the budget of tiny specialists?
+data4-local-inference-2-ar	new:data4-local-inference-2	local-inference	نماذج المحادثة المحملة ليها نفس ميزانية المتخصصات الصغيرة؟
+data4-local-inference-2-mixed	new:data4-local-inference-2	local-inference	downloaded conversational model زي tiny specialist في RAM؟

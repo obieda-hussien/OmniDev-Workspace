@@ -1,0 +1,33 @@
+{
+  "host_only": true,
+  "comparison": "Separate descriptive runs, not a controlled hardware speedup guarantee. No phone or peak-heap measurement.",
+  "before_inverted": {
+    "host_only": true,
+    "physical_device_tested": false,
+    "whole_retrieval_included": true,
+    "warmup_queries": 20,
+    "rounds": 5,
+    "queries_per_round": 32,
+    "initialization_ns": 218543218,
+    "base_median_batch_mean_ns": 1262408,
+    "memory_median_batch_mean_ns": 8160410,
+    "checksum": 954,
+    "peak_heap_measured": false,
+    "timing_assertions": false
+  },
+  "inverted": {
+    "host_only": true,
+    "physical_device_tested": false,
+    "whole_retrieval_included": true,
+    "warmup_queries": 20,
+    "rounds": 5,
+    "queries_per_round": 32,
+    "initialization_ns": 142043866,
+    "base_median_batch_mean_ns": 1042328,
+    "memory_median_batch_mean_ns": 1550611,
+    "checksum": 954,
+    "peak_heap_measured": false,
+    "timing_assertions": false
+  },
+  "optimized_runtime_sha256": "1d0e992804fcab5765ba6cc2322ff09f9803c314f5b35278a7a362fdb6d0c17f"
+}

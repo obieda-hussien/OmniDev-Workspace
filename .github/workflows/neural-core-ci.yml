@@ -2,7 +2,7 @@ name: Omni Neural Core (experimental)
 
 on:
   pull_request:
-    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2', 'feat/neural-hybrid-support']
+    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2', 'feat/neural-hybrid-support', 'feat/neural-support-data-v4']
     paths:
       - 'neural-core/**'
       - 'neural-android/**'
@@ -30,6 +30,12 @@ on:
       - 'scripts/train_ranked_support.sh'
       - 'scripts/train_hybrid_support.sh'
       - 'scripts/train_expanded_support.sh'
+      - 'scripts/train_query_memory.sh'
+      - 'scripts/prepare_query_memory.py'
+      - 'scripts/test_query_memory.py'
+      - 'scripts/finalize_query_memory.py'
+      - 'scripts/prepare_query_memory_android.sh'
+      - 'docs/QUERY_MEMORY_SUPPORT.md'
       - 'scripts/prepare_support_data_v4.py'
       - 'scripts/test_support_data_v4.py'
       - 'scripts/finalize_expanded_support.py'
@@ -93,6 +99,12 @@ on:
       - 'scripts/train_ranked_support.sh'
       - 'scripts/train_hybrid_support.sh'
       - 'scripts/train_expanded_support.sh'
+      - 'scripts/train_query_memory.sh'
+      - 'scripts/prepare_query_memory.py'
+      - 'scripts/test_query_memory.py'
+      - 'scripts/finalize_query_memory.py'
+      - 'scripts/prepare_query_memory_android.sh'
+      - 'docs/QUERY_MEMORY_SUPPORT.md'
       - 'scripts/prepare_support_data_v4.py'
       - 'scripts/test_support_data_v4.py'
       - 'scripts/finalize_expanded_support.py'
@@ -499,5 +511,28 @@ jobs:
         with:
           name: expanded-support-${{ github.run_id }}
           path: build/support-data-v4/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  query-memory-training:
+    name: Train-only query memory + scenario exclusion parity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify train-only memory, gradients, four fits and compiled sources
+        run: bash scripts/train_query_memory.sh
+      - name: Upload all candidate and retention results including failed gates
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: query-memory-${{ github.run_id }}
+          path: build/query-memory-v5/
           if-no-files-found: ignore
           retention-days: 30

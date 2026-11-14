@@ -114,6 +114,8 @@ The [bilingual field-fusion experiment](docs/HYBRID_SUPPORT_RETRIEVAL.md) compar
 
 The [expanded support-data experiment](docs/EXPANDED_SUPPORT_DATA.md) adds 642 explicitly authored multilingual scenario questions and grows the training input from 114 to 411 queries. A matched old-only comparison keeps the representation and DEV/CAL data fixed. More data alone did not beat it: on 147 new probes, expanded top-1 is 103/123 supported versus 105/123 for matched old-only and 103/123 for frozen v3. Two incorrect selective acceptances remain, so no production/default switch is made. The source-bound dataset, eight actual fits and all failed gates are retained for reproducibility.
 
+The [TRAIN-query memory experiment](docs/QUERY_MEMORY_SUPPORT.md) changes the lexical representation rather than increasing model size: a bounded index of 351 supported training questions adds word/bigram and character3/4 similarities while returning only original FAQ references. Whole training scenario groups and translations are excluded from exemplar matching during fitting. On 138 newly authored probes, first-topic accuracy is 91/105 supported versus frozen v4's 78/105, and all-primary@3 is 97/105 versus90/105. Selective coverage remains26/105, with zero observed fresh errors but four errors on older combined probes. A uniform control wins over four fitted heads; no learned-head gain or production readiness is claimed. The frozen default and normal APK stay unchanged.
+
 The companion Launcher integration now supports scoped capability discovery, catalog/version diagnostics,
 Home layout snapshots, existing-app icon moves, grid migration and drawer rule folders. Install the
 matching Launcher PR #16 and Workspace PR #194 builds with the same signing certificate and enable
