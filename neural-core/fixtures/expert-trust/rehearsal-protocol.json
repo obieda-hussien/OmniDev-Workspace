@@ -1,0 +1,9 @@
+{
+  "version": "counterfactual-expert-trust-v2-paired-rehearsal",
+  "before_followup_fit": true,
+  "motivation": "V1's real training controls have no mixed-language KEEP counterfactuals. Fix training coverage with explicitly synthetic same-intent paired rehearsal, not by editing scored test labels or hiding V1 losses.",
+  "augmentation": "Only existing supported TRAIN groups with an ar and en member and identical expected domain. Concatenate ar / en and en / ar, each at most512 UTF16 chars. Deduplicate normalized text against training rows, retain original source-group identity and TRAIN split, language=mixed. Every pair repeats one labelled intent; no cross-domain combination. Do not generate samples from development/calibration/test rows. Disclose this as synthetic code-switch rehearsal, not human dialogue or independent examples.",
+  "fit_and_policy": "Repeat the exact four V1 architectures/seeds, SGD schedule, temperature grid, development selector and original retention constraints. Include augmented training rows in both counterfactual fitting and teacher-correct training constraints. Frozen teacher/expert weights,20-feature schema and runtime boundaries unchanged. Report missing target strata honestly. No further hyperparameter search.",
+  "evaluation": "All V1 tests,75 authored challenges and80 public negative rows have now been scored and are OBSERVED follow-up regressions. No new independent test or positive-quality claim. Archive V1 checkpoint/report unchanged. Export V2 weights/policy before follow-up scoring. Preserve both failures if V2 fails too.",
+  "production_eligible": false
+}
