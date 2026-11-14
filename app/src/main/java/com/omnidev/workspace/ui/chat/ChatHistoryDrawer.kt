@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,6 +29,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
+import com.omnidev.workspace.data.db.entities.ChatHistoryMetadataEntity
+import com.omnidev.workspace.domain.history.ChatMetadataModel
 import com.omnidev.workspace.ui.components.SettingsEmptyState
 import com.omnidev.workspace.ui.components.OmniSearchField
 import com.omnidev.workspace.ui.components.OmniMark
@@ -51,10 +54,17 @@ internal fun ChatHistoryDrawer(
     sessions: List<ChatSessionEntity>, currentSessionId: Long?, onNewSession: () -> Unit,
     onSessionClick: (Long) -> Unit, onTogglePin: (Long) -> Unit, onRenameSession: (Long, String) -> Unit,
     onDeleteSession: (Long) -> Unit, onDeleteAllSessions: () -> Unit, onDeleteSelectedSessions: (Set<Long>) -> Unit,
-    onCloseDrawer: () -> Unit, isOpen: Boolean = true, onSettings: () -> Unit = {}, onBrowser: () -> Unit = {}
+    onCloseDrawer: () -> Unit, isOpen: Boolean = true,
+    metadata: Map<Long, ChatHistoryMetadataEntity> = emptyMap(), onRefreshMetadata: () -> Unit = {},
+    onSetTopic: (Long, String?) -> Unit = { _, _ -> }, onSettings: () -> Unit = {}, onBrowser: () -> Unit = {}
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
+    var topicFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var serviceFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var topicsMenu by remember { mutableStateOf(false) }
+    var appsMenu by remember { mutableStateOf(false) }
+    var topicSession by rememberSaveable { mutableStateOf<Long?>(null) }
     var sort by rememberSaveable { mutableStateOf(HistorySort.RECENT) }
     var selection by rememberSaveable { mutableStateOf(false) }
     var selectedIds by rememberSaveable { mutableStateOf(emptyList<Long>()) }
@@ -71,12 +81,15 @@ internal fun ChatHistoryDrawer(
         val existingIds = sessions.mapTo(hashSetOf()) { it.id }
         selectedIds = selectedIds.filter { it in existingIds }
     }
-    LaunchedEffect(isOpen) { if (!isOpen) { selection = false; selectedIds = emptyList() } }
+    LaunchedEffect(isOpen) { if (isOpen) onRefreshMetadata(); if (!isOpen) { selection = false; selectedIds = emptyList() } }
     BackHandler(isOpen && selection) { selection = false; selectedIds = emptyList() }
     val locale = Locale.getDefault()
-    val visible = remember(sessions, query, filter, sort, locale) {
+    val visible = remember(sessions, metadata, query, filter, topicFilter, serviceFilter, sort, locale) {
         sessions.filter {
-            (query.isBlank() || it.title.contains(query.trim(), true) || sessionSourceLabel(it).contains(query.trim(), true)) && when (filter) {
+            val info = metadata[it.id]
+            ChatMetadataModel.matches(query, it.title + " " + info?.generatedTitle.orEmpty(), sessionSourceLabel(it), info?.topic ?: "uncategorized", info?.serviceTags.orEmpty()) &&
+                (topicFilter == null || (info?.topic ?: "uncategorized") == topicFilter) &&
+                (serviceFilter == null || ChatMetadataModel.hasService(info?.serviceTags.orEmpty(), serviceFilter)) && when (filter) {
                 HistoryFilter.ALL -> true
                 HistoryFilter.PINNED -> it.isPinned
                 HistoryFilter.APP -> it.source == ChatSessionEntity.SOURCE_APP
@@ -102,6 +115,15 @@ internal fun ChatHistoryDrawer(
     val visibleIds = remember(visible) { visible.map { it.id } }
     val allSelected = visibleIds.isNotEmpty() && selectedIds.containsAll(visibleIds)
     fun toggle(id: Long) { selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id }
+    sessions.firstOrNull { it.id == topicSession }?.let { session ->
+        AlertDialog(onDismissRequest = { topicSession = null }, title = { Text("Conversation category") },
+            text = { Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                TextButton(onClick = { onSetTopic(session.id, null); topicSession = null }) { Text("Automatic") }
+                ChatMetadataModel.Topic.values().forEach { topic ->
+                    TextButton(onClick = { onSetTopic(session.id, topic.id); topicSession = null }) { Text(historyTopicLabel(topic.id)) }
+                }
+            } }, confirmButton = { TextButton(onClick = { topicSession = null }) { Text("Close") } })
+    }
     sessions.firstOrNull { it.id == renameId }?.let { target ->
         AlertDialog(onDismissRequest = { renameId = null }, title = { Text("Rename conversation") },
             text = { OutlinedTextField(renameText, { renameText = it }, label = { Text("Title") }, singleLine = true) },
@@ -154,6 +176,26 @@ internal fun ChatHistoryDrawer(
                     }
                 }
             }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box {
+                    FilterChip(topicFilter != null, { topicsMenu = true }, label = { Text(topicFilter?.let(::historyTopicLabel) ?: "Topics") })
+                    DropdownMenu(topicsMenu, { topicsMenu = false }) {
+                        DropdownMenuItem(text = { Text("All topics") }, onClick = { topicFilter = null; topicsMenu = false })
+                        ChatMetadataModel.Topic.values().forEach { topic ->
+                            DropdownMenuItem(text = { Text(historyTopicLabel(topic.id)) }, onClick = { topicFilter = topic.id; topicsMenu = false })
+                        }
+                    }
+                }
+                Box {
+                    FilterChip(serviceFilter != null, { appsMenu = true }, label = { Text(ChatMetadataModel.Service.values().firstOrNull { it.id == serviceFilter }?.label ?: "Apps mentioned") })
+                    DropdownMenu(appsMenu, { appsMenu = false }) {
+                        DropdownMenuItem(text = { Text("All mentioned apps") }, onClick = { serviceFilter = null; appsMenu = false })
+                        ChatMetadataModel.Service.values().forEach { app ->
+                            DropdownMenuItem(text = { Text(app.label) }, onClick = { serviceFilter = app.id; appsMenu = false })
+                        }
+                    }
+                }
+            }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (selection) TextButton(onClick = {
@@ -169,6 +211,7 @@ internal fun ChatHistoryDrawer(
             if (!selection) Box {
                 OmniIconButton(onClick = { menu = true }, enabled = sessions.isNotEmpty()) { Icon(Icons.Default.MoreVert, "Manage conversations") }
                 DropdownMenu(menu, { menu = false }) {
+                    DropdownMenuItem(text = { Text("Update local titles and categories") }, onClick = { onRefreshMetadata(); menu = false })
                     DropdownMenuItem(text = { Text("Select conversations") }, onClick = { selection = true; selectedIds = emptyList(); menu = false })
                     DropdownMenuItem(text = { Text("Delete all", color = MaterialTheme.colorScheme.error) }, onClick = { deleteGroup = "all"; menu = false })
                 }
@@ -178,8 +221,8 @@ internal fun ChatHistoryDrawer(
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (visible.isEmpty()) item {
                 SettingsEmptyState(if (sessions.isEmpty()) "Your conversations start here" else "No matching chats",
-                    if (sessions.isEmpty()) "Create a conversation to get started." else "Try another search or source.")
-                if (sessions.isNotEmpty()) TextButton(onClick = { query = ""; filter = HistoryFilter.ALL }) { Text("Reset filters") }
+                    if (sessions.isEmpty()) "Create a conversation to get started." else "Try another search, source or topic.")
+                if (sessions.isNotEmpty()) TextButton(onClick = { query = ""; filter = HistoryFilter.ALL; topicFilter = null; serviceFilter = null }) { Text("Reset filters") }
             }
             sections.forEach { (label, rows) ->
                 if (rows.isNotEmpty()) item(key = "section:$label") {
@@ -191,7 +234,7 @@ internal fun ChatHistoryDrawer(
                         onClick = { if (selection) toggle(session.id) else { onSessionClick(session.id); onCloseDrawer() } },
                         onLongClick = { selection = true; if (session.id !in selectedIds) selectedIds = selectedIds + session.id },
                         onPin = { onTogglePin(session.id) }, onRename = { renameText = session.title; renameId = session.id },
-                        onDelete = { deleteId = session.id }, modifier = if (motion.reduced || motion.compact) Modifier else Modifier.animateItem(
+                        onDelete = { deleteId = session.id }, info = metadata[session.id], onCategory = { topicSession = session.id }, onUseSuggestion = { metadata[session.id]?.generatedTitle?.takeIf { it.isNotBlank() }?.let { onRenameSession(session.id, it) } }, modifier = if (motion.reduced || motion.compact) Modifier else Modifier.animateItem(
                             fadeInSpec = null, fadeOutSpec = null, placementSpec = tween(motion.responseMillis, easing = OmniEasing)))
                 }
             }
@@ -207,7 +250,8 @@ internal fun ChatHistoryDrawer(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HistorySessionItem(session: ChatSessionEntity, active: Boolean, selection: Boolean, checked: Boolean,
-    onClick: () -> Unit, onLongClick: () -> Unit, onPin: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit, modifier: Modifier = Modifier) {
+    onClick: () -> Unit, onLongClick: () -> Unit, onPin: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit,
+    info: ChatHistoryMetadataEntity? = null, onCategory: () -> Unit = {}, onUseSuggestion: () -> Unit = {}, modifier: Modifier = Modifier) {
     var menu by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     Row(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
@@ -223,7 +267,10 @@ private fun HistorySessionItem(session: ChatSessionEntity, active: Boolean, sele
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(session.title.ifBlank { "Untitled conversation" }, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal)
-            Text(if (session.source == ChatSessionEntity.SOURCE_APP) relativeSessionTime(session.lastUpdated) else "${sessionSourceLabel(session)} · ${relativeSessionTime(session.lastUpdated)}", maxLines = 1,
+            if (session.source != ChatSessionEntity.SOURCE_APP && !info?.generatedTitle.isNullOrBlank() && info?.generatedTitle != session.title) {
+                Text(info?.generatedTitle.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+            }
+            Text(listOfNotNull(sessionSourceLabel(session), info?.topic?.let(::historyTopicLabel), relativeSessionTime(session.lastUpdated)).joinToString(" · "), maxLines = 1,
                 overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (!selection) Box {
@@ -231,6 +278,8 @@ private fun HistorySessionItem(session: ChatSessionEntity, active: Boolean, sele
             DropdownMenu(menu, { menu = false }) {
                 DropdownMenuItem(text = { Text(if (session.isPinned) "Unpin" else "Pin") }, onClick = { menu = false; onPin() })
                 DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onRename() })
+                DropdownMenuItem(text = { Text("Category") }, onClick = { menu = false; onCategory() })
+                if (!info?.generatedTitle.isNullOrBlank() && info?.generatedTitle != session.title) DropdownMenuItem(text = { Text("Use local suggested title") }, onClick = { menu = false; onUseSuggestion() })
                 DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) }, onClick = { menu = false; onDelete() })
             }
         }
@@ -288,4 +337,9 @@ private fun groupHistorySessionsByDate(
         grouped.getOrPut(label) { mutableListOf() }.add(session)
     }
     return grouped
+}
+
+private fun historyTopicLabel(id: String): String {
+    val topic = ChatMetadataModel.Topic.fromId(id)
+    return topic.label
 }

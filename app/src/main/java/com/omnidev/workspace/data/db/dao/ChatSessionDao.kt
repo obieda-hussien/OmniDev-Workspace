@@ -5,11 +5,97 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
 import androidx.room.Transaction
+import androidx.room.OnConflictStrategy
+import com.omnidev.workspace.data.db.entities.ChatHistoryMetadataEntity
+import com.omnidev.workspace.domain.history.ChatMetadataModel
+import com.omnidev.workspace.data.repository.HistoryMetadataText
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ChatSessionDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveHistoryMetadata(metadata: ChatHistoryMetadataEntity)
+
+    @Query("SELECT * FROM chat_history_metadata WHERE sessionId = :id")
+    suspend fun historyMetadata(id: Long): ChatHistoryMetadataEntity?
+
+    @Query("SELECT * FROM chat_history_metadata")
+    fun observeHistoryMetadata(): Flow<List<ChatHistoryMetadataEntity>>
+
+    @Query("SELECT s.id FROM chat_sessions s LEFT JOIN chat_history_metadata h ON s.id = h.sessionId WHERE h.sessionId IS NULL OR h.modelVersion < :version OR h.lastUserRowId < COALESCE((SELECT MAX(m.id) FROM chat_messages m WHERE m.sessionId = s.id AND m.role = 'USER'), 0) ORDER BY s.lastUpdated DESC, s.id DESC LIMIT :limit")
+    suspend fun pendingHistoryMetadata(version: Int, limit: Int): List<Long>
+
+    @Query("SELECT id, substr(content, 1, 1500) AS content FROM chat_messages WHERE sessionId = :id AND role = 'USER' ORDER BY id ASC LIMIT 3")
+    suspend fun firstHistoryInputs(id: Long): List<HistoryMetadataInput>
+
+    @Query("SELECT id, substr(content, 1, 1500) AS content FROM chat_messages WHERE sessionId = :id AND role = 'USER' ORDER BY id DESC LIMIT 3")
+    suspend fun latestHistoryInputs(id: Long): List<HistoryMetadataInput>
+
+    @Query("SELECT substr(metadataJson, :offset, 2048) FROM chat_messages WHERE id = :rowId AND role = 'USER'")
+    fun historyMetadataPage(rowId: Long, offset: Int): String?
+
+    @Transaction
+    suspend fun createWithMetadata(session: ChatSessionEntity, metadata: ChatHistoryMetadataEntity): Long {
+        val id = insert(session)
+        saveHistoryMetadata(metadata.copy(sessionId = id))
+        return id
+    }
+
+    /** A short local transaction (six bounded USER inputs); no provider, tool or network call. */
+    @Transaction
+    suspend fun refreshHistoryMetadata(id: Long): Boolean {
+        val session = getById(id) ?: return false
+        val previous = historyMetadata(id) ?: ChatHistoryMetadataEntity(id)
+        val inputs = (firstHistoryInputs(id) + latestHistoryInputs(id)).distinctBy { it.id }.sortedBy { it.id }
+        val latest = inputs.maxOfOrNull { it.id } ?: 0L
+        if (previous.modelVersion >= ChatMetadataModel.VERSION && previous.lastUserRowId >= latest) return false
+        val texts = inputs.map { input -> HistoryMetadataText.original(input.content) { offset -> historyMetadataPage(input.id, offset).orEmpty() } }.ifEmpty { listOf(session.title.substringBefore(" • Status: ")) }
+        val result = ChatMetadataModel.analyze(texts, session.source, session.sourceAppPackage)
+        saveHistoryMetadata(previous.copy(
+            topic = if (previous.topicOrigin == "manual") previous.topic else result.topic,
+            generatedTitle = result.title, serviceTags = result.serviceTags,
+            modelVersion = ChatMetadataModel.VERSION, lastUserRowId = latest
+        ))
+        if (previous.titleOrigin == "automatic" && session.source == ChatSessionEntity.SOURCE_APP) {
+            val suffix = session.title.substringAfter(" • Status: ", "")
+            updateTitle(id, result.title + if (suffix.isNotEmpty()) " • Status: $suffix" else "")
+        }
+        return true
+    }
+
+    @Transaction
+    suspend fun refreshHistoryMetadataBatch(ids: List<Long>) {
+        require(ids.size <= 20)
+        for (id in ids) refreshHistoryMetadata(id)
+    }
+
+    @Transaction
+    suspend fun renameWithOwnership(id: Long, title: String) {
+        if (getById(id) == null) return
+        val old = historyMetadata(id) ?: ChatHistoryMetadataEntity(id)
+        saveHistoryMetadata(old.copy(titleOrigin = "manual"))
+        updateTitle(id, title)
+    }
+
+    @Transaction
+    suspend fun setHistoryTopic(id: Long, topic: String?) {
+        if (getById(id) == null) return
+        val old = historyMetadata(id) ?: ChatHistoryMetadataEntity(id)
+        saveHistoryMetadata(old.copy(topic = topic ?: "uncategorized", topicOrigin = if (topic == null) "automatic" else "manual", modelVersion = 0))
+        refreshHistoryMetadata(id)
+    }
+
+    @Transaction
+    suspend fun setRunStatus(id: Long, label: String, timestamp: Long) {
+        val session = getById(id) ?: return
+        val title = session.title.substringBefore(" • Status: ").ifBlank { "New conversation" }
+        updateTitleAndTimestamp(id, "$title • Status: $label", timestamp)
+    }
+
+    @Query("UPDATE chat_sessions SET title = CASE WHEN EXISTS(SELECT 1 FROM chat_history_metadata WHERE sessionId = :id AND titleOrigin IN ('manual', 'automatic')) THEN title ELSE :title END, lastUpdated = :timestamp WHERE id = :id")
+    suspend fun touchProvidedTitle(id: Long, title: String, timestamp: Long)
 
     @Query("SELECT * FROM chat_sessions WHERE backgroundKey = :key LIMIT 1")
     suspend fun getByBackgroundKey(key: String): ChatSessionEntity?
@@ -83,7 +169,7 @@ interface ChatSessionDao {
     ): List<ChatSessionEntity>
 
     @Query(
-        "UPDATE chat_sessions SET sourceAppName = :appName, title = :title, lastUpdated = :timestamp " +
+        "UPDATE chat_sessions SET sourceAppName = :appName, title = CASE WHEN EXISTS(SELECT 1 FROM chat_history_metadata WHERE sessionId = :id AND titleOrigin IN ('manual', 'automatic')) THEN title ELSE :title END, lastUpdated = :timestamp " +
             "WHERE id = :id"
     )
     suspend fun touchExternalSession(
@@ -105,3 +191,6 @@ interface ChatSessionDao {
     @Query("SELECT * FROM chat_sessions WHERE whatsappJid = :jid AND source = 'whatsapp_bridge' LIMIT 1")
     suspend fun getByWhatsAppJid(jid: String): ChatSessionEntity?
 }
+
+/** Bounded projection: never loads attachments, source context or tool output. */
+data class HistoryMetadataInput(val id: Long, val content: String)

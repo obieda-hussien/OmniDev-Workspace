@@ -59,11 +59,13 @@ import com.omnidev.workspace.data.db.entities.TaskStepEntity
  *  10 → added v10 entities
  *  11 → added token usage and cost metrics to `chat_messages`
  *  16 → added external-app conversation identity + per-message source context
+ *  21 → added derived chat-history titles, topics and service tags
  */
 @Database(
     entities = [
         KnowledgeSnippet::class,
         ChatSessionEntity::class,
+        com.omnidev.workspace.data.db.entities.ChatHistoryMetadataEntity::class,
         ChatMessageEntity::class,
         ToolExecutionEntry::class,
         SystemKnowledgeEntry::class,
@@ -87,7 +89,7 @@ import com.omnidev.workspace.data.db.entities.TaskStepEntity
         TaskInvocationEntity::class,
         TaskEventEntity::class,
         com.omnidev.workspace.data.db.entities.TeamRunEntity::class],
-    version = 20,
+    version = 21,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -704,11 +706,18 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        /** v21: local history labels; existing session titles, origins and transcripts stay intact. */
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS chat_history_metadata (sessionId INTEGER NOT NULL, topic TEXT NOT NULL, topicOrigin TEXT NOT NULL, serviceTags TEXT NOT NULL, generatedTitle TEXT NOT NULL, titleOrigin TEXT NOT NULL, modelVersion INTEGER NOT NULL, lastUserRowId INTEGER NOT NULL, PRIMARY KEY(sessionId), FOREIGN KEY(sessionId) REFERENCES chat_sessions(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
+            }
+        }
+
         /** Every migration in order. The database builder and the migration tests use this one list. */
         val ALL_MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
             MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
-            MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20
+            MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21
         )
 
         fun getInstance(context: Context): OmniDevDatabase =

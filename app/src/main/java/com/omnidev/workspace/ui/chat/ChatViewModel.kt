@@ -39,6 +39,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.combine
+import com.omnidev.workspace.data.db.entities.ChatHistoryMetadataEntity
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -84,6 +86,7 @@ data class ChatUiState(
     val pendingAttachments: List<PendingAttachment> = emptyList(),
     val isImportingAttachments: Boolean = false,
     val sessions: List<ChatSessionEntity> = emptyList(),
+    val historyMetadata: Map<Long, ChatHistoryMetadataEntity> = emptyMap(),
     val isDrawerOpen: Boolean = false,
     val currentSessionId: Long? = null,
     val streamingContent: String? = null,
@@ -228,10 +231,21 @@ class ChatViewModel(
     private fun observeSessions() {
         val repo = chatRepository ?: return
         viewModelScope.launch {
-            repo.observeSessions().collect { sessions ->
-                _uiState.update { it.copy(sessions = sessions) }
+            combine(repo.observeSessions(), repo.observeHistoryMetadata()) { sessions, metadata -> sessions to metadata }.collect { (sessions, metadata) ->
+                _uiState.update { it.copy(sessions = sessions, historyMetadata = metadata.associateBy { item -> item.sessionId }) }
             }
         }
+    }
+
+    private var historyMetadataJob: Job? = null
+
+    fun refreshHistoryMetadata() {
+        if (historyMetadataJob?.isActive == true) return
+        historyMetadataJob = viewModelScope.launch { chatRepository?.refreshHistoryMetadata() }
+    }
+
+    fun setHistoryTopic(id: Long, topic: String?) {
+        viewModelScope.launch { chatRepository?.setHistoryTopic(id, topic) }
     }
 
     private fun observeGodMode() {
@@ -2092,7 +2106,7 @@ class ChatViewModel(
 
     private suspend fun ensureSession(firstMessage: String): Long {
         _uiState.value.currentSessionId?.let { return it }
-        val id = chatRepository?.createSession(firstMessage.take(50).ifBlank { "New conversation" }) ?: -1L
+        val id = chatRepository?.createSession(firstMessage.ifBlank { "New conversation" }) ?: -1L
         compositeToolManager?.currentSessionId = id
         _uiState.update { it.copy(currentSessionId = id) }
         refreshTaskRecovery()

@@ -90,6 +90,9 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
                         viewModel::togglePinSession, viewModel::renameSession, viewModel::deleteSession, viewModel::deleteAllSessions,
                         viewModel::deleteSelectedSessions, { scope.launch { drawer.close() } },
                         isOpen = drawer.targetValue == DrawerValue.Open,
+                        metadata = state.historyMetadata,
+                        onRefreshMetadata = viewModel::refreshHistoryMetadata,
+                        onSetTopic = viewModel::setHistoryTopic,
                         onSettings = { scope.launch { drawer.close(); onNavigateToSettings() } },
                         onBrowser = { scope.launch { drawer.close(); onOpenBrowser() } })
                 }
