@@ -1,0 +1,643 @@
+id	group	split	language	primary	secondary	query
+data4-history-titles-0-en	data4-history-titles-0	train	en	history-titles	-	Can a greeting produce a meaningful conversation name?
+data4-history-titles-0-ar	data4-history-titles-0	train	ar	history-titles	-	التحية بس بتعمل عنوان مفيد للمحادثة؟
+data4-history-titles-0-mixed	data4-history-titles-0	train	mixed	history-titles	-	كتبت hello والسجل لسه بعنوان عام ليه؟
+data4-history-titles-1-en	data4-history-titles-1	train	en	history-titles	-	Will my manual conversation name survive another message?
+data4-history-titles-1-ar	data4-history-titles-1	train	ar	history-titles	-	الاسم اللي اخترته للشات هيفضل بعد رسالة جديدة؟
+data4-history-titles-1-mixed	data4-history-titles-1	train	mixed	history-titles	-	عملت Rename للشات هل الاسم هيتغير تاني؟
+data4-history-titles-2-en	data4-history-titles-2	train	en	history-titles	-	Does naming a chat send its text to a provider?
+data4-history-titles-2-ar	data4-history-titles-2	train	ar	history-titles	-	تسمية الشات بتبعت كلامي لمزود خارجي؟
+data4-history-titles-2-mixed	data4-history-titles-2	train	mixed	history-titles	-	عنوان history بيتعمل محلي ولا باستدعاء cloud؟
+data4-history-titles-3-en	data4-history-titles-3	development	en	history-titles	-	Where does a new conversation get its short label?
+data4-history-titles-3-ar	data4-history-titles-3	development	ar	history-titles	-	المحادثة الجديدة بتجيب اسمها المختصر منين؟
+data4-history-titles-3-mixed	data4-history-titles-3	development	mixed	history-titles	-	اسم session الجديد مستخرج من كلام مين؟
+data4-history-titles-4-en	data4-history-titles-4	calibration	en	history-titles	-	Why did saying hello leave my conversation unnamed?
+data4-history-titles-4-ar	data4-history-titles-4	calibration	ar	history-titles	-	ليه لما قلت أهلا اسم المحادثة فضل عام؟
+data4-history-titles-4-mixed	data4-history-titles-4	calibration	mixed	history-titles	-	قلت hi بس عنوان الشات فضل افتراضي؟
+data4-history-titles-5-en	data4-history-titles-5	fresh	en	history-titles	-	How do I prevent automatic renaming of one conversation?
+data4-history-titles-5-ar	data4-history-titles-5	fresh	ar	history-titles	-	إزاي أخلي اسم محادثة معين ثابت؟
+data4-history-titles-5-mixed	data4-history-titles-5	fresh	mixed	history-titles	-	لو سميت chat بنفسي النظام هيحافظ عليه؟
+data4-history-topics-0-en	data4-history-topics-0	train	en	history-topics	-	Can history show only programming conversations?
+data4-history-topics-0-ar	data4-history-topics-0	train	ar	history-topics	-	السجل يقدر يعرض شات البرمجة بس؟
+data4-history-topics-0-mixed	data4-history-topics-0	train	mixed	history-topics	-	عايز history على Development بس
+data4-history-topics-1-en	data4-history-topics-1	train	en	history-topics	-	How do I change a conversation from Personal to Research?
+data4-history-topics-1-ar	data4-history-topics-1	train	ar	history-topics	-	أغير موضوع محادثة من شخصي لبحث إزاي؟
+data4-history-topics-1-mixed	data4-history-topics-1	train	mixed	history-topics	-	أختار Category مختلفة للشات منين؟
+data4-history-topics-2-en	data4-history-topics-2	train	en	history-topics	-	Can I restore automatic topic assignment after choosing a label?
+data4-history-topics-2-ar	data4-history-topics-2	train	ar	history-topics	-	ينفع أرجع التصنيف التلقائي بعد ما اخترت موضوع؟
+data4-history-topics-2-mixed	data4-history-topics-2	train	mixed	history-topics	-	إزاي أرجع Category إلى Automatic؟
+data4-history-topics-3-en	data4-history-topics-3	development	en	history-topics	-	Where are the topic browsing controls for old conversations?
+data4-history-topics-3-ar	data4-history-topics-3	development	ar	history-topics	-	مكان فلتر موضوع المحادثات القديمة فين؟
+data4-history-topics-3-mixed	data4-history-topics-3	development	mixed	history-topics	-	عايز أبحث في Topics داخل history
+data4-history-topics-4-en	data4-history-topics-4	calibration	en	history-topics	-	Can topic labels organize writing and device questions separately?
+data4-history-topics-4-ar	data4-history-topics-4	calibration	ar	history-topics	-	ينفع أفصل أسئلة الكتابة عن الجهاز بتصنيف السجل؟
+data4-history-topics-4-mixed	data4-history-topics-4	calibration	mixed	history-topics	-	في history أختار Writing ولا Device إزاي؟
+data4-history-topics-5-en	data4-history-topics-5	fresh	en	history-topics	-	How can I browse only my research chats without deleting others?
+data4-history-topics-5-ar	data4-history-topics-5	fresh	ar	history-topics	-	أتصفح شات البحث بس من غير حذف الباقي إزاي؟
+data4-history-topics-5-mixed	data4-history-topics-5	fresh	mixed	history-topics	-	فين فلتر Research في سجل الشات؟
+data4-history-sources-0-en	data4-history-sources-0	train	en	history-sources	-	Does discussing Telegram change an app conversation entry channel?
+data4-history-sources-0-ar	data4-history-sources-0	train	ar	history-sources	-	الكلام عن تيليجرام يغير مصدر محادثة التطبيق؟
+data4-history-sources-0-mixed	data4-history-sources-0	train	mixed	history-sources	-	لو ذكرت Telegram داخل App مصدر الشات يتغير؟
+data4-history-sources-1-en	data4-history-sources-1	train	en	history-sources	-	Can source and mentioned service filters be combined?
+data4-history-sources-1-ar	data4-history-sources-1	train	ar	history-sources	-	ينفع أجمع فلتر المصدر مع التطبيق المذكور؟
+data4-history-sources-1-mixed	data4-history-sources-1	train	mixed	history-sources	-	أجمع Sources مع Apps mentioned إزاي؟
+data4-history-sources-2-en	data4-history-sources-2	train	en	history-sources	-	How do I find app chats that mention GitHub?
+data4-history-sources-2-ar	data4-history-sources-2	train	ar	history-sources	-	ألاقي محادثات التطبيق اللي ذكرت جيتهاب إزاي؟
+data4-history-sources-2-mixed	data4-history-sources-2	train	mixed	history-sources	-	عايز Source App والكلام عن GitHub
+data4-history-sources-3-en	data4-history-sources-3	development	en	history-sources	-	Which filter distinguishes origin from a service discussed in text?
+data4-history-sources-3-ar	data4-history-sources-3	development	ar	history-sources	-	أنهي فلتر بيفرق مصدر الرسالة عن الخدمة المذكورة؟
+data4-history-sources-3-mixed	data4-history-sources-3	development	mixed	history-sources	-	الفرق بين source وservice tags في السجل إيه؟
+data4-history-sources-4-en	data4-history-sources-4	calibration	en	history-sources	-	Can I search WhatsApp mentions inside conversations from Discord?
+data4-history-sources-4-ar	data4-history-sources-4	calibration	ar	history-sources	-	أبحث عن ذكر واتساب جوه محادثات جاية من ديسكورد؟
+data4-history-sources-4-mixed	data4-history-sources-4	calibration	mixed	history-sources	-	أفلتر Source Discord مع Apps mentioned WhatsApp؟
+data4-history-sources-5-en	data4-history-sources-5	fresh	en	history-sources	-	Why did a WhatsApp question remain under the app channel?
+data4-history-sources-5-ar	data4-history-sources-5	fresh	ar	history-sources	-	ليه سؤال واتساب فضل تحت مصدر التطبيق؟
+data4-history-sources-5-mixed	data4-history-sources-5	fresh	mixed	history-sources	-	ذكرت WhatsApp لكن Sources لسه App ليه؟
+data4-history-legacy-0-en	data4-history-legacy-0	train	en	history-legacy	-	Will filling history metadata erase pinned messages?
+data4-history-legacy-0-ar	data4-history-legacy-0	train	ar	history-legacy	-	إضافة بيانات السجل هتمسح الرسائل المثبتة؟
+data4-history-legacy-0-mixed	data4-history-legacy-0	train	mixed	history-legacy	-	تحديث metadata هيحافظ على pinned chats؟
+data4-history-legacy-1-en	data4-history-legacy-1	train	en	history-legacy	-	Can an imported chat retain its external name?
+data4-history-legacy-1-ar	data4-history-legacy-1	train	ar	history-legacy	-	الشات المستورد ينفع يحتفظ باسمه الخارجي؟
+data4-history-legacy-1-mixed	data4-history-legacy-1	train	mixed	history-legacy	-	محادثة external هتحتفظ بعنوانها الأصلي؟
+data4-history-legacy-2-en	data4-history-legacy-2	train	en	history-legacy	-	What happens to local metadata when a conversation is deleted?
+data4-history-legacy-2-ar	data4-history-legacy-2	train	ar	history-legacy	-	بيانات التصنيف بتروح فين لما أمسح المحادثة؟
+data4-history-legacy-2-mixed	data4-history-legacy-2	train	mixed	history-legacy	-	حذف conversation بيحذف metadata بتاعتها؟
+data4-history-legacy-3-en	data4-history-legacy-3	development	en	history-legacy	-	Why can an older conversation keep its original title?
+data4-history-legacy-3-ar	data4-history-legacy-3	development	ar	history-legacy	-	ليه المحادثة القديمة ممكن تحتفظ بعنوانها الأصلي؟
+data4-history-legacy-3-mixed	data4-history-legacy-3	development	mixed	history-legacy	-	الشات القديم عنده Use local suggested title ليه؟
+data4-history-legacy-4-en	data4-history-legacy-4	calibration	en	history-legacy	-	Is older history enriched all at once or in small batches?
+data4-history-legacy-4-ar	data4-history-legacy-4	calibration	ar	history-legacy	-	بيانات السجل القديم بتتحسب مرة واحدة ولا دفعات؟
+data4-history-legacy-4-mixed	data4-history-legacy-4	calibration	mixed	history-legacy	-	فتح history بيملأ metadata إزاي؟
+data4-history-legacy-5-en	data4-history-legacy-5	fresh	en	history-legacy	-	Do assistant replies relabel older conversations?
+data4-history-legacy-5-ar	data4-history-legacy-5	fresh	ar	history-legacy	-	ردود المساعد بتغير تصنيفات المحادثات القديمة؟
+data4-history-legacy-5-mixed	data4-history-legacy-5	fresh	mixed	history-legacy	-	ردود assistant وtool بتصنف الشات القديم؟
+data4-configure-provider-0-en	data4-configure-provider-0	train	en	configure-provider	-	Where do I enter a text provider credential?
+data4-configure-provider-0-ar	data4-configure-provider-0	train	ar	configure-provider	-	أدخل بيانات مزود المحادثة فين؟
+data4-configure-provider-0-mixed	data4-configure-provider-0	train	mixed	configure-provider	-	أضيف API key لموديل النص منين؟
+data4-configure-provider-1-en	data4-configure-provider-1	train	en	configure-provider	-	Why does a custom compatible server need an endpoint?
+data4-configure-provider-1-ar	data4-configure-provider-1	train	ar	configure-provider	-	السيرفر المتوافق المخصص محتاج عنوان ليه؟
+data4-configure-provider-1-mixed	data4-configure-provider-1	train	mixed	configure-provider	-	مزود OpenAI-compatible محتاج base URL إيه؟
+data4-configure-provider-2-en	data4-configure-provider-2	train	en	configure-provider	-	After saving my key where do I choose the text model?
+data4-configure-provider-2-ar	data4-configure-provider-2	train	ar	configure-provider	-	بعد حفظ المفتاح أختار نموذج المحادثة منين؟
+data4-configure-provider-2-mixed	data4-configure-provider-2	train	mixed	configure-provider	-	حفظت key أروح Model Selection بعدها؟
+data4-configure-provider-3-en	data4-configure-provider-3	development	en	configure-provider	-	Does seeing a model in the catalog prove account quota?
+data4-configure-provider-3-ar	data4-configure-provider-3	development	ar	configure-provider	-	ظهور نموذج في القائمة معناه إن عندي حصة؟
+data4-configure-provider-3-mixed	data4-configure-provider-3	development	mixed	configure-provider	-	الموديل ظاهر في catalog هل ده يثبت quota؟
+data4-configure-provider-4-en	data4-configure-provider-4	calibration	en	configure-provider	-	How do I refresh available models after connecting an account?
+data4-configure-provider-4-ar	data4-configure-provider-4	calibration	ar	configure-provider	-	أحدث قائمة النماذج بعد ربط الحساب إزاي؟
+data4-configure-provider-4-mixed	data4-configure-provider-4	calibration	mixed	configure-provider	-	بعد account connection أجدد model catalog منين؟
+data4-configure-provider-5-en	data4-configure-provider-5	fresh	en	configure-provider	-	Which screens set up a provider then select a conversational model?
+data4-configure-provider-5-ar	data4-configure-provider-5	fresh	ar	configure-provider	-	أنهي شاشات أستخدم لضبط المزود واختيار نموذج الدردشة؟
+data4-configure-provider-5-mixed	data4-configure-provider-5	fresh	mixed	configure-provider	-	أبدأ Providers وبعدها أختار text model فين؟
+data4-choose-mode-0-en	data4-choose-mode-0	train	en	choose-mode	-	Is a team necessary for a short explanation?
+data4-choose-mode-0-ar	data4-choose-mode-0	train	ar	choose-mode	-	هل محتاج فريق عشان شرح قصير؟
+data4-choose-mode-0-mixed	data4-choose-mode-0	train	mixed	choose-mode	-	سؤال شرح بسيط يحتاج Team ولا Chat؟
+data4-choose-mode-1-en	data4-choose-mode-1	train	en	choose-mode	-	Which mode performs a scoped sequence of tools?
+data4-choose-mode-1-ar	data4-choose-mode-1	train	ar	choose-mode	-	أنهي وضع ينفذ سلسلة أدوات لمهمة محددة؟
+data4-choose-mode-1-mixed	data4-choose-mode-1	train	mixed	choose-mode	-	لشغل tools محدد أختار Agent ولا Chat؟
+data4-choose-mode-2-en	data4-choose-mode-2	train	en	choose-mode	-	When do dependent worker assignments justify team overhead?
+data4-choose-mode-2-ar	data4-choose-mode-2	train	ar	choose-mode	-	إمتى تقسيم مهام مترابطة يستاهل تكلفة الفريق؟
+data4-choose-mode-2-mixed	data4-choose-mode-2	train	mixed	choose-mode	-	عندي workers بيعتمدوا على بعض أستخدم Team؟
+data4-choose-mode-3-en	data4-choose-mode-3	development	en	choose-mode	-	Which mode fits conversation without a persistent tool task?
+data4-choose-mode-3-ar	data4-choose-mode-3	development	ar	choose-mode	-	أنهي وضع يناسب دردشة من غير مهمة أدوات مستمرة؟
+data4-choose-mode-3-mixed	data4-choose-mode-3	development	mixed	choose-mode	-	للنقاش بس أفتح Chat ولا Agent؟
+data4-choose-mode-4-en	data4-choose-mode-4	calibration	en	choose-mode	-	Can choosing team override Lite execution limits?
+data4-choose-mode-4-ar	data4-choose-mode-4	calibration	ar	choose-mode	-	اختيار وضع الفريق يتجاوز حدود لايت؟
+data4-choose-mode-4-mixed	data4-choose-mode-4	calibration	mixed	choose-mode	-	اختيار Team في Lite بيفتح تنفيذ متقدم؟
+data4-choose-mode-5-en	data4-choose-mode-5	fresh	en	choose-mode	-	Should parallel investigations use several coordinated workers?
+data4-choose-mode-5-ar	data4-choose-mode-5	fresh	ar	choose-mode	-	التحقيقات المستقلة ينفع تتوزع على عمال متنسقين؟
+data4-choose-mode-5-mixed	data4-choose-mode-5	fresh	mixed	choose-mode	-	تحقيقات مستقلة كثيرة يناسبها Team mode؟
+data4-edition-policy-0-en	data4-edition-policy-0	train	en	edition-policy	-	Does installing Admin automatically give root?
+data4-edition-policy-0-ar	data4-edition-policy-0	train	ar	edition-policy	-	تثبيت نسخة أدمن بيدي روت تلقائي؟
+data4-edition-policy-0-mixed	data4-edition-policy-0	train	mixed	edition-policy	-	نسخة Admin معناها عندي root خلاص؟
+data4-edition-policy-1-en	data4-edition-policy-1	train	en	edition-policy	-	Can an edition change replace Android consent?
+data4-edition-policy-1-ar	data4-edition-policy-1	train	ar	edition-policy	-	تغيير النسخة يعوض موافقة أندرويد؟
+data4-edition-policy-1-mixed	data4-edition-policy-1	train	mixed	edition-policy	-	تبديل edition يكفي بدل Android grants؟
+data4-edition-policy-2-en	data4-edition-policy-2	train	en	edition-policy	-	Why can Lite not use advanced linked account actions?
+data4-edition-policy-2-ar	data4-edition-policy-2	train	ar	edition-policy	-	ليه لايت مينفعش يستخدم إجراءات الحسابات المتصلة المتقدمة؟
+data4-edition-policy-2-mixed	data4-edition-policy-2	train	mixed	edition-policy	-	حدود Lite في Linked Accounts إيه؟
+data4-edition-policy-3-en	data4-edition-policy-3	development	en	edition-policy	-	Are build capabilities and account permissions separate checks?
+data4-edition-policy-3-ar	data4-edition-policy-3	development	ar	edition-policy	-	إمكانيات النسخة وصلاحيات الحساب فحوص منفصلة؟
+data4-edition-policy-3-mixed	data4-edition-policy-3	development	mixed	edition-policy	-	edition policy مختلفة عن account authorization؟
+data4-edition-policy-4-en	data4-edition-policy-4	calibration	en	edition-policy	-	Can an OEM install bypass receiver trust validation?
+data4-edition-policy-4-ar	data4-edition-policy-4	calibration	ar	edition-policy	-	تثبيت نسخة الشركة يتجاوز التحقق من الثقة؟
+data4-edition-policy-4-mixed	data4-edition-policy-4	calibration	mixed	edition-policy	-	نسخة OEM تلغي receiver trust؟
+data4-edition-policy-5-en	data4-edition-policy-5	fresh	en	edition-policy	-	What still needs authorization after choosing a higher edition?
+data4-edition-policy-5-ar	data4-edition-policy-5	fresh	ar	edition-policy	-	إيه اللي لسه محتاج تصريح بعد اختيار نسخة أعلى؟
+data4-edition-policy-5-mixed	data4-edition-policy-5	fresh	mixed	edition-policy	-	ترقية edition تغني عن service consent؟
+data4-finish-evidence-0-en	data4-finish-evidence-0	train	en	finish-evidence	-	Why does a worker saying done fail completion verification?
+data4-finish-evidence-0-ar	data4-finish-evidence-0	train	ar	finish-evidence	-	ليه كلام العامل إنه خلص مش بيعدي تحقق الإكمال؟
+data4-finish-evidence-0-mixed	data4-finish-evidence-0	train	mixed	finish-evidence	-	worker قال done لكن finish رفضه ليه؟
+data4-finish-evidence-1-en	data4-finish-evidence-1	train	en	finish-evidence	-	Can discovering tools count as completing an implementation?
+data4-finish-evidence-1-ar	data4-finish-evidence-1	train	ar	finish-evidence	-	اكتشاف الأدوات ينفع يتحسب تنفيذ تعديل؟
+data4-finish-evidence-1-mixed	data4-finish-evidence-1	train	mixed	finish-evidence	-	نجاح discover_tools يثبت implementation خلصت؟
+data4-finish-evidence-2-en	data4-finish-evidence-2	train	en	finish-evidence	-	Can team synthesis hide a skipped prerequisite?
+data4-finish-evidence-2-ar	data4-finish-evidence-2	train	ar	finish-evidence	-	تلخيص الفريق يقدر يخفي متطلب متنفذش؟
+data4-finish-evidence-2-mixed	data4-finish-evidence-2	train	mixed	finish-evidence	-	synthesis يحول skipped worker لنجاح؟
+data4-finish-evidence-3-en	data4-finish-evidence-3	development	en	finish-evidence	-	What binds a successful worker receipt to its actual attempt?
+data4-finish-evidence-3-ar	data4-finish-evidence-3	development	ar	finish-evidence	-	إيه اللي بيربط إيصال العامل بمحاولة التنفيذ الفعلية؟
+data4-finish-evidence-3-mixed	data4-finish-evidence-3	development	mixed	finish-evidence	-	worker receipt لازم يطابق attempt identity؟
+data4-finish-evidence-4-en	data4-finish-evidence-4	calibration	en	finish-evidence	-	Is successful repository metadata enough to verify source edits?
+data4-finish-evidence-4-ar	data4-finish-evidence-4	calibration	ar	finish-evidence	-	نجاح قراءة بيانات المستودع يكفي لإثبات تعديل الكود؟
+data4-finish-evidence-4-mixed	data4-finish-evidence-4	calibration	mixed	finish-evidence	-	repo metadata تكفي كدليل إن الملفات اتعدلت؟
+data4-finish-evidence-5-en	data4-finish-evidence-5	fresh	en	finish-evidence	-	What must prove the original objective before final completion?
+data4-finish-evidence-5-ar	data4-finish-evidence-5	fresh	ar	finish-evidence	-	إيه المطلوب يثبت الهدف الأصلي قبل إعلان النهاية؟
+data4-finish-evidence-5-mixed	data4-finish-evidence-5	fresh	mixed	finish-evidence	-	المهمة محتاجة runtime evidence قبل finish؟
+data4-recover-task-0-en	data4-recover-task-0	train	en	recover-task	-	Can a crashed team reuse verified completed workers?
+data4-recover-task-0-ar	data4-recover-task-0	train	ar	recover-task	-	الفريق بعد الانهيار يقدر يحافظ على العمال المكتملين؟
+data4-recover-task-0-mixed	data4-recover-task-0	train	mixed	recover-task	-	بعد crash لازم Team يعيد workers الناجحين؟
+data4-recover-task-1-en	data4-recover-task-1	train	en	recover-task	-	A write started before interruption; is retry safe?
+data4-recover-task-1-ar	data4-recover-task-1	train	ar	recover-task	-	كتابة بدأت قبل الانقطاع هل إعادتها آمنة؟
+data4-recover-task-1-mixed	data4-recover-task-1	train	mixed	recover-task	-	mutation بدأت ونتيجتها unknown أعيدها؟
+data4-recover-task-2-en	data4-recover-task-2	train	en	recover-task	-	Does restart remove a pending approval requirement?
+data4-recover-task-2-ar	data4-recover-task-2	train	ar	recover-task	-	إعادة التشغيل تلغي موافقة لسه مطلوبة؟
+data4-recover-task-2-mixed	data4-recover-task-2	train	mixed	recover-task	-	بعد restart هل approval القديمة لسه لازمة؟
+data4-recover-task-3-en	data4-recover-task-3	development	en	recover-task	-	Where should I review blockers before continuing a team?
+data4-recover-task-3-ar	data4-recover-task-3	development	ar	recover-task	-	أراجع العوائق فين قبل ما أكمل الفريق؟
+data4-recover-task-3-mixed	data4-recover-task-3	development	mixed	recover-task	-	قبل resume أشوف unresolved operations إزاي؟
+data4-recover-task-4-en	data4-recover-task-4	calibration	en	recover-task	-	How should uncertain external writes be reconciled on recovery?
+data4-recover-task-4-ar	data4-recover-task-4	calibration	ar	recover-task	-	الكتابات الخارجية المشكوك فيها تتراجع إزاي وقت الاستعادة؟
+data4-recover-task-4-mixed	data4-recover-task-4	calibration	mixed	recover-task	-	وقت recovery لازم exact reconciliation للكتابة؟
+data4-recover-task-5-en	data4-recover-task-5	fresh	en	recover-task	-	Can restarting justify replaying an unconfirmed mutation?
+data4-recover-task-5-ar	data4-recover-task-5	fresh	ar	recover-task	-	إعادة التشغيل تبرر تكرار تعديل نتيجته مش مؤكدة؟
+data4-recover-task-5-mixed	data4-recover-task-5	fresh	mixed	recover-task	-	هل process restart يسمح بإعادة unknown write؟
+data4-github-access-0-en	data4-github-access-0	train	en	github-access	-	Why do Copilot credentials not grant repository control?
+data4-github-access-0-ar	data4-github-access-0	train	ar	github-access	-	ليه حساب مساعد الكود مش بيدي تحكم في المستودعات؟
+data4-github-access-0-mixed	data4-github-access-0	train	mixed	github-access	-	شغال Copilot بس GitHub Agent Access مش شغال؟
+data4-github-access-1-en	data4-github-access-1	train	en	github-access	-	Where do I authorize repository read and write scope?
+data4-github-access-1-ar	data4-github-access-1	train	ar	github-access	-	أصرح بنطاق قراءة وكتابة المستودع منين؟
+data4-github-access-1-mixed	data4-github-access-1	train	mixed	github-access	-	أضبط repo selection وread write policy فين؟
+data4-github-access-2-en	data4-github-access-2	train	en	github-access	-	Can a repository 404 distinguish absence from access denial?
+data4-github-access-2-ar	data4-github-access-2	train	ar	github-access	-	خطأ المستودع غير موجود بيفرق الغياب عن منع الوصول؟
+data4-github-access-2-mixed	data4-github-access-2	train	mixed	github-access	-	رد GitHub 404 يثبت إن الريبو مش موجود؟
+data4-github-access-3-en	data4-github-access-3	development	en	github-access	-	Which integration controls repository actions separately from model access?
+data4-github-access-3-ar	data4-github-access-3	development	ar	github-access	-	أنهي تكامل بيدير المستودعات بعيد عن الوصول للنماذج؟
+data4-github-access-3-mixed	data4-github-access-3	development	mixed	github-access	-	GitHub Models مختلف عن Agent Access إزاي؟
+data4-github-access-4-en	data4-github-access-4	calibration	en	github-access	-	Does listing repositories prove their source files were inspected?
+data4-github-access-4-ar	data4-github-access-4	calibration	ar	github-access	-	عرض قائمة المستودعات يثبت إن ملفاتها اتفحصت؟
+data4-github-access-4-mixed	data4-github-access-4	calibration	mixed	github-access	-	repo listing تعتبر source inspection؟
+data4-github-access-5-en	data4-github-access-5	fresh	en	github-access	-	Why can text model access work while repository writes fail?
+data4-github-access-5-ar	data4-github-access-5	fresh	ar	github-access	-	ليه نموذج النص شغال وكتابة المستودع لأ؟
+data4-github-access-5-mixed	data4-github-access-5	fresh	mixed	github-access	-	GitHub Models شغال لكن تعديل repo ممنوع ليه؟
+data4-git-environment-0-en	data4-git-environment-0	train	en	git-environment	-	What working directory does a local Git status need?
+data4-git-environment-0-ar	data4-git-environment-0	train	ar	git-environment	-	حالة جيت المحلية محتاجة مجلد تشغيل إيه؟
+data4-git-environment-0-mixed	data4-git-environment-0	train	mixed	git-environment	-	git status لازم cwd يبقى checkout؟
+data4-git-environment-1-en	data4-git-environment-1	train	en	git-environment	-	Can I use a GitHub repository name as a shell path?
+data4-git-environment-1-ar	data4-git-environment-1	train	ar	git-environment	-	ينفع اسم مستودع جيتهاب يكون مسار للشل؟
+data4-git-environment-1-mixed	data4-git-environment-1	train	mixed	git-environment	-	اسم owner/repo ينفع working directory؟
+data4-git-environment-2-en	data4-git-environment-2	train	en	git-environment	-	When can authorized remote GitHub replace a missing checkout?
+data4-git-environment-2-ar	data4-git-environment-2	train	ar	git-environment	-	إمتى مسار جيتهاب البعيد ينفع بدل نسخة محلية ناقصة؟
+data4-git-environment-2-mixed	data4-git-environment-2	train	mixed	git-environment	-	مفيش local checkout أستخدم remote GitHub route؟
+data4-git-environment-3-en	data4-git-environment-3	development	en	git-environment	-	Why is repeating Git exit 128 not a recovery strategy?
+data4-git-environment-3-ar	data4-git-environment-3	development	ar	git-environment	-	ليه تكرار خطأ جيت نفسه مش طريقة استعادة؟
+data4-git-environment-3-mixed	data4-git-environment-3	development	mixed	git-environment	-	كل exit 128 معناه missing checkout؟
+data4-git-environment-4-en	data4-git-environment-4	calibration	en	git-environment	-	Does not a git repository diagnose the remote account?
+data4-git-environment-4-ar	data4-git-environment-4	calibration	ar	git-environment	-	خطأ مش مستودع جيت بيشخص الحساب البعيد؟
+data4-git-environment-4-mixed	data4-git-environment-4	calibration	mixed	git-environment	-	not a git repository دليل إن remote مفقود؟
+data4-git-environment-5-en	data4-git-environment-5	fresh	en	git-environment	-	How do I diagnose Git commands running at the filesystem root?
+data4-git-environment-5-ar	data4-git-environment-5	fresh	ar	git-environment	-	أشخص أوامر جيت اللي بتشتغل في جذر الملفات إزاي؟
+data4-git-environment-5-mixed	data4-git-environment-5	fresh	mixed	git-environment	-	git شغال من / أراجع selected checkout فين؟
+data4-shizuku-prerequisites-0-en	data4-shizuku-prerequisites-0	train	en	shizuku-prerequisites	-	Does a working Termux terminal prove Shizuku is ready?
+data4-shizuku-prerequisites-0-ar	data4-shizuku-prerequisites-0	train	ar	shizuku-prerequisites	-	ترمنال تيرمكس شغال يبقى شيزوكو جاهز؟
+data4-shizuku-prerequisites-0-mixed	data4-shizuku-prerequisites-0	train	mixed	shizuku-prerequisites	-	Termux shell شغال كفاية لجاهزية Shizuku؟
+data4-shizuku-prerequisites-1-en	data4-shizuku-prerequisites-1	train	en	shizuku-prerequisites	-	Can rish restore a missing service binder on its own?
+data4-shizuku-prerequisites-1-ar	data4-shizuku-prerequisites-1	train	ar	shizuku-prerequisites	-	ريش يقدر يرجع اتصال خدمة مفقود لوحده؟
+data4-shizuku-prerequisites-1-mixed	data4-shizuku-prerequisites-1	train	mixed	shizuku-prerequisites	-	rish يعوض missing Shizuku binder؟
+data4-shizuku-prerequisites-2-en	data4-shizuku-prerequisites-2	train	en	shizuku-prerequisites	-	Which grants and service state precede privileged bridge use?
+data4-shizuku-prerequisites-2-ar	data4-shizuku-prerequisites-2	train	ar	shizuku-prerequisites	-	إيه التصاريح وحالة الخدمة قبل استخدام الجسر المميز؟
+data4-shizuku-prerequisites-2-mixed	data4-shizuku-prerequisites-2	train	mixed	shizuku-prerequisites	-	قبل privileged bridge محتاج Shizuku grant؟
+data4-shizuku-prerequisites-3-en	data4-shizuku-prerequisites-3	development	en	shizuku-prerequisites	-	Why can a configured bridge still lack privileged backend readiness?
+data4-shizuku-prerequisites-3-ar	data4-shizuku-prerequisites-3	development	ar	shizuku-prerequisites	-	ليه الجسر المضبوط ممكن يفضل من غير جاهزية مميزة؟
+data4-shizuku-prerequisites-3-mixed	data4-shizuku-prerequisites-3	development	mixed	shizuku-prerequisites	-	ضبط Termux bridge مش كفاية للprivileged backend؟
+data4-shizuku-prerequisites-4-en	data4-shizuku-prerequisites-4	calibration	en	shizuku-prerequisites	-	Does an eligible edition still need a running Shizuku service?
+data4-shizuku-prerequisites-4-ar	data4-shizuku-prerequisites-4	calibration	ar	shizuku-prerequisites	-	النسخة المؤهلة لسه محتاجة خدمة شيزوكو شغالة؟
+data4-shizuku-prerequisites-4-mixed	data4-shizuku-prerequisites-4	calibration	mixed	shizuku-prerequisites	-	edition تسمح لكن Shizuku stopped أعمل إيه؟
+data4-shizuku-prerequisites-5-en	data4-shizuku-prerequisites-5	fresh	en	shizuku-prerequisites	-	What must I check when rish cannot reach Shizuku?
+data4-shizuku-prerequisites-5-ar	data4-shizuku-prerequisites-5	fresh	ar	shizuku-prerequisites	-	أراجع إيه لما ريش مش قادر يوصل لشيزوكو؟
+data4-shizuku-prerequisites-5-mixed	data4-shizuku-prerequisites-5	fresh	mixed	shizuku-prerequisites	-	rish مش شايف Shizuku أراجع الخدمة وgrant؟
+data4-telegram-owner-0-en	data4-telegram-owner-0	train	en	telegram-owner	-	Can an outgoing chat destination authorize incoming commands?
+data4-telegram-owner-0-ar	data4-telegram-owner-0	train	ar	telegram-owner	-	عنوان إرسال الرسائل يصرح بأوامر واردة؟
+data4-telegram-owner-0-mixed	data4-telegram-owner-0	train	mixed	telegram-owner	-	حفظ outgoing Chat ID يسمح بتحكم incoming؟
+data4-telegram-owner-1-en	data4-telegram-owner-1	train	en	telegram-owner	-	Where must the owner enter the temporary pairing code?
+data4-telegram-owner-1-ar	data4-telegram-owner-1	train	ar	telegram-owner	-	المالك يدخل كود الربط المؤقت فين؟
+data4-telegram-owner-1-mixed	data4-telegram-owner-1	train	mixed	telegram-owner	-	كود Telegram pairing يتكتب في private bot chat؟
+data4-telegram-owner-2-en	data4-telegram-owner-2	train	en	telegram-owner	-	Are team commands allowed without an eligible target context?
+data4-telegram-owner-2-ar	data4-telegram-owner-2	train	ar	telegram-owner	-	أوامر الفريق تنفع من غير سياق هدف مؤهل؟
+data4-telegram-owner-2-mixed	data4-telegram-owner-2	train	mixed	telegram-owner	-	Team command محتاج Target Context مناسب؟
+data4-telegram-owner-3-en	data4-telegram-owner-3	development	en	telegram-owner	-	Does restarting the Telegram listener promise exactly once effects?
+data4-telegram-owner-3-ar	data4-telegram-owner-3	development	ar	telegram-owner	-	إعادة تشغيل مستمع تيليجرام تضمن تنفيذ مرة واحدة؟
+data4-telegram-owner-3-mixed	data4-telegram-owner-3	development	mixed	telegram-owner	-	restart في Telegram يضمن exactly once؟
+data4-telegram-owner-4-en	data4-telegram-owner-4	calibration	en	telegram-owner	-	Which user and chat does the Telegram command listener trust?
+data4-telegram-owner-4-ar	data4-telegram-owner-4	calibration	ar	telegram-owner	-	مستمع أوامر تيليجرام بيثق في أنهي مستخدم ومحادثة؟
+data4-telegram-owner-4-mixed	data4-telegram-owner-4	calibration	mixed	telegram-owner	-	listener لازم يطابق linked user وprivate chat؟
+data4-telegram-owner-5-en	data4-telegram-owner-5	fresh	en	telegram-owner	-	Can anyone message the bot after I configure its destination?
+data4-telegram-owner-5-ar	data4-telegram-owner-5	fresh	ar	telegram-owner	-	أي حد يقدر يأمر البوت بعد ضبط وجهة الإرسال؟
+data4-telegram-owner-5-mixed	data4-telegram-owner-5	fresh	mixed	telegram-owner	-	ضبط Chat ID يسمح لأي user يتحكم في bot؟
+data4-whatsapp-bridge-0-en	data4-whatsapp-bridge-0	train	en	whatsapp-bridge	-	Where does the same phone messaging bridge run?
+data4-whatsapp-bridge-0-ar	data4-whatsapp-bridge-0	train	ar	whatsapp-bridge	-	جسر واتساب على نفس التلفون بيتشغل فين؟
+data4-whatsapp-bridge-0-mixed	data4-whatsapp-bridge-0	train	mixed	whatsapp-bridge	-	WhatsApp bridge بيتشغل Node داخل Termux؟
+data4-whatsapp-bridge-1-en	data4-whatsapp-bridge-1	train	en	whatsapp-bridge	-	Which account and conversation does the bridge accept?
+data4-whatsapp-bridge-1-ar	data4-whatsapp-bridge-1	train	ar	whatsapp-bridge	-	الجسر بيقبل أنهي حساب ومحادثة؟
+data4-whatsapp-bridge-1-mixed	data4-whatsapp-bridge-1	train	mixed	whatsapp-bridge	-	الWhatsApp bridge يقبل أي contact ولا own account؟
+data4-whatsapp-bridge-2-en	data4-whatsapp-bridge-2	train	en	whatsapp-bridge	-	Is the bridge bearer key safe to paste into a conversation?
+data4-whatsapp-bridge-2-ar	data4-whatsapp-bridge-2	train	ar	whatsapp-bridge	-	مفتاح الجسر ينفع يتبعت في محادثة؟
+data4-whatsapp-bridge-2-mixed	data4-whatsapp-bridge-2	train	mixed	whatsapp-bridge	-	ينفع ألصق bridge bearer key في chat؟
+data4-whatsapp-bridge-3-en	data4-whatsapp-bridge-3	development	en	whatsapp-bridge	-	How is the companion paired using linked devices?
+data4-whatsapp-bridge-3-ar	data4-whatsapp-bridge-3	development	ar	whatsapp-bridge	-	المرافق بيتربط بالأجهزة المتصلة إزاي؟
+data4-whatsapp-bridge-3-mixed	data4-whatsapp-bridge-3	development	mixed	whatsapp-bridge	-	ربط companion من WhatsApp Linked Devices؟
+data4-whatsapp-bridge-4-en	data4-whatsapp-bridge-4	calibration	en	whatsapp-bridge	-	Can the local WhatsApp bridge accept groups and media?
+data4-whatsapp-bridge-4-ar	data4-whatsapp-bridge-4	calibration	ar	whatsapp-bridge	-	جسر واتساب المحلي بيقبل مجموعات وميديا؟
+data4-whatsapp-bridge-4-mixed	data4-whatsapp-bridge-4	calibration	mixed	whatsapp-bridge	-	WhatsApp bridge يدعم groups أو media؟
+data4-whatsapp-bridge-5-en	data4-whatsapp-bridge-5	fresh	en	whatsapp-bridge	-	What endpoint and owner details belong in bridge settings?
+data4-whatsapp-bridge-5-ar	data4-whatsapp-bridge-5	fresh	ar	whatsapp-bridge	-	أنهي عنوان وبيانات مالك أكتب في إعدادات الجسر؟
+data4-whatsapp-bridge-5-mixed	data4-whatsapp-bridge-5	fresh	mixed	whatsapp-bridge	-	أضبط loopback URL وown number للbridge فين؟
+data4-discord-connected-0-en	data4-discord-connected-0	train	en	discord-connected	-	Does filtering Discord history connect my Discord account?
+data4-discord-connected-0-ar	data4-discord-connected-0	train	ar	discord-connected	-	فلترة سجل ديسكورد بتوصل حسابي؟
+data4-discord-connected-0-mixed	data4-discord-connected-0	train	mixed	discord-connected	-	فلتر Discord في history يفعل integration؟
+data4-discord-connected-1-en	data4-discord-connected-1	train	en	discord-connected	-	Can a service name in the title authorize sending a message?
+data4-discord-connected-1-ar	data4-discord-connected-1	train	ar	discord-connected	-	اسم خدمة في عنوان الشات يصرح بإرسال رسالة؟
+data4-discord-connected-1-mixed	data4-discord-connected-1	train	mixed	discord-connected	-	عنوان فيه Discord يعتبر send permission؟
+data4-discord-connected-2-en	data4-discord-connected-2	train	en	discord-connected	-	What must authorize an outgoing connected app message?
+data4-discord-connected-2-ar	data4-discord-connected-2	train	ar	discord-connected	-	إيه اللي لازم يتصرح قبل إرسال رسالة لتطبيق متصل؟
+data4-discord-connected-2-mixed	data4-discord-connected-2	train	mixed	discord-connected	-	connected app send محتاج destination وconsent؟
+data4-discord-connected-3-en	data4-discord-connected-3	development	en	discord-connected	-	Are stored conversation subjects separate from live service integration?
+data4-discord-connected-3-ar	data4-discord-connected-3	development	ar	discord-connected	-	موضوعات السجل منفصلة عن ربط الخدمة الفعلي؟
+data4-discord-connected-3-mixed	data4-discord-connected-3	development	mixed	discord-connected	-	History Connected apps مختلف عن actual integration؟
+data4-discord-connected-4-en	data4-discord-connected-4	calibration	en	discord-connected	-	Which checks precede configuring an OmniLink receiver?
+data4-discord-connected-4-ar	data4-discord-connected-4	calibration	ar	discord-connected	-	إيه الفحوص قبل إعداد مستقبل التطبيق المتصل؟
+data4-discord-connected-4-mixed	data4-discord-connected-4	calibration	mixed	discord-connected	-	OmniLink connection محتاج receiver trust وإذن؟
+data4-discord-connected-5-en	data4-discord-connected-5	fresh	en	discord-connected	-	Why did choosing a connected apps filter not enable sending?
+data4-discord-connected-5-ar	data4-discord-connected-5	fresh	ar	discord-connected	-	ليه اختيار فلتر التطبيقات المتصلة مشغلش الإرسال؟
+data4-discord-connected-5-mixed	data4-discord-connected-5	fresh	mixed	discord-connected	-	فلتر Connected apps مش كفاية لتنفيذ send ليه؟
+data4-mcp-tools-0-en	data4-mcp-tools-0	train	en	mcp-tools	-	Does discovering a tool grant permission to execute it?
+data4-mcp-tools-0-ar	data4-mcp-tools-0	train	ar	mcp-tools	-	اكتشاف أداة بيدي إذن تنفيذها؟
+data4-mcp-tools-0-mixed	data4-mcp-tools-0	train	mixed	mcp-tools	-	نجاح discovery يمنح tool permission؟
+data4-mcp-tools-1-en	data4-mcp-tools-1	train	en	mcp-tools	-	Can a guessed corrected argument bypass schema validation?
+data4-mcp-tools-1-ar	data4-mcp-tools-1	train	ar	mcp-tools	-	تخمين وسيط مصحح يتجاوز فحص العقد؟
+data4-mcp-tools-1-mixed	data4-mcp-tools-1	train	mixed	mcp-tools	-	تصحيح argument لازم يعدي exact schema؟
+data4-mcp-tools-2-en	data4-mcp-tools-2	train	en	mcp-tools	-	Why can a saved MCP server expose no eligible tools?
+data4-mcp-tools-2-ar	data4-mcp-tools-2	train	ar	mcp-tools	-	ليه خادم أدوات محفوظ مش ظاهر منه أدوات مؤهلة؟
+data4-mcp-tools-2-mixed	data4-mcp-tools-2	train	mixed	mcp-tools	-	MCP server محفوظ بس exposed tools فاضية ليه؟
+data4-mcp-tools-3-en	data4-mcp-tools-3	development	en	mcp-tools	-	Which readiness checks matter before loading remote tool definitions?
+data4-mcp-tools-3-ar	data4-mcp-tools-3	development	ar	mcp-tools	-	إيه فحوص الجاهزية قبل تحميل تعريفات الأدوات؟
+data4-mcp-tools-3-mixed	data4-mcp-tools-3	development	mixed	mcp-tools	-	MCP transport وreachability لازم يتراجعوا؟
+data4-mcp-tools-4-en	data4-mcp-tools-4	calibration	en	mcp-tools	-	How should ambiguous tool proposals be handled?
+data4-mcp-tools-4-ar	data4-mcp-tools-4	calibration	ar	mcp-tools	-	اقتراحات الأدوات الغامضة تتعامل إزاي؟
+data4-mcp-tools-4-mixed	data4-mcp-tools-4	calibration	mixed	mcp-tools	-	tool proposal ملتبس يتنفذ ولا يحتاج correction؟
+data4-mcp-tools-5-en	data4-mcp-tools-5	fresh	en	mcp-tools	-	Can a renamed tool execute before its current contract passes?
+data4-mcp-tools-5-ar	data4-mcp-tools-5	fresh	ar	mcp-tools	-	الأداة بعد تعديل اسمها تتنفذ قبل تحقق العقد الحالي؟
+data4-mcp-tools-5-mixed	data4-mcp-tools-5	fresh	mixed	mcp-tools	-	tool name اتصلح لازم preflight تاني؟
+data4-provider-failure-0-en	data4-provider-failure-0	train	en	provider-failure	-	How does a DNS error differ from a timed out request?
+data4-provider-failure-0-ar	data4-provider-failure-0	train	ar	provider-failure	-	خطأ حل اسم المضيف مختلف عن انتهاء المهلة إزاي؟
+data4-provider-failure-0-mixed	data4-provider-failure-0	train	mixed	provider-failure	-	DNS lookup failure هو نفسه timeout؟
+data4-provider-failure-1-en	data4-provider-failure-1	train	en	provider-failure	-	Can a lost provider response prove a tool succeeded?
+data4-provider-failure-1-ar	data4-provider-failure-1	train	ar	provider-failure	-	رد المزود الضايع يثبت إن الأداة نجحت؟
+data4-provider-failure-1-mixed	data4-provider-failure-1	train	mixed	provider-failure	-	provider response ضاعت معناها tool success؟
+data4-provider-failure-2-en	data4-provider-failure-2	train	en	provider-failure	-	Which account limits can interrupt a model request?
+data4-provider-failure-2-ar	data4-provider-failure-2	train	ar	provider-failure	-	أنهي حدود للحساب ممكن تقطع طلب النموذج؟
+data4-provider-failure-2-mixed	data4-provider-failure-2	train	mixed	provider-failure	-	model request فشل أراجع quota وrate limit؟
+data4-provider-failure-3-en	data4-provider-failure-3	development	en	provider-failure	-	What should survive an unresolved provider hostname?
+data4-provider-failure-3-ar	data4-provider-failure-3	development	ar	provider-failure	-	إيه اللي لازم يتحفظ لما اسم خادم المزود ميتحلش؟
+data4-provider-failure-3-mixed	data4-provider-failure-3	development	mixed	provider-failure	-	hostname مش بيتحل أحافظ على verified progress؟
+data4-provider-failure-4-en	data4-provider-failure-4	calibration	en	provider-failure	-	Should Omni repeatedly call a provider with failing name resolution?
+data4-provider-failure-4-ar	data4-provider-failure-4	calibration	ar	provider-failure	-	أومني يفضل يطلب من مزود اسمه مش بيتحل؟
+data4-provider-failure-4-mixed	data4-provider-failure-4	calibration	mixed	provider-failure	-	هل تكرار model calls يعالج DNS failure؟
+data4-provider-failure-5-en	data4-provider-failure-5	fresh	en	provider-failure	-	What readiness checks precede safe continuation after a provider outage?
+data4-provider-failure-5-ar	data4-provider-failure-5	fresh	ar	provider-failure	-	أنهي فحوص جاهزية قبل استكمال آمن بعد عطل مزود؟
+data4-provider-failure-5-mixed	data4-provider-failure-5	fresh	mixed	provider-failure	-	بعد provider outage أراجع auth connectivity context؟
+data4-model-routing-0-en	data4-model-routing-0	train	en	model-routing	-	Are experimental classifiers selecting production actions today?
+data4-model-routing-0-ar	data4-model-routing-0	train	ar	model-routing	-	المصنفات التجريبية بتختار إجراءات الإنتاج دلوقتي؟
+data4-model-routing-0-mixed	data4-model-routing-0	train	mixed	model-routing	-	experimental neural weights بتتحكم في actions؟
+data4-model-routing-1-en	data4-model-routing-1	train	en	model-routing	-	Does a tiny intent head replace the conversational model?
+data4-model-routing-1-ar	data4-model-routing-1	train	ar	model-routing	-	رأس تصنيف نوايا صغير يحل محل نموذج المحادثة؟
+data4-model-routing-1-mixed	data4-model-routing-1	train	mixed	model-routing	-	tiny intent model بديل عن conversational LLM؟
+data4-model-routing-2-en	data4-model-routing-2	train	en	model-routing	-	Are local chat title rules powered by the experimental weights?
+data4-model-routing-2-ar	data4-model-routing-2	train	ar	model-routing	-	قواعد عنوان الشات المحلي بتستخدم الأوزان التجريبية؟
+data4-model-routing-2-mixed	data4-model-routing-2	train	mixed	model-routing	-	history title baseline هو neural intent model؟
+data4-model-routing-3-en	data4-model-routing-3	development	en	model-routing	-	Can a neural trust score prove a task completed?
+data4-model-routing-3-ar	data4-model-routing-3	development	ar	model-routing	-	درجة ثقة عصبية تثبت إن المهمة اكتملت؟
+data4-model-routing-3-mixed	data4-model-routing-3	development	mixed	model-routing	-	neural trust score يعتبر completion proof؟
+data4-model-routing-4-en	data4-model-routing-4	calibration	en	model-routing	-	What is the current role of optional neural checkpoints?
+data4-model-routing-4-ar	data4-model-routing-4	calibration	ar	model-routing	-	الدور الحالي للأوزان العصبية الاختيارية إيه؟
+data4-model-routing-4-mixed	data4-model-routing-4	calibration	mixed	model-routing	-	neural-core checkpoints اختيارية للتقييم ولا production؟
+data4-model-routing-5-en	data4-model-routing-5	fresh	en	model-routing	-	Are failed neural quality gates still recorded before activation?
+data4-model-routing-5-ar	data4-model-routing-5	fresh	ar	model-routing	-	فشل شروط جودة الشبكة بيتسجل قبل تفعيلها؟
+data4-model-routing-5-mixed	data4-model-routing-5	fresh	mixed	model-routing	-	failed quality gates تمنع اعتبار weights جاهزة؟
+data4-local-model-size-0-en	data4-local-model-size-0	train	en	local-model-size	-	Does history categorization download a language model?
+data4-local-model-size-0-ar	data4-local-model-size-0	train	ar	local-model-size	-	تصنيف السجل بينزل نموذج لغة؟
+data4-local-model-size-0-mixed	data4-local-model-size-0	train	mixed	local-model-size	-	history labels محتاجة model download؟
+data4-local-model-size-1-en	data4-local-model-size-1	train	en	local-model-size	-	How many short user inputs does local chat labeling inspect?
+data4-local-model-size-1-ar	data4-local-model-size-1	train	ar	local-model-size	-	تصنيف الشات المحلي بيفحص كام رسالة قصيرة؟
+data4-local-model-size-1-mixed	data4-local-model-size-1	train	mixed	local-model-size	-	local history engine بيقرأ كام user inputs؟
+data4-local-model-size-2-en	data4-local-model-size-2	train	en	local-model-size	-	Is desktop inference timing a phone performance guarantee?
+data4-local-model-size-2-ar	data4-local-model-size-2	train	ar	local-model-size	-	سرعة القياس على الكمبيوتر ضمان لأداء الهاتف؟
+data4-local-model-size-2-mixed	data4-local-model-size-2	train	mixed	local-model-size	-	desktop timing يثبت سرعة على 4 GB phone؟
+data4-local-model-size-3-en	data4-local-model-size-3	development	en	local-model-size	-	Does local title generation require an always running service?
+data4-local-model-size-3-ar	data4-local-model-size-3	development	ar	local-model-size	-	عمل العنوان محليا محتاج خدمة شغالة طول الوقت؟
+data4-local-model-size-3-mixed	data4-local-model-size-3	development	mixed	local-model-size	-	local titles محتاجة permanent service؟
+data4-local-model-size-4-en	data4-local-model-size-4	calibration	en	local-model-size	-	Are whole app RAM and downloaded model RAM separate budgets?
+data4-local-model-size-4-ar	data4-local-model-size-4	calibration	ar	local-model-size	-	رام التطبيق كلها وملف النموذج ميزانيات منفصلة؟
+data4-local-model-size-4-mixed	data4-local-model-size-4	calibration	mixed	local-model-size	-	whole application memory غير تكلفة model weights؟
+data4-local-model-size-5-en	data4-local-model-size-5	fresh	en	local-model-size	-	What must be measured before promising fast history labels on a phone?
+data4-local-model-size-5-ar	data4-local-model-size-5	fresh	ar	local-model-size	-	إيه اللي يتقاس قبل ضمان سرعة تصنيف السجل على موبايل؟
+data4-local-model-size-5-mixed	data4-local-model-size-5	fresh	mixed	local-model-size	-	محتاج phone latency وpeak heap للhistory؟
+data4-future-knowledge-training-0-en	data4-future-knowledge-training-0	train	en	future-knowledge-training	-	Can private conversations enter the support training export?
+data4-future-knowledge-training-0-ar	data4-future-knowledge-training-0	train	ar	future-knowledge-training	-	المحادثات الخاصة ينفع تدخل تصدير تدريب المساعدة؟
+data4-future-knowledge-training-0-mixed	data4-future-knowledge-training-0	train	mixed	future-knowledge-training	-	support corpus بيقرأ private chats؟
+data4-future-knowledge-training-1-en	data4-future-knowledge-training-1	train	en	future-knowledge-training	-	Which documentation is allowed as product support training input?
+data4-future-knowledge-training-1-ar	data4-future-knowledge-training-1	train	ar	future-knowledge-training	-	أنهي توثيق مسموح يدخل تدريب دعم المنتج؟
+data4-future-knowledge-training-1-mixed	data4-future-knowledge-training-1	train	mixed	future-knowledge-training	-	training export مسموح له reviewed FAQ بس؟
+data4-future-knowledge-training-2-en	data4-future-knowledge-training-2	train	en	future-knowledge-training	-	Must Arabic and English translations stay in one data group?
+data4-future-knowledge-training-2-ar	data4-future-knowledge-training-2	train	ar	future-knowledge-training	-	ترجمات عربي وإنجليزي لازم تفضل في مجموعة واحدة؟
+data4-future-knowledge-training-2-mixed	data4-future-knowledge-training-2	train	mixed	future-knowledge-training	-	translation pairs لازم نفس data group؟
+data4-future-knowledge-training-3-en	data4-future-knowledge-training-3	development	en	future-knowledge-training	-	Does exporting support documentation already execute training?
+data4-future-knowledge-training-3-ar	data4-future-knowledge-training-3	development	ar	future-knowledge-training	-	تصدير مستندات المساعدة كده بيشغل التدريب؟
+data4-future-knowledge-training-3-mixed	data4-future-knowledge-training-3	development	mixed	future-knowledge-training	-	exporting FAQ يعني weights اتدربت خلاص؟
+data4-future-knowledge-training-4-en	data4-future-knowledge-training-4	calibration	en	future-knowledge-training	-	Why are feature status and document hashes kept in support data?
+data4-future-knowledge-training-4-ar	data4-future-knowledge-training-4	calibration	ar	future-knowledge-training	-	ليه حالة الميزة وبصمة التوثيق محفوظين في بيانات المساعدة؟
+data4-future-knowledge-training-4-mixed	data4-future-knowledge-training-4	calibration	mixed	future-knowledge-training	-	support data محتاج source hash وfeature status ليه؟
+data4-future-knowledge-training-5-en	data4-future-knowledge-training-5	fresh	en	future-knowledge-training	-	Can source files and logs be harvested into the FAQ export?
+data4-future-knowledge-training-5-ar	data4-future-knowledge-training-5	fresh	ar	future-knowledge-training	-	ينفع نجمع ملفات الكود والسجلات في تصدير الأسئلة؟
+data4-future-knowledge-training-5-mixed	data4-future-knowledge-training-5	fresh	mixed	future-knowledge-training	-	FAQ exporter مسموح يقرأ source code أو logs؟
+data4-support-diagnostics-0-en	data4-support-diagnostics-0	train	en	support-diagnostics	-	What environment details help diagnose a difficult Omni issue?
+data4-support-diagnostics-0-ar	data4-support-diagnostics-0	train	ar	support-diagnostics	-	أنهي تفاصيل بيئة تساعد تشخيص مشكلة صعبة في أومني؟
+data4-support-diagnostics-0-mixed	data4-support-diagnostics-0	train	mixed	support-diagnostics	-	قبل diagnosis أقول edition وAndroid version؟
+data4-support-diagnostics-1-en	data4-support-diagnostics-1	train	en	support-diagnostics	-	What should a support assistant do when documentation is insufficient?
+data4-support-diagnostics-1-ar	data4-support-diagnostics-1	train	ar	support-diagnostics	-	مساعد الدعم يعمل إيه لو التوثيق مش مكفي؟
+data4-support-diagnostics-1-mixed	data4-support-diagnostics-1	train	mixed	support-diagnostics	-	لو documentation ناقص لازم يوضح blocker؟
+data4-support-diagnostics-2-en	data4-support-diagnostics-2	train	en	support-diagnostics	-	Can proposing a settings change count as proving the fix worked?
+data4-support-diagnostics-2-ar	data4-support-diagnostics-2	train	ar	support-diagnostics	-	اقتراح تغيير إعداد يعتبر دليل إن الإصلاح اشتغل؟
+data4-support-diagnostics-2-mixed	data4-support-diagnostics-2	train	mixed	support-diagnostics	-	setting suggestion يكفي لإعلان fix نجح؟
+data4-support-diagnostics-3-en	data4-support-diagnostics-3	development	en	support-diagnostics	-	Which redacted error and active mode should I include in a report?
+data4-support-diagnostics-3-ar	data4-support-diagnostics-3	development	ar	support-diagnostics	-	أرفق أنهي خطأ منزوع البيانات ووضع تشغيل في البلاغ؟
+data4-support-diagnostics-3-mixed	data4-support-diagnostics-3	development	mixed	support-diagnostics	-	bug report محتاج redacted error وactive mode؟
+data4-support-diagnostics-4-en	data4-support-diagnostics-4	calibration	en	support-diagnostics	-	Should support establish the installed revision before advice?
+data4-support-diagnostics-4-ar	data4-support-diagnostics-4	calibration	ar	support-diagnostics	-	الدعم يحدد النسخة المثبتة قبل النصيحة؟
+data4-support-diagnostics-4-mixed	data4-support-diagnostics-4	calibration	mixed	support-diagnostics	-	قبل support advice نتحقق من installed revision؟
+data4-support-diagnostics-5-en	data4-support-diagnostics-5	fresh	en	support-diagnostics	-	How can a bigger model provide scoped help without inventing features?
+data4-support-diagnostics-5-ar	data4-support-diagnostics-5	fresh	ar	support-diagnostics	-	النموذج الكبير يساعد بمسار محدد من غير اختراع مميزات إزاي؟
+data4-support-diagnostics-5-mixed	data4-support-diagnostics-5	fresh	mixed	support-diagnostics	-	الbig model يراجع prerequisites قبل اقتراح diagnostic؟
+data4-voice-wake-0-en	data4-voice-wake-0	train	en	voice-wake	-	Can voice wake work without granting microphone access?
+data4-voice-wake-0-ar	data4-voice-wake-0	train	ar	voice-wake	-	التنبيه الصوتي يشتغل من غير تصريح الميكروفون؟
+data4-voice-wake-0-mixed	data4-voice-wake-0	train	mixed	voice-wake	-	Hi Omni يحتاج microphone grant؟
+data4-voice-wake-1-en	data4-voice-wake-1	train	en	voice-wake	-	Why do recognition assets need an explicit install?
+data4-voice-wake-1-ar	data4-voice-wake-1	train	ar	voice-wake	-	ليه موارد التعرف على الصوت محتاجة تثبيت واضح؟
+data4-voice-wake-1-mixed	data4-voice-wake-1	train	mixed	voice-wake	-	local voice محتاج install للrecognition assets؟
+data4-voice-wake-2-en	data4-voice-wake-2	train	en	voice-wake	-	Does force stop guarantee the wake listener restarts itself?
+data4-voice-wake-2-ar	data4-voice-wake-2	train	ar	voice-wake	-	الإيقاف الإجباري يضمن إن مستمع التنبيه يرجع لوحده؟
+data4-voice-wake-2-mixed	data4-voice-wake-2	train	mixed	voice-wake	-	بعد force-stop wake listener يشتغل تلقائي مضمون؟
+data4-voice-wake-3-en	data4-voice-wake-3	development	en	voice-wake	-	How should wake enrollment positives differ from negative contrasts?
+data4-voice-wake-3-ar	data4-voice-wake-3	development	ar	voice-wake	-	أمثلة تدريب كلمة التنبيه الإيجابية تختلف عن المقابلة إزاي؟
+data4-voice-wake-3-mixed	data4-voice-wake-3	development	mixed	voice-wake	-	wake enrollment محتاج positive examples وcontrasts مختلفة؟
+data4-voice-wake-4-en	data4-voice-wake-4	calibration	en	voice-wake	-	Do system speech voices and installed recognition packs affect output?
+data4-voice-wake-4-ar	data4-voice-wake-4	calibration	ar	voice-wake	-	أصوات النظام وحزم التعرف المثبتة بتأثر على النتيجة؟
+data4-voice-wake-4-mixed	data4-voice-wake-4	calibration	mixed	voice-wake	-	Android TTS وVosk resources بيأثروا على voice؟
+data4-voice-wake-5-en	data4-voice-wake-5	fresh	en	voice-wake	-	What user started background mode handles the wake phrase?
+data4-voice-wake-5-ar	data4-voice-wake-5	fresh	ar	voice-wake	-	أنهي تشغيل خلفي يبدأه المستخدم لسماع عبارة التنبيه؟
+data4-voice-wake-5-mixed	data4-voice-wake-5	fresh	mixed	voice-wake	-	wake listener بيشتغل user-started foreground work؟
+data4-screen-assistant-0-en	data4-screen-assistant-0	train	en	screen-assistant	-	Does opening an assistant panel allow tapping other apps?
+data4-screen-assistant-0-ar	data4-screen-assistant-0	train	ar	screen-assistant	-	فتح لوحة المساعد يسمح بالضغط في التطبيقات؟
+data4-screen-assistant-0-mixed	data4-screen-assistant-0	train	mixed	screen-assistant	-	assistant panel شغال يعني يقدر tap apps؟
+data4-screen-assistant-1-en	data4-screen-assistant-1	train	en	screen-assistant	-	Which grant controls the floating restoration bubble?
+data4-screen-assistant-1-ar	data4-screen-assistant-1	train	ar	screen-assistant	-	أنهي تصريح بيتحكم في فقاعة الاستعادة العائمة؟
+data4-screen-assistant-1-mixed	data4-screen-assistant-1	train	mixed	screen-assistant	-	restoration bubble محتاجة overlay permission؟
+data4-screen-assistant-2-en	data4-screen-assistant-2	train	en	screen-assistant	-	Can Lite gain live screen control from the assistant role?
+data4-screen-assistant-2-ar	data4-screen-assistant-2	train	ar	screen-assistant	-	لايت يقدر يتحكم في الشاشة من دور المساعد؟
+data4-screen-assistant-2-mixed	data4-screen-assistant-2	train	mixed	screen-assistant	-	اختيار assistant role في Lite يفتح screen actions؟
+data4-screen-assistant-3-en	data4-screen-assistant-3	development	en	screen-assistant	-	Are the assistant role and Accessibility actions separate setup steps?
+data4-screen-assistant-3-ar	data4-screen-assistant-3	development	ar	screen-assistant	-	دور المساعد وإجراءات إمكانية الوصول إعدادين منفصلين؟
+data4-screen-assistant-3-mixed	data4-screen-assistant-3	development	mixed	screen-assistant	-	assistant role مختلف عن Accessibility actions؟
+data4-screen-assistant-4-en	data4-screen-assistant-4	calibration	en	screen-assistant	-	How should unsupported protected system controls be handled?
+data4-screen-assistant-4-ar	data4-screen-assistant-4	calibration	ar	screen-assistant	-	نتعامل إزاي مع أزرار نظام محمية غير مدعومة؟
+data4-screen-assistant-4-mixed	data4-screen-assistant-4	calibration	mixed	screen-assistant	-	protected control محتاج supported handoff؟
+data4-screen-assistant-5-en	data4-screen-assistant-5	fresh	en	screen-assistant	-	Why can the floating panel appear while screen actions remain unavailable?
+data4-screen-assistant-5-ar	data4-screen-assistant-5	fresh	ar	screen-assistant	-	ليه اللوحة العائمة ظاهرة وإجراءات الشاشة مش متاحة؟
+data4-screen-assistant-5-mixed	data4-screen-assistant-5	fresh	mixed	screen-assistant	-	overlay ظاهر لكن backend screen actions مش جاهزة؟
+data4-learned-routines-0-en	data4-learned-routines-0	train	en	learned-routines	-	Can an approved recipe run without another language model call?
+data4-learned-routines-0-ar	data4-learned-routines-0	train	ar	learned-routines	-	وصفة معتمدة تنفع تشتغل من غير طلب نموذج تاني؟
+data4-learned-routines-0-mixed	data4-learned-routines-0	train	mixed	learned-routines	-	approved routine تشتغل locally من غير LLM request؟
+data4-learned-routines-1-en	data4-learned-routines-1	train	en	learned-routines	-	What must I review before replaying a captured action?
+data4-learned-routines-1-ar	data4-learned-routines-1	train	ar	learned-routines	-	أراجع إيه قبل إعادة إجراء متسجل؟
+data4-learned-routines-1-mixed	data4-learned-routines-1	train	mixed	learned-routines	-	قبل recipe replay أراجع selectors وapproval؟
+data4-learned-routines-2-en	data4-learned-routines-2	train	en	learned-routines	-	What happens when a recipe step is unsupported or uncertain?
+data4-learned-routines-2-ar	data4-learned-routines-2	train	ar	learned-routines	-	إيه اللي يحصل لو خطوة الوصفة غير مدعومة أو مش مؤكدة؟
+data4-learned-routines-2-mixed	data4-learned-routines-2	train	mixed	learned-routines	-	routine step uncertain بتقف للمساعدة؟
+data4-learned-routines-3-en	data4-learned-routines-3	development	en	learned-routines	-	Does recording a write authorize replaying an unresolved effect?
+data4-learned-routines-3-ar	data4-learned-routines-3	development	ar	learned-routines	-	تسجيل كتابة يصرح بتكرار أثر غير محسوم؟
+data4-learned-routines-3-mixed	data4-learned-routines-3	development	mixed	learned-routines	-	recorded action يسمح بإعادة unresolved mutation؟
+data4-learned-routines-4-en	data4-learned-routines-4	calibration	en	learned-routines	-	Which controls execute a reviewed learned routine?
+data4-learned-routines-4-ar	data4-learned-routines-4	calibration	ar	learned-routines	-	أنهي أزرار تشغل روتين متعلم ومتراجع؟
+data4-learned-routines-4-mixed	data4-learned-routines-4	calibration	mixed	learned-routines	-	أشغل recipe من exact trigger ولا Run؟
+data4-learned-routines-5-en	data4-learned-routines-5	fresh	en	learned-routines	-	How are recipe outcomes checked during local replay?
+data4-learned-routines-5-ar	data4-learned-routines-5	fresh	ar	learned-routines	-	نتائج الوصفة بتتراجع إزاي أثناء الإعادة المحلية؟
+data4-learned-routines-5-mixed	data4-learned-routines-5	fresh	mixed	learned-routines	-	local replay لازم outcome checks؟
+data4-media-jobs-0-en	data4-media-jobs-0	train	en	media-jobs	-	Where do I choose separate image video and music models?
+data4-media-jobs-0-ar	data4-media-jobs-0	train	ar	media-jobs	-	أختار نماذج الصور والفيديو والموسيقى المنفصلة منين؟
+data4-media-jobs-0-mixed	data4-media-jobs-0	train	mixed	media-jobs	-	media models بتتحدد في Model Selection؟
+data4-media-jobs-1-en	data4-media-jobs-1	train	en	media-jobs	-	Should an interrupted known media operation be submitted again immediately?
+data4-media-jobs-1-ar	data4-media-jobs-1	train	ar	media-jobs	-	عملية وسائط معروفة اتقطعت أطلب إنشاء جديد فورا؟
+data4-media-jobs-1-mixed	data4-media-jobs-1	train	mixed	media-jobs	-	media operation اتقطعت أستخدم Check existing job؟
+data4-media-jobs-2-en	data4-media-jobs-2	train	en	media-jobs	-	Does enabling media bypass model capability and quota checks?
+data4-media-jobs-2-ar	data4-media-jobs-2	train	ar	media-jobs	-	تفعيل الوسائط يتجاوز إمكانيات النموذج وحصة الحساب؟
+data4-media-jobs-2-mixed	data4-media-jobs-2	train	mixed	media-jobs	-	enable media يلغي capability وquota checks؟
+data4-media-jobs-3-en	data4-media-jobs-3	development	en	media-jobs	-	Where are persistent generation cards associated with a request?
+data4-media-jobs-3-ar	data4-media-jobs-3	development	ar	media-jobs	-	بطاقات التوليد المستمرة بتتربط بالطلب فين؟
+data4-media-jobs-3-mixed	data4-media-jobs-3	development	mixed	media-jobs	-	generation job card بتتحفظ في originating conversation؟
+data4-media-jobs-4-en	data4-media-jobs-4	calibration	en	media-jobs	-	How do I inspect a known video job before creating a duplicate?
+data4-media-jobs-4-ar	data4-media-jobs-4	calibration	ar	media-jobs	-	أفحص مهمة فيديو معروفة قبل إنشاء نسخة مكررة إزاي؟
+data4-media-jobs-4-mixed	data4-media-jobs-4	calibration	mixed	media-jobs	-	عندي video job معروف أعمل inspect بدل create؟
+data4-media-jobs-5-en	data4-media-jobs-5	fresh	en	media-jobs	-	What settings precede creating a supported music generation job?
+data4-media-jobs-5-ar	data4-media-jobs-5	fresh	ar	media-jobs	-	أنهي إعدادات قبل إنشاء مهمة توليد موسيقى مدعومة؟
+data4-media-jobs-5-mixed	data4-media-jobs-5	fresh	mixed	media-jobs	-	music generation محتاجة provider model وتمكين النوع؟
+data4-profile-reference-0-en	data4-profile-reference-0	train	en	profile-reference	-	Where do I save response style preferences?
+data4-profile-reference-0-ar	data4-profile-reference-0	train	ar	profile-reference	-	أحفظ تفضيلات أسلوب الرد فين؟
+data4-profile-reference-0-mixed	data4-profile-reference-0	train	mixed	profile-reference	-	response style أضبطه من Your profile؟
+data4-profile-reference-1-en	data4-profile-reference-1	train	en	profile-reference	-	Does storing a photo prove every provider used it?
+data4-profile-reference-1-ar	data4-profile-reference-1	train	ar	profile-reference	-	حفظ صورة يثبت إن كل مزود استخدمها؟
+data4-profile-reference-1-mixed	data4-profile-reference-1	train	mixed	profile-reference	-	reference photo محفوظة يبقى كل provider استلمها؟
+data4-profile-reference-2-en	data4-profile-reference-2	train	en	profile-reference	-	Which option enables using a reference photo in generation?
+data4-profile-reference-2-ar	data4-profile-reference-2	train	ar	profile-reference	-	أنهي خيار يفعل استخدام الصورة المرجعية في التوليد؟
+data4-profile-reference-2-mixed	data4-profile-reference-2	train	mixed	profile-reference	-	لازم enable reference use قبل image generation؟
+data4-profile-reference-3-en	data4-profile-reference-3	development	en	profile-reference	-	What model capability is needed for profile reference images?
+data4-profile-reference-3-ar	data4-profile-reference-3	development	ar	profile-reference	-	النموذج محتاج إمكانيات إيه عشان صورة البروفايل المرجعية؟
+data4-profile-reference-3-mixed	data4-profile-reference-3	development	mixed	profile-reference	-	reference-aware generation محتاج image input support؟
+data4-profile-reference-4-en	data4-profile-reference-4	calibration	en	profile-reference	-	Can I keep private reference photographs under my control?
+data4-profile-reference-4-ar	data4-profile-reference-4	calibration	ar	profile-reference	-	أقدر أخلي الصور المرجعية الخاصة تحت تحكمي؟
+data4-profile-reference-4-mixed	data4-profile-reference-4	calibration	mixed	profile-reference	-	private reference photos ليها user control؟
+data4-profile-reference-5-en	data4-profile-reference-5	fresh	en	profile-reference	-	Which profile screen stores optional background and response preferences?
+data4-profile-reference-5-ar	data4-profile-reference-5	fresh	ar	profile-reference	-	أنهي شاشة بروفايل تحفظ معلومات اختيارية وتفضيلات الرد؟
+data4-profile-reference-5-mixed	data4-profile-reference-5	fresh	mixed	profile-reference	-	Settings Your profile فيها background preferences؟
+data4-little-omni-0-en	data4-little-omni-0	train	en	little-omni	-	Is the virtual companion the external assistant overlay?
+data4-little-omni-0-ar	data4-little-omni-0	train	ar	little-omni	-	الرفيق الافتراضي هو لوحة المساعد الخارجية؟
+data4-little-omni-0-mixed	data4-little-omni-0	train	mixed	little-omni	-	Little Omni هو assistant overlay؟
+data4-little-omni-1-en	data4-little-omni-1	train	en	little-omni	-	Where can I enable the local virtual companion?
+data4-little-omni-1-ar	data4-little-omni-1	train	ar	little-omni	-	أفعل الرفيق الافتراضي المحلي منين؟
+data4-little-omni-1-mixed	data4-little-omni-1	train	mixed	little-omni	-	Little Omni بتتفعل من Settings؟
+data4-little-omni-2-en	data4-little-omni-2	train	en	little-omni	-	Does companion behavior authorize a device action?
+data4-little-omni-2-ar	data4-little-omni-2	train	ar	little-omni	-	سلوك الرفيق يصرح بإجراء على الجهاز؟
+data4-little-omni-2-mixed	data4-little-omni-2	train	mixed	little-omni	-	companion expression تعتبر device authorization؟
+data4-little-omni-3-en	data4-little-omni-3	development	en	little-omni	-	Which feature has expressions motion and persistent habits?
+data4-little-omni-3-ar	data4-little-omni-3	development	ar	little-omni	-	أنهي ميزة فيها تعبيرات وحركة وعادات مستمرة؟
+data4-little-omni-3-mixed	data4-little-omni-3	development	mixed	little-omni	-	مين عنده motion expressions وhabits محلية؟
+data4-little-omni-4-en	data4-little-omni-4	calibration	en	little-omni	-	Is the small companion the same as experimental intent weights?
+data4-little-omni-4-ar	data4-little-omni-4	calibration	ar	little-omni	-	الرفيق الصغير هو نفسه أوزان تصنيف النوايا التجريبية؟
+data4-little-omni-4-mixed	data4-little-omni-4	calibration	mixed	little-omni	-	Little Omni مختلف عن intent checkpoints؟
+data4-little-omni-5-en	data4-little-omni-5	fresh	en	little-omni	-	Can the local pet establish task completion?
+data4-little-omni-5-ar	data4-little-omni-5	fresh	ar	little-omni	-	الرفيق المحلي يقدر يثبت إن المهمة اكتملت؟
+data4-little-omni-5-mixed	data4-little-omni-5	fresh	mixed	little-omni	-	تصرف Little Omni يعتبر task completion evidence؟
+data4-memory-recall-0-en	data4-memory-recall-0	train	en	memory-recall	-	How do original chat references differ from saved knowledge snippets?
+data4-memory-recall-0-ar	data4-memory-recall-0	train	ar	memory-recall	-	مراجع الشات الأصلية مختلفة عن قصاصات المعرفة المحفوظة إزاي؟
+data4-memory-recall-0-mixed	data4-memory-recall-0	train	mixed	memory-recall	-	chat recall مختلف عن knowledge snippets؟
+data4-memory-recall-1-en	data4-memory-recall-1	train	en	memory-recall	-	Can an external conversation browse unrelated saved archives?
+data4-memory-recall-1-ar	data4-memory-recall-1	train	ar	memory-recall	-	محادثة خارجية ينفع تتصفح أرشيفات محفوظة مالهاش علاقة؟
+data4-memory-recall-1-mixed	data4-memory-recall-1	train	mixed	memory-recall	-	external conversation تقدر تقرا unrelated archives؟
+data4-memory-recall-2-en	data4-memory-recall-2	train	en	memory-recall	-	Are retrieved saved messages automatically true or authorized?
+data4-memory-recall-2-ar	data4-memory-recall-2	train	ar	memory-recall	-	الرسائل المحفوظة المسترجعة تعتبر صح ومصرح بيها تلقائي؟
+data4-memory-recall-2-mixed	data4-memory-recall-2	train	mixed	memory-recall	-	chat recall يعتبر truth أوpermission لوحده؟
+data4-memory-recall-3-en	data4-memory-recall-3	development	en	memory-recall	-	Is chat recall scoped and backed by original message sources?
+data4-memory-recall-3-ar	data4-memory-recall-3	development	ar	memory-recall	-	استرجاع الشات محدود بنطاق ومسنود بمصادر الرسائل الأصلية؟
+data4-memory-recall-3-mixed	data4-memory-recall-3	development	mixed	memory-recall	-	chat recall بيعمل paging مع source references؟
+data4-memory-recall-4-en	data4-memory-recall-4	calibration	en	memory-recall	-	Are knowledge snippets stored separately from conversation messages?
+data4-memory-recall-4-ar	data4-memory-recall-4	calibration	ar	memory-recall	-	قصاصات المعرفة بتتخزن منفصلة عن رسائل المحادثة؟
+data4-memory-recall-4-mixed	data4-memory-recall-4	calibration	mixed	memory-recall	-	knowledge facts منفصلة عن saved messages؟
+data4-memory-recall-5-en	data4-memory-recall-5	fresh	en	memory-recall	-	Does support training automatically read the memory stores?
+data4-memory-recall-5-ar	data4-memory-recall-5	fresh	ar	memory-recall	-	تدريب الدعم بيقرأ مخازن الذاكرة تلقائي؟
+data4-memory-recall-5-mixed	data4-memory-recall-5	fresh	mixed	memory-recall	-	product-support training بيسحب من chat recall store؟
+data4-local-inference-0-en	data4-local-inference-0	train	en	local-inference	-	Does loading a native library demonstrate successful model inference?
+data4-local-inference-0-ar	data4-local-inference-0	train	ar	local-inference	-	تحميل مكتبة أصلية يثبت إن النموذج نفذ استدلال؟
+data4-local-inference-0-mixed	data4-local-inference-0	train	mixed	local-inference	-	native library اتعملها load يبقى inference نجح؟
+data4-local-inference-1-en	data4-local-inference-1	train	en	local-inference	-	What does native model execution require beyond a model file?
+data4-local-inference-1-ar	data4-local-inference-1	train	ar	local-inference	-	التنفيذ الأصلي للنموذج محتاج إيه غير ملف الأوزان؟
+data4-local-inference-1-mixed	data4-local-inference-1	train	mixed	local-inference	-	native inference محتاج compatible build وdevice support؟
+data4-local-inference-2-en	data4-local-inference-2	train	en	local-inference	-	Can downloaded chat models share the budget of tiny specialists?
+data4-local-inference-2-ar	data4-local-inference-2	train	ar	local-inference	-	نماذج المحادثة المحملة ليها نفس ميزانية المتخصصات الصغيرة؟
+data4-local-inference-2-mixed	data4-local-inference-2	train	mixed	local-inference	-	downloaded conversational model زي tiny specialist في RAM؟
+data4-local-inference-3-en	data4-local-inference-3	development	en	local-inference	-	Why must a selected conversational model be tested on the phone?
+data4-local-inference-3-ar	data4-local-inference-3	development	ar	local-inference	-	ليه نموذج المحادثة المختار لازم يتجرب على الهاتف؟
+data4-local-inference-3-mixed	data4-local-inference-3	development	mixed	local-inference	-	قبل وعد السرعة لازم real phone test للموديل؟
+data4-local-inference-4-en	data4-local-inference-4	calibration	en	local-inference	-	Is build compatibility enough without available memory?
+data4-local-inference-4-ar	data4-local-inference-4	calibration	ar	local-inference	-	توافق البناء يكفي من غير ذاكرة متاحة؟
+data4-local-inference-4-mixed	data4-local-inference-4	calibration	mixed	local-inference	-	compatible native build كفاية من غير model memory؟
+data4-local-inference-5-en	data4-local-inference-5	fresh	en	local-inference	-	Which checks prove local inference rather than just library availability?
+data4-local-inference-5-ar	data4-local-inference-5	fresh	ar	local-inference	-	أنهي فحوص تثبت الاستدلال المحلي بدل مجرد وجود المكتبة؟
+data4-local-inference-5-mixed	data4-local-inference-5	fresh	mixed	local-inference	-	local inference لازم actual model result مش library loaded؟
+data4-unknown-0-en	data4-unknown-0	train	en	-	-	What is the current weather in Alexandria?
+data4-unknown-0-ar	data4-unknown-0	train	ar	-	-	الجو في اسكندرية دلوقتي عامل إيه؟
+data4-unknown-0-mixed	data4-unknown-0	train	mixed	-	-	عايز live weather بتاع اسكندرية
+data4-unknown-1-en	data4-unknown-1	train	en	-	-	Where is the title deed for my apartment?
+data4-unknown-1-ar	data4-unknown-1	train	ar	-	-	عقد ملكية شقتي موجود فين؟
+data4-unknown-1-mixed	data4-unknown-1	train	mixed	-	-	فين title deed الخاص بشقتي؟
+data4-unknown-2-en	data4-unknown-2	train	en	-	-	How does WhatsApp rotate its encryption keys?
+data4-unknown-2-ar	data4-unknown-2	train	ar	-	-	واتساب بيدور مفاتيح التشفير إزاي؟
+data4-unknown-2-mixed	data4-unknown-2	train	mixed	-	-	طريقة WhatsApp encryption key rotation إيه؟
+data4-unknown-3-en	data4-unknown-3	train	en	-	-	What is my bank account recovery password?
+data4-unknown-3-ar	data4-unknown-3	train	ar	-	-	كلمة مرور استعادة حسابي البنكي إيه؟
+data4-unknown-3-mixed	data4-unknown-3	train	mixed	-	-	فين bank recovery password بتاعتي؟
+data4-unknown-4-en	data4-unknown-4	train	en	-	-	Which cinema is screening a new video tonight?
+data4-unknown-4-ar	data4-unknown-4	train	ar	-	-	أنهي سينما بتعرض فيلم جديد الليلة؟
+data4-unknown-4-mixed	data4-unknown-4	train	mixed	-	-	مواعيد cinema video screening الليلة إيه؟
+data4-unknown-5-en	data4-unknown-5	train	en	-	-	What is the correct microphone voltage for this circuit?
+data4-unknown-5-ar	data4-unknown-5	train	ar	-	-	الفولت المناسب لميكروفون الدائرة دي كام؟
+data4-unknown-5-mixed	data4-unknown-5	train	mixed	-	-	عايز microphone voltage للدائرة دي
+data4-unknown-6-en	data4-unknown-6	train	en	-	-	How much did GitHub earn last quarter?
+data4-unknown-6-ar	data4-unknown-6	train	ar	-	-	جيتهاب كسبت كام الربع اللي فات؟
+data4-unknown-6-mixed	data4-unknown-6	train	mixed	-	-	أرقام GitHub quarterly earnings كام؟
+data4-unknown-7-en	data4-unknown-7	train	en	-	-	Which research journal has the highest impact factor?
+data4-unknown-7-ar	data4-unknown-7	train	ar	-	-	أنهي مجلة بحثية معامل تأثيرها أعلى؟
+data4-unknown-7-mixed	data4-unknown-7	train	mixed	-	-	أعلى Research journal impact factor إيه؟
+data4-unknown-8-en	data4-unknown-8	train	en	-	-	What is the music copyright law in my country?
+data4-unknown-8-ar	data4-unknown-8	train	ar	-	-	قانون حقوق الموسيقى في بلدي إيه؟
+data4-unknown-8-mixed	data4-unknown-8	train	mixed	-	-	نص music copyright law عندنا إيه؟
+data4-unknown-9-en	data4-unknown-9	train	en	-	-	What are the exact screen dimensions of my monitor?
+data4-unknown-9-ar	data4-unknown-9	train	ar	-	-	المقاسات الدقيقة لشاشة الكمبيوتر عندي كام؟
+data4-unknown-9-mixed	data4-unknown-9	train	mixed	-	-	screen dimensions بتاعة المونيتور كام؟
+data4-unknown-10-en	data4-unknown-10	train	en	-	-	How can I calculate the memory of a human brain?
+data4-unknown-10-ar	data4-unknown-10	train	ar	-	-	أحسب ذاكرة المخ البشري إزاي؟
+data4-unknown-10-mixed	data4-unknown-10	train	mixed	-	-	عايز human memory capacity مش ذاكرة التطبيق
+data4-unknown-11-en	data4-unknown-11	train	en	-	-	What is the battery replacement cost for this phone?
+data4-unknown-11-ar	data4-unknown-11	train	ar	-	-	تغيير بطارية الموبايل ده يتكلف كام؟
+data4-unknown-11-mixed	data4-unknown-11	train	mixed	-	-	سعر phone battery replacement كام؟
+data4-unknown-12-en	data4-unknown-12	development	en	-	-	What are the latest Discord service revenue figures?
+data4-unknown-12-ar	data4-unknown-12	development	ar	-	-	إيرادات خدمة ديسكورد الأخيرة كام؟
+data4-unknown-12-mixed	data4-unknown-12	development	mixed	-	-	عايز latest Discord revenue figures
+data4-unknown-13-en	data4-unknown-13	development	en	-	-	What is the source of the river Nile?
+data4-unknown-13-ar	data4-unknown-13	development	ar	-	-	منبع نهر النيل فين؟
+data4-unknown-13-mixed	data4-unknown-13	development	mixed	-	-	فين source of Nile river؟
+data4-unknown-14-en	data4-unknown-14	development	en	-	-	What are the legal prerequisites for a driving license?
+data4-unknown-14-ar	data4-unknown-14	development	ar	-	-	الشروط القانونية لرخصة القيادة إيه؟
+data4-unknown-14-mixed	data4-unknown-14	development	mixed	-	-	إيه driving license prerequisites القانونية؟
+data4-unknown-15-en	data4-unknown-15	development	en	-	-	Which native bird species migrate in November?
+data4-unknown-15-ar	data4-unknown-15	development	ar	-	-	أنهي طيور محلية بتهاجر في نوفمبر؟
+data4-unknown-15-mixed	data4-unknown-15	development	mixed	-	-	قائمة native birds migration في نوفمبر؟
+data4-unknown-16-en	data4-unknown-16	calibration	en	-	-	What is my last electricity invoice number?
+data4-unknown-16-ar	data4-unknown-16	calibration	ar	-	-	رقم فاتورة الكهربا الأخيرة بتاعتي إيه؟
+data4-unknown-16-mixed	data4-unknown-16	calibration	mixed	-	-	رقم last electricity invoice بتاعتي كام؟
+data4-unknown-17-en	data4-unknown-17	calibration	en	-	-	Which bot won the world robot football championship?
+data4-unknown-17-ar	data4-unknown-17	calibration	ar	-	-	أنهي روبوت فاز ببطولة كرة الروبوتات؟
+data4-unknown-17-mixed	data4-unknown-17	calibration	mixed	-	-	أنهي bot فاز بrobot football championship؟
+data4-unknown-18-en	data4-unknown-18	calibration	en	-	-	How many pixels are in a telescope reference image?
+data4-unknown-18-ar	data4-unknown-18	calibration	ar	-	-	الصورة المرجعية للتلسكوب فيها كام بكسل؟
+data4-unknown-18-mixed	data4-unknown-18	calibration	mixed	-	-	عدد pixels في telescope reference image كام؟
+data4-unknown-19-en	data4-unknown-19	calibration	en	-	-	Which conference announced the next Android version today?
+data4-unknown-19-ar	data4-unknown-19	calibration	ar	-	-	أنهي مؤتمر أعلن نسخة أندرويد القادمة النهارده؟
+data4-unknown-19-mixed	data4-unknown-19	calibration	mixed	-	-	فين conference إعلان next Android version النهارده؟
+data4-unknown-20-en	data4-unknown-20	fresh	en	-	-	What is the correct dose of my diabetes medication?
+data4-unknown-20-ar	data4-unknown-20	fresh	ar	-	-	الجرعة المناسبة لدواء السكر عندي كام؟
+data4-unknown-20-mixed	data4-unknown-20	fresh	mixed	-	-	جرعة diabetes medication المناسبة ليا إيه؟
+data4-unknown-21-en	data4-unknown-21	fresh	en	-	-	What is the Telegram company share price today?
+data4-unknown-21-ar	data4-unknown-21	fresh	ar	-	-	سعر سهم شركة تيليجرام النهارده كام؟
+data4-unknown-21-mixed	data4-unknown-21	fresh	mixed	-	-	عايز Telegram stock price النهارده
+data4-unknown-22-en	data4-unknown-22	fresh	en	-	-	Can you identify the owner of this anonymous phone number?
+data4-unknown-22-ar	data4-unknown-22	fresh	ar	-	-	تقدر تحدد صاحب رقم التلفون المجهول ده؟
+data4-unknown-22-mixed	data4-unknown-22	fresh	mixed	-	-	مين owner بتاع anonymous phone number ده؟
+data4-unknown-23-en	data4-unknown-23	fresh	en	-	-	How do I replace a bicycle wheel bearing?
+data4-unknown-23-ar	data4-unknown-23	fresh	ar	-	-	أغير رولمان بلي عجلة الدراجة إزاي؟
+data4-unknown-23-mixed	data4-unknown-23	fresh	mixed	-	-	طريقة bicycle wheel bearing replacement إيه؟
+data4-unknown-24-en	data4-unknown-24	fresh	en	-	-	Where is my lost private GitHub SSH key stored?
+data4-unknown-24-ar	data4-unknown-24	fresh	ar	-	-	مفتاح جيتهاب الخاص المفقود بتاعي متخزن فين؟
+data4-unknown-24-mixed	data4-unknown-24	fresh	mixed	-	-	فين private GitHub SSH key الضايع بتاعي؟
+data4-unknown-25-en	data4-unknown-25	fresh	en	-	-	What happened in the last episode of this music show?
+data4-unknown-25-ar	data4-unknown-25	fresh	ar	-	-	إيه اللي حصل في الحلقة الأخيرة من برنامج الموسيقى ده؟
+data4-unknown-25-mixed	data4-unknown-25	fresh	mixed	-	-	ملخص last episode للmusic show ده إيه؟
+data4-unknown-26-en	data4-unknown-26	fresh	en	-	-	What is the population of the city called Wakefield?
+data4-unknown-26-ar	data4-unknown-26	fresh	ar	-	-	عدد سكان مدينة ويكفيلد كام؟
+data4-unknown-26-mixed	data4-unknown-26	fresh	mixed	-	-	كام population مدينة Wakefield؟
+data4-unknown-27-en	data4-unknown-27	fresh	en	-	-	Which desktop monitor supports a higher refresh rate?
+data4-unknown-27-ar	data4-unknown-27	fresh	ar	-	-	أنهي شاشة كمبيوتر بتدعم معدل تحديث أعلى؟
+data4-unknown-27-mixed	data4-unknown-27	fresh	mixed	-	-	أنهي desktop monitor أعلى refresh rate؟
+data4-compound-0-en	data4-compound-0	fresh	en	history-titles,history-topics	-	Can I keep my chosen name and separately browse research conversations?
+data4-compound-0-ar	data4-compound-0	fresh	ar	history-titles,history-topics	-	أقدر أحافظ على اسم الشات اللي اخترته وأتصفح محادثات البحث لوحدها؟
+data4-compound-0-mixed	data4-compound-0	fresh	mixed	history-titles,history-topics	-	أحافظ على manual title وأفلتر Research chats إزاي؟
+data4-compound-1-en	data4-compound-1	fresh	en	discord-connected,history-sources	-	Does selecting the Discord entry channel also authorize sending to Discord?
+data4-compound-1-ar	data4-compound-1	fresh	ar	discord-connected,history-sources	-	اختيار مصدر ديسكورد في السجل يدي تصريح إرسال لديسكورد؟
+data4-compound-1-mixed	data4-compound-1	fresh	mixed	discord-connected,history-sources	-	فلتر Source Discord يكفي لتصريح connected app send؟
+data4-compound-2-en	data4-compound-2	fresh	en	configure-provider,provider-failure	-	Where do I select my provider and what should I inspect if its hostname cannot resolve?
+data4-compound-2-ar	data4-compound-2	fresh	ar	configure-provider,provider-failure	-	أحدد المزود فين وأراجع إيه لو اسم خادمه مش بيتحل؟
+data4-compound-2-mixed	data4-compound-2	fresh	mixed	configure-provider,provider-failure	-	أضبط Providers وأراجع DNS hostname failure إزاي؟
+data4-compound-3-en	data4-compound-3	fresh	en	git-environment,github-access	-	Why can my model account work while repository authorization and local checkout are missing?
+data4-compound-3-ar	data4-compound-3	fresh	ar	git-environment,github-access	-	ليه حساب النموذج شغال لكن تصريح المستودع والنسخة المحلية ناقصين؟
+data4-compound-3-mixed	data4-compound-3	fresh	mixed	git-environment,github-access	-	GitHub Models شغال لكن Agent Access وlocal checkout ناقصين؟
+data4-compound-4-en	data4-compound-4	fresh	en	finish-evidence,recover-task	-	Can a resumed team claim success from prose after a write lost its result?
+data4-compound-4-ar	data4-compound-4	fresh	ar	finish-evidence,recover-task	-	الفريق المستعاد يعلن نجاح بكلام العامل بعد كتابة نتيجتها ضاعت؟
+data4-compound-4-mixed	data4-compound-4	fresh	mixed	finish-evidence,recover-task	-	بعد resume وunknown write ينفع worker prose يثبت completion؟
+data4-compound-5-en	data4-compound-5	fresh	en	telegram-owner,whatsapp-bridge	-	How do owner pairing requirements differ between the bot and same phone WhatsApp companion?
+data4-compound-5-ar	data4-compound-5	fresh	ar	telegram-owner,whatsapp-bridge	-	شروط ربط المالك بتختلف إزاي بين بوت تيليجرام ومرافق واتساب على نفس الجهاز؟
+data4-compound-5-mixed	data4-compound-5	fresh	mixed	telegram-owner,whatsapp-bridge	-	أفرق بين Telegram private pairing وWhatsApp companion owner إزاي؟
+data4-compound-6-en	data4-compound-6	fresh	en	screen-assistant,voice-wake	-	Does enabling voice wake also permit the assistant to press other applications?
+data4-compound-6-ar	data4-compound-6	fresh	ar	screen-assistant,voice-wake	-	تفعيل التنبيه الصوتي يسمح للمساعد يضغط في التطبيقات التانية؟
+data4-compound-6-mixed	data4-compound-6	fresh	mixed	screen-assistant,voice-wake	-	Hi Omni wake مفعلة هل كده Accessibility screen actions متاحة؟
+data4-compound-7-en	data4-compound-7	fresh	en	media-jobs,profile-reference	-	Which model settings and reference option precede creating an image using my profile photo?
+data4-compound-7-ar	data4-compound-7	fresh	ar	media-jobs,profile-reference	-	أنهي إعدادات نموذج وخيار صورة مرجعية قبل توليد صورة ببروفايلي؟
+data4-compound-7-mixed	data4-compound-7	fresh	mixed	media-jobs,profile-reference	-	أضبط image Model Selection وprofile reference use إزاي؟
+data4-compound-8-en	data4-compound-8	fresh	en	learned-routines,recover-task	-	Can an approved local recipe replay a write with an unresolved result after restart?
+data4-compound-8-ar	data4-compound-8	fresh	ar	learned-routines,recover-task	-	الوصفة المحلية المعتمدة تعيد كتابة نتيجتها مجهولة بعد إعادة التشغيل؟
+data4-compound-8-mixed	data4-compound-8	fresh	mixed	learned-routines,recover-task	-	approved recipe بعد restart تعيد unknown mutation؟
+data4-compound-9-en	data4-compound-9	fresh	en	future-knowledge-training,memory-recall	-	Can product support training treat archived chat recall as an approved documentation source?
+data4-compound-9-ar	data4-compound-9	fresh	ar	future-knowledge-training,memory-recall	-	تدريب دعم المنتج يقدر يعتبر أرشيف استرجاع الشات مصدر توثيق معتمد؟
+data4-compound-9-mixed	data4-compound-9	fresh	mixed	future-knowledge-training,memory-recall	-	هل support training بياخد chat recall بدل reviewed documentation؟
+data4-compound-10-en	data4-compound-10	fresh	en	local-inference,local-model-size	-	Do lightweight history labels and a native loaded chat model have the same phone memory requirements?
+data4-compound-10-ar	data4-compound-10	fresh	ar	local-inference,local-model-size	-	تصنيفات السجل الخفيفة ونموذج محادثة أصلي محمل ليهم نفس متطلبات رام الهاتف؟
+data4-compound-10-mixed	data4-compound-10	fresh	mixed	local-inference,local-model-size	-	local history labels زي native inference model في phone RAM؟
+data4-compound-11-en	data4-compound-11	fresh	en	little-omni,model-routing	-	Is the animated local companion the experimental network that authorizes tool actions?
+data4-compound-11-ar	data4-compound-11	fresh	ar	little-omni,model-routing	-	الرفيق المحلي المتحرك هو الشبكة التجريبية اللي بتصرح بالأدوات؟
+data4-compound-11-mixed	data4-compound-11	fresh	mixed	little-omni,model-routing	-	Little Omni هو experimental neural tool authorization؟
