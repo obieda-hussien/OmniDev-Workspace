@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "fresh_query_sha256": "77a3e67adb2b69cd36c5ad0f7491d7d3218121c42f72db2900a03f67429cdede",
+  "fresh_count": 117,
+  "training": "Only original v1 train; development and calibration retain original v1 partitions; old test is observed regression only.",
+  "fresh": "Authored new wording against the same fixed 58-document corpus. Includes previously trained topics; not semantic OOD, private traffic or independent human review.",
+  "protocol": "Four 13-parameter linear fits, anchor strengths .02/.1, seeds42/97. RankNet pair loss .75 + balanced BCE .25; lexical anchor w0=5, other coefficients/bias zero; bounded AdamW batch16 queries lr.01 max80epochs patience12 clip5. Select development top1 then MRR then fewer parameters then NLL, with per-language top1 no-regression floor. Include lexical control. Calibrate only original calibration. Export source before fresh/observed scoring.",
+  "production_eligible": false,
+  "independent_human_labels": false
+}
