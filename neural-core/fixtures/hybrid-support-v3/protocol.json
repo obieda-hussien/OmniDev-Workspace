@@ -1,0 +1,12 @@
+{
+  "version": 3,
+  "fresh_count": 108,
+  "fresh_sha256": "5985b4894a6d0541080e6dfab397635f6fcc4fb5f6b7a11141ecb9b3fd04377a",
+  "authoring": "Authored FAQ-grounded single and compound queries, no independent human review or user traffic.",
+  "references": "Original reviewed bilingual FAQ documents, paired by stable topic; both original references returned separately, never a synthesized evidence quote.",
+  "fitting": "Original v1 TRAIN only; four convex 8-weight pairwise SGD fits: lr .05/.15 x seeds42/97, batch16 queries, L2 .01 toward uniform, max80 epochs patience10, at most8 hard negatives/query, gradient cap5. Projection to nonnegative simplex. Calibration on original CAL only.",
+  "selection": "DEV top1 then MRR, language floor against old lexical; include LEGACY/TITLE/RRF/UNIFORM zero-learned-parameter controls. Calibrate minimum/margin/coverage by correct minus3*wrong. Export before fresh and old observed scoring.",
+  "metrics": "Primary top1/MRR, all-primary-at3, nDCG@3 with primary relevance2 and secondary1, selective acceptances and refusal; accepted document is not task completion.",
+  "production_eligible": false,
+  "independent_human_labels": false
+}

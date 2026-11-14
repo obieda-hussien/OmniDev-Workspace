@@ -1,0 +1,109 @@
+id	group	language	primary	secondary	query
+hybrid-0-en	hybrid-0	en	github-access,git-environment	-	I linked GitHub Models but repository commands fail outside a checkout. Which account access and execution context should I inspect?
+hybrid-0-ar	hybrid-0	ar	github-access,git-environment	-	ربطت نماذج جيتهوب وأوامر المستودع بتفشل برا مجلد مشروع، أراجع صلاحية الحساب وسياق التنفيذ إزاي؟
+hybrid-0-mixed	hybrid-0	mixed	github-access,git-environment	-	GitHub Models مربوط لكن git خارج checkout فشل، أراجع access وexecution context إزاي؟
+hybrid-1-en	hybrid-1	en	provider-failure,recover-task	-	A provider DNS error interrupted a team after a possible write. How should I preserve progress and handle the uncertain effect?
+hybrid-1-ar	hybrid-1	ar	provider-failure,recover-task	-	عطل اسم نطاق المزود قطع الفريق بعد كتابة محتملة، أحافظ على التقدم وأتعامل مع الأثر المجهول إزاي؟
+hybrid-1-mixed	hybrid-1	mixed	provider-failure,recover-task	-	DNS قطع Team بعد possible write، أحفظ progress وأتعامل مع unknown effect إزاي؟
+hybrid-2-en	hybrid-2	en	edition-policy,screen-assistant	-	Does allowing an overlay in Lite also authorize advanced screen control, or are separate edition and accessibility checks needed?
+hybrid-2-ar	hybrid-2	ar	edition-policy,screen-assistant	-	السماح بنافذة عائمة في النسخة الخفيفة بيدي تحكم متقدم في الشاشة ولا فيه فحص نسخة وإمكانية وصول منفصل؟
+hybrid-2-mixed	hybrid-2	mixed	edition-policy,screen-assistant	-	Overlay في Lite يدي screen control ولا محتاج edition وAccessibility checks؟
+hybrid-3-en	hybrid-3	en	voice-wake,local-inference	-	If I select a local language-model file, what else determines whether voice wake and speech processing work?
+hybrid-3-ar	hybrid-3	ar	voice-wake,local-inference	-	لو اخترت ملف نموذج لغة محلي إيه اللي يحدد إن التنبيه بالصوت ومعالجة الكلام يشتغلوا؟
+hybrid-3-mixed	hybrid-3	mixed	voice-wake,local-inference	-	اختيار local model file يكفي لتشغيل wake وspeech processing ولا أراجع إيه؟
+hybrid-4-en	hybrid-4	en	whatsapp-bridge,telegram-owner	-	Compare the owner's WhatsApp bridge pairing and Telegram bot pairing prerequisites without enabling arbitrary contacts.
+hybrid-4-ar	hybrid-4	ar	whatsapp-bridge,telegram-owner	-	قارن شروط ربط جسر واتساب وربط بوت تيليجرام بالمالك من غير السماح لجهات اتصال عشوائية.
+hybrid-4-mixed	hybrid-4	mixed	whatsapp-bridge,telegram-owner	-	قارن owner pairing في WhatsApp bridge وTelegram bot بدون arbitrary contacts.
+hybrid-5-en	hybrid-5	en	history-sources,history-topics	-	How can a Telegram-origin development chat be filtered by its actual channel and by its subject independently?
+hybrid-5-ar	hybrid-5	ar	history-sources,history-topics	-	أفلتر محادثة برمجة جاية من تيليجرام حسب قناة دخولها وحسب موضوعها بشكل منفصل إزاي؟
+hybrid-5-mixed	hybrid-5	mixed	history-sources,history-topics	-	Telegram-origin development chat أفلتر channel وtopic بشكل مستقل إزاي؟
+hybrid-6-en	hybrid-6	en	history-titles,history-legacy	-	After automatic naming, will a title I rename manually be preserved when older conversations are refreshed?
+hybrid-6-ar	hybrid-6	ar	history-titles,history-legacy	-	بعد التسمية التلقائية هل الاسم اللي غيرته بنفسي هيفضل محفوظ لما المحادثات القديمة تتحدث؟
+hybrid-6-mixed	hybrid-6	mixed	history-titles,history-legacy	-	بعد automatic title، manual rename بيتحفظ مع old-history refresh؟
+hybrid-7-en	hybrid-7	en	finish-evidence,media-jobs	-	A generated image is queued and the agent says done. Which delivery and completion evidence is still needed?
+hybrid-7-ar	hybrid-7	ar	finish-evidence,media-jobs	-	صورة متولدة في الطابور والوكيل قال خلصت، لسه محتاج دليل تسليم وإكمال إيه؟
+hybrid-7-mixed	hybrid-7	mixed	finish-evidence,media-jobs	-	Generated image queued والوكيل قال done، محتاج delivery وcompletion evidence إيه؟
+hybrid-8-en	hybrid-8	en	model-routing,future-knowledge-training	-	Does exporting bilingual product knowledge mean the experimental neural router is trained and active in the app?
+hybrid-8-ar	hybrid-8	ar	model-routing,future-knowledge-training	-	تصدير معرفة المنتج باللغتين معناه إن الموجه العصبي التجريبي اتدرب واشتغل في التطبيق؟
+hybrid-8-mixed	hybrid-8	mixed	model-routing,future-knowledge-training	-	Bilingual FAQ export معناه neural router trained وactive في APK؟
+hybrid-9-en	hybrid-9	en	learned-routines,finish-evidence	-	When replaying taught actions, what permissions and observed results are needed before declaring the routine successful?
+hybrid-9-ar	hybrid-9	ar	learned-routines,finish-evidence	-	لما أعيد خطوات متعلمة إيه التصاريح والنتائج الملحوظة المطلوبة قبل إعلان نجاح الروتين؟
+hybrid-9-mixed	hybrid-9	mixed	learned-routines,finish-evidence	-	Learned routine replay محتاج permissions وobserved results إيه قبل success؟
+hybrid-10-en	hybrid-10	en	profile-reference,little-omni	-	Is my companion avatar automatically an image-generation reference, and do companion controls alter Lite's privileges?
+hybrid-10-ar	hybrid-10	ar	profile-reference,little-omni	-	هل صورة الرفيق بتبقى مرجع توليد تلقائي وهل أزرار الرفيق بتغير صلاحيات النسخة الخفيفة؟
+hybrid-10-mixed	hybrid-10	mixed	profile-reference,little-omni	-	Companion avatar يبقى image reference تلقائي وهل controls تغير Lite privileges؟
+hybrid-11-en	hybrid-11	en	memory-recall,support-diagnostics	-	For a new crash, can a remembered observation replace the current redacted error and runtime diagnostics?
+hybrid-11-ar	hybrid-11	ar	memory-recall,support-diagnostics	-	في عطل جديد هل ملاحظة من الذاكرة تغني عن الخطأ الحالي بعد إخفاء الأسرار وتفاصيل التشغيل؟
+hybrid-11-mixed	hybrid-11	mixed	memory-recall,support-diagnostics	-	في crash جديد، memory observation تغني عن current redacted error وdiagnostics؟
+hybrid-12-en	hybrid-12	en	configure-provider	support-diagnostics	Which provider and model setup should I check first when a fresh install cannot return remote text?
+hybrid-12-ar	hybrid-12	ar	configure-provider	support-diagnostics	إيه إعداد المزود والنموذج اللي أراجعه الأول لما تثبيت جديد مش بيرجع رد نصي سحابي؟
+hybrid-12-mixed	hybrid-12	mixed	configure-provider	support-diagnostics	Fresh install مش بيرجع remote text، أراجع provider/model setup إيه الأول؟
+hybrid-13-en	hybrid-13	en	choose-mode	-	For conversation, a tool task, and coordinated workers, how should I choose the three execution modes?
+hybrid-13-ar	hybrid-13	ar	choose-mode	-	للدردشة ومهمة بأدوات وعمال منسقين أختار أوضاع التشغيل التلاتة إزاي؟
+hybrid-13-mixed	hybrid-13	mixed	choose-mode	-	Conversation وtool task وcoordinated workers أختار لهم modes إزاي؟
+hybrid-14-en	hybrid-14	en	shizuku-prerequisites	edition-policy	What runtime service, grant and eligible edition must I check before using rish?
+hybrid-14-ar	hybrid-14	ar	shizuku-prerequisites	edition-policy	أراجع خدمة تشغيل وتصريح ونسخة مسموحة إيه قبل استخدام ريش؟
+hybrid-14-mixed	hybrid-14	mixed	shizuku-prerequisites	edition-policy	قبل rish أراجع runtime service وgrant وeligible edition إيه؟
+hybrid-15-en	hybrid-15	en	discord-connected	-	A Discord filter appears in history; what separate integration and destination authorization are still required to send?
+hybrid-15-ar	hybrid-15	ar	discord-connected	-	فلتر ديسكورد ظاهر في السجل، لسه محتاج ربط وتصريح وجهة منفصلين إيه عشان أبعت؟
+hybrid-15-mixed	hybrid-15	mixed	discord-connected	-	Discord history filter ظاهر، لسه محتاج integration وdestination authorization إيه للـ send؟
+hybrid-16-en	hybrid-16	en	mcp-tools	-	How should exposed contracts and server transport be checked when a configured MCP capability disappears?
+hybrid-16-ar	hybrid-16	ar	mcp-tools	-	أفحص العقود المعروضة واتصال الخادم إزاي لما قدرة إم سي بي متظبطة تختفي؟
+hybrid-16-mixed	hybrid-16	mixed	mcp-tools	-	Configured MCP capability اختفت، أراجع exposed contract وserver transport إزاي؟
+hybrid-17-en	hybrid-17	en	local-model-size	-	How is the history rule engine's footprint distinct from that of optional downloaded language models?
+hybrid-17-ar	hybrid-17	ar	local-model-size	-	إزاي استهلاك محرك قواعد السجل مختلف عن نماذج اللغة المحملة اختياريًا؟
+hybrid-17-mixed	hybrid-17	mixed	local-model-size	-	History rules footprint مختلف عن optional downloaded LLMs إزاي؟
+hybrid-18-en	hybrid-18	en	recover-task	finish-evidence	What does a resumed team need to reconcile before repeating an operation with an unknown outcome?
+hybrid-18-ar	hybrid-18	ar	recover-task	finish-evidence	الفريق المستكمل محتاج يصالح إيه قبل تكرار عملية نتيجتها مجهولة؟
+hybrid-18-mixed	hybrid-18	mixed	recover-task	finish-evidence	Resumed Team محتاج reconcile إيه قبل replay لعملية unknown outcome؟
+hybrid-19-en	hybrid-19	en	history-sources	-	Will discussing a connected service inside App move that conversation into the service's source filter?
+hybrid-19-ar	hybrid-19	ar	history-sources	-	الكلام عن خدمة متصلة جوه التطبيق هيحط المحادثة في فلتر مصدر الخدمة؟
+hybrid-19-mixed	hybrid-19	mixed	history-sources	-	Discussing connected service داخل App يغير source filter للمحادثة؟
+hybrid-20-en	hybrid-20	en	whatsapp-bridge	-	What local companion address and account scope should be verified for the same-device WhatsApp integration?
+hybrid-20-ar	hybrid-20	ar	whatsapp-bridge	-	أنهي عنوان محلي ونطاق حساب أتأكد منهم لربط واتساب على نفس الجهاز؟
+hybrid-20-mixed	hybrid-20	mixed	whatsapp-bridge	-	Same-device WhatsApp integration أراجع companion address وaccount scope إيه؟
+hybrid-21-en	hybrid-21	en	screen-assistant	edition-policy	Which explicit access checks distinguish reading a screen from merely showing a floating assistant?
+hybrid-21-ar	hybrid-21	ar	screen-assistant	edition-policy	إيه فحوص الوصول الصريحة اللي تفرق قراءة الشاشة عن مجرد إظهار مساعد عائم؟
+hybrid-21-mixed	hybrid-21	mixed	screen-assistant	edition-policy	Reading screen مختلف عن floating assistant، إيه explicit access checks؟
+hybrid-22-en	hybrid-22	en	voice-wake	-	Which consent and backend readiness checks precede expecting the voice wake phrase to respond?
+hybrid-22-ar	hybrid-22	ar	voice-wake	-	إيه فحوص الموافقة وجاهزية الخلفية قبل توقع استجابة كلمة التنبيه الصوتي؟
+hybrid-22-mixed	hybrid-22	mixed	voice-wake	-	Voice wake phrase محتاجة consent وbackend readiness checks إيه قبل الاستجابة؟
+hybrid-23-en	hybrid-23	en	model-routing	-	Can a high experimental routing score enable a tool or a checkpoint that failed retention tests?
+hybrid-23-ar	hybrid-23	ar	model-routing	-	هل درجة توجيه تجريبية عالية تفتح أداة أو أوزان فشلت اختبارات الاحتفاظ بالنتائج الصحيحة؟
+hybrid-23-mixed	hybrid-23	mixed	model-routing	-	Experimental routing score عالي يفتح tool أو checkpoint فشل retention؟
+hybrid-unknown-0-en	hybrid-unknown-0	en	-	-	What is the exact rainfall at my unreported coordinates this minute?
+hybrid-unknown-0-ar	hybrid-unknown-0	ar	-	-	مقدار المطر الدقيق عند إحداثياتي اللي مقولتهاش حالًا كام؟
+hybrid-unknown-0-mixed	hybrid-unknown-0	mixed	-	-	عايز exact rainfall عند unreported coordinates بتاعتي دلوقتي
+hybrid-unknown-1-en	hybrid-unknown-1	en	-	-	Which confidential bug bounty report has not been published yet?
+hybrid-unknown-1-ar	hybrid-unknown-1	ar	-	-	أنهي تقرير مكافأة ثغرة سري لسه متنشرش؟
+hybrid-unknown-1-mixed	hybrid-unknown-1	mixed	-	-	هات confidential unpublished bug bounty report
+hybrid-unknown-2-en	hybrid-unknown-2	en	-	-	What is my inaccessible bank card security number?
+hybrid-unknown-2-ar	hybrid-unknown-2	ar	-	-	رقم أمان بطاقتي البنكية غير المتاحة عندك إيه؟
+hybrid-unknown-2-mixed	hybrid-unknown-2	mixed	-	-	عايز inaccessible bank card security number بتاعي
+hybrid-unknown-3-en	hybrid-unknown-3	en	-	-	How many minutes of CPU time did my disconnected phone use yesterday?
+hybrid-unknown-3-ar	hybrid-unknown-3	ar	-	-	موبايلي غير المتصل استهلك كام دقيقة معالج امبارح؟
+hybrid-unknown-3-mixed	hybrid-unknown-3	mixed	-	-	Disconnected phone استخدم كام CPU minutes امبارح
+hybrid-unknown-4-en	hybrid-unknown-4	en	-	-	Which undisclosed cloud invoice was paid by the maintainer today?
+hybrid-unknown-4-ar	hybrid-unknown-4	ar	-	-	أنهي فاتورة سحابة غير معلنة دفعها المطور النهارده؟
+hybrid-unknown-4-mixed	hybrid-unknown-4	mixed	-	-	Maintainer دفع أنهي undisclosed cloud invoice النهارده
+hybrid-unknown-5-en	hybrid-unknown-5	en	-	-	What exact GPS route did my friend take without sharing location?
+hybrid-unknown-5-ar	hybrid-unknown-5	ar	-	-	صاحبي مشي أنهي مسار دقيق وهو مشاركش موقعه؟
+hybrid-unknown-5-mixed	hybrid-unknown-5	mixed	-	-	هات exact GPS route لصاحبي من غير shared location
+hybrid-unknown-6-en	hybrid-unknown-6	en	-	-	What is the hidden PIN of my locked television?
+hybrid-unknown-6-ar	hybrid-unknown-6	ar	-	-	الرقم السري المخفي لتلفزيوني المقفول إيه؟
+hybrid-unknown-6-mixed	hybrid-unknown-6	mixed	-	-	عايز hidden PIN بتاع locked television
+hybrid-unknown-7-en	hybrid-unknown-7	en	-	-	What are the unreleased Android firmware build numbers scheduled next month?
+hybrid-unknown-7-ar	hybrid-unknown-7	ar	-	-	أرقام نسخ الفيرموير غير المنشورة المقررة للشهر الجاي إيه؟
+hybrid-unknown-7-mixed	hybrid-unknown-7	mixed	-	-	هات unreleased Android firmware build numbers للشهر الجاي
+hybrid-unknown-8-en	hybrid-unknown-8	en	-	-	What is the current password of a private Discord server owner?
+hybrid-unknown-8-ar	hybrid-unknown-8	ar	-	-	كلمة سر مالك خادم ديسكورد الخاص دلوقتي إيه؟
+hybrid-unknown-8-mixed	hybrid-unknown-8	mixed	-	-	هات current password بتاع private Discord server owner
+hybrid-unknown-9-en	hybrid-unknown-9	en	-	-	What exact memory peak did my uninstrumented Omni process reach?
+hybrid-unknown-9-ar	hybrid-unknown-9	ar	-	-	عملية أومني اللي متقاستش وصلت لذروة ذاكرة دقيقة كام؟
+hybrid-unknown-9-mixed	hybrid-unknown-9	mixed	-	-	Uninstrumented Omni process وصل exact peak memory كام
+hybrid-unknown-10-en	hybrid-unknown-10	en	-	-	What unannounced personal diagnosis was recorded for the developer?
+hybrid-unknown-10-ar	hybrid-unknown-10	ar	-	-	أنهي تشخيص شخصي غير معلن اتسجل للمطور؟
+hybrid-unknown-10-mixed	hybrid-unknown-10	mixed	-	-	هات unannounced personal diagnosis بتاع developer
+hybrid-unknown-11-en	hybrid-unknown-11	en	-	-	What is tomorrow's confidential Omni hiring offer amount?
+hybrid-unknown-11-ar	hybrid-unknown-11	ar	-	-	عرض توظيف أومني السري بتاع بكرة قيمته كام؟
+hybrid-unknown-11-mixed	hybrid-unknown-11	mixed	-	-	عايز confidential Omni hiring offer amount بتاع بكرة
