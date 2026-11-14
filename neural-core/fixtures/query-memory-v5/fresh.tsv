@@ -1,0 +1,139 @@
+id	group	language	primary	secondary	query
+memory5-0-en	memory5-0	en	history-titles	-	Why does my own session name take priority over suggested names?
+memory5-0-ar	memory5-0	ar	history-titles	-	ليه الاسم اللي سميته للمحادثة ليه الأولوية على اقتراح النظام؟
+memory5-0-mixed	memory5-0	mixed	history-titles	-	ليه manual session name أهم من suggested title؟
+memory5-1-en	memory5-1	en	history-topics	-	How can a writing conversation be placed back into its automatically inferred topic?
+memory5-1-ar	memory5-1	ar	history-topics	-	أرجع محادثة كتابة للتصنيف اللي النظام بيستنتجه بنفسه إزاي؟
+memory5-1-mixed	memory5-1	mixed	history-topics	-	شات Writing أرجع Category بتاعه للوضع Automatic إزاي؟
+memory5-2-en	memory5-2	en	history-sources	-	Can I narrow a text search to app originated chats discussing Slack?
+memory5-2-ar	memory5-2	ar	history-sources	-	أضيق نتائج البحث على شات جاي من التطبيق وبيتكلم عن سلاك إزاي؟
+memory5-2-mixed	memory5-2	mixed	history-sources	-	أجمع text search مع Source App وmentioned Slack؟
+memory5-3-en	memory5-3	en	history-legacy	-	Will indexing old conversations silently overwrite externally supplied names?
+memory5-3-ar	memory5-3	ar	history-legacy	-	فهرسة الشات القديم هتغير الأسماء اللي جاية من بره من غير ما أعرف؟
+memory5-3-mixed	memory5-3	mixed	history-legacy	-	هل legacy metadata backfill يمسح external titles؟
+memory5-4-en	memory5-4	en	configure-provider	-	Where is the endpoint for my self hosted compatible text service configured?
+memory5-4-ar	memory5-4	ar	configure-provider	-	أحط عنوان خدمة النصوص المتوافقة اللي مشغلها على سيرفري فين؟
+memory5-4-mixed	memory5-4	mixed	configure-provider	-	عندي self-hosted compatible provider أظبط endpoint فين؟
+memory5-5-en	memory5-5	en	choose-mode	-	Is delegating a small factual question to several workers worth the coordination cost?
+memory5-5-ar	memory5-5	ar	choose-mode	-	هل توزيع سؤال صغير على عمال كتير يستاهل تكلفة التنسيق؟
+memory5-5-mixed	memory5-5	mixed	choose-mode	-	سؤال صغير يستاهل multi-worker Team overhead؟
+memory5-6-en	memory5-6	en	edition-policy	-	If I install the OEM edition will Android consent become unnecessary?
+memory5-6-ar	memory5-6	ar	edition-policy	-	لو ثبت نسخة الشركة هل موافقات أندرويد مبقتش مطلوبة؟
+memory5-6-mixed	memory5-6	mixed	edition-policy	-	تنزيل OEM edition يغني عن Android consent؟
+memory5-7-en	memory5-7	en	finish-evidence	-	Could an attractive final summary make an unverified worker deliverable successful?
+memory5-7-ar	memory5-7	ar	finish-evidence	-	تلخيص نهائي شكله حلو يخلي شغل عامل مش متحقق منه ناجح؟
+memory5-7-mixed	memory5-7	mixed	finish-evidence	-	هل final synthesis الجميلة تحول unverified deliverable لنجاح؟
+memory5-8-en	memory5-8	en	recover-task	-	After the app is killed can I repeat a remote change whose outcome is still uncertain?
+memory5-8-ar	memory5-8	ar	recover-task	-	بعد ما التطبيق اتقفل ينفع أعيد تعديل بعيد نتيجته لسه مش محسومة؟
+memory5-8-mixed	memory5-8	mixed	recover-task	-	بعد app killed أعيد remote mutation نتيجتها uncertain؟
+memory5-9-en	memory5-9	en	github-access	-	Why does access to hosted coding models not allow changing repository files?
+memory5-9-ar	memory5-9	ar	github-access	-	ليه الوصول لنماذج البرمجة المستضافة مش بيسمح بتغيير ملفات الريبو؟
+memory5-9-mixed	memory5-9	mixed	github-access	-	GitHub hosted models متاحة بس repo file write ممنوع ليه؟
+memory5-10-en	memory5-10	en	git-environment	-	How do I handle a repository command accidentally launched outside my project directory?
+memory5-10-ar	memory5-10	ar	git-environment	-	أتعامل إزاي مع أمر مستودع اتشغل بالغلط بره مجلد مشروعي؟
+memory5-10-mixed	memory5-10	mixed	git-environment	-	أمر git اتشغل outside project directory أراجع إيه؟
+memory5-11-en	memory5-11	en	shizuku-prerequisites	-	What must be restored when the shell bridge loses contact with its privileged Android service?
+memory5-11-ar	memory5-11	ar	shizuku-prerequisites	-	إيه اللي يرجع لما جسر الشل يفقد الاتصال بخدمة أندرويد المميزة؟
+memory5-11-mixed	memory5-11	mixed	shizuku-prerequisites	-	shell bridge فقد privileged service binder أراجع إيه؟
+memory5-12-en	memory5-12	en	telegram-owner	-	Why can the bot reject control messages despite having a valid outbound destination?
+memory5-12-ar	memory5-12	ar	telegram-owner	-	ليه البوت يرفض رسائل التحكم مع إن عنوان الإرسال مظبوط؟
+memory5-12-mixed	memory5-12	mixed	telegram-owner	-	الbot عنده outbound destination صحيح لكن incoming control مرفوض؟
+memory5-13-en	memory5-13	en	whatsapp-bridge	-	Can the same device companion accept commands from someone other than my linked account?
+memory5-13-ar	memory5-13	ar	whatsapp-bridge	-	مرافق واتساب على نفس الجهاز ينفع يقبل أوامر من حد غير الحساب المربوط بتاعي؟
+memory5-13-mixed	memory5-13	mixed	whatsapp-bridge	-	same-phone WhatsApp companion يقبل أوامر من other account؟
+memory5-14-en	memory5-14	en	discord-connected	-	Why does labeling a conversation as connected apps leave the real receiver unconfigured?
+memory5-14-ar	memory5-14	ar	discord-connected	-	ليه تصنيف المحادثة كتطبيقات متصلة بيسيب المستقبل الحقيقي مش متضبط؟
+memory5-14-mixed	memory5-14	mixed	discord-connected	-	Category Connected apps مش بتظبط actual receiver ليه؟
+memory5-15-en	memory5-15	en	mcp-tools	-	Can correcting a misspelled tool identifier skip checking its currently exposed parameters?
+memory5-15-ar	memory5-15	ar	mcp-tools	-	تصحيح اسم أداة مكتوب غلط يسمح بتخطي فحص وسائطها المعروضة حاليا؟
+memory5-15-mixed	memory5-15	mixed	mcp-tools	-	تصحيح typo في tool identifier يغني عن current exposed schema؟
+memory5-16-en	memory5-16	en	provider-failure	-	Should completed observations be discarded while a provider domain cannot be resolved?
+memory5-16-ar	memory5-16	ar	provider-failure	-	أرمي الملاحظات المكتملة لما دومين المزود مش بيتحل؟
+memory5-16-mixed	memory5-16	mixed	provider-failure	-	أحافظ على verified observations وقت provider DNS outage؟
+memory5-17-en	memory5-17	en	model-routing	-	Are the experimental routing checkpoints equivalent to a general chatting brain?
+memory5-17-ar	memory5-17	ar	model-routing	-	أوزان التوجيه التجريبية تعتبر عقل محادثة عام؟
+memory5-17-mixed	memory5-17	mixed	model-routing	-	experimental routing checkpoints هي general chat LLM؟
+memory5-18-en	memory5-18	en	local-model-size	-	Can I get history labels without installing an always active downloaded language model?
+memory5-18-ar	memory5-18	ar	local-model-size	-	أقدر أخد تصنيف للسجل من غير نموذج لغة محمل وشغال طول الوقت؟
+memory5-18-mixed	memory5-18	mixed	local-model-size	-	history labels ينفع من غير downloaded LLM وalways-on service؟
+memory5-19-en	memory5-19	en	future-knowledge-training	-	Is it acceptable to mix implementation files into the approved product guide training export?
+memory5-19-ar	memory5-19	ar	future-knowledge-training	-	ينفع أخلط ملفات التنفيذ مع تصدير دليل المنتج المسموح للتدريب؟
+memory5-19-mixed	memory5-19	mixed	future-knowledge-training	-	ينفع implementation source files تدخل approved product training export؟
+memory5-20-en	memory5-20	en	support-diagnostics	-	What should support say when no documented setting explains my exact failure?
+memory5-20-ar	memory5-20	ar	support-diagnostics	-	الدعم يقول إيه لما مفيش إعداد موثق بيشرح العطل المحدد عندي؟
+memory5-20-mixed	memory5-20	mixed	support-diagnostics	-	لو مفيش documented setting للfailure المفروض support يعمل إيه؟
+memory5-21-en	memory5-21	en	voice-wake	-	Does a forced app shutdown require me to start the wake word listener again?
+memory5-21-ar	memory5-21	ar	voice-wake	-	الإغلاق الإجباري للتطبيق ممكن يحتاج أشغل مستمع كلمة التنبيه تاني؟
+memory5-21-mixed	memory5-21	mixed	voice-wake	-	بعد forced shutdown محتاج أبدأ wake word listener تاني؟
+memory5-22-en	memory5-22	en	screen-assistant	-	Why does the bubble reappear while actions on protected screen controls still need a handoff?
+memory5-22-ar	memory5-22	ar	screen-assistant	-	ليه الفقاعة بترجع لكن التحكم في أزرار شاشة محمية لسه محتاج تسليم؟
+memory5-22-mixed	memory5-22	mixed	screen-assistant	-	restoration bubble ظاهرة لكن protected screen actions محتاجة handoff؟
+memory5-23-en	memory5-23	en	learned-routines	-	Can a reviewed routine continue when a saved selector has become uncertain?
+memory5-23-ar	memory5-23	ar	learned-routines	-	الروتين المتراجع يكمل لو محدد عنصر محفوظ بقى مش مؤكد؟
+memory5-23-mixed	memory5-23	mixed	learned-routines	-	reviewed recipe تكمل لو saved selector بقى uncertain؟
+memory5-24-en	memory5-24	en	media-jobs	-	What should I do before duplicating a generation request with a known operation identifier?
+memory5-24-ar	memory5-24	ar	media-jobs	-	أعمل إيه قبل تكرار طلب توليد ليه رقم عملية معروف؟
+memory5-24-mixed	memory5-24	mixed	media-jobs	-	قبل duplicate generation request عندي known operation id أراجع إيه؟
+memory5-25-en	memory5-25	en	profile-reference	-	Will an unsupported text only model use the reference image saved in my profile?
+memory5-25-ar	memory5-25	ar	profile-reference	-	نموذج نصي مش بيدعم الصور هيستخدم الصورة المرجعية المحفوظة في بروفايلي؟
+memory5-25-mixed	memory5-25	mixed	profile-reference	-	text-only model هيستخدم profile reference image؟
+memory5-26-en	memory5-26	en	little-omni	-	Which local feature remembers companion habits without being the external assistant panel?
+memory5-26-ar	memory5-26	ar	little-omni	-	أنهي ميزة محلية بتفتكر عادات الرفيق ومش لوحة المساعد الخارجية؟
+memory5-26-mixed	memory5-26	mixed	little-omni	-	local companion habits تبع Little Omni ولا external panel؟
+memory5-27-en	memory5-27	en	memory-recall	-	Why is a recovered old message not automatically a trusted fact or execution permission?
+memory5-27-ar	memory5-27	ar	memory-recall	-	ليه رسالة قديمة مسترجعة مش تلقائي حقيقة موثوقة أو تصريح تنفيذ؟
+memory5-27-mixed	memory5-27	mixed	memory-recall	-	retrieved old message مش trusted fact ولا execution permission ليه؟
+memory5-28-en	memory5-28	en	local-inference	-	What would demonstrate actual native execution beyond a successfully loaded library?
+memory5-28-ar	memory5-28	ar	local-inference	-	إيه اللي يثبت التنفيذ الأصلي الفعلي غير إن المكتبة اتحملت بنجاح؟
+memory5-28-mixed	memory5-28	mixed	local-inference	-	إيه دليل actual native inference بعد library load؟
+memory5-29-en	memory5-29	en	history-titles,history-sources	-	Can I preserve my chosen chat name while searching only Telegram entry messages?
+memory5-29-ar	memory5-29	ar	history-titles,history-sources	-	أحافظ على اسم الشات اللي اخترته وفي نفس الوقت أبحث في الرسائل اللي مصدرها تيليجرام بس؟
+memory5-29-mixed	memory5-29	mixed	history-titles,history-sources	-	أحافظ على manual chat title وأفلتر Telegram source؟
+memory5-30-en	memory5-30	en	choose-mode,edition-policy	-	Does selecting an execution mode remove the need for edition eligibility and Android grants?
+memory5-30-ar	memory5-30	ar	choose-mode,edition-policy	-	اختيار وضع تنفيذ يلغي شرط النسخة المؤهلة وتصاريح أندرويد؟
+memory5-30-mixed	memory5-30	mixed	choose-mode,edition-policy	-	اختيار Agent mode يلغي edition eligibility وAndroid grants؟
+memory5-31-en	memory5-31	en	finish-evidence,recover-task	-	Can restart followed by a worker success message prove an unresolved write completed?
+memory5-31-ar	memory5-31	ar	finish-evidence,recover-task	-	إعادة التشغيل وبعدها العامل قال نجحت يثبتوا كتابة نتيجتها مجهولة اكتملت؟
+memory5-31-mixed	memory5-31	mixed	finish-evidence,recover-task	-	restart وبعده worker قال success يثبت unknown write خلصت؟
+memory5-32-en	memory5-32	en	configure-provider,media-jobs	-	How do I configure the account then select a supported model for a persistent image job?
+memory5-32-ar	memory5-32	ar	configure-provider,media-jobs	-	أضبط الحساب وبعدها أختار نموذج مدعوم لمهمة صور محفوظة إزاي؟
+memory5-32-mixed	memory5-32	mixed	configure-provider,media-jobs	-	أضبط provider account وأختار image model للpersistent job إزاي؟
+memory5-33-en	memory5-33	en	shizuku-prerequisites,screen-assistant	-	Can an open assistant panel replace either a missing service grant or the screen action backend?
+memory5-33-ar	memory5-33	ar	shizuku-prerequisites,screen-assistant	-	لوحة مساعد مفتوحة تعوض تصريح خدمة ناقص أو باك إند إجراءات الشاشة؟
+memory5-33-mixed	memory5-33	mixed	shizuku-prerequisites,screen-assistant	-	assistant panel مفتوحة تعوض missing Shizuku grant وscreen backend؟
+memory5-34-en	memory5-34	en	future-knowledge-training,memory-recall	-	Does finding a saved private conversation authorize importing it into product support training?
+memory5-34-ar	memory5-34	ar	future-knowledge-training,memory-recall	-	العثور على محادثة خاصة محفوظة يدي تصريح إدخالها في تدريب دعم المنتج؟
+memory5-34-mixed	memory5-34	mixed	future-knowledge-training,memory-recall	-	العثور على private chat recall يسمح بتدريب product support عليها؟
+memory5-35-en	memory5-35	en	-	-	Who currently leads the WhatsApp engineering organization?
+memory5-35-ar	memory5-35	ar	-	-	مين حاليا بيدير فريق هندسة واتساب؟
+memory5-35-mixed	memory5-35	mixed	-	-	مين current WhatsApp engineering leader؟
+memory5-36-en	memory5-36	en	-	-	What are the foreign currency fees on my bank card?
+memory5-36-ar	memory5-36	ar	-	-	رسوم العملات الأجنبية على كارت البنك بتاعي كام؟
+memory5-36-mixed	memory5-36	mixed	-	-	إيه foreign currency fees لكارت البنك عندي؟
+memory5-37-en	memory5-37	en	-	-	Which music studio is available for booking near my house?
+memory5-37-ar	memory5-37	ar	-	-	أنهي استوديو موسيقى متاح للحجز قريب من بيتي؟
+memory5-37-mixed	memory5-37	mixed	-	-	أنهي music studio متاح booking قريب مني؟
+memory5-38-en	memory5-38	en	-	-	What is the attendance count for the last developer conference?
+memory5-38-ar	memory5-38	ar	-	-	عدد الحضور في آخر مؤتمر مطورين كام؟
+memory5-38-mixed	memory5-38	mixed	-	-	كام attendance في آخر developer conference؟
+memory5-39-en	memory5-39	en	-	-	Can you recover the original profile photograph deleted from my broken phone?
+memory5-39-ar	memory5-39	ar	-	-	تقدر ترجع صورة البروفايل الأصلية المحذوفة من موبايلي المكسور؟
+memory5-39-mixed	memory5-39	mixed	-	-	ترجع original profile photo المحذوفة من broken phone؟
+memory5-40-en	memory5-40	en	-	-	What is the correct torque for my bicycle brake bolts?
+memory5-40-ar	memory5-40	ar	-	-	عزم ربط مسامير فرامل عجلتي الصحيح كام؟
+memory5-40-mixed	memory5-40	mixed	-	-	إيه correct torque لمسامير bicycle brake؟
+memory5-41-en	memory5-41	en	-	-	Which telescope captured the first image of this comet?
+memory5-41-ar	memory5-41	ar	-	-	أنهي تلسكوب صور المذنب ده أول مرة؟
+memory5-41-mixed	memory5-41	mixed	-	-	أنهي telescope التقط first image للمذنب ده؟
+memory5-42-en	memory5-42	en	-	-	What rent does this private office owner charge each month?
+memory5-42-ar	memory5-42	ar	-	-	صاحب المكتب الخاص ده بياخد إيجار كام كل شهر؟
+memory5-42-mixed	memory5-42	mixed	-	-	كام monthly rent عند private office owner ده؟
+memory5-43-en	memory5-43	en	-	-	Where is my missing USB security token right now?
+memory5-43-ar	memory5-43	ar	-	-	مفتاح الأمان المحمول الضايع مني موجود فين دلوقتي؟
+memory5-43-mixed	memory5-43	mixed	-	-	فين USB security token الضايع مني حالا؟
+memory5-44-en	memory5-44	en	-	-	Which local radio station broadcasts this football match tonight?
+memory5-44-ar	memory5-44	ar	-	-	أنهي محطة إذاعة محلية بتنقل الماتش ده الليلة؟
+memory5-44-mixed	memory5-44	mixed	-	-	أنهي local radio station هتنقل football match الليلة؟
+memory5-45-en	memory5-45	en	-	-	How much electricity does the screen in my shop consume this month?
+memory5-45-ar	memory5-45	ar	-	-	شاشة المحل عندي استهلكت كهربا قد إيه الشهر ده؟
+memory5-45-mixed	memory5-45	mixed	-	-	كام electricity استهلاك screen بتاعة المحل الشهر ده؟
