@@ -1,0 +1,50 @@
+{
+  "author": "assistant-authored source-anchored engineering examples",
+  "independent_human_annotations": false,
+  "runtime_execution_verified": false,
+  "rows": 216,
+  "groups": 72,
+  "source_main": "d08e99e92491c94757299fdf56f7815ae41fe34b",
+  "anchors": {
+    "runtime": {
+      "path": "app/src/main/java/com/omnidev/workspace/data/tools/AgentRuntimeTool.kt",
+      "line": 198
+    },
+    "github": {
+      "path": "app/src/main/java/com/omnidev/workspace/data/tools/GitHubManagerTool.kt",
+      "line": 45
+    },
+    "build": {
+      "path": "app/src/main/java/com/omnidev/workspace/data/tools/BuildDoctorTools.kt",
+      "line": 19
+    },
+    "settings": {
+      "path": "app/src/main/java/com/omnidev/workspace/data/tools/AdvancedSystemTools.kt",
+      "line": 450
+    },
+    "web": {
+      "path": "app/src/main/java/com/omnidev/workspace/data/tools/WebSearchTool.kt",
+      "line": 29
+    },
+    "memory": {
+      "path": "app/src/main/java/com/omnidev/workspace/data/tools/MemoryManager.kt",
+      "line": 49
+    },
+    "annotation": {
+      "path": "docs/TOOL_EXECUTION_CONTRACT.md",
+      "line": 3
+    }
+  },
+  "files": {
+    "neural-core/fixtures/contract-intents/corpus.tsv": "68d487ed99348588c64d7f6c86eea9460e41c7de468482e550e8d90dc99a5f2e",
+    "neural-core/fixtures/contract-intents/protocol.json": "2d51a7cfb4463d5d2abc8864e932c33b3a256f59c449ddf822bea494682f2e2a",
+    "app/src/main/java/com/omnidev/workspace/data/tools/AgentRuntimeTool.kt": "c01c0cbc226bae4955f8a28bc7860b2a1d48aa595c3ed560b48411c6fb79eb2f",
+    "app/src/main/java/com/omnidev/workspace/data/tools/GitHubManagerTool.kt": "80e57c9374272051b29131fe058714da0128a9b6739aac05b36777b5576eb8ef",
+    "app/src/main/java/com/omnidev/workspace/data/tools/BuildDoctorTools.kt": "980b76892cffcc28ec7435bd1e061e7349aae903579364007be9afc8c7049355",
+    "app/src/main/java/com/omnidev/workspace/data/tools/AdvancedSystemTools.kt": "12bee3475ec6501626953a23647b997aa6fc45be997a5984fd68153de806705f",
+    "app/src/main/java/com/omnidev/workspace/data/tools/WebSearchTool.kt": "b146e52f1f3ca63bc7ca002e5764ab5004398544e0bfb98c92d89eb3a6f58a19",
+    "app/src/main/java/com/omnidev/workspace/data/tools/MemoryManager.kt": "24bb0f7e72c4f34acca54a01b612129c7f3e5e3db0de8e331ab547518f2600be",
+    "docs/TOOL_EXECUTION_CONTRACT.md": "b5adf1cbeea52f8ba4d4c018424e337c051681ef2220dcdcc8b970d5441aecea"
+  },
+  "limits": "Authored wording and annotation; source anchors prove definition presence only. Not human traffic, actual execution, authorization or semantic-OOD benchmark. All variants remain grouped; old task families can recur."
+}

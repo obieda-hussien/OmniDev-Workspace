@@ -67,6 +67,7 @@ support = json.loads((directory / 'support-correctness.json').read_text())
 assert support['support_parity_passed'] and support['predictions'] == 1755 and support['queries'] == 351 and support['documents'] == 58 and support['retained_default_checks'] == 351 and support['run_id'] == sys.argv[3]
 hybrid = json.loads((directory / 'hybrid-correctness.json').read_text())
 assert hybrid['hybrid_parity_passed'] and hybrid['predictions'] == 459 and hybrid['retained_default_checks'] == 459 and hybrid['documents'] == 58 and hybrid['run_id'] == sys.argv[3]
+assert report['contract_parity_passed'] and report['contract_probes'] == 1366
 if sys.argv[2] == 'true':
     benchmark = json.loads((directory / 'benchmark.json').read_text())
     assert benchmark['encoding_included'] and benchmark['timing_assertions'] is False and benchmark['run_id'] == sys.argv[3]

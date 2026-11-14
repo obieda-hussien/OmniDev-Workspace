@@ -1,0 +1,217 @@
+split	group	language	expected_domain	anchor	text
+train	contract-repository-remote-routes	en	repository	runtime	List fetch and push addresses for every Git remote
+train	contract-repository-remote-routes	ar	repository	runtime	هات عناوين السحب والدفع لكل ريموت في جيت
+train	contract-repository-remote-routes	mixed	repository	runtime	هات fetch وpush URLs لكل git remote
+train	contract-repository-short-history	en	repository	runtime	Show the five most recent Git commit subjects
+train	contract-repository-short-history	ar	repository	runtime	وريني عناوين آخر خمس كوميتات في جيت
+train	contract-repository-short-history	mixed	repository	runtime	هات آخر five commit subjects من git log
+train	contract-repository-stash-inventory	en	repository	runtime	Inspect saved Git stash entries before changing branches
+train	contract-repository-stash-inventory	ar	repository	runtime	افحص تغييرات جيت المحفوظة مؤقتا قبل تبديل الفرع
+train	contract-repository-stash-inventory	mixed	repository	runtime	شوف git stash list قبل تبديل branch
+train	contract-repository-account-repositories	en	repository	github	List the second page of repositories for my GitHub account
+train	contract-repository-account-repositories	ar	repository	github	اعرض الصفحة التانية من مستودعات حسابي على جيتهوب
+train	contract-repository-account-repositories	mixed	repository	github	هات page2 من GitHub account repos
+train	contract-repository-file-lines	en	repository	github	Read lines20 through45 of app/build.gradle.kts from the GitHub repo
+train	contract-repository-file-lines	ar	repository	github	اقرأ السطور من عشرين لخمسة وأربعين من ملف البناء في مستودع جيتهوب
+train	contract-repository-file-lines	mixed	repository	github	اقرأ lines20-45 من app/build.gradle.kts على GitHub
+train	contract-repository-branch-inventory	en	repository	runtime	List local branches and remote-tracking branches in this checkout
+train	contract-repository-branch-inventory	ar	repository	runtime	اعرض الفروع المحلية والفروع المتتبعة للريموت في نسخة المشروع
+train	contract-repository-branch-inventory	mixed	repository	runtime	هات local وremote-tracking branches للـcheckout
+development	contract-repository-tag-pattern	en	repository	runtime	Find Git tags whose names start with release
+development	contract-repository-tag-pattern	ar	repository	runtime	دور على علامات جيت اللي اسمها بيبدأ بكلمة ريليز
+development	contract-repository-tag-pattern	mixed	repository	runtime	هات git tags اللي بتبدأ بـrelease
+development	contract-repository-default-branch	en	repository	github	Read the repository metadata to identify its actual default branch
+development	contract-repository-default-branch	ar	repository	github	اقرأ بيانات المستودع عشان تعرف اسم فرعه الافتراضي الحقيقي
+development	contract-repository-default-branch	mixed	repository	github	اقرأ repo metadata وحدد default branch الحقيقي
+calibration	contract-repository-staged-patch	en	repository	runtime	Display only the Git patch currently staged for commit
+calibration	contract-repository-staged-patch	ar	repository	runtime	اعرض فرق تعديلات جيت اللي اتجهزت للكوميت بس
+calibration	contract-repository-staged-patch	mixed	repository	runtime	هات git diff --cached للتغييرات staged بس
+calibration	contract-repository-directory-list	en	repository	github	List the entries under the docs directory on the selected GitHub ref
+calibration	contract-repository-directory-list	ar	repository	github	اعرض محتويات مجلد التوثيق على مرجع جيتهوب المختار
+calibration	contract-repository-directory-list	mixed	repository	github	هات entries بتاعة docs على GitHub ref المختار
+test	contract-repository-review-comments	en	repository	github	Read review comments attached to pull request17 in this GitHub repository
+test	contract-repository-review-comments	ar	repository	github	اقرأ تعليقات المراجعة على طلب الدمج رقم سبعتاشر في مستودع جيتهوب
+test	contract-repository-review-comments	mixed	repository	github	هات review comments بتاعة GitHub pull request17
+test	contract-repository-commit-checks	en	repository	github	Inspect check runs attached to the selected GitHub commit SHA
+test	contract-repository-commit-checks	ar	repository	github	افحص نتائج الفحوص المرتبطة ببصمة الكوميت المختار على جيتهوب
+test	contract-repository-commit-checks	mixed	repository	github	اقرأ check runs للـGitHub commit SHA المختار
+train	contract-build-lint-report	en	build	runtime	Execute lintNormDebug and inspect the Android lint report
+train	contract-build-lint-report	ar	build	runtime	شغل فحص لينت لنسخة نورم التجريبية وراجع تقرير أندرويد
+train	contract-build-lint-report	mixed	build	runtime	شغل lintNormDebug وراجع lint report
+train	contract-build-compile-test-kotlin	en	build	runtime	Compile the Kotlin unit-test sources for the norm debug variant
+train	contract-build-compile-test-kotlin	ar	build	runtime	جمّع مصادر اختبارات كوتلن لنسخة نورم التجريبية
+train	contract-build-compile-test-kotlin	mixed	build	runtime	اعمل compile لمصادر Kotlin unit tests في normDebug
+train	contract-build-diagnose-output	en	build	build	Diagnose this saved Gradle failure output using the build doctor
+train	contract-build-diagnose-output	ar	build	build	شخّص سجل فشل جرادل المحفوظ بأداة تشخيص البناء
+train	contract-build-diagnose-output	mixed	build	build	اعمل diagnose للـGradle failure output في build doctor
+train	contract-build-one-test-filter	en	build	runtime	Run only the database migration test using a Gradle tests filter
+train	contract-build-one-test-filter	ar	build	runtime	نفذ اختبار ترحيل قاعدة البيانات لوحده بفلتر اختبارات جرادل
+train	contract-build-one-test-filter	mixed	build	runtime	شغل database migration test بس بفلتر Gradle --tests
+train	contract-build-clean-assemble	en	build	runtime	Clean the Gradle outputs and assemble the lite debug APK
+train	contract-build-clean-assemble	ar	build	runtime	امسح نواتج جرادل وابني ملف تطبيق لايت التجريبي
+train	contract-build-clean-assemble	mixed	build	runtime	اعمل Gradle clean وبعده assembleLiteDebug APK
+train	contract-build-dependency-tree	en	build	runtime	Print the Gradle dependency tree for the norm debug runtime classpath
+train	contract-build-dependency-tree	ar	build	runtime	اطبع شجرة اعتمادات جرادل لمسار تشغيل نسخة نورم التجريبية
+train	contract-build-dependency-tree	mixed	build	runtime	هات Gradle dependency tree للـnormDebugRuntimeClasspath
+development	contract-build-task-discovery	en	build	runtime	Show all Gradle tasks available for the neural-core module
+development	contract-build-task-discovery	ar	build	runtime	اعرض كل مهام جرادل المتاحة لوحدة النواة العصبية
+development	contract-build-task-discovery	mixed	build	runtime	هات Gradle tasks --all لوحدة neural-core
+development	contract-build-instrumentation-build	en	build	runtime	Assemble the norm debug instrumentation test APK without installing it
+development	contract-build-instrumentation-build	ar	build	runtime	ابني ملف اختبارات أندرويد لنسخة نورم التجريبية من غير تثبيت
+development	contract-build-instrumentation-build	mixed	build	runtime	اعمل assembleNormDebugAndroidTest بس من غير install
+calibration	contract-build-compile-java	en	build	runtime	Compile the Java test fixtures with the Java8 API release target
+calibration	contract-build-compile-java	ar	build	runtime	جمّع تجهيزات اختبار جافا باستهداف واجهات جافا تمانية
+calibration	contract-build-compile-java	mixed	build	runtime	اعمل javac --release 8 لتجهيزات Java test fixtures
+calibration	contract-build-unit-report	en	build	runtime	Run norm unit tests and read their generated XML result files
+calibration	contract-build-unit-report	ar	build	runtime	شغل اختبارات وحدة نورم واقرأ ملفات نتيجة إكس إم إل الناتجة
+calibration	contract-build-unit-report	mixed	build	runtime	شغل testNormDebugUnitTest واقرأ XML results الناتجة
+test	contract-build-ksp-generation	en	build	runtime	Run KSP code generation for normDebug and inspect its generated sources
+test	contract-build-ksp-generation	ar	build	runtime	شغل توليد الكود لكوتلن في نورم التجريبية وافحص المصادر الناتجة
+test	contract-build-ksp-generation	mixed	build	runtime	شغل kspNormDebugKotlin وافحص generated sources
+test	contract-build-aar-metadata	en	build	runtime	Run the norm debug AAR metadata compatibility check
+test	contract-build-aar-metadata	ar	build	runtime	نفذ فحص توافق بيانات مكتبات أندرويد لنسخة نورم التجريبية
+test	contract-build-aar-metadata	mixed	build	runtime	شغل checkNormDebugAarMetadata لفحص compatibility
+train	contract-device-brightness-mode	en	device	settings	Read the Android setting that selects automatic screen brightness
+train	contract-device-brightness-mode	ar	device	settings	اقرأ إعداد أندرويد اللي بيحدد سطوع الشاشة التلقائي
+train	contract-device-brightness-mode	mixed	device	settings	اقرأ Android screen_brightness_mode الحالي
+train	contract-device-screen-timeout	en	device	settings	Check the Android screen-off timeout value in system settings
+train	contract-device-screen-timeout	ar	device	settings	شوف مدة انتظار إطفاء شاشة أندرويد في إعدادات النظام
+train	contract-device-screen-timeout	mixed	device	settings	هات system screen_off_timeout على Android
+train	contract-device-font-scale	en	device	settings	Inspect the current Android font scaling setting
+train	contract-device-font-scale	ar	device	settings	افحص قيمة تكبير خط أندرويد الحالية
+train	contract-device-font-scale	mixed	device	settings	اقرأ Android font_scale الحالي
+train	contract-device-wifi-flag	en	device	settings	Read the global Android Wi-Fi enabled flag
+train	contract-device-wifi-flag	ar	device	settings	اقرأ علامة تشغيل الواي فاي العامة في إعدادات أندرويد
+train	contract-device-wifi-flag	mixed	device	settings	هات global wifi_on setting على Android
+train	contract-device-ring-volume	en	device	settings	Read the stored Android ringtone volume setting
+train	contract-device-ring-volume	ar	device	settings	اقرأ إعداد مستوى صوت رنة أندرويد المحفوظ
+train	contract-device-ring-volume	mixed	device	settings	هات Android system volume_ring setting
+train	contract-device-airplane-flag	en	device	settings	Inspect the Android airplane mode flag without changing it
+train	contract-device-airplane-flag	ar	device	settings	افحص علامة وضع الطيران في أندرويد من غير تغييرها
+train	contract-device-airplane-flag	mixed	device	settings	اقرأ Android airplane_mode_on flag بس
+development	contract-device-bluetooth-flag	en	device	settings	Query the global Android Bluetooth enabled setting
+development	contract-device-bluetooth-flag	ar	device	settings	استعلم عن إعداد تشغيل بلوتوث العام في أندرويد
+development	contract-device-bluetooth-flag	mixed	device	settings	اقرأ global bluetooth_on من Android settings
+development	contract-device-haptic-flag	en	device	settings	Read whether Android haptic feedback is enabled
+development	contract-device-haptic-flag	ar	device	settings	اقرأ إذا كان رد الفعل بالاهتزاز مفعّل في أندرويد
+development	contract-device-haptic-flag	mixed	device	settings	شوف Android haptic_feedback_enabled setting
+calibration	contract-device-animation-scale	en	device	settings	Read the Android transition animation scale from global settings
+calibration	contract-device-animation-scale	ar	device	settings	اقرأ مقياس حركة الانتقال في إعدادات أندرويد العامة
+calibration	contract-device-animation-scale	mixed	device	settings	هات global transition_animation_scale على Android
+calibration	contract-device-accessibility-flag	en	device	settings	Inspect the secure Android accessibility enabled flag
+calibration	contract-device-accessibility-flag	ar	device	settings	افحص علامة تفعيل تسهيلات الاستخدام في إعدادات أندرويد الآمنة
+calibration	contract-device-accessibility-flag	mixed	device	settings	اقرأ secure accessibility_enabled على Android
+test	contract-device-usb-awake	en	device	settings	Read the Android stay-awake-while-plugged-in global setting
+test	contract-device-usb-awake	ar	device	settings	اقرأ إعداد أندرويد للبقاء مستيقظا أثناء توصيل الشاحن
+test	contract-device-usb-awake	mixed	device	settings	هات global stay_on_while_plugged_in على Android
+test	contract-device-touch-sounds	en	device	settings	Inspect whether Android touch sound effects are enabled
+test	contract-device-touch-sounds	ar	device	settings	افحص إذا كانت أصوات لمس أندرويد مفعّلة
+test	contract-device-touch-sounds	mixed	device	settings	اقرأ Android sound_effects_enabled setting
+train	contract-knowledge-android-guide	en	knowledge	web	Find the official Android guide for foreground service restrictions
+train	contract-knowledge-android-guide	ar	knowledge	web	دور على دليل أندرويد الرسمي لقيود خدمات المقدمة
+train	contract-knowledge-android-guide	mixed	knowledge	web	هات official Android foreground service restrictions guide
+train	contract-knowledge-saved-kotlin-note	en	knowledge	memory	Search saved knowledge for my Kotlin coroutine cancellation notes
+train	contract-knowledge-saved-kotlin-note	ar	knowledge	memory	دور في المعرفة المحفوظة على ملاحظات إلغاء كوروتين كوتلن
+train	contract-knowledge-saved-kotlin-note	mixed	knowledge	memory	اعمل search_knowledge لملاحظات Kotlin coroutine cancellation
+train	contract-knowledge-ocr-paper	en	knowledge	web	Find a research paper about lightweight OCR and include its source URL
+train	contract-knowledge-ocr-paper	ar	knowledge	web	دور على ورقة بحث عن قراءة النصوص الخفيفة وهات رابط المصدر
+train	contract-knowledge-ocr-paper	mixed	knowledge	web	دور على lightweight OCR paper مع source URL
+train	contract-knowledge-permission-doc	en	knowledge	web	Retrieve the official documentation describing Android notification permission
+train	contract-knowledge-permission-doc	ar	knowledge	web	هات التوثيق الرسمي اللي بيشرح إذن إشعارات أندرويد
+train	contract-knowledge-permission-doc	mixed	knowledge	web	هات official Android notification permission documentation
+train	contract-knowledge-sqlite-guide	en	knowledge	web	Find a reliable SQLite guide explaining full-text search ranking
+train	contract-knowledge-sqlite-guide	ar	knowledge	web	هات دليل موثوق يشرح ترتيب نتائج البحث النصي في إس كيو لايت
+train	contract-knowledge-sqlite-guide	mixed	knowledge	web	دور على SQLite full-text search ranking guide موثوق
+train	contract-knowledge-saved-schema	en	knowledge	memory	Look up the saved architecture explanation for the task-state schema
+train	contract-knowledge-saved-schema	ar	knowledge	memory	دور على شرح معمارية مخطط حالة المهام في المعرفة المحفوظة
+train	contract-knowledge-saved-schema	mixed	knowledge	memory	ابحث في saved knowledge عن task-state schema architecture
+development	contract-knowledge-flow-buffering	en	knowledge	web	Find the official Kotlin Flow buffering documentation and cite it
+development	contract-knowledge-flow-buffering	ar	knowledge	web	دور على توثيق تخزين فلو كوتلن المؤقت الرسمي مع مصدره
+development	contract-knowledge-flow-buffering	mixed	knowledge	web	هات official Kotlin Flow buffering docs مع citation
+development	contract-knowledge-paper-methods	en	knowledge	web	Locate the original paper describing small text classification models
+development	contract-knowledge-paper-methods	ar	knowledge	web	حدد الورقة الأصلية اللي بتشرح نماذج تصنيف النصوص الصغيرة
+development	contract-knowledge-paper-methods	mixed	knowledge	web	هات original paper عن small text classification models
+calibration	contract-knowledge-room-validation	en	knowledge	web	Search official Room migration validation guidance and identify the source
+calibration	contract-knowledge-room-validation	ar	knowledge	web	ابحث عن إرشادات روم الرسمية للتحقق من الترحيل وحدد مصدرها
+calibration	contract-knowledge-room-validation	mixed	knowledge	web	هات official Room migration validation guidance ومصدرها
+calibration	contract-knowledge-saved-recovery	en	knowledge	memory	Find my saved notes discussing safe task recovery after interruption
+calibration	contract-knowledge-saved-recovery	ar	knowledge	memory	دور على ملاحظاتي المحفوظة عن استرجاع المهام الآمن بعد الانقطاع
+calibration	contract-knowledge-saved-recovery	mixed	knowledge	memory	ابحث في saved notes عن safe task recovery after interruption
+test	contract-knowledge-jvm-bytecode	en	knowledge	web	Find primary documentation for the JVM method bytecode size limit
+test	contract-knowledge-jvm-bytecode	ar	knowledge	web	هات التوثيق الأصلي لحد حجم بايت كود الدالة في آلة جافا
+test	contract-knowledge-jvm-bytecode	mixed	knowledge	web	دور على primary JVM method bytecode size limit docs
+test	contract-knowledge-saved-dns	en	knowledge	memory	Retrieve the saved knowledge entry about diagnosing provider DNS failures
+test	contract-knowledge-saved-dns	ar	knowledge	memory	هات مدخلة المعرفة المحفوظة عن تشخيص فشل أسماء نطاقات مزود النموذج
+test	contract-knowledge-saved-dns	mixed	knowledge	memory	هات saved knowledge عن provider DNS failure diagnosis
+train	contract-chat-casual-arrival	en	chat	annotation	Hey friend, I just got home and wanted to say hi
+train	contract-chat-casual-arrival	ar	chat	annotation	يا صاحبي أنا لسه راجع البيت وبقول لك مساء الفل
+train	contract-chat-casual-arrival	mixed	chat	annotation	Hey يا صاحبي وصلت home وبقول hi
+train	contract-chat-study-motivation	en	chat	annotation	Give me a few encouraging words before a study session
+train	contract-chat-study-motivation	ar	chat	annotation	قول لي كلمتين يشجعوني قبل ما أبدأ مذاكرة
+train	contract-chat-study-motivation	mixed	chat	annotation	اديني encouragement صغير قبل study session
+train	contract-chat-tired-smalltalk	en	chat	annotation	I had a tiring day and feel like a little friendly chat
+train	contract-chat-tired-smalltalk	ar	chat	annotation	كان يوم متعب ونفسي في شوية كلام لطيف
+train	contract-chat-tired-smalltalk	mixed	chat	annotation	كان tiring day وعايز friendly chat شوية
+train	contract-chat-coffee-pun	en	chat	annotation	Tell me a silly pun about a sleepy coffee cup
+train	contract-chat-coffee-pun	ar	chat	annotation	قول لي إفيه سخيف عن فنجان قهوة نعسان
+train	contract-chat-coffee-pun	mixed	chat	annotation	هات silly pun عن sleepy coffee cup
+train	contract-chat-friendly-thanks	en	chat	annotation	Thanks for being patient while I worked through that explanation
+train	contract-chat-friendly-thanks	ar	chat	annotation	متشكر على صبرك وأنا بحاول أفهم الشرح
+train	contract-chat-friendly-thanks	mixed	chat	annotation	Thanks على patience وأنا بفهم explanation
+train	contract-chat-good-luck	en	chat	annotation	Wish me luck for tomorrow without looking anything up
+train	contract-chat-good-luck	ar	chat	annotation	اتمنى لي حظ حلو لبكرة من غير ما تدور على حاجة
+train	contract-chat-good-luck	mixed	chat	annotation	قولي good luck لبكرة من غير search
+development	contract-chat-night-farewell	en	chat	annotation	I am heading to sleep, say a friendly goodnight
+development	contract-chat-night-farewell	ar	chat	annotation	أنا داخل أنام قول لي تصبح على خير بشكل لطيف
+development	contract-chat-night-farewell	mixed	chat	annotation	داخل sleep قولي friendly goodnight
+development	contract-chat-happy-news	en	chat	annotation	I finally finished my chores and wanted to share the good mood
+development	contract-chat-happy-news	ar	chat	annotation	خلصت اللي ورايا أخيرا وحبيت أشاركك فرحتي
+development	contract-chat-happy-news	mixed	chat	annotation	Finally خلصت chores وحبيت أشارك good mood
+calibration	contract-chat-morning-greeting	en	chat	annotation	Morning friend, ready for a calm new day
+calibration	contract-chat-morning-greeting	ar	chat	annotation	صباح الورد يا صاحبي جاهز ليوم هادي
+calibration	contract-chat-morning-greeting	mixed	chat	annotation	Morning يا صاحبي جاهز لـcalm day
+calibration	contract-chat-tiny-compliment	en	chat	annotation	Say something kind to a friend having a rough day
+calibration	contract-chat-tiny-compliment	ar	chat	annotation	قول كلمة لطيفة لصاحبك اللي يومه صعب
+calibration	contract-chat-tiny-compliment	mixed	chat	annotation	قول kind words لصاحبك بعد rough day
+test	contract-chat-celebrate-small-win	en	chat	annotation	Help me celebrate a small personal win with a short cheerful reply
+test	contract-chat-celebrate-small-win	ar	chat	annotation	احتفل معايا بإنجاز صغير ورد عليا بكلمتين مفرحين
+test	contract-chat-celebrate-small-win	mixed	chat	annotation	Celebrate معايا small win بـshort cheerful reply
+test	contract-chat-playful-rhyme	en	chat	annotation	Make a short playful rhyme about rainy mornings
+test	contract-chat-playful-rhyme	ar	chat	annotation	قول قافية خفيفة عن صباح فيه مطر
+test	contract-chat-playful-rhyme	mixed	chat	annotation	اعمل short playful rhyme عن rainy mornings
+train	contract-refuse-vague-object	en	-	annotation	Please handle that unspecified item for me
+train	contract-refuse-vague-object	ar	-	annotation	اتصرف في الحاجة اللي ما حددناش هي إيه
+train	contract-refuse-vague-object	mixed	-	annotation	Handle الحاجة unspecified دي
+train	contract-refuse-food-delivery	en	-	annotation	Order dinner delivery to the address I never provided
+train	contract-refuse-food-delivery	ar	-	annotation	اطلب عشا يتوصل لعنوان أنا ما قلتوش
+train	contract-refuse-food-delivery	mixed	-	annotation	اعمل dinner delivery للـaddress اللي ما قلتوش
+train	contract-refuse-bank-transfer	en	-	annotation	Move money between my unspecified bank accounts
+train	contract-refuse-bank-transfer	ar	-	annotation	حوّل فلوس بين حساباتي البنكية اللي ما حددتهاش
+train	contract-refuse-bank-transfer	mixed	-	annotation	اعمل money transfer بين bank accounts مش محددة
+train	contract-refuse-cross-repo-phone	en	-	annotation	Read GitHub repository tags and then mute the Android ringtone
+train	contract-refuse-cross-repo-phone	ar	-	annotation	اقرأ علامات مستودع جيتهوب وبعدها اكتم رنة أندرويد
+train	contract-refuse-cross-repo-phone	mixed	-	annotation	هات GitHub tags وبعدها mute Android ringtone
+train	contract-refuse-cross-tests-search	en	-	annotation	Run Gradle tests and then search the web for a holiday hotel
+train	contract-refuse-cross-tests-search	ar	-	annotation	شغل اختبارات جرادل وبعدها دور على فندق للإجازة
+train	contract-refuse-cross-tests-search	mixed	-	annotation	شغل Gradle tests وبعدها web search لـholiday hotel
+train	contract-refuse-missing-reference	en	-	annotation	Continue the unmentioned operation from an unknown conversation
+train	contract-refuse-missing-reference	ar	-	annotation	كمل العملية اللي ما اتقالتش من محادثة مش معروفة
+train	contract-refuse-missing-reference	mixed	-	annotation	Continue operation مش مذكورة من unknown conversation
+development	contract-refuse-cross-memory-system	en	-	annotation	Find my saved Kotlin notes and change phone screen timeout
+development	contract-refuse-cross-memory-system	ar	-	annotation	دور على ملاحظات كوتلن المحفوظة وغيّر مدة إطفاء شاشة الموبايل
+development	contract-refuse-cross-memory-system	mixed	-	annotation	هات saved Kotlin notes وغيّر Android screen timeout
+development	contract-refuse-unresolved-target	en	-	annotation	Change whichever value you think I might mean
+development	contract-refuse-unresolved-target	ar	-	annotation	غيّر أي قيمة تتخيل إني أقصدها
+development	contract-refuse-unresolved-target	mixed	-	annotation	Change أي value تتخيل إني mean it
+calibration	contract-refuse-unknown-operation	en	-	annotation	Do the previous thing even though no previous task was supplied
+calibration	contract-refuse-unknown-operation	ar	-	annotation	اعمل الحاجة السابقة رغم إن مفيش مهمة سابقة اتبعتت
+calibration	contract-refuse-unknown-operation	mixed	-	annotation	اعمل previous thing مع إن مفيش previous task
+calibration	contract-refuse-cross-git-brightness	en	-	annotation	List Git remotes and also adjust Android display brightness
+calibration	contract-refuse-cross-git-brightness	ar	-	annotation	اعرض ريموتات جيت وكمان ظبط سطوع شاشة أندرويد
+calibration	contract-refuse-cross-git-brightness	mixed	-	annotation	هات git remotes وكمان adjust Android brightness
+test	contract-refuse-contextless-again	en	-	annotation	Repeat the other request whose details are missing here
+test	contract-refuse-contextless-again	ar	-	annotation	كرر الطلب التاني اللي تفاصيله مش موجودة هنا
+test	contract-refuse-contextless-again	mixed	-	annotation	Repeat الـother request اللي details بتاعته missing
+test	contract-refuse-cross-search-font	en	-	annotation	Search for a JVM research paper and increase Android font scale
+test	contract-refuse-cross-search-font	ar	-	annotation	دور على ورقة بحث لآلة جافا وكبّر خط أندرويد
+test	contract-refuse-cross-search-font	mixed	-	annotation	دور على JVM paper وكبّر Android font_scale
