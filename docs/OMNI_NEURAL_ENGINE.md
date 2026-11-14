@@ -73,3 +73,8 @@ has been asserted yet.
 ## Prototype support experiment
 
 [PROTOTYPE_SUPPORT_TRAINING.md](PROTOTYPE_SUPPORT_TRAINING.md) documents a bounded 60 KiB support bank around the frozen utility expert, its retention/refusal tradeoff, a newly exposed mixed-language failure and reproducible host/ART test contracts. No normal APK integration or production-quality claim is introduced.
+
+
+## Source-anchored intent coverage
+
+[CONTRACT_INTENT_TRAINING.md](CONTRACT_INTENT_TRAINING.md) records a frozen authored corpus and four-fit comparison against a retuned old-weight control. Normal APK behavior stays unchanged; both retained regressions and independent/device validation gaps remain explicit.

@@ -22,7 +22,7 @@ public final class NeuralAndroidRuntimeTest {
         NeuralProbeContract.verify(probes);
         verifyCascade(probes);
         verifyRich(probes);
-        int publicProbes, residualProbes, utilityProbes, prototypeProbes, trustProbes;
+        int publicProbes, residualProbes, utilityProbes, prototypeProbes, trustProbes, contractProbes;
         try (Reader reader = new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("public-probes.tsv"), StandardCharsets.UTF_8)) {
             publicProbes = PublicNeuralProbeContract.verify(reader);
         }
@@ -38,12 +38,16 @@ public final class NeuralAndroidRuntimeTest {
         try(Reader reader=new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("trust-probes.tsv"),StandardCharsets.UTF_8)){
             trustProbes=ExpertTrustNeuralProbeContract.verify(reader);
         }
+        try(Reader reader=new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("contract-probes.tsv"),StandardCharsets.UTF_8)){
+            contractProbes=ContractIntentNeuralProbeContract.verify(reader);
+        }
         writeReport("correctness.json", environment().put("parity_passed", true).put("probes", probes.size())
                 .put("cascade_parity_passed", true).put("rich_parity_passed", true).put("public_parity_passed", true).put("public_probes", publicProbes)
                 .put("residual_parity_passed", true).put("residual_probes", residualProbes)
                 .put("utility_parity_passed", true).put("utility_probes", utilityProbes)
                 .put("prototype_parity_passed", true).put("prototype_probes", prototypeProbes)
                 .put("trust_parity_passed", true).put("trust_probes", trustProbes)
+                .put("contract_parity_passed", true).put("contract_probes", contractProbes)
                 .put("host_art_probability_tolerance", 1e-6).put("dense_sparse_exact", true));
     }
 
@@ -69,6 +73,10 @@ public final class NeuralAndroidRuntimeTest {
         rejects(() -> trust.classify(null,.6,.15));
         rejects(() -> trust.classify(new String(oversized),.6,.15));
         rejects(() -> trust.classify("source",Double.NaN,.15));
+        UtilityExpertDecisionModel contract=ContractIntentNeuralProbeContract.model(true);
+        rejects(() -> contract.classify(null,.6,.15));
+        rejects(() -> contract.classify(new String(oversized),.6,.15));
+        rejects(() -> contract.classify("source",Double.NaN,.15));
     }
 
     @Test public void optInWholeTextBenchmark() throws Exception {
