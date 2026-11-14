@@ -101,3 +101,7 @@ The standalone test APK also verifies the public refusal and separate six-class 
 ## Residual numerical parity
 
 See [BOUNDED_RESIDUAL_TRAINING.md](BOUNDED_RESIDUAL_TRAINING.md) for the six-fit teacher-anchored experiment. Its selected gain is zero and no quality improvement is claimed. The isolated test APK adds 859 selected/forced-active numerical probes; this does not activate the adapter in the app.
+
+## Utility policy parity extension
+
+See [UTILITY_AWARE_EXPERT_TRAINING.md](UTILITY_AWARE_EXPERT_TRAINING.md) for mini-batch AdamW, correct-teacher distillation, domain-specific selection and training rehearsal. V2 improves measured outcomes but loses three earlier correct cases and remains ineligible for production. The standalone test APK adds 995 utility probes without changing normal APK dependencies.

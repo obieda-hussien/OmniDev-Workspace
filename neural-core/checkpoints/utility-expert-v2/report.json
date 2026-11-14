@@ -1,0 +1,398 @@
+{
+  "production_eligible": false,
+  "old_sets": "all_v2_tests_observed_followup_regressions",
+  "fresh_supported_source": "unused upstream TRAIN, held out from every own fit; volume up/mute only",
+  "candidates": [
+    {
+      "source": "adamw_width0_seed42",
+      "parameters": 6150,
+      "epoch": 5,
+      "epochs_run": 20,
+      "development_macro_accuracy": 0.58568669,
+      "development_macro_nll": 0.941121367,
+      "temperature": 0.75,
+      "policy_utility": 0.749839512
+    },
+    {
+      "source": "adamw_width0_seed97",
+      "parameters": 6150,
+      "epoch": 5,
+      "epochs_run": 20,
+      "development_macro_accuracy": 0.586883024,
+      "development_macro_nll": 0.952004219,
+      "temperature": 0.75,
+      "policy_utility": 0.740730566
+    },
+    {
+      "source": "adamw_width16_seed42",
+      "parameters": 16502,
+      "epoch": 5,
+      "epochs_run": 20,
+      "development_macro_accuracy": 0.498098352,
+      "development_macro_nll": 2.072255182,
+      "temperature": 2.0,
+      "policy_utility": 0.728289303
+    },
+    {
+      "source": "adamw_width16_seed97",
+      "parameters": 16502,
+      "epoch": 5,
+      "epochs_run": 20,
+      "development_macro_accuracy": 0.497623518,
+      "development_macro_nll": 2.155959168,
+      "temperature": 2.0,
+      "policy_utility": 0.731878307
+    },
+    {
+      "source": "frozen_sgd_control",
+      "parameters": 6150,
+      "temperature": 1.0,
+      "policy_utility": 0.736547249
+    }
+  ],
+  "v1_refit_max_logit_difference": 0.0,
+  "selected_source": "adamw_width0_seed42",
+  "parameters": 6150,
+  "temperature": 0.75,
+  "reject": [
+    0.6,
+    0.6,
+    0.9,
+    0.8,
+    0.7
+  ],
+  "change": [
+    0.99,
+    0.7,
+    1.1,
+    1.1,
+    0.6
+  ],
+  "support": [
+    0.6,
+    1.1,
+    0.95,
+    1.1,
+    0.5
+  ],
+  "development_policy_utility": 0.7498395123395117,
+  "train_unique": 2162,
+  "train_balanced": 12456,
+  "evaluations": {
+    "massive_ar": {
+      "rows": 280,
+      "known": 52,
+      "required_refusals": 228,
+      "teacher": {
+        "accepted": 166,
+        "accepted_correct": 14,
+        "accepted_errors": 152,
+        "unsupported_refused": 89,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 119,
+        "accepted_correct": 15,
+        "accepted_errors": 104,
+        "unsupported_refused": 134,
+        "previous_correct_lost": 0,
+        "choice_changes": 1
+      }
+    },
+    "massive_en": {
+      "rows": 280,
+      "known": 52,
+      "required_refusals": 228,
+      "teacher": {
+        "accepted": 172,
+        "accepted_correct": 20,
+        "accepted_errors": 152,
+        "unsupported_refused": 97,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 109,
+        "accepted_correct": 26,
+        "accepted_errors": 83,
+        "unsupported_refused": 158,
+        "previous_correct_lost": 1,
+        "choice_changes": 10
+      }
+    },
+    "regression_all": {
+      "rows": 531,
+      "known": 179,
+      "required_refusals": 352,
+      "teacher": {
+        "accepted": 307,
+        "accepted_correct": 143,
+        "accepted_errors": 164,
+        "unsupported_refused": 202,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 248,
+        "accepted_correct": 148,
+        "accepted_errors": 100,
+        "unsupported_refused": 259,
+        "previous_correct_lost": 2,
+        "choice_changes": 9
+      }
+    },
+    "regression_old_original": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "teacher": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      }
+    },
+    "regression_old_composed_same": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "teacher": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 28,
+        "accepted_correct": 28,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 2,
+        "choice_changes": 0
+      }
+    },
+    "regression_old_composed_cross": {
+      "rows": 120,
+      "known": 0,
+      "required_refusals": 120,
+      "teacher": {
+        "accepted": 76,
+        "accepted_correct": 0,
+        "accepted_errors": 76,
+        "unsupported_refused": 44,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 49,
+        "accepted_correct": 0,
+        "accepted_errors": 49,
+        "unsupported_refused": 71,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      }
+    },
+    "regression_old_fresh_english": {
+      "rows": 114,
+      "known": 34,
+      "required_refusals": 80,
+      "teacher": {
+        "accepted": 59,
+        "accepted_correct": 25,
+        "accepted_errors": 34,
+        "unsupported_refused": 49,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 45,
+        "accepted_correct": 27,
+        "accepted_errors": 18,
+        "unsupported_refused": 63,
+        "previous_correct_lost": 0,
+        "choice_changes": 2
+      }
+    },
+    "regression_old_old_challenge": {
+      "rows": 25,
+      "known": 5,
+      "required_refusals": 20,
+      "teacher": {
+        "accepted": 22,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "unsupported_refused": 3,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 19,
+        "accepted_correct": 5,
+        "accepted_errors": 14,
+        "unsupported_refused": 6,
+        "previous_correct_lost": 0,
+        "choice_changes": 1
+      }
+    },
+    "reserved_ar": {
+      "rows": 68,
+      "known": 28,
+      "required_refusals": 40,
+      "teacher": {
+        "accepted": 36,
+        "accepted_correct": 8,
+        "accepted_errors": 28,
+        "unsupported_refused": 19,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 29,
+        "accepted_correct": 11,
+        "accepted_errors": 18,
+        "unsupported_refused": 26,
+        "previous_correct_lost": 0,
+        "choice_changes": 3
+      }
+    },
+    "reserved_en": {
+      "rows": 68,
+      "known": 28,
+      "required_refusals": 40,
+      "teacher": {
+        "accepted": 35,
+        "accepted_correct": 7,
+        "accepted_errors": 28,
+        "unsupported_refused": 21,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 26,
+        "accepted_correct": 13,
+        "accepted_errors": 13,
+        "unsupported_refused": 30,
+        "previous_correct_lost": 0,
+        "choice_changes": 6
+      }
+    },
+    "all_observed_holdout": {
+      "rows": 1387,
+      "known": 339,
+      "required_refusals": 1048,
+      "teacher": {
+        "accepted": 807,
+        "accepted_correct": 192,
+        "accepted_errors": 615,
+        "unsupported_refused": 497,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 592,
+        "accepted_correct": 213,
+        "accepted_errors": 379,
+        "unsupported_refused": 706,
+        "previous_correct_lost": 3,
+        "choice_changes": 31
+      }
+    },
+    "prior_residual_reservation": {
+      "rows": 160,
+      "known": 0,
+      "required_refusals": 160,
+      "teacher": {
+        "accepted": 91,
+        "accepted_correct": 0,
+        "accepted_errors": 91,
+        "unsupported_refused": 69,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 61,
+        "accepted_correct": 0,
+        "accepted_errors": 61,
+        "unsupported_refused": 99,
+        "previous_correct_lost": 0,
+        "choice_changes": 2
+      }
+    }
+  },
+  "host_timing": {
+    "physical_phone": false,
+    "encoding_included": true,
+    "calls_per_batch": 192,
+    "batches": 8,
+    "teacher": {
+      "batch_average_ns": [
+        120204,
+        21298,
+        20351,
+        20276,
+        20331,
+        25436,
+        19717,
+        21353
+      ],
+      "median_batch_average_ns": 20824
+    },
+    "utility_shared": {
+      "batch_average_ns": [
+        121477,
+        121496,
+        22269,
+        22909,
+        22909,
+        21605,
+        21252,
+        22694
+      ],
+      "median_batch_average_ns": 22801
+    },
+    "utility_unshared": {
+      "batch_average_ns": [
+        168986,
+        86073,
+        26219,
+        30086,
+        28638,
+        26703,
+        27326,
+        28606
+      ],
+      "median_batch_average_ns": 28622
+    }
+  },
+  "artifact_sha256": {
+    "neural-core/checkpoints/rich-text-v1/TrainedRichPresence.java": "397a27d1a7736f41ebd15a311d289307e715f0d6c7ed03a05fe6926a61f55e45",
+    "neural-core/checkpoints/rich-text-v1/TrainedRichVocabulary.java": "b277f2a7c97d549632d399929f029c12479d6492eef0deb9aaf2973ab7a37a1d",
+    "neural-core/checkpoints/public-refusal-v1/TrainedPublicRefusal.java": "d79539ac9455ccbb84be796fd334ba3b35cd7193ae9a4d07a1dbd5528ead3fe0",
+    "neural-core/checkpoints/public-decision-v1/TrainedPublicDecision.java": "da4ba0234590894ff874ab35c2c557a4c9053c161528f7652034d5193313d464",
+    "neural-core/checkpoints/utility-expert-v1/TrainedUtilityExpert.java": "2944fd5a67113983ca20fbdd0dc70648dc53025d529444b6c19996e9a495e8c5",
+    "neural-core/fixtures/utility-expert/protocol.json": "971eb9f14e258d67de61f069c056667ba6f15d58bc206692b281b3a801e40aaa",
+    "neural-core/fixtures/utility-expert/rehearsal-protocol.json": "ce2ac455c4e3ccee2d7d6ecf3bd75b8c0a1efa3fc3aa75c65dbd77cb8f3e4180",
+    "neural-core/fixtures/utility-expert/fresh.tsv": "adc025471833aa05b2affa2f296bdf83fea1be7c50215aebbcc3706a41204213",
+    "neural-core/fixtures/utility-expert/provenance.json": "104a397fa5048f904e4efe7685108b293f703380cec2384680513461403e506c",
+    "neural-core/fixtures/text-intents.tsv": "e1aac35b6d45015e0798bb039ab8f6bee33e96720fa72f3f4ebb42c477ba4fd1",
+    "neural-core/fixtures/clinc-subset/rejection.tsv": "ecc3598ed5c2385ecbcd5ab3fef3e5d4ba36112342b0239287ff0a0bf65b1843",
+    "neural-core/fixtures/bilingual-refusal/corpus.tsv": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e",
+    "neural-core/fixtures/massive-refusal/corpus.tsv": "f300371ef4656d78fc22449066250918d5f6270afafb53595232351b1d95b6e8",
+    "neural-core/checkpoints/utility-expert-v2/TrainedUtilityExpert.java": "5d0620826db3f332c0ed8f334c171a9b6ab5e6700cb0f5d0a7ea8190aa6a434b"
+  },
+  "observed_known_retention_passed": false,
+  "promotion_blocker": "3 earlier correct held-out cases lost; all v2 tests already observed; independent v2 positive and physical-device validation absent."
+}

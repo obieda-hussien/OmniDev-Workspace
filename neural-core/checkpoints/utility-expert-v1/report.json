@@ -1,0 +1,324 @@
+{
+  "production_eligible": false,
+  "old_sets": "observed_regressions",
+  "fresh_supported_source": "unused upstream TRAIN, held out from every own fit; volume up/mute only",
+  "candidates": [
+    {
+      "source": "adamw_width0_seed42",
+      "parameters": 6150,
+      "epoch": 5,
+      "epochs_run": 20,
+      "development_macro_accuracy": 0.58568669,
+      "development_macro_nll": 0.941121367,
+      "temperature": 0.75,
+      "policy_utility": 0.656268731
+    },
+    {
+      "source": "adamw_width0_seed97",
+      "parameters": 6150,
+      "epoch": 5,
+      "epochs_run": 20,
+      "development_macro_accuracy": 0.586883024,
+      "development_macro_nll": 0.952004219,
+      "temperature": 0.75,
+      "policy_utility": 0.657693233
+    },
+    {
+      "source": "adamw_width16_seed42",
+      "parameters": 16502,
+      "epoch": 5,
+      "epochs_run": 20,
+      "development_macro_accuracy": 0.498098352,
+      "development_macro_nll": 2.072255182,
+      "temperature": 2.0,
+      "policy_utility": 0.68516576
+    },
+    {
+      "source": "adamw_width16_seed97",
+      "parameters": 16502,
+      "epoch": 5,
+      "epochs_run": 20,
+      "development_macro_accuracy": 0.497623518,
+      "development_macro_nll": 2.155959168,
+      "temperature": 2.0,
+      "policy_utility": 0.681632257
+    },
+    {
+      "source": "frozen_sgd_control",
+      "parameters": 6150,
+      "temperature": 1.0,
+      "policy_utility": 0.65783892
+    }
+  ],
+  "selected_source": "adamw_width16_seed42",
+  "parameters": 16502,
+  "temperature": 2.0,
+  "reject": [
+    1.1,
+    0.8,
+    0.95,
+    0.7,
+    1.1
+  ],
+  "change": [
+    0.8,
+    0.7,
+    1.1,
+    1.1,
+    0.8
+  ],
+  "development_policy_utility": 0.6851657601657594,
+  "train_unique": 2162,
+  "train_balanced": 12456,
+  "evaluations": {
+    "massive_ar": {
+      "rows": 280,
+      "known": 52,
+      "required_refusals": 228,
+      "teacher": {
+        "accepted": 166,
+        "accepted_correct": 14,
+        "accepted_errors": 152,
+        "unsupported_refused": 89,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 156,
+        "accepted_correct": 15,
+        "accepted_errors": 141,
+        "unsupported_refused": 99,
+        "previous_correct_lost": 0,
+        "choice_changes": 1
+      }
+    },
+    "massive_en": {
+      "rows": 280,
+      "known": 52,
+      "required_refusals": 228,
+      "teacher": {
+        "accepted": 172,
+        "accepted_correct": 20,
+        "accepted_errors": 152,
+        "unsupported_refused": 97,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 165,
+        "accepted_correct": 24,
+        "accepted_errors": 141,
+        "unsupported_refused": 104,
+        "previous_correct_lost": 0,
+        "choice_changes": 5
+      }
+    },
+    "regression_all": {
+      "rows": 531,
+      "known": 179,
+      "required_refusals": 352,
+      "teacher": {
+        "accepted": 307,
+        "accepted_correct": 143,
+        "accepted_errors": 164,
+        "unsupported_refused": 202,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 271,
+        "accepted_correct": 143,
+        "accepted_errors": 128,
+        "unsupported_refused": 233,
+        "previous_correct_lost": 5,
+        "choice_changes": 5
+      }
+    },
+    "regression_old_original": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "teacher": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      }
+    },
+    "regression_old_composed_same": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "teacher": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 25,
+        "accepted_correct": 25,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 5,
+        "choice_changes": 0
+      }
+    },
+    "regression_old_composed_cross": {
+      "rows": 120,
+      "known": 0,
+      "required_refusals": 120,
+      "teacher": {
+        "accepted": 76,
+        "accepted_correct": 0,
+        "accepted_errors": 76,
+        "unsupported_refused": 44,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 48,
+        "accepted_correct": 0,
+        "accepted_errors": 48,
+        "unsupported_refused": 72,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      }
+    },
+    "regression_old_fresh_english": {
+      "rows": 114,
+      "known": 34,
+      "required_refusals": 80,
+      "teacher": {
+        "accepted": 59,
+        "accepted_correct": 25,
+        "accepted_errors": 34,
+        "unsupported_refused": 49,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 58,
+        "accepted_correct": 27,
+        "accepted_errors": 31,
+        "unsupported_refused": 50,
+        "previous_correct_lost": 0,
+        "choice_changes": 2
+      }
+    },
+    "regression_old_old_challenge": {
+      "rows": 25,
+      "known": 5,
+      "required_refusals": 20,
+      "teacher": {
+        "accepted": 22,
+        "accepted_correct": 5,
+        "accepted_errors": 17,
+        "unsupported_refused": 3,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 21,
+        "accepted_correct": 5,
+        "accepted_errors": 16,
+        "unsupported_refused": 4,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      }
+    },
+    "fresh_ar": {
+      "rows": 68,
+      "known": 28,
+      "required_refusals": 40,
+      "teacher": {
+        "accepted": 36,
+        "accepted_correct": 8,
+        "accepted_errors": 28,
+        "unsupported_refused": 19,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 33,
+        "accepted_correct": 12,
+        "accepted_errors": 21,
+        "unsupported_refused": 22,
+        "previous_correct_lost": 0,
+        "choice_changes": 4
+      }
+    },
+    "fresh_en": {
+      "rows": 68,
+      "known": 28,
+      "required_refusals": 40,
+      "teacher": {
+        "accepted": 35,
+        "accepted_correct": 7,
+        "accepted_errors": 28,
+        "unsupported_refused": 21,
+        "previous_correct_lost": 0,
+        "choice_changes": 0
+      },
+      "utility": {
+        "accepted": 34,
+        "accepted_correct": 10,
+        "accepted_errors": 24,
+        "unsupported_refused": 22,
+        "previous_correct_lost": 0,
+        "choice_changes": 3
+      }
+    }
+  },
+  "host_timing": {
+    "physical_phone": false,
+    "encoding_included": true,
+    "calls_per_batch": 192,
+    "batches": 8,
+    "teacher": {
+      "batch_average_ns": [
+        28678,
+        22483,
+        20719,
+        20351,
+        20871,
+        20750,
+        20048,
+        104202
+      ],
+      "median_batch_average_ns": 20810
+    },
+    "utility": {
+      "batch_average_ns": [
+        29140,
+        28147,
+        27009,
+        26901,
+        28384,
+        27997,
+        72274,
+        161685
+      ],
+      "median_batch_average_ns": 28265
+    }
+  },
+  "artifact_sha256": {
+    "neural-core/checkpoints/utility-expert-v1/TrainedUtilityExpert.java": "2944fd5a67113983ca20fbdd0dc70648dc53025d529444b6c19996e9a495e8c5",
+    "neural-core/fixtures/utility-expert/protocol.json": "971eb9f14e258d67de61f069c056667ba6f15d58bc206692b281b3a801e40aaa",
+    "neural-core/fixtures/utility-expert/fresh.tsv": "adc025471833aa05b2affa2f296bdf83fea1be7c50215aebbcc3706a41204213",
+    "neural-core/fixtures/utility-expert/provenance.json": "104a397fa5048f904e4efe7685108b293f703380cec2384680513461403e506c"
+  },
+  "observed_known_retention_passed": false
+}

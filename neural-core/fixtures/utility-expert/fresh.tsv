@@ -1,0 +1,137 @@
+source_id	source_partition	locale	intent	expected_domain	text
+5032	train	ar-SA	audio_volume_up	device	ممكن ترفع الصوت
+5032	train	en-US	audio_volume_up	device	can you turn the volume up
+5066	train	ar-SA	audio_volume_up	device	غير مستوى الصوت لتسعطعش من فضلك
+5066	train	en-US	audio_volume_up	device	change the volume level to nineteen please
+5190	train	ar-SA	audio_volume_up	device	خلي الصوت أعلى
+5190	train	en-US	audio_volume_up	device	make sound louder
+5191	train	ar-SA	audio_volume_up	device	ارفع صوت السماعة اكثر
+5191	train	en-US	audio_volume_up	device	turn up speakers
+5192	train	ar-SA	audio_volume_up	device	صوت أكثر لو سمحت
+5192	train	en-US	audio_volume_up	device	more volume please
+5220	train	ar-SA	audio_volume_up	device	حط صوت السماعة على أعلى شي
+5220	train	en-US	audio_volume_up	device	make the speaker volume on maximum
+5277	train	ar-SA	audio_volume_up	device	من فضلك ارفع الصوف في مشغل الموسيقى
+5277	train	en-US	audio_volume_up	device	please increase volume in music player
+5294	train	ar-SA	audio_volume_up	device	ممكن ترفعه شوية
+5294	train	en-US	audio_volume_up	device	can you turn it up a little
+5392	train	ar-SA	audio_volume_up	device	ارفع صوت الملف الصوتي حقي
+5392	train	en-US	audio_volume_up	device	turn my audio higher
+5580	train	ar-SA	audio_volume_up	device	سلام خلي الصوت عالي
+5580	train	en-US	audio_volume_up	device	hey turn the volume high
+5725	train	ar-SA	audio_volume_up	device	ارفع صوتك
+5725	train	en-US	audio_volume_up	device	raise your volume
+5822	train	ar-SA	audio_volume_up	device	ارفع
+5822	train	en-US	audio_volume_up	device	turn up
+5922	train	ar-SA	audio_volume_up	device	من فضلك ارفع الصوت حق السماعة
+5922	train	en-US	audio_volume_up	device	please raise the volume of speaker
+5923	train	ar-SA	audio_volume_up	device	أبغى صوت عالي
+5923	train	en-US	audio_volume_up	device	i need a high volume
+5148	train	ar-SA	audio_volume_mute	device	شغل الوضع الصامت الثلاثة الساعات الجاية
+5148	train	en-US	audio_volume_mute	device	silent mode on for the next three hours
+5283	train	ar-SA	audio_volume_mute	device	من فضلك اكتم نفسك
+5283	train	en-US	audio_volume_mute	device	please mute yourself
+5549	train	ar-SA	audio_volume_mute	device	ادخل الوضع الصامت
+5549	train	en-US	audio_volume_mute	device	enter silence mode
+5717	train	ar-SA	audio_volume_mute	device	من فضلك اكتم التلفاز لمدة ساعة وحده
+5717	train	en-US	audio_volume_mute	device	please mute the television for one hour
+5718	train	ar-SA	audio_volume_mute	device	خلي نظام الموسيقى صامت
+5718	train	en-US	audio_volume_mute	device	set music system to mute
+5719	train	ar-SA	audio_volume_mute	device	تقدر تضبط الراديو على كتم
+5719	train	en-US	audio_volume_mute	device	can you set radio to mute
+5841	train	ar-SA	audio_volume_mute	device	هادي
+5841	train	en-US	audio_volume_mute	device	quiet
+5842	train	ar-SA	audio_volume_mute	device	شغل الوضع الصامت
+5842	train	en-US	audio_volume_mute	device	activate silent
+5959	train	ar-SA	audio_volume_mute	device	أبغاك تصمت
+5959	train	en-US	audio_volume_mute	device	i want you to mute
+6031	train	ar-SA	audio_volume_mute	device	بطل ازعاج
+6031	train	en-US	audio_volume_mute	device	turn down the noise
+6032	train	ar-SA	audio_volume_mute	device	التحكم بالصوت
+6032	train	en-US	audio_volume_mute	device	volume control
+6065	train	ar-SA	audio_volume_mute	device	لا ترد لمدة خمسين ثانية
+6065	train	en-US	audio_volume_mute	device	don't respond for fifty seconds
+6167	train	ar-SA	audio_volume_mute	device	ما أبي اشعارات لمدة خمسة دقايق
+6167	train	en-US	audio_volume_mute	device	no notifications for five minutes
+6168	train	ar-SA	audio_volume_mute	device	olly ما أبي اشعارات لخمسة دقايق
+6168	train	en-US	audio_volume_mute	device	olly no notifications for five minutes
+2408	test	ar-SA	play_music	-	دور على أغاني كمان من الفرقة هاذي
+2408	test	en-US	play_music	-	search for more songs from the band
+2527	test	ar-SA	play_music	-	شغل classic rock
+2527	test	en-US	play_music	-	play classic rock
+2531	test	ar-SA	play_music	-	تلعب اليكسا أغنية مي من موسيقى راب و الروك الواحد تلو الآخر
+2531	test	en-US	play_music	-	alexa play a mi song of rap and rock one after the other
+2560	test	ar-SA	play_music	-	شغل موسيقى عشوائية
+2560	test	en-US	play_music	-	play random music
+2573	test	ar-SA	play_music	-	شغل spotify حقي رقص شغل قائمة
+2573	test	en-US	play_music	-	play my spotify dance play list
+2605	test	ar-SA	play_music	-	شغلي الموسيقى المفضلة حقي الحين
+2605	test	en-US	play_music	-	play my favorite music now
+2703	test	ar-SA	play_music	-	اشخاص موسيقى
+2703	test	en-US	play_music	-	please play folk music
+2704	test	ar-SA	play_music	-	خلنا نسمع شوية روك اوكي
+2704	test	en-US	play_music	-	let's hear some indie rock okay
+2708	test	ar-SA	play_music	-	olly أبي أرقص شغلي لي شوية rock north roll
+2708	test	en-US	play_music	-	olly i feel like dancing play me some rock north roll
+2709	test	ar-SA	play_music	-	أولي ابغى اسمع اغاني حزينة اليوم
+2709	test	en-US	play_music	-	olly i need to hear some sad songs today
+16501	test	ar-SA	email_sendemail	-	تكفى أرسل email لصديقتي مها وقول لها كيف حالك
+16501	test	en-US	email_sendemail	-	please send a mail to my friend divya how are you
+16506	test	ar-SA	email_sendemail	-	ظيف عنوان email جديد وارسل email
+16506	test	en-US	email_sendemail	-	add new email address and send email
+16518	test	ar-SA	email_sendemail	-	ضيف email جديد لسلوى القرشي
+16518	test	en-US	email_sendemail	-	add a new email for julie smith
+16519	test	ar-SA	email_sendemail	-	أبغى أضيف email جديد في جهات الإتصال حقي
+16519	test	en-US	email_sendemail	-	i need to add a new email to my contacts
+16535	test	ar-SA	email_sendemail	-	ممكن تكتب email لخلود
+16535	test	en-US	email_sendemail	-	can you write an email to chelsea
+16559	test	ar-SA	email_sendemail	-	أرسل رد لياسر بالإجابة أربعمية وثلاثين من ايميله اللي أرسله الصبح
+16559	test	en-US	email_sendemail	-	send a reply to mike with the answer four hundred and thirty from his email he sent this morning
+16560	test	ar-SA	email_sendemail	-	رد على email المدراء بكلمة إني بكون موجود في الساعة أربعة العصر
+16560	test	en-US	email_sendemail	-	respond to my bosses email with the word that i will be in at four in the evening
+16591	test	ar-SA	email_sendemail	-	وصلني ايميل جديد من رولا رح ارد عليه بعد وقت
+16591	test	en-US	email_sendemail	-	i just got an email from bill i need to answer it right now
+16593	test	ar-SA	email_sendemail	-	هذا البريد الإلكتروني الأخير يحتاج إلى إجابة asa p
+16593	test	en-US	email_sendemail	-	that last email needs to be answer a. s. a. p.
+16605	test	ar-SA	email_sendemail	-	اكتب وأرسل email لمديرتي
+16605	test	en-US	email_sendemail	-	write and send email to my boss
+7355	test	ar-SA	calendar_set	-	ذكرني أشيك عالشوربة الساعة ستة
+7355	test	en-US	calendar_set	-	remind me to check the stew at six o'clock
+7449	test	ar-SA	calendar_set	-	بالله جدول موعد اجتماع مع هدا الشخص
+7449	test	en-US	calendar_set	-	please schedule a meeting with this person
+7450	test	ar-SA	calendar_set	-	أحتاج إلى اجتماع عشان أحدد موعد مع هذا الشخص
+7450	test	en-US	calendar_set	-	i need a meeting to be schedule with this person
+7455	test	ar-SA	calendar_set	-	ذكرني بالحفلة بكره
+7455	test	en-US	calendar_set	-	remind me about the party tomorrow
+7461	test	ar-SA	calendar_set	-	إعزم الناس على المناسبة
+7461	test	en-US	calendar_set	-	invite people to the calendar event
+7463	test	ar-SA	calendar_set	-	علم قروبي بموعد الاجتماع الجديد انه صار بكره
+7463	test	en-US	calendar_set	-	inform my group that the new meeting date is tomorrow
+7477	test	ar-SA	calendar_set	-	ذكرني كل سنة يوم خمسة مارس أجهز هدايا لذكرى الزواج
+7477	test	en-US	calendar_set	-	remind me on fifth march of every year to arrange wedding anniversary presents
+7499	test	ar-SA	calendar_set	-	سوي جدول جديد لإجتماع بكرة
+7499	test	en-US	calendar_set	-	make new schedule for tomorrow meeting
+7520	test	ar-SA	calendar_set	-	ذكرني كل يوم الساعة ثنتين العصر بالغداء
+7520	test	en-US	calendar_set	-	remind me everyday at two p. m. for lunch
+7528	test	ar-SA	calendar_set	-	يوم ثلاثطعش صفر هو يوم حفل التخرج من الجامعة لو سمحت ضيفه
+7528	test	en-US	calendar_set	-	thirteenth june is a day of election result please set it
+3337	test	ar-SA	weather_query	-	تقرير الطقس عن ثلاثة وثلاثون الفا وسبعة مئة و أربع و سبعين
+3337	test	en-US	weather_query	-	report weather for thirty three thousand seven hundred and seventy four
+3338	test	ar-SA	weather_query	-	تقرير الطقس جدة
+3338	test	en-US	weather_query	-	report weather for largo
+3406	test	ar-SA	weather_query	-	ما هي توقعات العشرة أياما هي توقعات عشر أيام
+3406	test	en-US	weather_query	-	what is the ten day forecast
+3407	test	ar-SA	weather_query	-	هل هناك توقعات مطر أو ثلج هذا الاسبوع
+3407	test	en-US	weather_query	-	are there any forecasts of rain or snow this week
+3408	test	ar-SA	weather_query	-	هل سيكون الطقس لطيف في هذي العطلة
+3408	test	en-US	weather_query	-	is the weather going to be nice this weekend
+3426	test	ar-SA	weather_query	-	ما هي درجة خارج
+3426	test	en-US	weather_query	-	what degree is it outside
+3447	test	ar-SA	weather_query	-	هل سوف تمطر السبت
+3447	test	en-US	weather_query	-	does the weather call for rain saturday
+3503	test	ar-SA	weather_query	-	ما هو الطقس في جيزان
+3503	test	en-US	weather_query	-	what is the weather in pittsburgh
+3507	test	ar-SA	weather_query	-	هل هناك ثلج في التوقعات
+3507	test	en-US	weather_query	-	is there snow in the forecast
+3516	test	ar-SA	weather_query	-	ما هي احتمالية نزول أمطار في طقس اليوم
+3516	test	en-US	weather_query	-	what is the chance of precipitation in todays weather

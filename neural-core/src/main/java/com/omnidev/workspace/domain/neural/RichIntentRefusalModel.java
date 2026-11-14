@@ -36,12 +36,26 @@ public final class RichIntentRefusalModel {
         TinyDecisionModel.Decision original = prior.classifyFeatures(base, minimumProbability, minimumMargin);
         if (original.status == TinyDecisionModel.Status.ABSTAIN) return original;
         float[] features = encoder.extendNormalized(normalized, base);
+        return classifyFeatures(original, features);
+    }
+    private TinyDecisionModel.Decision classifyFeatures(TinyDecisionModel.Decision original, float[] features) {
         TinyDecisionModel.Decision decision = refine(original, presence.infer(features), threshold, requireMatch);
         if (decision.status == TinyDecisionModel.Status.ABSTAIN || refusal == null) return decision;
         float score = refusal.infer(features)[0];
         if (!Float.isFinite(score) || score < 0 || score > 1) throw new IllegalArgumentException("Refusal score outside probability range");
         return score >= refusalCutoff ? decision.asAbstention() : decision;
     }
+    static final class Prepared {
+        final TinyDecisionModel.Decision decision; final float[] features;
+        Prepared(TinyDecisionModel.Decision decision,float[] features){this.decision=decision;this.features=features;}
+    }
+    Prepared prepare(String text,double probability,double margin) {
+        String normalized=BilingualTextEncoder.normalize(text);float[] base=BilingualTextEncoder.encodeNormalized(normalized);
+        TinyDecisionModel.Decision original=prior.classifyFeatures(base,probability,margin);
+        if(original.status==TinyDecisionModel.Status.ABSTAIN)return new Prepared(original,null);
+        float[] features=encoder.extendNormalized(normalized,base);return new Prepared(classifyFeatures(original,features),features);
+    }
+    String featureFingerprint(){return encoder.fingerprint();}
     static TinyDecisionModel.Decision refine(TinyDecisionModel.Decision original, float[] scores, double threshold, boolean requireMatch) {
         if (original.status == TinyDecisionModel.Status.ABSTAIN) return original;
         if (scores == null || scores.length != 5) throw new IllegalArgumentException("Invalid presence score schema");
@@ -55,4 +69,6 @@ public final class RichIntentRefusalModel {
         if (count > 1 || requireMatch && (count != 1 || !LABELS[selected].equals(original.choice))) return original.asAbstention();
         return original;
     }
+    // Optional proposal adapters share these immutable weights; this score never grants execution authority.
+    float[] domainSupport(float[] features) { return presence.infer(features); }
 }

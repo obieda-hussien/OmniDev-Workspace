@@ -1,0 +1,11 @@
+{
+  "version": "utility-expert-v2-rehearsal",
+  "before_followup_fit": true,
+  "evaluation_status": "All original and previously reserved 136 utility observations have now been scored by v1. Every v2 test is an observed follow-up regression, not a fresh independent evaluation.",
+  "unchanged_fits": "Repeat the exact four width0/16, seed42/97 mini-batch AdamW fits, distillation, data, early stopping and calibration from utility-expert-v1. Retain frozen SGD control as eligible. No new model calls or test-derived labels enter fitting.",
+  "rehearsal": "In addition to zero lost prior-correct known development cases, require zero lost prior-correct known TRAINING examples across all languages/domains when fitting policy. Training rows constrain retention only and never contribute to development utility. Bound at most10000 rehearsal observations.",
+  "domain_support_guard": "Reuse the frozen teacher's existing five-domain presence network on the same fitted features. A rejection is allowed only when its prior-domain presence score is below a learned support cutoff. Do not treat neural presence as permission or evidence. The extra condition cannot upgrade an existing teacher refusal.",
+  "policy_grid": "For each teacher domain enumerate descending reject1.1/.99/.95/.9/.8/.7/.6/.5, descending switch1.1/.99/.95/.9/.8/.7/.6, and ascending support.5/.6/.7/.8/.9/.95/1.1. Maximize development language/outcome balanced correctness subject to both retention sets. Ties keep earlier, more conservative actions and stronger support protection. 1.1 disables an action or support protection as appropriate. Switching is unchanged and needs probability cutoff and margin>.15.",
+  "selection": "Rank four refitted models and frozen SGD control by development fitted-policy utility, then smaller parameters, then development NLL. Export before rescoring any observed test. Store v1 report/weights unchanged as the initial result and publish all v2 regressions, even if the new policy fails.",
+  "production_eligible": false
+}
