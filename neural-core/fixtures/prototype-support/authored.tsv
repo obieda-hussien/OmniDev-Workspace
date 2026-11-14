@@ -1,0 +1,76 @@
+id	group	language	expected_domain	kind	text
+authored-branch-rules-en	authored-branch-rules	en	repository	supported	Read the protection rules for the main branch in this GitHub project
+authored-branch-rules-ar	authored-branch-rules	ar	repository	supported	هات قواعد الحماية لفرع مين في مشروع جيتهوب ده
+authored-branch-rules-mixed	authored-branch-rules	mixed	repository	supported	هات branch protection rules للـmain في GitHub
+authored-tag-commit-en	authored-tag-commit	en	repository	supported	Find the commit attached to the latest repository tag
+authored-tag-commit-ar	authored-tag-commit	ar	repository	supported	شوف آخر علامة إصدار في المستودع بتشير لأي كوميت
+authored-tag-commit-mixed	authored-tag-commit	mixed	repository	supported	اعرض commit بتاع آخر repository tag
+authored-review-thread-en	authored-review-thread	en	repository	supported	Inspect unresolved review threads on this pull request
+authored-review-thread-ar	authored-review-thread	ar	repository	supported	راجع التعليقات اللي لسه مفتوحة على طلب الدمج ده
+authored-review-thread-mixed	authored-review-thread	mixed	repository	supported	افحص unresolved review threads في الـpull request
+authored-two-reads-en	authored-two-reads	en	repository	supported	List repository tags and then inspect the commit for one tag
+authored-two-reads-ar	authored-two-reads	ar	repository	supported	اعرض علامات إصدار المستودع وبعدها اقرأ كوميت علامة منهم
+authored-two-reads-mixed	authored-two-reads	mixed	repository	supported	هات repo tags وبعدها inspect tag commit
+authored-target-one-test-en	authored-target-one-test	en	build	supported	Execute only the Room migration unit test with the Gradle test filter
+authored-target-one-test-ar	authored-target-one-test	ar	build	supported	شغل اختبار ترحيل قاعدة روم لوحده بفلتر اختبارات جرادل
+authored-target-one-test-mixed	authored-target-one-test	mixed	build	supported	شغل Room migration test بس باستخدام Gradle --tests
+authored-kotlin-warning-en	authored-kotlin-warning	en	build	supported	Compile the Kotlin test sources and show compiler warnings
+authored-kotlin-warning-ar	authored-kotlin-warning	ar	build	supported	جمّع مصادر اختبارات كوتلن واعرض تحذيرات المترجم
+authored-kotlin-warning-mixed	authored-kotlin-warning	mixed	build	supported	اعمل compile للـKotlin test sources وهات compiler warnings
+authored-report-path-en	authored-report-path	en	build	supported	Run the JVM tests and locate the generated JUnit XML report
+authored-report-path-ar	authored-report-path	ar	build	supported	نفذ اختبارات جي في إم وحدد مكان تقرير جي يونت الناتج
+authored-report-path-mixed	authored-report-path	mixed	build	supported	شغل JVM tests وهات path بتاع JUnit XML report
+authored-two-checks-en	authored-two-checks	en	build	supported	Build the norm debug variant and then execute its unit tests
+authored-two-checks-ar	authored-two-checks	ar	build	supported	ابني نسخة نورم للتجربة وبعدها نفذ اختبارات الوحدة لنفس النسخة
+authored-two-checks-mixed	authored-two-checks	mixed	build	supported	اعمل assembleNormDebug وبعدها testNormDebugUnitTest
+authored-orientation-en	authored-orientation	en	device	supported	Inspect the current Android screen rotation setting
+authored-orientation-ar	authored-orientation	ar	device	supported	افحص إعداد تدوير شاشة أندرويد الحالي
+authored-orientation-mixed	authored-orientation	mixed	device	supported	اقرأ Android screen rotation setting الحالي
+authored-notification-access-en	authored-notification-access	en	device	supported	Check which phone apps currently have notification access
+authored-notification-access-ar	authored-notification-access	ar	device	supported	شوف تطبيقات الموبايل اللي مسموحلها تقرأ الإشعارات
+authored-notification-access-mixed	authored-notification-access	mixed	device	supported	اعرض apps اللي عندها notification access على الجهاز
+authored-display-timeout-en	authored-display-timeout	en	device	supported	Read the phone screen timeout before proposing a new value
+authored-display-timeout-ar	authored-display-timeout	ar	device	supported	اقرأ مدة إطفاء شاشة الموبايل قبل اقتراح قيمة جديدة
+authored-display-timeout-mixed	authored-display-timeout	mixed	device	supported	هات screen timeout الحالي قبل أي تغيير على Android
+authored-two-observations-en	authored-two-observations	en	device	supported	Inspect phone battery state and then read the display brightness
+authored-two-observations-ar	authored-two-observations	ar	device	supported	افحص حالة بطارية الموبايل وبعدها اقرأ درجة سطوع الشاشة
+authored-two-observations-mixed	authored-two-observations	mixed	device	supported	افحص battery state وبعدها اقرأ display brightness
+authored-room-docs-en	authored-room-docs	en	knowledge	supported	Find official documentation explaining Room migration validation and cite it
+authored-room-docs-ar	authored-room-docs	ar	knowledge	supported	هات التوثيق الرسمي اللي بيشرح التحقق من ترحيل روم مع المصدر
+authored-room-docs-mixed	authored-room-docs	mixed	knowledge	supported	دور على official Room migration validation docs مع citation
+authored-paper-limits-en	authored-paper-limits	en	knowledge	supported	Retrieve the paper and quote the stated limitations of its experiment
+authored-paper-limits-ar	authored-paper-limits	ar	knowledge	supported	هات الورقة العلمية واقتبس القيود المذكورة للتجربة
+authored-paper-limits-mixed	authored-paper-limits	mixed	knowledge	supported	هات paper limitations واقتباس موثوق من المصدر
+authored-note-source-en	authored-note-source	en	knowledge	supported	Locate the saved architecture note and identify its original source
+authored-note-source-ar	authored-note-source	ar	knowledge	supported	دور على مذكرة المعمارية المحفوظة وحدد مصدرها الأصلي
+authored-note-source-mixed	authored-note-source	mixed	knowledge	supported	هات saved architecture note وحدد original source
+authored-two-citations-en	authored-two-citations	en	knowledge	supported	Find the coroutine cancellation guide and quote two relevant passages
+authored-two-citations-ar	authored-two-citations	ar	knowledge	supported	هات دليل إلغاء الكوروتين واقتبس منه فقرتين مناسبتين
+authored-two-citations-mixed	authored-two-citations	mixed	knowledge	supported	دور في coroutine cancellation guide وهات two citations
+authored-greeting-en	authored-greeting	en	chat	supported	Good evening, how has your day been going
+authored-greeting-ar	authored-greeting	ar	chat	supported	مساء الفل عامل إيه في يومك
+authored-greeting-mixed	authored-greeting	mixed	chat	supported	Good evening يا صاحبي عامل إيه
+authored-encouragement-en	authored-encouragement	en	chat	supported	Give me a short encouraging message before I start studying
+authored-encouragement-ar	authored-encouragement	ar	chat	supported	قول لي كلمة تشجيع صغيرة قبل ما أفتح المذاكرة
+authored-encouragement-mixed	authored-encouragement	mixed	chat	supported	اديني short encouragement قبل studying
+authored-wordplay-en	authored-wordplay	en	chat	supported	Tell me a light wordplay joke for a quick break
+authored-wordplay-ar	authored-wordplay	ar	chat	supported	احكي لي نكتة خفيفة ألعب فيها بالكلمات في الاستراحة
+authored-wordplay-mixed	authored-wordplay	mixed	chat	supported	هات wordplay joke خفيفة للـbreak
+authored-thanks-en	authored-thanks	en	chat	supported	I appreciate the help, that explanation was clear
+authored-thanks-ar	authored-thanks	ar	chat	supported	متشكر على مساعدتك الشرح ده كان واضح لي
+authored-thanks-mixed	authored-thanks	mixed	chat	supported	Thanks على المساعدة الشرح كان clear
+authored-taxi-en	authored-taxi	en	-	requires_refusal	Arrange an airport cab for next Tuesday after sunrise
+authored-taxi-ar	authored-taxi	ar	-	requires_refusal	رتب لي عربية أجرة للمطار يوم التلات بعد شروق الشمس
+authored-taxi-mixed	authored-taxi	mixed	-	requires_refusal	اعمل airport cab reservation ليوم Tuesday بعد sunrise
+authored-bank-en	authored-bank	en	-	requires_refusal	Transfer money from my bank account to pay the rent
+authored-bank-ar	authored-bank	ar	-	requires_refusal	حوّل مبلغ من حساب البنك عشان تدفع الإيجار
+authored-bank-mixed	authored-bank	mixed	-	requires_refusal	اعمل bank transfer عشان rent payment
+authored-vague-en	authored-vague	en	-	requires_refusal	Do the thing we have not described yet
+authored-vague-ar	authored-vague	ar	-	requires_refusal	اعمل الحاجة اللي لسه ما قلناش هي إيه
+authored-vague-mixed	authored-vague	mixed	-	requires_refusal	Handle الموضوع اللي مش محددينه لسه
+authored-cross-domain-en	authored-cross-domain	en	-	requires_refusal	Inspect the GitHub diff and then turn down phone brightness
+authored-cross-domain-ar	authored-cross-domain	ar	-	requires_refusal	افحص فرق تعديلات جيتهوب وبعدها قلل سطوع الموبايل
+authored-cross-domain-mixed	authored-cross-domain	mixed	-	requires_refusal	راجع GitHub diff وبعدها قلل Android brightness
+authored-hotel-en	authored-hotel	en	-	requires_refusal	Reserve a hotel room for two travellers next weekend
+authored-hotel-ar	authored-hotel	ar	-	requires_refusal	احجز أوضة فندق لشخصين في نهاية الأسبوع الجاي
+authored-hotel-mixed	authored-hotel	mixed	-	requires_refusal	اعمل hotel reservation لشخصين next weekend
