@@ -35,6 +35,11 @@ public final class GatedTextIntentModel {
         domain = new TinyDecisionModel(domainNetwork, labels, domainTemperature);
     }
 
+    String checkpointFingerprint() {
+        CheckpointFingerprint hash=new CheckpointFingerprint("gated-text-v1").text(BilingualTextEncoder.VERSION).text(domain.checkpointFingerprint()).integer(refusalHeads.length);
+        for(RefusalHead head:refusalHeads)hash.text(head.model.checkpointFingerprint()).number(head.threshold);return hash.finish();
+    }
+
     public TinyDecisionModel.Decision classify(String text, double minimumProbability, double minimumMargin) {
         return classifyFeatures(BilingualTextEncoder.encode(text), minimumProbability, minimumMargin);
     }

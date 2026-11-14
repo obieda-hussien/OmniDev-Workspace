@@ -100,6 +100,12 @@ public final class TinyNeuralRuntime {
     public TinyNeuralRuntime withSparseInput() { return new TinyNeuralRuntime(true, layers); }
 
     public int parameterCount() { return parameterCount; }
+    String checkpointFingerprint() {
+        CheckpointFingerprint hash=new CheckpointFingerprint("tiny-dense-fp32-v1").integer(layers.length);
+        for(Dense layer:layers)hash.integer(layer.inputs).integer(layer.outputs).text(layer.activation.name()).floats(layer.weights).floats(layer.bias);
+        return hash.finish();
+    }
+
     public int inputSize() { return layers[0].inputSize(); }
     public int outputSize() { return layers[layers.length - 1].outputSize(); }
 

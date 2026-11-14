@@ -13,7 +13,7 @@ val prepareFixtures by tasks.registering(Exec::class) {
         },
         rootProject.fileTree("scripts") {
             include("import_clinc_rejection.py", "prepare_bilingual_refusal.py", "prepare_massive_refusal.py",
-                "reserve_residual_eval.py", "reserve_utility_eval.py", "prepare_prototype_challenges.py")
+                "reserve_residual_eval.py", "reserve_utility_eval.py", "prepare_prototype_challenges.py", "reserve_trust_eval.py")
         },
         rootProject.file("scripts/prepare_neural_android_fixtures.sh"))
     outputs.dir(fixtureDirectory)
