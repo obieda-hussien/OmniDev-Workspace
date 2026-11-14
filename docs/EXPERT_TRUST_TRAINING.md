@@ -81,3 +81,8 @@ bash scripts/prepare_neural_android_fixtures.sh /tmp/omni-neural-fixtures
 ```
 
 `--source-target-only` is a constrained-host fallback; strict API compatibility is a separate CI check. Database schema and normal APK behavior are unchanged. The next quality milestone requires independent supported developer/device/chat examples, carefully reviewed mixed-language keep/use labels and broader Arabic refusals; repeated scoring of these same tests cannot establish that milestone.
+
+
+## Broader supported supervision follow-up
+
+[CONTRACT_INTENT_TRAINING.md](CONTRACT_INTENT_TRAINING.md) adds source-anchored authored examples while keeping the old representation/optimizer/runtime fixed. It reports protected-policy gains at the same parameter count, and preserves the remaining old/new failures. These authored scenarios do not replace independent traffic or physical-device validation.

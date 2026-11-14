@@ -115,3 +115,8 @@ The isolated test APK adds 1,070 bank/policy probes and requires `prototype_pari
 ## Counterfactual trust selector
 
 The isolated test APK adds1,150 trust-v1 cases and requires fresh `trust_parity_passed`/`trust_probes` results. Full frozen-base fingerprints, fixed numerical risk inputs, whole-text decisions, dense/sparse identity and corruption rejection are verified. Both the initial and paired-rehearsal models fail retention; neither is activated in the app. See [EXPERT_TRUST_TRAINING.md](EXPERT_TRUST_TRAINING.md).
+
+
+## Source-anchored intent coverage
+
+The isolated test APK adds 1,366 new-weight/policy cases and requires fresh `contract_parity_passed`/`contract_probes` fields. Protected and raw diagnostic outputs remain separate; only the protected path preserves prior abstentions. Source-definition anchors are not execution evidence. See [CONTRACT_INTENT_TRAINING.md](CONTRACT_INTENT_TRAINING.md) for the four-fit data experiment, real improvements and unresolved retention failures.

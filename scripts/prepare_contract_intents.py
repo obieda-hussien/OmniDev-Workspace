@@ -138,7 +138,9 @@ def validate(data):
 
 def verify():
     p=json.loads((DEST/'provenance.json').read_text())
-    if p['author']!='assistant-authored source-anchored engineering examples' or p['independent_human_annotations'] is not False:raise ValueError('Authorship claim changed')
+    if p['author']!='assistant-authored source-anchored engineering examples' or p['independent_human_annotations'] is not False or p['runtime_execution_verified'] is not False or p['rows']!=216 or p['groups']!=72:raise ValueError('Authorship claim changed')
+    expected_files={'neural-core/fixtures/contract-intents/corpus.tsv','neural-core/fixtures/contract-intents/protocol.json'}|{path for path,_ in ANCHORS.values()}
+    if set(p['files'])!=expected_files:raise ValueError('Missing or unrelated corpus/source pin')
     for path,expected in p['files'].items():
         if hashlib.sha256((ROOT/path).read_bytes()).hexdigest()!=expected:raise ValueError('Frozen source/corpus hash changed:'+path)
     if set(p['anchors'])!=set(ANCHORS):raise ValueError('Contract anchors changed')

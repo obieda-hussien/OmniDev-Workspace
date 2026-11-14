@@ -6,14 +6,14 @@ val prepareFixtures by tasks.registering(Exec::class) {
     inputs.files(rootProject.fileTree("neural-core/src/main/java"),
         rootProject.fileTree("neural-core/training"), rootProject.fileTree("neural-core/fixtures"), rootProject.fileTree("neural-core/checkpoints"),
         rootProject.fileTree("neural-core/smoke") {
-            include("*AndroidFixtureExporter.java", "AndroidProbeSmoke.java")
+            include("*AndroidFixtureExporter.java", "AndroidProbeSmoke.java", "ContractIntentCheckpointSmoke.java")
         },
         fileTree("src/androidTest/java/com/omnidev/workspace/neural/probe") {
             include("*ProbeContract.java")
         },
         rootProject.fileTree("scripts") {
             include("import_clinc_rejection.py", "prepare_bilingual_refusal.py", "prepare_massive_refusal.py",
-                "reserve_residual_eval.py", "reserve_utility_eval.py", "prepare_prototype_challenges.py", "reserve_trust_eval.py")
+                "reserve_residual_eval.py", "reserve_utility_eval.py", "prepare_prototype_challenges.py", "reserve_trust_eval.py", "prepare_contract_intents.py")
         },
         rootProject.file("scripts/prepare_neural_android_fixtures.sh"))
     outputs.dir(fixtureDirectory)

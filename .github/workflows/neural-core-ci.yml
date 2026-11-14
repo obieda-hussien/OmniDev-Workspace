@@ -26,6 +26,9 @@ on:
       - 'scripts/train_utility_expert.sh'
       - 'scripts/train_prototype_support.sh'
       - 'scripts/train_expert_trust.sh'
+      - 'scripts/train_contract_intents.sh'
+      - 'scripts/prepare_contract_intents.py'
+      - 'scripts/test_contract_intents.py'
       - 'scripts/reserve_trust_eval.py'
       - 'scripts/test_trust_data.py'
       - 'scripts/prepare_prototype_challenges.py'
@@ -62,6 +65,9 @@ on:
       - 'scripts/train_utility_expert.sh'
       - 'scripts/train_prototype_support.sh'
       - 'scripts/train_expert_trust.sh'
+      - 'scripts/train_contract_intents.sh'
+      - 'scripts/prepare_contract_intents.py'
+      - 'scripts/test_contract_intents.py'
       - 'scripts/reserve_trust_eval.py'
       - 'scripts/test_trust_data.py'
       - 'scripts/prepare_prototype_challenges.py'
@@ -289,6 +295,32 @@ jobs:
           path: |
             build/expert-trust/
             build/expert-trust-v2/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  contract-training:
+    name: Source-anchored corpus training + policy integrity
+    needs: java-compat
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify source anchors, four data-coverage fits, control and compiled policies
+        run: |
+          python3 scripts/test_contract_intents.py
+          bash scripts/train_contract_intents.sh
+      - name: Upload data-coverage weights and complete retained quality failures
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: contract-intents-${{ github.run_id }}
+          path: build/contract-intents/
           if-no-files-found: ignore
           retention-days: 30
 
