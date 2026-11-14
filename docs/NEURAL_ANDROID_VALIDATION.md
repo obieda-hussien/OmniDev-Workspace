@@ -105,3 +105,8 @@ See [BOUNDED_RESIDUAL_TRAINING.md](BOUNDED_RESIDUAL_TRAINING.md) for the six-fit
 ## Utility policy parity extension
 
 See [UTILITY_AWARE_EXPERT_TRAINING.md](UTILITY_AWARE_EXPERT_TRAINING.md) for mini-batch AdamW, correct-teacher distillation, domain-specific selection and training rehearsal. V2 improves measured outcomes but loses three earlier correct cases and remains ineligible for production. The standalone test APK adds 995 utility probes without changing normal APK dependencies.
+
+
+## Bounded prototype support follow-up
+
+The isolated test APK adds 1,070 bank/policy probes and requires `prototype_parity_passed` with the exact count in a fresh run report. Host generation additionally rejects corrupted bank metadata, cutoffs, decisions and truncated fixtures. This verifies runtime compatibility; the new authored mixed-language retention failure still blocks production. See [PROTOTYPE_SUPPORT_TRAINING.md](PROTOTYPE_SUPPORT_TRAINING.md).

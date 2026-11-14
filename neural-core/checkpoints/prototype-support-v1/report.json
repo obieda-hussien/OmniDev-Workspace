@@ -1,0 +1,419 @@
+{
+  "production_eligible": false,
+  "prior_sets": "observed_regressions",
+  "authored_suite": "new_assistant_authored_challenge_not_independent_traffic",
+  "prototype_floats": 15360,
+  "prototype_count": 15,
+  "training_rows_by_stratum": [
+    8,
+    8,
+    8,
+    8,
+    8,
+    8,
+    37,
+    62,
+    8,
+    8,
+    8,
+    8,
+    40,
+    206,
+    8
+  ],
+  "training_groups_by_stratum": [
+    8,
+    8,
+    8,
+    8,
+    8,
+    8,
+    37,
+    62,
+    8,
+    8,
+    8,
+    8,
+    40,
+    206,
+    8
+  ],
+  "calibration_correct_counts": [
+    5,
+    6,
+    16,
+    4,
+    38
+  ],
+  "cutoffs": [
+    0.26723553409576417,
+    0.36132513155937196,
+    0.08877441456317901,
+    0.24914424290657045,
+    0.08219652047157287
+  ],
+  "enabled": [
+    true,
+    true,
+    false,
+    false,
+    true
+  ],
+  "development_teacher_score": [
+    0.3072261072261072,
+    0.10722610722610723,
+    0.32937062937062933,
+    0.23030303030303031,
+    0.9459207459207454
+  ],
+  "development_guarded_score": [
+    0.48987678987678984,
+    0.23437673437673437,
+    0.32937062937062933,
+    0.23030303030303031,
+    1.1205655455655446
+  ],
+  "evaluations": {
+    "old_observed": {
+      "rows": 1387,
+      "known": 339,
+      "required_refusals": 1048,
+      "teacher": {
+        "accepted": 807,
+        "accepted_correct": 192,
+        "accepted_errors": 615,
+        "unsupported_refused": 497,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 592,
+        "accepted_correct": 213,
+        "accepted_errors": 379,
+        "unsupported_refused": 706,
+        "previous_correct_lost": 3,
+        "lost_cases": [
+          {
+            "group": "compose:build-flavors:build-regression",
+            "language": "mixed",
+            "expected": "build",
+            "actual": "-"
+          },
+          {
+            "group": "compose:build-regression:build-flavors",
+            "language": "mixed",
+            "expected": "build",
+            "actual": "-"
+          },
+          {
+            "group": "massive-122",
+            "language": "en",
+            "expected": "chat",
+            "actual": "-"
+          }
+        ],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 691,
+        "accepted_correct": 209,
+        "accepted_errors": 482,
+        "unsupported_refused": 610,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      }
+    },
+    "old_original": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "teacher": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 28,
+        "accepted_correct": 25,
+        "accepted_errors": 3,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      }
+    },
+    "old_composed_same": {
+      "rows": 30,
+      "known": 30,
+      "required_refusals": 0,
+      "teacher": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 28,
+        "accepted_correct": 28,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 2,
+        "lost_cases": [
+          {
+            "group": "compose:build-flavors:build-regression",
+            "language": "mixed",
+            "expected": "build",
+            "actual": "-"
+          },
+          {
+            "group": "compose:build-regression:build-flavors",
+            "language": "mixed",
+            "expected": "build",
+            "actual": "-"
+          }
+        ],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 30,
+        "accepted_correct": 30,
+        "accepted_errors": 0,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      }
+    },
+    "old_composed_cross": {
+      "rows": 120,
+      "known": 0,
+      "required_refusals": 120,
+      "teacher": {
+        "accepted": 76,
+        "accepted_correct": 0,
+        "accepted_errors": 76,
+        "unsupported_refused": 44,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 49,
+        "accepted_correct": 0,
+        "accepted_errors": 49,
+        "unsupported_refused": 71,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 73,
+        "accepted_correct": 0,
+        "accepted_errors": 73,
+        "unsupported_refused": 47,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      }
+    },
+    "authored_ar": {
+      "rows": 25,
+      "known": 20,
+      "required_refusals": 5,
+      "teacher": {
+        "accepted": 21,
+        "accepted_correct": 10,
+        "accepted_errors": 11,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 20,
+        "accepted_correct": 10,
+        "accepted_errors": 10,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 21,
+        "accepted_correct": 10,
+        "accepted_errors": 11,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      }
+    },
+    "authored_en": {
+      "rows": 25,
+      "known": 20,
+      "required_refusals": 5,
+      "teacher": {
+        "accepted": 17,
+        "accepted_correct": 16,
+        "accepted_errors": 1,
+        "unsupported_refused": 5,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 17,
+        "accepted_correct": 16,
+        "accepted_errors": 1,
+        "unsupported_refused": 5,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 17,
+        "accepted_correct": 16,
+        "accepted_errors": 1,
+        "unsupported_refused": 5,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      }
+    },
+    "authored_mixed": {
+      "rows": 25,
+      "known": 20,
+      "required_refusals": 5,
+      "teacher": {
+        "accepted": 17,
+        "accepted_correct": 15,
+        "accepted_errors": 2,
+        "unsupported_refused": 3,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 14,
+        "accepted_correct": 14,
+        "accepted_errors": 0,
+        "unsupported_refused": 5,
+        "previous_correct_lost": 1,
+        "lost_cases": [
+          {
+            "group": "authored-encouragement",
+            "language": "mixed",
+            "expected": "chat",
+            "actual": "-"
+          }
+        ],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 15,
+        "accepted_correct": 14,
+        "accepted_errors": 1,
+        "unsupported_refused": 4,
+        "previous_correct_lost": 1,
+        "lost_cases": [
+          {
+            "group": "authored-encouragement",
+            "language": "mixed",
+            "expected": "chat",
+            "actual": "-"
+          }
+        ],
+        "lost_cases_truncated": false
+      }
+    }
+  },
+  "host_timing": {
+    "scope": "host_JVM_descriptive_not_phone_or_speed_guarantee",
+    "calls_per_batch": 144,
+    "warmup_per_mode": 512,
+    "batches": 8,
+    "encoding_included": true,
+    "construction_included": false,
+    "checksum": 0.9998892500487083,
+    "teacher": {
+      "batch_average_ns": [
+        41130.0,
+        37570.88888888889,
+        76372.25694444444,
+        35319.125,
+        33836.36111111111,
+        43794.84027777778,
+        37471.15277777778,
+        40968.458333333336
+      ],
+      "median_batch_average_ns": 39269.67361111111
+    },
+    "utility_v2": {
+      "batch_average_ns": [
+        47913.604166666664,
+        45451.42361111111,
+        61019.15277777778,
+        58049.86111111111,
+        50448.51388888889,
+        69477.50694444444,
+        35171.40972222222,
+        35653.583333333336
+      ],
+      "median_batch_average_ns": 49181.05902777778
+    },
+    "prototype": {
+      "batch_average_ns": [
+        47014.51388888889,
+        40096.416666666664,
+        43911.819444444445,
+        78562.75694444444,
+        42634.13888888889,
+        40310.729166666664,
+        37830.979166666664,
+        35761.0
+      ],
+      "median_batch_average_ns": 41472.43402777778
+    }
+  },
+  "artifact_sha256": {
+    "neural-core/checkpoints/prototype-support-v1/TrainedDomainPrototypes.java": "cd18085d6c6e2a2bb08d20508f07ab89a8108464ab6ff173fe782d3422baed39",
+    "neural-core/checkpoints/prototype-support-v1/TrainedPrototypePolicy.java": "f9b5d289928230863d2bbac2ddf2c45a2af8bfa6db3bdf32ca505c78d9c58d24",
+    "neural-core/checkpoints/utility-expert-v2/TrainedUtilityExpert.java": "5d0620826db3f332c0ed8f334c171a9b6ab5e6700cb0f5d0a7ea8190aa6a434b",
+    "neural-core/checkpoints/rich-text-v1/TrainedRichPresence.java": "397a27d1a7736f41ebd15a311d289307e715f0d6c7ed03a05fe6926a61f55e45",
+    "neural-core/checkpoints/rich-text-v1/TrainedRichVocabulary.java": "b277f2a7c97d549632d399929f029c12479d6492eef0deb9aaf2973ab7a37a1d",
+    "neural-core/checkpoints/public-refusal-v1/TrainedPublicRefusal.java": "d79539ac9455ccbb84be796fd334ba3b35cd7193ae9a4d07a1dbd5528ead3fe0",
+    "neural-core/fixtures/prototype-support/protocol.json": "bba6bacebb6e63901f1aa2dbbf3dd5539a219a58cf4344e2c0aa838b4f6d6a70",
+    "neural-core/fixtures/prototype-support/provenance.json": "dafc6f468653fab46601fa59f0fdf9b0c9cd86e98fe1dfe17095bff013487dcc",
+    "neural-core/fixtures/prototype-support/authored.tsv": "631dd708c7bd59dd6bca98b9204a9cdf1b8953d39280bb28861fa3cbc49ff102",
+    "neural-core/fixtures/bilingual-refusal/corpus.tsv": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e",
+    "neural-core/fixtures/massive-refusal/corpus.tsv": "f300371ef4656d78fc22449066250918d5f6270afafb53595232351b1d95b6e8",
+    "neural-core/fixtures/text-intents.tsv": "e1aac35b6d45015e0798bb039ab8f6bee33e96720fa72f3f4ebb42c477ba4fd1",
+    "neural-core/fixtures/clinc-subset/rejection.tsv": "ecc3598ed5c2385ecbcd5ab3fef3e5d4ba36112342b0239287ff0a0bf65b1843",
+    "neural-core/fixtures/rich-text/fresh-english.tsv": "e76fc84ba71146ca181d21e648997bfd76ab2790091334125ea9d35107e9ecc0",
+    "neural-core/fixtures/decision-challenges.tsv": "4378e3ebc46396f732a5bd1d18d5bd79e3a0e9c2cc98d70c0c894fea3b43f869",
+    "neural-core/fixtures/residual-adapter/fresh.tsv": "05add51a7760a1ad743f3830de7597522f32314f33764a7ea19d7451a2a8fffa",
+    "neural-core/fixtures/utility-expert/fresh.tsv": "adc025471833aa05b2affa2f296bdf83fea1be7c50215aebbcc3706a41204213"
+  },
+  "old_observed_retention_passed": true,
+  "authored_retention_passed": false,
+  "all_known_retention_passed": false,
+  "promotion_blocker": "Earlier-correct losses old/authored: 0/1; independent traffic and physical-device validation absent."
+}

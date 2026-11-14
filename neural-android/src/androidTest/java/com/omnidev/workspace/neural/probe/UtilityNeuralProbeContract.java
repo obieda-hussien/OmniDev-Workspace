@@ -98,7 +98,7 @@ public final class UtilityNeuralProbeContract {
         TrainedUtilityExpert.VOCABULARY_SHA256);
   }
 
-  private static RichIntentRefusalModel teacher() {
+  static RichIntentRefusalModel teacher() {
     return new RichIntentRefusalModel(
         NeuralProbeContract.gated(
             TrainedTextIntentCheckpoint.model().withSparseInput(),
@@ -146,7 +146,7 @@ public final class UtilityNeuralProbeContract {
         "Utility refusal/sparse integrity changed");
   }
 
-  private static String hash(float[] x) throws Exception {
+  static String hash(float[] x) throws Exception {
     MessageDigest digest = MessageDigest.getInstance("SHA-256");
     for (float f : x) {
       int v = Float.floatToIntBits(f);

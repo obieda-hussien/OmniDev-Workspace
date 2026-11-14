@@ -81,3 +81,8 @@ The actual optimizer smoke check covers finite-difference gradients for linear/t
 The standalone Android test APK packages **only v2** plus the existing test checkpoints and attribution. It retains prior 139/699/859 contracts and adds 995 utility probes: expert probabilities, old support scores, feature hashes, original/final typed decisions and variable five/six-class distributions. Require a fresh report identity, `utility_parity_passed` and exact probe count. Altered metadata/hashes, forged statuses and missing rows are rejected. These parity checks do not certify quality or promote the model. Ordinary APK/flavor dependencies, permissions, Room, tools and providers remain unchanged.
 
 Locally passed: four unique candidate fits plus reproducible refits, original-v1 reference agreement, 4,226 exported/committed observations, 68 actual runtime JUnit tests (nine added), real optimizer/policy controls, eight new data guards plus prior guards, and host instrumentation fixtures. Strict release8/Gradle and actual ART API30 results require this PR's CI. No physical Infinix test was performed. The next step needs fresh supported developer/device and mixed-action validation after a prespecified change; do not tune these observed tests into an artificial success claim.
+
+
+## Bounded support follow-up
+
+[Prototype support](PROTOTYPE_SUPPORT_TRAINING.md) keeps v2 neural weights frozen and fits a small group-balanced support bank. It restores the three old retention losses, but reduces unsupported refusals and still loses a newly authored mixed-language case. It remains a separate experimental checkpoint with production eligibility false.
