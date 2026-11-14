@@ -91,6 +91,34 @@ class ChatHistoryMetadataRoomTest {
         } finally { db.close() }
     }
 
+    @Test fun recoveredTouchCannotReplaceAnAutomaticRedactedTitle() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(context, OmniDevDatabase::class.java).build()
+        try {
+            val repo = ChatRepository(db.chatSessionDao(), db.chatMessageDao())
+            val id = repo.createSession("Telegram API key: sk-abcdefghijk123456789")
+            val title = db.chatSessionDao().getById(id)!!.title
+            repo.touchSession(id, "Telegram API key: sk-abcdefghijk123456789")
+            assertEquals(title, db.chatSessionDao().getById(id)!!.title)
+            assertFalse(db.chatSessionDao().getById(id)!!.title.contains("sk-"))
+        } finally { db.close() }
+    }
+
+    @Test fun pagedLegacyInputWinsOverQuotedReplyAcrossUnicodeAndLongMetadata() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(context, OmniDevDatabase::class.java).build()
+        try {
+            val repo = ChatRepository(db.chatSessionDao(), db.chatMessageDao())
+            val id = repo.createSession("Hi Omni")
+            val metadata = "{\"context\":\"" + "🙂".repeat(5000) + "\",\"userInput\":\"Fix Gradle tests " + "x".repeat(12000) + "\"}"
+            db.chatMessageDao().insert(ChatMessageEntity(sessionId = id, role = "USER", content = "Quoted Telegram private reply", metadataJson = metadata))
+            assertEquals(1, db.chatSessionDao().firstHistoryInputs(id).size)
+            assertEquals(1, db.chatSessionDao().latestHistoryInputs(id).size)
+            db.chatSessionDao().refreshHistoryMetadata(id)
+            assertEquals("development", db.chatSessionDao().historyMetadata(id)!!.topic)
+            assertTrue(db.chatSessionDao().getById(id)!!.title.startsWith("Fix Gradle tests"))
+            assertFalse(db.chatSessionDao().getById(id)!!.title.contains("Quoted"))
+        } finally { db.close() }
+    }
+
     @Test fun realMigrationChainFromEverySupportedLegacyVersionPreservesChats() = runBlocking {
         for (legacy in 1..20) {
             val name = "history-from-$legacy.db"
