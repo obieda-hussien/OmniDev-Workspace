@@ -61,6 +61,7 @@ class ChatRepository(
          * database growth from very long AI responses; the full text is always visible in
          * the live UI — only the persisted copy is capped.
          */
+        private const val DEFAULT_SESSION_TITLE = "New conversation"
         private const val MAX_STORED_MESSAGE_CHARS = 100_000
         private const val MAX_STORED_SOURCE_CONTEXT_CHARS = 250_000
         private val externalSessionMutex = Mutex()
