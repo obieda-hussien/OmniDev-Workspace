@@ -2,7 +2,7 @@ name: Omni Neural Core (experimental)
 
 on:
   pull_request:
-    branches: [main, 'feat/chat-history-metadata']
+    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval']
     paths:
       - 'neural-core/**'
       - 'neural-android/**'
@@ -27,6 +27,11 @@ on:
       - 'scripts/prepare_product_support.py'
       - 'scripts/test_product_support.py'
       - 'scripts/train_product_support.sh'
+      - 'scripts/train_ranked_support.sh'
+      - 'scripts/prepare_ranked_support.py'
+      - 'scripts/test_ranked_support.py'
+      - 'scripts/finalize_ranked_support.py'
+      - 'scripts/prepare_support_android.sh'
       - 'scripts/finalize_product_support.py'
       - 'scripts/build_product_knowledge.py'
       - 'knowledge/omni-product.jsonl'
@@ -70,6 +75,11 @@ on:
       - 'scripts/prepare_product_support.py'
       - 'scripts/test_product_support.py'
       - 'scripts/train_product_support.sh'
+      - 'scripts/train_ranked_support.sh'
+      - 'scripts/prepare_ranked_support.py'
+      - 'scripts/test_ranked_support.py'
+      - 'scripts/finalize_ranked_support.py'
+      - 'scripts/prepare_support_android.sh'
       - 'scripts/finalize_product_support.py'
       - 'scripts/build_product_knowledge.py'
       - 'knowledge/omni-product.jsonl'
@@ -364,5 +374,28 @@ jobs:
         with:
           name: product-support-${{ github.run_id }}
           path: build/product-support/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  pairwise-support-training:
+    name: Pairwise support ranking + retained-default integrity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify reserved wording challenge, actual gradients, refits and compiled checkpoints
+        run: bash scripts/train_ranked_support.sh
+      - name: Upload numerical evidence and failed promotion gates
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pairwise-support-${{ github.run_id }}
+          path: build/product-support-v2/
           if-no-files-found: ignore
           retention-days: 30

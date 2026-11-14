@@ -1,0 +1,31 @@
+{
+  "production_eligible": false,
+  "independent_human_labels": false,
+  "physical_device_tested": false,
+  "raw_top1_not_below_v1": true,
+  "raw_top1_not_below_lexical": false,
+  "candidate_guard_errors_not_above_v1_guard": false,
+  "default_policy": "Retain frozen v1 guard; candidate weights require explicit experimental constructors.",
+  "artifact_sha256": {
+    "knowledge/omni-product.jsonl": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+    "neural-core/fixtures/product-support/queries.tsv": "04c16ff3a83d8ca7227b4e3e3cad5ce9e6e2b0d6fe7e8338be68b71543d66899",
+    "neural-core/fixtures/product-support/protocol.json": "a87f01757ec47c259e4f3093f693a0dbd99e7ba2f035cefd0816a7e4c6229f45",
+    "neural-core/fixtures/product-support-v2/fresh.tsv": "77a3e67adb2b69cd36c5ad0f7491d7d3218121c42f72db2900a03f67429cdede",
+    "neural-core/fixtures/product-support-v2/protocol.json": "e03f80bd2028ed4b3712ca33ee21728229cac35b914561ec833d64a019ae940d",
+    "neural-core/checkpoints/product-support-v1/TrainedProductSupport.java": "2094abf2540461476e4df737e9e408868a44ddc46618dbce87528e90476eba15",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/ProductSupportModel.java": "13febeba5ca3c92ce82f3a2891db2438c116518c8a26f4f11250ad52777844cc",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/TinyNeuralRuntime.java": "15150007800a4ad9f31c15a153f984159f374a8917db1aa8f1065006ce84d3df",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/OmniRamLite.java": "c4e9a978a8f8c45f7db98d92ce1bd5a9ac90de69cd6d1c8551477b6d07b86dc9",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/BilingualTextEncoder.java": "efcb54f1c8e0c447a96786240c817589820d19f841ec8fa8bb8ad2f19ca635d5",
+    "neural-core/training/com/omnidev/workspace/domain/neural/ProductSupportExperiment.java": "8ab2af332358e7f2d9d5deb12729612011cb0bdfd46f4ea29391a11119aa6b6a",
+    "neural-core/training/com/omnidev/workspace/domain/neural/RankedSupportTrainer.java": "7cdae0095bb6919c42b270fb13a81ced6868304b13d8a76fd89411b425b3e3e0",
+    "neural-core/training/com/omnidev/workspace/domain/neural/RankedSupportExperiment.java": "86181b5119a73f0fa8fb75b5816f5049cbcef90933e194815bea42990c43861e",
+    "neural-core/smoke/RankedSupportTrainingSmoke.java": "5cf9f9b253b3b2da58fbcbf9fea21066d8b829429d5e7a08bf5466b2646ebaf7",
+    "neural-core/smoke/RankedSupportCheckpointSmoke.java": "b2e8262559e5319e1da083f09e7bf1cb5e727addcc33e0f30874403937fcc99f",
+    "neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/SupportRetrievalProbeContract.java": "d1dfb04e23608b0b6aa08763c8d1fcd98d580486a475a4bf2feeab6fa4bb1736",
+    "scripts/prepare_ranked_support.py": "8c8bbfa11f11752a22a5239de69da4f723a9f7ce4fd8fde75ff9f3aa85ef19ef",
+    "scripts/train_ranked_support.sh": "31df9c4e63f96e6de2b229c869fe99aecb4166fe0c9c64f637761d961a3a4797",
+    "build/product-support-v2/TrainedRankedSupport.java": "4efc75454ad8a12253c43d52475e6c89fe7461dd3948ff17517a8e62f964a068",
+    "build/product-support-v2/expected.tsv": "83bea66710c51010e8575a2d72ea02900c85e899f80e134bd95c011026ace377"
+  }
+}

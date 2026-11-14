@@ -1,0 +1,118 @@
+id	group	split	language	expected_topic	query
+history-titles-fresh-en	history-titles	test	en	history-titles	What text supplies the automatically extracted conversation name?
+history-titles-fresh-ar	history-titles	test	ar	history-titles	إيه النص اللي أومني بيستخرج منه اسم السيزون تلقائي؟
+history-titles-fresh-mixed	history-titles	test	mixed	history-titles	تسمية session تلقائيًا بتعتمد على كلام مين؟
+history-topics-fresh-en	history-topics	test	en	history-topics	Which history menu lets me restore automatic topic selection?
+history-topics-fresh-ar	history-topics	test	ar	history-topics	أنهي قائمة في سجل الشات ترجع اختيار الموضوع تلقائي؟
+history-topics-fresh-mixed	history-topics	test	mixed	history-topics	أرجع topic classification التلقائي من قائمة إيه؟
+history-sources-fresh-en	history-sources	test	en	history-sources	Can one conversation be App-originated while carrying WhatsApp tags?
+history-sources-fresh-ar	history-sources	test	ar	history-sources	ينفع محادثة مصدرها التطبيق وعليها وسم واتساب في نفس الوقت؟
+history-sources-fresh-mixed	history-sources	test	mixed	history-sources	App origin مع WhatsApp tags في نفس الشات ينفع؟
+history-legacy-fresh-en	history-legacy	test	en	history-legacy	How are saved pins and contact names treated during history backfill?
+history-legacy-fresh-ar	history-legacy	test	ar	history-legacy	أثناء استكمال تصنيفات السجل التثبيت وأسماء جهات الاتصال بيحصل لهم إيه؟
+history-legacy-fresh-mixed	history-legacy	test	mixed	history-legacy	History backfill بيعمل إيه في pins واسم contact؟
+configure-provider-fresh-en	configure-provider	test	en	configure-provider	Which initial configuration is required for remote text responses?
+configure-provider-fresh-ar	configure-provider	test	ar	configure-provider	إيه الإعداد الأول المطلوب عشان الرد النصي السحابي يشتغل؟
+configure-provider-fresh-mixed	configure-provider	test	mixed	configure-provider	أول setup مطلوب للـ remote text response إيه؟
+choose-mode-fresh-en	choose-mode	test	en	choose-mode	Which execution mode is appropriate for a simple factual question?
+choose-mode-fresh-ar	choose-mode	test	ar	choose-mode	أنهي وضع تشغيل مناسب لسؤال معلومات بسيط؟
+choose-mode-fresh-mixed	choose-mode	test	mixed	choose-mode	سؤال معلومات بسيط أختار له execution mode إيه؟
+edition-policy-fresh-en	edition-policy	test	en	edition-policy	Can a service label override the edition's capability restrictions?
+edition-policy-fresh-ar	edition-policy	test	ar	edition-policy	وسم الخدمة يقدر يلغي حدود قدرات نسخة التطبيق؟
+edition-policy-fresh-mixed	edition-policy	test	mixed	edition-policy	Service label يقدر يتخطى edition restrictions؟
+finish-evidence-fresh-en	finish-evidence	test	en	finish-evidence	Why can a completion claim remain unverified after a tool response?
+finish-evidence-fresh-ar	finish-evidence	test	ar	finish-evidence	ليه إعلان اكتمال المهمة يفضل غير موثق بعد رد أداة؟
+finish-evidence-fresh-mixed	finish-evidence	test	mixed	finish-evidence	Tool response وصل لكن completion claim مش verified ليه؟
+recover-task-fresh-en	recover-task	test	en	recover-task	What safety barrier applies when an interrupted external write may have succeeded?
+recover-task-fresh-ar	recover-task	test	ar	recover-task	إيه حاجز الأمان لو كتابة خارجية اتقطعت وممكن تكون نجحت؟
+recover-task-fresh-mixed	recover-task	test	mixed	recover-task	External write اتقطع ومحتمل نجح، إيه recovery barrier؟
+github-access-fresh-en	github-access	test	en	github-access	What account linkage distinguishes repository control from model access?
+github-access-fresh-ar	github-access	test	ar	github-access	ربط الحساب اللي يفرق التحكم في المستودع عن الوصول للنموذج إيه؟
+github-access-fresh-mixed	github-access	test	mixed	github-access	Repo control محتاج linkage غير model access إيه؟
+git-environment-fresh-en	git-environment	test	en	git-environment	Why is a repository's remote name insufficient as a shell working directory?
+git-environment-fresh-ar	git-environment	test	ar	git-environment	ليه الاسم البعيد للمستودع مش كفاية كمجلد تشغيل للشيل؟
+git-environment-fresh-mixed	git-environment	test	mixed	git-environment	Remote repo name ليه مش shell working directory؟
+shizuku-prerequisites-fresh-en	shizuku-prerequisites	test	en	shizuku-prerequisites	Can rish supply a privileged grant when the Shizuku service is absent?
+shizuku-prerequisites-fresh-ar	shizuku-prerequisites	test	ar	shizuku-prerequisites	هل ريش يقدر يوفر التصريح المميز وخدمة شيزوكو مش موجودة؟
+shizuku-prerequisites-fresh-mixed	shizuku-prerequisites	test	mixed	shizuku-prerequisites	rish يقدر يعوض missing Shizuku service grant؟
+telegram-owner-fresh-en	telegram-owner	test	en	telegram-owner	Which Telegram conversation type is eligible for owner pairing?
+telegram-owner-fresh-ar	telegram-owner	test	ar	telegram-owner	أنهي نوع محادثة تيليجرام مسموح لربط المالك؟
+telegram-owner-fresh-mixed	telegram-owner	test	mixed	telegram-owner	Owner pairing في Telegram بيقبل chat type إيه؟
+whatsapp-bridge-fresh-en	whatsapp-bridge	test	en	whatsapp-bridge	Is the WhatsApp companion intended for arbitrary groups or the owner's private thread?
+whatsapp-bridge-fresh-ar	whatsapp-bridge	test	ar	whatsapp-bridge	جسر واتساب المصاحب مخصص لجروبات عشوائية ولا محادثة المالك الخاصة؟
+whatsapp-bridge-fresh-mixed	whatsapp-bridge	test	mixed	whatsapp-bridge	WhatsApp companion يقبل arbitrary groups ولا owner private thread؟
+discord-connected-fresh-en	discord-connected	test	en	discord-connected	What must be established separately before a connected service can send anything?
+discord-connected-fresh-ar	discord-connected	test	ar	discord-connected	إيه اللي لازم يتعمل بشكل منفصل قبل خدمة متصلة تقدر تبعت أي حاجة؟
+discord-connected-fresh-mixed	discord-connected	test	mixed	discord-connected	قبل connected service تعمل send لازم نجهز إيه بعيد عن history؟
+mcp-tools-fresh-en	mcp-tools	test	en	mcp-tools	Why does discovering an MCP schema not authorize calling it?
+mcp-tools-fresh-ar	mcp-tools	test	ar	mcp-tools	ليه اكتشاف مخطط أداة إم سي بي مش تصريح باستدعائها؟
+mcp-tools-fresh-mixed	mcp-tools	test	mixed	mcp-tools	MCP schema discovery ليه مش execution authorization؟
+provider-failure-fresh-en	provider-failure	test	en	provider-failure	How should runtime recovery distinguish DNS from invalid authentication?
+provider-failure-fresh-ar	provider-failure	test	ar	provider-failure	إزاي الاستكمال يفرق بين عطل أسماء النطاقات والمصادقة الغلط؟
+provider-failure-fresh-mixed	provider-failure	test	mixed	provider-failure	Runtime recovery يفرق DNS عن invalid authentication إزاي؟
+model-routing-fresh-en	model-routing	test	en	model-routing	What prevents an experimental classifier with failed retention from being enabled?
+model-routing-fresh-ar	model-routing	test	ar	model-routing	إيه اللي يمنع تشغيل مصنف تجريبي فشل في الاحتفاظ بالنتائج الصحيحة؟
+model-routing-fresh-mixed	model-routing	test	mixed	model-routing	Classifier فشل retention، إيه اللي يمنع production activation؟
+local-model-size-fresh-en	local-model-size	test	en	local-model-size	Are downloaded LLM memory costs part of the rule-based history title engine?
+local-model-size-fresh-ar	local-model-size	test	ar	local-model-size	استهلاك ذاكرة نموذج اللغة المحمل جزء من محرك قواعد عناوين السجل؟
+local-model-size-fresh-mixed	local-model-size	test	mixed	local-model-size	Downloaded LLM memory محسوبة ضمن history rules engine؟
+future-knowledge-training-fresh-en	future-knowledge-training	test	en	future-knowledge-training	Which data-origin and translation rules apply to future support fitting?
+future-knowledge-training-fresh-ar	future-knowledge-training	test	ar	future-knowledge-training	إيه قواعد مصدر البيانات وترجماتها في تدريب الدعم المستقبلي؟
+future-knowledge-training-fresh-mixed	future-knowledge-training	test	mixed	future-knowledge-training	Future support fitting يلتزم بإيه في data origin وtranslations؟
+support-diagnostics-fresh-en	support-diagnostics	test	en	support-diagnostics	Which redacted runtime details should accompany an Omni troubleshooting request?
+support-diagnostics-fresh-ar	support-diagnostics	test	ar	support-diagnostics	أنهي تفاصيل تشغيل بعد إخفاء الأسرار لازم تتبعت مع طلب حل عطل أومني؟
+support-diagnostics-fresh-mixed	support-diagnostics	test	mixed	support-diagnostics	Troubleshooting request محتاج redacted runtime details إيه؟
+voice-wake-fresh-en	voice-wake	test	en	voice-wake	Why are wake activation and speech recognition separate readiness checks?
+voice-wake-fresh-ar	voice-wake	test	ar	voice-wake	ليه تشغيل كلمة التنبيه والتعرف على الكلام فحصين جاهزية منفصلين؟
+voice-wake-fresh-mixed	voice-wake	test	mixed	voice-wake	Wake activation وASR ليه ليهم readiness checks منفصلة؟
+screen-assistant-fresh-en	screen-assistant	test	en	screen-assistant	Can overlay visibility alone establish permission to inspect and control the screen?
+screen-assistant-fresh-ar	screen-assistant	test	ar	screen-assistant	مجرد ظهور النافذة العائمة يثبت تصريح فحص الشاشة والتحكم فيها؟
+screen-assistant-fresh-mixed	screen-assistant	test	mixed	screen-assistant	Overlay visibility لوحده يدي screen control permission؟
+learned-routines-fresh-en	learned-routines	test	en	learned-routines	Which safeguards still apply to actions replayed from a learned routine?
+learned-routines-fresh-ar	learned-routines	test	ar	learned-routines	أنهي ضمانات أمان لسه مطلوبة لخطوات بتتعاد من روتين متعلم؟
+learned-routines-fresh-mixed	learned-routines	test	mixed	learned-routines	Learned routine replay لسه محتاج safeguards إيه؟
+media-jobs-fresh-en	media-jobs	test	en	media-jobs	Why must queued media be checked separately from delivery confirmation?
+media-jobs-fresh-ar	media-jobs	test	ar	media-jobs	ليه الميديا في الطابور لازم تتراجع منفصل عن تأكيد التسليم؟
+media-jobs-fresh-mixed	media-jobs	test	mixed	media-jobs	Queued media محتاجة delivery confirmation منفصل ليه؟
+profile-reference-fresh-en	profile-reference	test	en	profile-reference	What distinguishes a profile avatar from an explicitly chosen generation reference?
+profile-reference-fresh-ar	profile-reference	test	ar	profile-reference	إيه اللي يفرق صورة الملف الشخصي عن مرجع توليد مختار صراحة؟
+profile-reference-fresh-mixed	profile-reference	test	mixed	profile-reference	Profile avatar مختلف عن explicit generation reference إزاي؟
+little-omni-fresh-en	little-omni	test	en	little-omni	Do companion features retain Lite's existing access boundaries?
+little-omni-fresh-ar	little-omni	test	ar	little-omni	ميزات الرفيق الصغير بتلتزم بحدود وصول النسخة الخفيفة الحالية؟
+little-omni-fresh-mixed	little-omni	test	mixed	little-omni	Companion features بتحافظ على Lite access boundaries؟
+memory-recall-fresh-en	memory-recall	test	en	memory-recall	Why is retrieving a stored observation different from proving a current tool outcome?
+memory-recall-fresh-ar	memory-recall	test	ar	memory-recall	ليه استرجاع ملاحظة محفوظة مختلف عن إثبات نتيجة أداة دلوقتي؟
+memory-recall-fresh-mixed	memory-recall	test	mixed	memory-recall	Stored observation retrieval يختلف عن current tool outcome proof إزاي؟
+local-inference-fresh-en	local-inference	test	en	local-inference	Does a checkpoint file alone establish supported local inference compatibility?
+local-inference-fresh-ar	local-inference	test	ar	local-inference	وجود ملف أوزان لوحده يثبت توافق تشغيل الاستدلال المحلي؟
+local-inference-fresh-mixed	local-inference	test	mixed	local-inference	Checkpoint file لوحده يضمن local inference compatibility؟
+fresh-unknown-0-en	fresh-unknown-0	test	en	-	What is the maintainer's unreleased medical record?
+fresh-unknown-0-ar	fresh-unknown-0	test	ar	-	إيه السجل الطبي غير المنشور للمطور؟
+fresh-unknown-0-mixed	fresh-unknown-0	test	mixed	-	عايز maintainer unreleased medical record
+fresh-unknown-1-en	fresh-unknown-1	test	en	-	What are the precise CPU counters from my last Omni run?
+fresh-unknown-1-ar	fresh-unknown-1	test	ar	-	عدادات المعالج الدقيقة من آخر تشغيل عندي كام؟
+fresh-unknown-1-mixed	fresh-unknown-1	test	mixed	-	هات last run precise CPU counters من جهازي
+fresh-unknown-2-en	fresh-unknown-2	test	en	-	Which unreleased cloud region will host Omni next year?
+fresh-unknown-2-ar	fresh-unknown-2	test	ar	-	أنهي منطقة سحابية غير معلنة هتستضيف أومني السنة الجاية؟
+fresh-unknown-2-mixed	fresh-unknown-2	test	mixed	-	Omni next year unreleased cloud region فين
+fresh-unknown-3-en	fresh-unknown-3	test	en	-	What is the encryption key of my inaccessible local backup?
+fresh-unknown-3-ar	fresh-unknown-3	test	ar	-	مفتاح تشفير نسختي المحلية اللي مش متاحة عندك إيه؟
+fresh-unknown-3-mixed	fresh-unknown-3	test	mixed	-	هات inaccessible backup encryption key بتاعي
+fresh-unknown-4-en	fresh-unknown-4	test	en	-	How much money is currently in the developer's bank account?
+fresh-unknown-4-ar	fresh-unknown-4	test	ar	-	رصيد الحساب البنكي الحالي للمطور كام؟
+fresh-unknown-4-mixed	fresh-unknown-4	test	mixed	-	Developer bank balance دلوقتي كام
+fresh-unknown-5-en	fresh-unknown-5	test	en	-	What were the exact private retention logs of my account last Tuesday?
+fresh-unknown-5-ar	fresh-unknown-5	test	ar	-	سجلات الاحتفاظ الخاصة بحسابي يوم التلات اللي فات كانت إيه بالضبط؟
+fresh-unknown-5-mixed	fresh-unknown-5	test	mixed	-	هات exact private account retention logs يوم التلات
+fresh-unknown-6-en	fresh-unknown-6	test	en	-	Which undocumented firmware toggle guarantees infinite background lifetime?
+fresh-unknown-6-ar	fresh-unknown-6	test	ar	-	أنهي مفتاح فيرموير غير موثق يضمن التشغيل في الخلفية للأبد؟
+fresh-unknown-6-mixed	fresh-unknown-6	test	mixed	-	هات undocumented firmware toggle يضمن infinite lifetime
+fresh-unknown-7-en	fresh-unknown-7	test	en	-	What numeric accuracy will the next untrained Omni model achieve?
+fresh-unknown-7-ar	fresh-unknown-7	test	ar	-	النسبة الرقمية لدقة موديل أومني اللي لسه متدربش هتكون كام؟
+fresh-unknown-7-mixed	fresh-unknown-7	test	mixed	-	Next untrained Omni model هيحقق numeric accuracy كام
+fresh-unknown-8-en	fresh-unknown-8	test	en	-	What is the exact battery temperature of my disconnected phone now?
+fresh-unknown-8-ar	fresh-unknown-8	test	ar	-	درجة حرارة بطارية الموبايل غير المتصل عندك دلوقتي كام بالضبط؟
+fresh-unknown-8-mixed	fresh-unknown-8	test	mixed	-	هات disconnected phone battery temperature دلوقتي
+fresh-unknown-9-en	fresh-unknown-9	test	en	-	What is the confidential hardware serial of the CI build runner?
+fresh-unknown-9-ar	fresh-unknown-9	test	ar	-	الرقم التسلسلي السري لعتاد جهاز البناء إيه؟
+fresh-unknown-9-mixed	fresh-unknown-9	test	mixed	-	عايز confidential CI runner hardware serial

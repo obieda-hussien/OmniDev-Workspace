@@ -49,6 +49,7 @@ done
 for checkpoint in neural-core/checkpoints/rich-text-v1/*.java neural-core/checkpoints/public-refusal-v1/*.java neural-core/checkpoints/public-decision-v1/*.java neural-core/checkpoints/residual-adapter-v1/*.java neural-core/checkpoints/utility-expert-v2/*.java neural-core/checkpoints/prototype-support-v1/*.java neural-core/checkpoints/expert-trust-v1/*.java; do
   { echo 'package com.omnidev.workspace.neural.probe;'; cat "$checkpoint"; } > "$fixture_package/$(basename "$checkpoint")"
 done
+bash scripts/prepare_support_android.sh "$fixture_output"
 python3 - "$fixture_output" <<'PY'
 import hashlib, pathlib, sys
 root = pathlib.Path(sys.argv[1])
@@ -67,3 +68,6 @@ compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_
   neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/ExpertTrustNeuralProbeContract.java \
   neural-core/smoke/AndroidProbeSmoke.java
 java -cp "$fixture_classes" AndroidProbeSmoke "$fixture_output/assets/probes.tsv" "$fixture_output/assets/bilingual-cascade.tsv" "$fixture_output/assets/rich-presence.tsv" "$fixture_output/assets/public-probes.tsv" "$fixture_output/assets/residual-probes.tsv" "$fixture_output/assets/utility-probes.tsv" "$fixture_output/assets/prototype-probes.tsv" "$fixture_output/assets/trust-probes.tsv"
+
+compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_classes"   "$fixture_output/java/com/omnidev/workspace/domain/neural/"*.java   neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/SupportRetrievalProbeContract.java   neural-core/smoke/SupportRetrievalAndroidSmoke.java
+java -cp "$fixture_classes" SupportRetrievalAndroidSmoke "$fixture_output/assets"
