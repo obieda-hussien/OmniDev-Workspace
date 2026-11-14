@@ -1,0 +1,235 @@
+id	group	split	language	expected_topic	query
+history-titles-0	history-titles	train	en	history-titles	How does Omni name a new chat?
+history-titles-1	history-titles	train	en	history-titles	Can a greeting produce a useful session title?
+history-titles-2	history-titles	train	ar	history-titles	عنوان الشات بيتعمل لوحده إزاي؟
+history-titles-3	history-titles	train	ar	history-titles	ليه المحادثة اسمها محادثة جديدة بعد التحية؟
+history-titles-4	history-titles	train	mixed	history-titles	Omni بيختار chat title منين؟
+history-titles-5	history-titles	train	mixed	history-titles	عايز أفهم automatic titles في السجل
+history-topics-0	history-topics	calibration	en	history-topics	Where can I filter chat topics?
+history-topics-1	history-topics	calibration	en	history-topics	Can I manually change a conversation category?
+history-topics-2	history-topics	calibration	ar	history-topics	أختار تصنيف للمحادثة منين؟
+history-topics-3	history-topics	calibration	ar	history-topics	إزاي ألاقي شاتات البرمجة بس؟
+history-topics-4	history-topics	calibration	mixed	history-topics	فين Topics filter في history؟
+history-topics-5	history-topics	calibration	mixed	history-topics	ازاي أرجع category إلى Automatic؟
+history-sources-0	history-sources	calibration	en	history-sources	Does mentioning Telegram change the chat source?
+history-sources-1	history-sources	calibration	en	history-sources	How are mentioned apps different from origin filters?
+history-sources-2	history-sources	calibration	ar	history-sources	لو اتكلمت عن واتساب المصدر بيتغير؟
+history-sources-3	history-sources	calibration	ar	history-sources	إيه الفرق بين مصدر الشات والتطبيق المذكور؟
+history-sources-4	history-sources	calibration	mixed	history-sources	Sources ولا Apps mentioned للبحث عن Discord؟
+history-sources-5	history-sources	calibration	mixed	history-sources	عايز App chats اللي بتتكلم عن WhatsApp
+history-legacy-0	history-legacy	test	en	history-legacy	Will my renamed old chats be preserved?
+history-legacy-1	history-legacy	test	en	history-legacy	Can I adopt a suggested name for an older conversation?
+history-legacy-2	history-legacy	test	ar	history-legacy	الشاتات القديمة والتثبيت هيفضلوا محفوظين؟
+history-legacy-3	history-legacy	test	ar	history-legacy	هل الاسم اللي اخترته هيتغير تلقائي؟
+history-legacy-4	history-legacy	test	mixed	history-legacy	اسم manual للسيزون بيتحفظ بعد restart؟
+history-legacy-5	history-legacy	test	mixed	history-legacy	ازاي أستخدم suggested title لمحادثة قديمة؟
+configure-provider-0	configure-provider	calibration	en	configure-provider	Where do I select a text provider and model?
+configure-provider-1	configure-provider	calibration	en	configure-provider	What should I check before expecting a remote reply?
+configure-provider-2	configure-provider	calibration	ar	configure-provider	أختار مزود ونموذج النص منين؟
+configure-provider-3	configure-provider	calibration	ar	configure-provider	جهزت التطبيق وعايز أشغل الردود لأول مرة
+configure-provider-4	configure-provider	calibration	mixed	configure-provider	إعداد provider وAPI key في Omni منين؟
+configure-provider-5	configure-provider	calibration	mixed	configure-provider	عايز أعرف text model configuration
+choose-mode-0	choose-mode	development	en	choose-mode	When should I use Chat versus Agent versus Team?
+choose-mode-1	choose-mode	development	en	choose-mode	Is every conversation a persistent agent task?
+choose-mode-2	choose-mode	development	ar	choose-mode	أختار وضع الشات ولا الوكيل ولا الفريق؟
+choose-mode-3	choose-mode	development	ar	choose-mode	سؤال بسيط محتاج فريق وكلاء؟
+choose-mode-4	choose-mode	development	mixed	choose-mode	فرق Chat وAgent وTeam إيه؟
+choose-mode-5	choose-mode	development	mixed	choose-mode	عايز mode مناسب لمهمة متعددة الخطوات
+edition-policy-0	edition-policy	development	en	edition-policy	Why are advanced permissions unavailable in Lite?
+edition-policy-1	edition-policy	development	en	edition-policy	Can a classifier unlock a restricted edition feature?
+edition-policy-2	edition-policy	development	ar	edition-policy	ليه النسخة الخفيفة مش فيها كل الصلاحيات؟
+edition-policy-3	edition-policy	development	ar	edition-policy	هل مجرد اسم الأداة يفتح ميزة محظورة؟
+edition-policy-4	edition-policy	development	mixed	edition-policy	Lite ينفع ياخد Linked Accounts تلقائي؟
+edition-policy-5	edition-policy	development	mixed	edition-policy	إيه قيود flavors قبل استخدام أداة؟
+finish-evidence-0	finish-evidence	test	en	finish-evidence	Does an agent saying done prove completion?
+finish-evidence-1	finish-evidence	test	en	finish-evidence	Why can finish_task reject a successful tool call?
+finish-evidence-2	finish-evidence	test	ar	finish-evidence	ليه الوكيل قال خلصت والتطبيق رفض الإكمال؟
+finish-evidence-3	finish-evidence	test	ar	finish-evidence	نجاح الأداة كفاية لإثبات النتيجة؟
+finish-evidence-4	finish-evidence	test	mixed	finish-evidence	P0 finish gate عايز evidence إيه؟
+finish-evidence-5	finish-evidence	test	mixed	finish-evidence	إزاي completion يتأكد من النتيجة الفعلية؟
+recover-task-0	recover-task	train	en	recover-task	How should I continue a task after process death?
+recover-task-1	recover-task	train	en	recover-task	What happens when an interrupted write has unknown outcome?
+recover-task-2	recover-task	train	ar	recover-task	أكمل مهمة اتقطعت بعد قفل التطبيق إزاي؟
+recover-task-3	recover-task	train	ar	recover-task	عملية كتابة نتيجتها مجهولة أكررها عادي؟
+recover-task-4	recover-task	train	mixed	recover-task	Team recovery بيحافظ على completed workers؟
+recover-task-5	recover-task	train	mixed	recover-task	إمتى resume يحتاج reconciliation؟
+github-access-0	github-access	train	en	github-access	Why are GitHub model credentials insufficient for repository actions?
+github-access-1	github-access	train	en	github-access	Where should I check repository read and write access?
+github-access-2	github-access	train	ar	github-access	ليه تسجيل موديل جيتهوب مش بيديني صلاحية الريبو؟
+github-access-3	github-access	train	ar	github-access	أتأكد من ربط حساب جيتهوب وصلاحياته إزاي؟
+github-access-4	github-access	train	mixed	github-access	GitHub Agent Access مختلف عن Models؟
+github-access-5	github-access	train	mixed	github-access	ريبو مخفي رجع 404 أراجع authorization فين؟
+git-environment-0	git-environment	test	en	git-environment	Does not a git repository mean the remote repo is missing?
+git-environment-1	git-environment	test	en	git-environment	What environment should I inspect before retrying local Git?
+git-environment-2	git-environment	test	ar	git-environment	رسالة مش مستودع جيت معناها الريبو اتمسح؟
+git-environment-3	git-environment	test	ar	git-environment	أفحص مجلد الشغل المحلي قبل أوامر جيت إزاي؟
+git-environment-4	git-environment	test	mixed	git-environment	git status في Termux مش لاقي checkout
+git-environment-5	git-environment	test	mixed	git-environment	اسم GitHub repo ينفع يكون local path؟
+shizuku-prerequisites-0	shizuku-prerequisites	train	en	shizuku-prerequisites	What must be running before rish can work?
+shizuku-prerequisites-1	shizuku-prerequisites	train	en	shizuku-prerequisites	Does a working Termux shell prove Shizuku readiness?
+shizuku-prerequisites-2	shizuku-prerequisites	train	ar	shizuku-prerequisites	إيه المطلوب عشان أوامر شيزوكو تشتغل؟
+shizuku-prerequisites-3	shizuku-prerequisites	train	ar	shizuku-prerequisites	هل نجاح شيل تيرمكس معناه التصريح المميز جاهز؟
+shizuku-prerequisites-4	shizuku-prerequisites	train	mixed	shizuku-prerequisites	rish مش بيلاقي Shizuku binder أراجع إيه؟
+shizuku-prerequisites-5	shizuku-prerequisites	train	mixed	shizuku-prerequisites	عايز prerequisites لمسار privileged backend
+telegram-owner-0	telegram-owner	development	en	telegram-owner	How do I pair the Telegram owner with Omni?
+telegram-owner-1	telegram-owner	development	en	telegram-owner	Does an outgoing chat ID authorize incoming commands?
+telegram-owner-2	telegram-owner	development	ar	telegram-owner	أربط المالك ببوت تيليجرام إزاي؟
+telegram-owner-3	telegram-owner	development	ar	telegram-owner	رقم محادثة الإرسال بيسمح بالتحكم الوارد؟
+telegram-owner-4	telegram-owner	development	mixed	telegram-owner	Telegram pairing code لازم private chat؟
+telegram-owner-5	telegram-owner	development	mixed	telegram-owner	أوامر Team من Telegram محتاجة Target Context؟
+whatsapp-bridge-0	whatsapp-bridge	test	en	whatsapp-bridge	How do I connect the same-phone WhatsApp bridge?
+whatsapp-bridge-1	whatsapp-bridge	test	en	whatsapp-bridge	What loopback bridge configuration is required?
+whatsapp-bridge-2	whatsapp-bridge	test	ar	whatsapp-bridge	أشغل جسر واتساب على نفس الموبايل إزاي؟
+whatsapp-bridge-3	whatsapp-bridge	test	ar	whatsapp-bridge	هل جسر واتساب يسمح لأي جروب يتحكم؟
+whatsapp-bridge-4	whatsapp-bridge	test	mixed	whatsapp-bridge	WhatsApp Linked Devices بيتربط مع Termux إزاي؟
+whatsapp-bridge-5	whatsapp-bridge	test	mixed	whatsapp-bridge	أضبط localhost bearer key للـ WhatsApp bridge فين؟
+discord-connected-0	discord-connected	train	en	discord-connected	Does choosing Connected apps in history activate a connection?
+discord-connected-1	discord-connected	train	en	discord-connected	What permission is needed before sending through an external service?
+discord-connected-2	discord-connected	train	ar	discord-connected	فلتر التطبيقات المتصلة بيشغل الخدمة؟
+discord-connected-3	discord-connected	train	ar	discord-connected	قبل الإرسال لديسكورد محتاج أتأكد من إيه؟
+discord-connected-4	discord-connected	train	mixed	discord-connected	Discord history filter لوحده يعمل send؟
+discord-connected-5	discord-connected	train	mixed	discord-connected	OmniLink receiver trust مطلوب للـ connected app؟
+mcp-tools-0	mcp-tools	train	en	mcp-tools	Why is a configured MCP tool missing from the exposed schema?
+mcp-tools-1	mcp-tools	train	en	mcp-tools	Does tool discovery grant execution permission?
+mcp-tools-2	mcp-tools	train	ar	mcp-tools	ليه أداة مضافة في إم سي بي مش بتظهر؟
+mcp-tools-3	mcp-tools	train	ar	mcp-tools	اكتشاف الأدوات بيدي تصريح تنفيذ؟
+mcp-tools-4	mcp-tools	train	mixed	mcp-tools	MCP discovery شغال لكن tool unavailable
+mcp-tools-5	mcp-tools	train	mixed	mcp-tools	تصحيح اسم أداة MCP يعدي contract إزاي؟
+provider-failure-0	provider-failure	train	en	provider-failure	What should I do when the provider host cannot resolve?
+provider-failure-1	provider-failure	train	en	provider-failure	Should an authentication failure trigger endless retries?
+provider-failure-2	provider-failure	train	ar	provider-failure	أعمل إيه لما دومين مزود النموذج مش بيتحل؟
+provider-failure-3	provider-failure	train	ar	provider-failure	خطأ مصادقة محتاج إعادة محاولات كتير؟
+provider-failure-4	provider-failure	train	mixed	provider-failure	Gemini DNS failure أوقف retries إزاي؟
+provider-failure-5	provider-failure	train	mixed	provider-failure	Provider rate limit ولا auth error أفرق بينهم إزاي؟
+model-routing-0	model-routing	train	en	model-routing	Are the experimental neural checkpoints active in the APK?
+model-routing-1	model-routing	train	en	model-routing	Can a neural routing confidence authorize tools?
+model-routing-2	model-routing	train	ar	model-routing	النماذج العصبية التجريبية شغالة في التطبيق دلوقتي؟
+model-routing-3	model-routing	train	ar	model-routing	الثقة العالية في المصنف تسمح باستخدام أداة؟
+model-routing-4	model-routing	train	mixed	model-routing	Neural Core shadow ولا production حاليًا؟
+model-routing-5	model-routing	train	mixed	model-routing	فشل retention gate يمنع تفعيل model؟
+local-model-size-0	local-model-size	train	en	local-model-size	Does labeling history require a large downloaded language model?
+local-model-size-1	local-model-size	train	en	local-model-size	Has the local title engine been benchmarked on a phone?
+local-model-size-2	local-model-size	train	ar	local-model-size	التصنيف محتاج موديل كبير على موبايل أربعة رام؟
+local-model-size-3	local-model-size	train	ar	local-model-size	فيه قياس فعلي لسرعة عناوين الشات على الهاتف؟
+local-model-size-4	local-model-size	train	mixed	local-model-size	4GB RAM محتاج model weights للعناوين؟
+local-model-size-5	local-model-size	train	mixed	local-model-size	محرك history فيه cloud inference ولا local rules؟
+future-knowledge-training-0	future-knowledge-training	calibration	en	future-knowledge-training	Is exporting the product FAQ the same as training a model?
+future-knowledge-training-1	future-knowledge-training	calibration	en	future-knowledge-training	Can private chat data enter the documentation corpus?
+future-knowledge-training-2	future-knowledge-training	calibration	ar	future-knowledge-training	تصدير معرفة المنتج معناه إن التدريب حصل؟
+future-knowledge-training-3	future-knowledge-training	calibration	ar	future-knowledge-training	محادثاتي الخاصة بتدخل ملف تدريب الدعم؟
+future-knowledge-training-4	future-knowledge-training	calibration	mixed	future-knowledge-training	FAQ JSONL ده trained model ولا preparation؟
+future-knowledge-training-5	future-knowledge-training	calibration	mixed	future-knowledge-training	إزاي translations تفضل grouped في evaluation؟
+support-diagnostics-0	support-diagnostics	train	en	support-diagnostics	What diagnostics should I provide for an Omni bug?
+support-diagnostics-1	support-diagnostics	train	en	support-diagnostics	How can I share an error without exposing account secrets?
+support-diagnostics-2	support-diagnostics	train	ar	support-diagnostics	أبعت إيه عشان تشخص عطل في أومني؟
+support-diagnostics-3	support-diagnostics	train	ar	support-diagnostics	أشارك رسالة الخطأ من غير أسرار الحساب إزاي؟
+support-diagnostics-4	support-diagnostics	train	mixed	support-diagnostics	Omni support محتاج edition وbuild ولا screenshots بس؟
+support-diagnostics-5	support-diagnostics	train	mixed	support-diagnostics	أراجع redacted error وpermission state ليه؟
+voice-wake-0	voice-wake	test	en	voice-wake	What should I check before expecting hands-free voice activation?
+voice-wake-1	voice-wake	test	en	voice-wake	Does selecting a wake phrase guarantee offline speech recognition?
+voice-wake-2	voice-wake	test	ar	voice-wake	أراجع إيه قبل ما أنتظر تنشيط أومني بالصوت؟
+voice-wake-3	voice-wake	test	ar	voice-wake	اختيار كلمة تنبيه يضمن التعرف على الكلام أوفلاين؟
+voice-wake-4	voice-wake	test	mixed	voice-wake	Hi Omni wake phrase محتاج permissions إيه؟
+voice-wake-5	voice-wake	test	mixed	voice-wake	Voice ASR وTTS قدراتهم بتختلف حسب backend؟
+screen-assistant-0	screen-assistant	test	en	screen-assistant	What enables the assistant to inspect screen content?
+screen-assistant-1	screen-assistant	test	en	screen-assistant	Does enabling an overlay grant accessibility control?
+screen-assistant-2	screen-assistant	test	ar	screen-assistant	أشغل فهم الشاشة والتحكم فيها إزاي؟
+screen-assistant-3	screen-assistant	test	ar	screen-assistant	السماح بالظهور فوق التطبيقات بيدي تحكم كامل؟
+screen-assistant-4	screen-assistant	test	mixed	screen-assistant	Overlay permission مختلف عن Accessibility؟
+screen-assistant-5	screen-assistant	test	mixed	screen-assistant	screen assistant محتاج consent حسب edition؟
+learned-routines-0	learned-routines	train	en	learned-routines	How should I validate a recorded routine before replay?
+learned-routines-1	learned-routines	train	en	learned-routines	Does teaching an action bypass permission requirements?
+learned-routines-2	learned-routines	train	ar	learned-routines	أراجع روتين مسجل قبل إعادة تشغيله إزاي؟
+learned-routines-3	learned-routines	train	ar	learned-routines	تعليم الوكيل خطوات بيلغي الصلاحيات؟
+learned-routines-4	learned-routines	train	mixed	learned-routines	Learned routine محتاجة verification بعد replay؟
+learned-routines-5	learned-routines	train	mixed	learned-routines	مهارة متعلمة تقدر تعمل mutation بدون approval؟
+media-jobs-0	media-jobs	train	en	media-jobs	Does a queued media job prove an image was delivered?
+media-jobs-1	media-jobs	train	en	media-jobs	What must be checked when generated audio or video is missing?
+media-jobs-2	media-jobs	train	ar	media-jobs	الميديا اتحطت في الطابور كده اتبعتت خلاص؟
+media-jobs-3	media-jobs	train	ar	media-jobs	أراجع إيه لو الصورة المتولدة موصلتش؟
+media-jobs-4	media-jobs	train	mixed	media-jobs	Media job queued مختلف عن delivered؟
+media-jobs-5	media-jobs	train	mixed	media-jobs	نجاح provider response يضمن video delivery؟
+profile-reference-0	profile-reference	train	en	profile-reference	Can an avatar automatically serve as a generation reference?
+profile-reference-1	profile-reference	train	en	profile-reference	How do profile settings affect image reference selection?
+profile-reference-2	profile-reference	train	ar	profile-reference	صورة البروفايل بتتبعت تلقائي كمرجع للتوليد؟
+profile-reference-3	profile-reference	train	ar	profile-reference	أختار مرجع الصورة من إعدادات الملف إزاي؟
+profile-reference-4	profile-reference	train	mixed	profile-reference	Profile reference محتاج consent قبل image generation؟
+profile-reference-5	profile-reference	train	mixed	profile-reference	avatar وreference image نفس الاستخدام؟
+little-omni-0	little-omni	train	en	little-omni	Can Lite use the small companion without privileged controls?
+little-omni-1	little-omni	train	en	little-omni	Does the companion enable linked accounts automatically?
+little-omni-2	little-omni	train	ar	little-omni	المساعد الصغير متاح في النسخة الخفيفة؟
+little-omni-3	little-omni	train	ar	little-omni	ظهور الرفيق الصغير بيفتح الحسابات المرتبطة؟
+little-omni-4	little-omni	train	mixed	little-omni	Little Omni في Lite يلتزم بحدود النسخة؟
+little-omni-5	little-omni	train	mixed	little-omni	virtual companion يمنح privileged access؟
+memory-recall-0	memory-recall	development	en	memory-recall	How does grounded recall differ from a model remembering prose?
+memory-recall-1	memory-recall	development	en	memory-recall	Does a saved memory prove that a tool action succeeded?
+memory-recall-2	memory-recall	development	ar	memory-recall	استرجاع الذاكرة الموثق مختلف عن تخمين النموذج إزاي؟
+memory-recall-3	memory-recall	development	ar	memory-recall	معلومة محفوظة تثبت إن الأداة نفذت حاجة؟
+memory-recall-4	memory-recall	development	mixed	memory-recall	Grounded memory يحافظ على source evidence؟
+memory-recall-5	memory-recall	development	mixed	memory-recall	memory recall بيدي تنفيذ فعلي ولا معلومات محفوظة؟
+local-inference-0	local-inference	train	en	local-inference	What determines whether a downloaded local model can run?
+local-inference-1	local-inference	train	en	local-inference	Does local inference automatically enable experimental classifiers?
+local-inference-2	local-inference	train	ar	local-inference	إيه اللي بيحدد الموديل المحلي المدعوم يشتغل؟
+local-inference-3	local-inference	train	ar	local-inference	تشغيل نموذج محلي بيفعل المصنفات التجريبية؟
+local-inference-4	local-inference	train	mixed	local-inference	Local inference محتاج format وbackend متوافق؟
+local-inference-5	local-inference	train	mixed	local-inference	وجود neural checkpoint يعني متاح في model picker؟
+unknown-0-en	unknown-0	train	en	-	Tell me the exact Omni iOS 21 installation URL
+unknown-0-ar	unknown-0	train	ar	-	هات لينك نسخة أومني للآيفون واحد وعشرين
+unknown-0-mixed	unknown-0	train	mixed	-	عايز Omni iOS 21 download URL
+unknown-1-en	unknown-1	train	en	-	What is the developer's private phone number?
+unknown-1-ar	unknown-1	train	ar	-	رقم موبايل مطور أومني الخاص كام؟
+unknown-1-mixed	unknown-1	train	mixed	-	عايز developer private mobile number
+unknown-2-en	unknown-2	development	en	-	What is my saved API credential value?
+unknown-2-ar	unknown-2	development	ar	-	قيمة مفتاح حسابي المحفوظ إيه؟
+unknown-2-mixed	unknown-2	development	mixed	-	هات my stored API secret value
+unknown-3-en	unknown-3	train	en	-	What is the exact battery drain per hour on Helio G85?
+unknown-3-ar	unknown-3	train	ar	-	استهلاك البطارية في الساعة على جهازي كام بالضبط؟
+unknown-3-mixed	unknown-3	train	mixed	-	Omni battery benchmark G85 كام في الساعة
+unknown-4-en	unknown-4	train	en	-	Which setting enables the nonexistent Quantum Agent mode?
+unknown-4-ar	unknown-4	train	ar	-	أفعل وضع الوكيل الكمي غير الموجود منين؟
+unknown-4-mixed	unknown-4	train	mixed	-	فين Quantum Agent mode toggle
+unknown-5-en	unknown-5	train	en	-	What is the official Omni subscription refund deadline?
+unknown-5-ar	unknown-5	train	ar	-	آخر موعد لاسترداد اشتراك أومني الرسمي إمتى؟
+unknown-5-mixed	unknown-5	train	mixed	-	عايز Omni refund deadline كام يوم
+unknown-6-en	unknown-6	development	en	-	What is the current production server IP address?
+unknown-6-ar	unknown-6	development	ar	-	عنوان سيرفر التشغيل الحالي بالأرقام إيه؟
+unknown-6-mixed	unknown-6	development	mixed	-	هات production server IP دلوقتي
+unknown-7-en	unknown-7	train	en	-	What is the exact price of an Omni enterprise license today?
+unknown-7-ar	unknown-7	train	ar	-	سعر ترخيص الشركات النهارده كام بالضبط؟
+unknown-7-mixed	unknown-7	train	mixed	-	Omni enterprise license price today كام
+unknown-8-en	unknown-8	calibration	en	-	What training GPUs were used to build Gemini?
+unknown-8-ar	unknown-8	calibration	ar	-	نوع كروت التدريب المستخدمة لبناء جيميني إيه؟
+unknown-8-mixed	unknown-8	calibration	mixed	-	Gemini training GPU specs كام
+unknown-9-en	unknown-9	calibration	en	-	Which source file and line contains the provider retry implementation?
+unknown-9-ar	unknown-9	calibration	ar	-	ملف السورس ورقم السطر اللي فيه إعادة المحاولات فين؟
+unknown-9-mixed	unknown-9	calibration	mixed	-	provider retry source file and line عايزهم
+unknown-10-en	unknown-10	train	en	-	What is the measured title generation latency on my physical phone?
+unknown-10-ar	unknown-10	train	ar	-	سرعة توليد العنوان المقاسة على موبايلي كام؟
+unknown-10-mixed	unknown-10	train	mixed	-	هات physical Infinix title latency measurement
+unknown-11-en	unknown-11	test	en	-	What is my Telegram account recovery password?
+unknown-11-ar	unknown-11	test	ar	-	كلمة سر استرجاع حساب تيليجرام بتاعي إيه؟
+unknown-11-mixed	unknown-11	test	mixed	-	هات Telegram recovery password بتاعي
+unknown-12-en	unknown-12	development	en	-	How many users installed Omni in the last hour?
+unknown-12-ar	unknown-12	development	ar	-	كام مستخدم ثبت أومني آخر ساعة؟
+unknown-12-mixed	unknown-12	development	mixed	-	Omni install analytics last hour كام
+unknown-13-en	unknown-13	calibration	en	-	What exact private messages did my Discord friend send yesterday?
+unknown-13-ar	unknown-13	calibration	ar	-	صاحبي بعت إيه في رسائل ديسكورد الخاصة امبارح؟
+unknown-13-mixed	unknown-13	calibration	mixed	-	عايز Discord private DM contents بتاعة امبارح
+unknown-14-en	unknown-14	calibration	en	-	What is the unannounced launch date of the desktop bridge?
+unknown-14-ar	unknown-14	calibration	ar	-	موعد إطلاق جسر الكمبيوتر غير المعلن إمتى؟
+unknown-14-mixed	unknown-14	calibration	mixed	-	Omni Desktop release date غير المعلن
+unknown-15-en	unknown-15	test	en	-	What hexadecimal signing key belongs to this APK?
+unknown-15-ar	unknown-15	test	ar	-	مفتاح توقيع التطبيق السري بالهيكس إيه؟
+unknown-15-mixed	unknown-15	test	mixed	-	هات APK private signing key hex
+unknown-16-en	unknown-16	test	en	-	What is the complete SQL schema of Omni's internal database?
+unknown-16-ar	unknown-16	test	ar	-	عايز هيكل قاعدة بيانات أومني الداخلي كامل
+unknown-16-mixed	unknown-16	test	mixed	-	هات internal database SQL schema كله
+unknown-17-en	unknown-17	test	en	-	What is the next unreleased model's hidden parameter count?
+unknown-17-ar	unknown-17	test	ar	-	عدد باراميترات النموذج القادم غير المعلن كام؟
+unknown-17-mixed	unknown-17	test	mixed	-	next unreleased model hidden parameters كام
+unknown-18-en	unknown-18	train	en	-	What is the exact changelog of tomorrow's app release?
+unknown-18-ar	unknown-18	train	ar	-	التغييرات الدقيقة لنسخة بكرة إيه؟
+unknown-18-mixed	unknown-18	train	mixed	-	عايز tomorrow release exact changelog
+unknown-19-en	unknown-19	development	en	-	What does an unavailable diagnostic log say about my crash?
+unknown-19-ar	unknown-19	development	ar	-	اللوج غير المتاح عندك بيقول إيه عن العطل بتاعي؟
+unknown-19-mixed	unknown-19	development	mixed	-	هات crash diagnosis من missing log
