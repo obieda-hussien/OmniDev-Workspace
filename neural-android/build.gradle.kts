@@ -6,7 +6,7 @@ val prepareFixtures by tasks.registering(Exec::class) {
     inputs.files(rootProject.fileTree("neural-core/src/main/java"),
         rootProject.fileTree("neural-core/training"), rootProject.fileTree("neural-core/fixtures"), rootProject.fileTree("neural-core/checkpoints"),
         rootProject.fileTree("neural-core/smoke") {
-            include("*AndroidFixtureExporter.java", "AndroidProbeSmoke.java", "SupportRetrievalAndroidSmoke.java", "HybridSupportAndroidSmoke.java", "ContractIntentCheckpointSmoke.java")
+            include("*AndroidFixtureExporter.java", "AndroidProbeSmoke.java", "SupportRetrievalAndroidSmoke.java", "HybridSupportAndroidSmoke.java", "ExpandedSupportAndroidSmoke.java", "ContractIntentCheckpointSmoke.java")
         },
         fileTree("src/androidTest/java/com/omnidev/workspace/neural/probe") {
             include("*ProbeContract.java")
@@ -17,6 +17,7 @@ val prepareFixtures by tasks.registering(Exec::class) {
         },
         rootProject.file("scripts/prepare_neural_android_fixtures.sh"),
         rootProject.file("scripts/prepare_support_android.sh"),
+        rootProject.file("scripts/prepare_expanded_android.sh"), rootProject.file("scripts/prepare_support_data_v4.py"),
         rootProject.file("scripts/prepare_hybrid_android.sh"), rootProject.file("scripts/prepare_hybrid_support.py"),
         rootProject.file("scripts/prepare_product_support.py"), rootProject.file("scripts/prepare_ranked_support.py"),
         rootProject.file("scripts/build_product_knowledge.py"),

@@ -2,7 +2,7 @@ name: Omni Neural Core (experimental)
 
 on:
   pull_request:
-    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2']
+    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2', 'feat/neural-hybrid-support']
     paths:
       - 'neural-core/**'
       - 'neural-android/**'
@@ -29,6 +29,12 @@ on:
       - 'scripts/train_product_support.sh'
       - 'scripts/train_ranked_support.sh'
       - 'scripts/train_hybrid_support.sh'
+      - 'scripts/train_expanded_support.sh'
+      - 'scripts/prepare_support_data_v4.py'
+      - 'scripts/test_support_data_v4.py'
+      - 'scripts/finalize_expanded_support.py'
+      - 'scripts/prepare_expanded_android.sh'
+      - 'docs/EXPANDED_SUPPORT_DATA.md'
       - 'scripts/prepare_hybrid_support.py'
       - 'scripts/test_hybrid_support.py'
       - 'scripts/finalize_hybrid_support.py'
@@ -86,6 +92,12 @@ on:
       - 'scripts/train_product_support.sh'
       - 'scripts/train_ranked_support.sh'
       - 'scripts/train_hybrid_support.sh'
+      - 'scripts/train_expanded_support.sh'
+      - 'scripts/prepare_support_data_v4.py'
+      - 'scripts/test_support_data_v4.py'
+      - 'scripts/finalize_expanded_support.py'
+      - 'scripts/prepare_expanded_android.sh'
+      - 'docs/EXPANDED_SUPPORT_DATA.md'
       - 'scripts/prepare_hybrid_support.py'
       - 'scripts/test_hybrid_support.py'
       - 'scripts/finalize_hybrid_support.py'
@@ -464,5 +476,28 @@ jobs:
         with:
           name: hybrid-support-${{ github.run_id }}
           path: build/hybrid-support-v3/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  expanded-support-training:
+    name: Expanded scenario data + matched training comparison
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify frozen scenarios, eight matched fits and compiled source/default parity
+        run: bash scripts/train_expanded_support.sh
+      - name: Upload expanded and old-only fits including failed quality gates
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: expanded-support-${{ github.run_id }}
+          path: build/support-data-v4/
           if-no-files-found: ignore
           retention-days: 30

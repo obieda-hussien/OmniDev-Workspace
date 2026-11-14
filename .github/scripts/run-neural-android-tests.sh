@@ -47,7 +47,7 @@ bash .github/scripts/gradle-with-retry.sh "${gradle_args[@]}" :neural-android:co
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
   "-Pandroid.testInstrumentationRunnerArguments.neuralProbeRun=$neural_run_id" \
   "-Pandroid.testInstrumentationRunnerArguments.neuralBenchmark=$neural_benchmark" || neural_status=$?
-for report in correctness benchmark support-correctness hybrid-correctness; do
+for report in correctness benchmark support-correctness hybrid-correctness expanded-correctness; do
   if adb exec-out run-as com.omnidev.workspace.neuralprobe cat "files/$report.json" > "$report_dir/$report.tmp"; then
     mv "$report_dir/$report.tmp" "$report_dir/$report.json"
   else rm -f "$report_dir/$report.tmp"; fi
@@ -67,6 +67,8 @@ support = json.loads((directory / 'support-correctness.json').read_text())
 assert support['support_parity_passed'] and support['predictions'] == 1755 and support['queries'] == 351 and support['documents'] == 58 and support['retained_default_checks'] == 351 and support['run_id'] == sys.argv[3]
 hybrid = json.loads((directory / 'hybrid-correctness.json').read_text())
 assert hybrid['hybrid_parity_passed'] and hybrid['predictions'] == 459 and hybrid['retained_default_checks'] == 459 and hybrid['documents'] == 58 and hybrid['run_id'] == sys.argv[3]
+expanded = json.loads((directory / 'expanded-correctness.json').read_text())
+assert expanded['expanded_parity_passed'] and expanded['predictions'] == 1101 and expanded['retained_default_checks'] == 1101 and expanded['documents'] == 58 and expanded['run_id'] == sys.argv[3]
 assert report['contract_parity_passed'] and report['contract_probes'] == 1366
 if sys.argv[2] == 'true':
     benchmark = json.loads((directory / 'benchmark.json').read_text())
