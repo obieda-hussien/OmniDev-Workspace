@@ -1,0 +1,503 @@
+{
+  "production_eligible": false,
+  "data": "assistant_authored_source_anchors_not_execution_or_independent_human_labels",
+  "old_status": "4381_observed_regressions",
+  "new_test": "36_pre_fit_frozen_authored_scenario_rows_not_semantic_OOD",
+  "selected": "new_width0_seed97",
+  "expert_parameters": 6150,
+  "temperature": 0.5,
+  "train_rows": 2270,
+  "balanced_train_rows": 12564,
+  "vocabulary_sha256": "e3edfb2fc11c8aa04dd96de68886bdf8e0a34a26baf2ee3ae5d1c7aa69579112",
+  "runtime_sha256": "f423ec428ab9e2bcaa69671279494c37b9f884057b0ee8ea61edc2c3197683f2",
+  "reject": [
+    0.5,
+    0.7,
+    0.9,
+    0.8,
+    0.6
+  ],
+  "change": [
+    0.99,
+    0.8,
+    1.1,
+    1.1,
+    0.8
+  ],
+  "support": [
+    0.6,
+    1.1,
+    1.1,
+    1.1,
+    0.5
+  ],
+  "candidates": [
+    {
+      "source": "new_width0_seed42",
+      "parameters": 6150,
+      "epoch": 5,
+      "epochs_run": 20,
+      "temperature": 0.5,
+      "development_macro_accuracy": 0.7635373326151242,
+      "development_nll": 0.7291894401664621,
+      "policy_utility": 0.703665781783311
+    },
+    {
+      "source": "new_width0_seed97",
+      "parameters": 6150,
+      "epoch": 5,
+      "epochs_run": 20,
+      "temperature": 0.5,
+      "development_macro_accuracy": 0.7362264082453763,
+      "development_nll": 0.7361327427191792,
+      "policy_utility": 0.7096959716370302
+    },
+    {
+      "source": "new_width16_seed42",
+      "parameters": 16502,
+      "epoch": 5,
+      "epochs_run": 20,
+      "temperature": 1.5,
+      "development_macro_accuracy": 0.6822615945908711,
+      "development_nll": 1.2122248429145686,
+      "policy_utility": 0.6667081534493452
+    },
+    {
+      "source": "new_width16_seed97",
+      "parameters": 16502,
+      "epoch": 5,
+      "epochs_run": 20,
+      "temperature": 1.5,
+      "development_macro_accuracy": 0.6970841902958198,
+      "development_nll": 1.2386392979150844,
+      "policy_utility": 0.6571676987301861
+    },
+    {
+      "source": "retuned_frozen_utility_v2",
+      "parameters": 6150,
+      "temperature": 1.0,
+      "policy_utility": 0.6417694535292601
+    }
+  ],
+  "evaluations": {
+    "old_observed": {
+      "rows": 1542,
+      "known": 399,
+      "required_refusals": 1143,
+      "teacher": {
+        "accepted": 899,
+        "accepted_correct": 233,
+        "accepted_errors": 666,
+        "unsupported_refused": 548,
+        "previous_correct_lost": 0,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 667,
+        "accepted_correct": 253,
+        "accepted_errors": 414,
+        "unsupported_refused": 772,
+        "previous_correct_lost": 4,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [
+          {
+            "group": "compose:build-flavors:build-regression",
+            "language": "mixed"
+          },
+          {
+            "group": "compose:build-regression:build-flavors",
+            "language": "mixed"
+          },
+          {
+            "group": "massive-122",
+            "language": "en"
+          },
+          {
+            "group": "authored-encouragement",
+            "language": "mixed"
+          }
+        ],
+        "lost_cases_truncated": false
+      },
+      "protected": {
+        "accepted": 635,
+        "accepted_correct": 257,
+        "accepted_errors": 378,
+        "unsupported_refused": 804,
+        "previous_correct_lost": 3,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [
+          {
+            "group": "compose:device-storage:device-display",
+            "language": "mixed"
+          },
+          {
+            "group": "massive-122",
+            "language": "en"
+          },
+          {
+            "group": "massive-3364",
+            "language": "en"
+          }
+        ],
+        "lost_cases_truncated": false
+      },
+      "raw_diagnostic": {
+        "accepted": 445,
+        "accepted_correct": 318,
+        "accepted_errors": 127,
+        "unsupported_refused": 1021,
+        "previous_correct_lost": 29,
+        "teacher_abstentions_upgraded": 115,
+        "lost_cases": [
+          {
+            "group": "original:repo-fileedit",
+            "language": "ar"
+          },
+          {
+            "group": "original:device-storage",
+            "language": "en"
+          },
+          {
+            "group": "original:device-storage",
+            "language": "mixed"
+          },
+          {
+            "group": "original:know-retrieve",
+            "language": "ar"
+          },
+          {
+            "group": "clinc-test-1964",
+            "language": "en"
+          },
+          {
+            "group": "compose:device-storage:device-display",
+            "language": "en"
+          },
+          {
+            "group": "compose:device-display:device-storage",
+            "language": "en"
+          },
+          {
+            "group": "compose:repo-fileedit:repo-merge",
+            "language": "ar"
+          },
+          {
+            "group": "compose:know-retrieve:know-references",
+            "language": "ar"
+          },
+          {
+            "group": "compose:know-references:know-retrieve",
+            "language": "ar"
+          },
+          {
+            "group": "compose:build-flavors:build-regression",
+            "language": "mixed"
+          },
+          {
+            "group": "compose:build-regression:build-flavors",
+            "language": "mixed"
+          },
+          {
+            "group": "compose:device-storage:device-display",
+            "language": "mixed"
+          },
+          {
+            "group": "compose:device-display:device-storage",
+            "language": "mixed"
+          },
+          {
+            "group": "massive-1300",
+            "language": "ar"
+          },
+          {
+            "group": "massive-5823",
+            "language": "ar"
+          },
+          {
+            "group": "massive-317",
+            "language": "ar"
+          },
+          {
+            "group": "massive-5525",
+            "language": "en"
+          },
+          {
+            "group": "massive-46",
+            "language": "ar"
+          },
+          {
+            "group": "massive-122",
+            "language": "en"
+          },
+          {
+            "group": "massive-3364",
+            "language": "en"
+          },
+          {
+            "group": "massive-6031",
+            "language": "ar"
+          },
+          {
+            "group": "massive-6065",
+            "language": "ar"
+          },
+          {
+            "group": "authored-tag-commit",
+            "language": "en"
+          },
+          {
+            "group": "authored-two-reads",
+            "language": "en"
+          },
+          {
+            "group": "authored-notification-access",
+            "language": "en"
+          },
+          {
+            "group": "authored-notification-access",
+            "language": "mixed"
+          },
+          {
+            "group": "authored-two-observations",
+            "language": "ar"
+          },
+          {
+            "group": "authored-two-observations",
+            "language": "mixed"
+          }
+        ],
+        "lost_cases_truncated": false
+      }
+    },
+    "new_authored_ar": {
+      "rows": 12,
+      "known": 10,
+      "required_refusals": 2,
+      "teacher": {
+        "accepted": 9,
+        "accepted_correct": 5,
+        "accepted_errors": 4,
+        "unsupported_refused": 1,
+        "previous_correct_lost": 0,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 9,
+        "accepted_correct": 5,
+        "accepted_errors": 4,
+        "unsupported_refused": 1,
+        "previous_correct_lost": 0,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "protected": {
+        "accepted": 9,
+        "accepted_correct": 6,
+        "accepted_errors": 3,
+        "unsupported_refused": 1,
+        "previous_correct_lost": 0,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "raw_diagnostic": {
+        "accepted": 8,
+        "accepted_correct": 7,
+        "accepted_errors": 1,
+        "unsupported_refused": 1,
+        "previous_correct_lost": 1,
+        "teacher_abstentions_upgraded": 3,
+        "lost_cases": [
+          {
+            "group": "contract-chat-celebrate-small-win",
+            "language": "ar"
+          }
+        ],
+        "lost_cases_truncated": false
+      }
+    },
+    "new_authored_en": {
+      "rows": 12,
+      "known": 10,
+      "required_refusals": 2,
+      "teacher": {
+        "accepted": 6,
+        "accepted_correct": 1,
+        "accepted_errors": 5,
+        "unsupported_refused": 1,
+        "previous_correct_lost": 0,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 5,
+        "accepted_correct": 1,
+        "accepted_errors": 4,
+        "unsupported_refused": 1,
+        "previous_correct_lost": 0,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "protected": {
+        "accepted": 5,
+        "accepted_correct": 3,
+        "accepted_errors": 2,
+        "unsupported_refused": 1,
+        "previous_correct_lost": 0,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "raw_diagnostic": {
+        "accepted": 8,
+        "accepted_correct": 6,
+        "accepted_errors": 2,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "teacher_abstentions_upgraded": 4,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      }
+    },
+    "new_authored_mixed": {
+      "rows": 12,
+      "known": 10,
+      "required_refusals": 2,
+      "teacher": {
+        "accepted": 10,
+        "accepted_correct": 3,
+        "accepted_errors": 7,
+        "unsupported_refused": 1,
+        "previous_correct_lost": 0,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 4,
+        "accepted_correct": 2,
+        "accepted_errors": 2,
+        "unsupported_refused": 1,
+        "previous_correct_lost": 1,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [
+          {
+            "group": "contract-build-aar-metadata",
+            "language": "mixed"
+          }
+        ],
+        "lost_cases_truncated": false
+      },
+      "protected": {
+        "accepted": 7,
+        "accepted_correct": 5,
+        "accepted_errors": 2,
+        "unsupported_refused": 1,
+        "previous_correct_lost": 1,
+        "teacher_abstentions_upgraded": 0,
+        "lost_cases": [
+          {
+            "group": "contract-build-aar-metadata",
+            "language": "mixed"
+          }
+        ],
+        "lost_cases_truncated": false
+      },
+      "raw_diagnostic": {
+        "accepted": 6,
+        "accepted_correct": 5,
+        "accepted_errors": 1,
+        "unsupported_refused": 1,
+        "previous_correct_lost": 1,
+        "teacher_abstentions_upgraded": 1,
+        "lost_cases": [
+          {
+            "group": "contract-build-aar-metadata",
+            "language": "mixed"
+          }
+        ],
+        "lost_cases_truncated": false
+      }
+    }
+  },
+  "host_timing": {
+    "phone_measurement": false,
+    "encoding_included": true,
+    "calls_per_batch": 144,
+    "warmup_per_mode": 512,
+    "batches": 8,
+    "checksum": 0.9999089535415921,
+    "teacher": {
+      "batch_average_ns": [
+        24082.541666666668,
+        22271.395833333332,
+        22835.9375,
+        21751.9375,
+        30663.17361111111,
+        22593.694444444445,
+        22131.256944444445,
+        23348.652777777777
+      ],
+      "median_batch_average_ns": 22714.815972222223
+    },
+    "utility_v2": {
+      "batch_average_ns": [
+        24921.027777777777,
+        24992.666666666668,
+        24601.51388888889,
+        23985.3125,
+        24578.215277777777,
+        39077.1875,
+        24160.92361111111,
+        25654.5625
+      ],
+      "median_batch_average_ns": 24761.270833333336
+    },
+    "protected": {
+      "batch_average_ns": [
+        24577.458333333332,
+        24661.194444444445,
+        23995.32638888889,
+        31826.659722222223,
+        24609.86111111111,
+        25983.604166666668,
+        24597.694444444445,
+        25999.38888888889
+      ],
+      "median_batch_average_ns": 24635.527777777777
+    }
+  },
+  "artifact_sha256": {
+    "neural-core/checkpoints/contract-intents-v1/TrainedContractPolicy.java": "98c6175da51ff5edb31c7af15d6f0a2ac34f97d390a8001e1653709c95090a99",
+    "neural-core/checkpoints/contract-intents-v1/TrainedContractExpert.java": "f591ce3b0bd8a9f0f3604d10a4bd6fdc23e9c0c7e084b3a9634172880fc8e051",
+    "neural-core/checkpoints/rich-text-v1/TrainedRichPresence.java": "397a27d1a7736f41ebd15a311d289307e715f0d6c7ed03a05fe6926a61f55e45",
+    "neural-core/checkpoints/rich-text-v1/TrainedRichVocabulary.java": "b277f2a7c97d549632d399929f029c12479d6492eef0deb9aaf2973ab7a37a1d",
+    "neural-core/checkpoints/public-refusal-v1/TrainedPublicRefusal.java": "d79539ac9455ccbb84be796fd334ba3b35cd7193ae9a4d07a1dbd5528ead3fe0",
+    "neural-core/checkpoints/utility-expert-v2/TrainedUtilityExpert.java": "5d0620826db3f332c0ed8f334c171a9b6ab5e6700cb0f5d0a7ea8190aa6a434b",
+    "neural-core/fixtures/contract-intents/protocol.json": "2d51a7cfb4463d5d2abc8864e932c33b3a256f59c449ddf822bea494682f2e2a",
+    "neural-core/fixtures/contract-intents/provenance.json": "9d92f59cfb5e05c4da6dafb9b40af36e3675b0308182609a4c72da048db7c1a3",
+    "neural-core/fixtures/contract-intents/corpus.tsv": "68d487ed99348588c64d7f6c86eea9460e41c7de468482e550e8d90dc99a5f2e",
+    "neural-core/fixtures/text-intents.tsv": "e1aac35b6d45015e0798bb039ab8f6bee33e96720fa72f3f4ebb42c477ba4fd1",
+    "neural-core/fixtures/clinc-subset/rejection.tsv": "ecc3598ed5c2385ecbcd5ab3fef3e5d4ba36112342b0239287ff0a0bf65b1843",
+    "neural-core/fixtures/bilingual-refusal/corpus.tsv": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e",
+    "neural-core/fixtures/massive-refusal/corpus.tsv": "f300371ef4656d78fc22449066250918d5f6270afafb53595232351b1d95b6e8",
+    "neural-core/fixtures/rich-text/fresh-english.tsv": "e76fc84ba71146ca181d21e648997bfd76ab2790091334125ea9d35107e9ecc0",
+    "neural-core/fixtures/decision-challenges.tsv": "4378e3ebc46396f732a5bd1d18d5bd79e3a0e9c2cc98d70c0c894fea3b43f869",
+    "neural-core/fixtures/residual-adapter/fresh.tsv": "05add51a7760a1ad743f3830de7597522f32314f33764a7ea19d7451a2a8fffa",
+    "neural-core/fixtures/utility-expert/fresh.tsv": "adc025471833aa05b2affa2f296bdf83fea1be7c50215aebbcc3706a41204213",
+    "neural-core/fixtures/prototype-support/authored.tsv": "631dd708c7bd59dd6bca98b9204a9cdf1b8953d39280bb28861fa3cbc49ff102",
+    "neural-core/fixtures/expert-trust/fresh.tsv": "9f0f505d87a835800cd0ffaf953304974e55cab4708d78eaa89b69c9571aa132"
+  },
+  "old_observed_retention_passed": false,
+  "new_authored_retention_passed": false,
+  "all_known_retention_passed": false,
+  "promotion_blocker": "Old/new earlier-correct losses: 3/1; authored data is not independent human validation; no physical-device measurement."
+}

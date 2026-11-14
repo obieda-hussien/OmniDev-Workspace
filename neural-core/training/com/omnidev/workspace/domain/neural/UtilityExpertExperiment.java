@@ -367,7 +367,7 @@ public final class UtilityExpertExperiment {
     return result;
   }
 
-  private static ExpertPolicyTrainer.Policy policy(
+  static ExpertPolicyTrainer.Policy policy(
       TinyNeuralRuntime runtime,
       double temperature,
       List<Row> rows,
