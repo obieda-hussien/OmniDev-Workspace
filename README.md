@@ -106,6 +106,8 @@ python3 scripts/build_product_knowledge.py --verify
 
 The experimental [product support reranker](docs/PRODUCT_SUPPORT_TRAINING.md) now includes four actual offline fits on the documentation corpus and authored multilingual questions. Its selected 113-parameter head ranks existing FAQ quotes for possible larger-model context. Raw first-result/rejection regressions are recorded; a baseline-veto wrapper improves precision at low coverage on already observed probes. It is **not enabled in the normal APK**, does not generate answers or chat titles, and is not production eligible. Exporting the FAQ itself still performs no training.
 
+The follow-up [pairwise support experiment](docs/PAIRWISE_SUPPORT_TRAINING.md) trains a 13-parameter candidate with query-balanced ranking/relevance losses. On 117 new authored wordings it improves accepted-correct retrieval over the earlier raw head while retaining lexical-top1 and mixed-language limitations. Candidate guard errors still exceed the frozen guard, so the default remains the previous guarded behavior. New API 30 test fixtures verify both checkpoints and exact source quotations; readiness and physical-device checks remain separate.
+
 ## Launcher discovery and Home control
 
 The companion Launcher integration now supports scoped capability discovery, catalog/version diagnostics,

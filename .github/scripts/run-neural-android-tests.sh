@@ -47,7 +47,7 @@ bash .github/scripts/gradle-with-retry.sh "${gradle_args[@]}" :neural-android:co
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
   "-Pandroid.testInstrumentationRunnerArguments.neuralProbeRun=$neural_run_id" \
   "-Pandroid.testInstrumentationRunnerArguments.neuralBenchmark=$neural_benchmark" || neural_status=$?
-for report in correctness benchmark; do
+for report in correctness benchmark support-correctness; do
   if adb exec-out run-as com.omnidev.workspace.neuralprobe cat "files/$report.json" > "$report_dir/$report.tmp"; then
     mv "$report_dir/$report.tmp" "$report_dir/$report.json"
   else rm -f "$report_dir/$report.tmp"; fi
@@ -63,6 +63,8 @@ assert report['residual_parity_passed'] and report['residual_probes'] == 859
 assert report['utility_parity_passed'] and report['utility_probes'] == 995
 assert report['prototype_parity_passed'] and report['prototype_probes'] == 1070
 assert report['trust_parity_passed'] and report['trust_probes'] == 1150
+support = json.loads((directory / 'support-correctness.json').read_text())
+assert support['support_parity_passed'] and support['predictions'] == 1755 and support['queries'] == 351 and support['documents'] == 58 and support['retained_default_checks'] == 351 and support['run_id'] == sys.argv[3]
 if sys.argv[2] == 'true':
     benchmark = json.loads((directory / 'benchmark.json').read_text())
     assert benchmark['encoding_included'] and benchmark['timing_assertions'] is False and benchmark['run_id'] == sys.argv[3]
