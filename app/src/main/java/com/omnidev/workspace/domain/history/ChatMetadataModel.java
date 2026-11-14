@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 /** Bounded local extractive baseline. It neither trains on chats nor authorizes tools. */
 public final class ChatMetadataModel {
-  public static final int VERSION = 2,
+  public static final int VERSION = 3,
       MAX_TEXTS = 6,
       MAX_TEXT_CHARS = 1500,
       MAX_TITLE_CODEPOINTS = 64;

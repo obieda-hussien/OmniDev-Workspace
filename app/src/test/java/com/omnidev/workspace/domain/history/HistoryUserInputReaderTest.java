@@ -57,10 +57,12 @@ public final class HistoryUserInputReaderTest {
 
   @Test
   public void scanningStopsAtTheExplicitBound() {
-    assertNull(
-        read(
-            "{\"context\":\""
-                + repeat("x", HistoryUserInputReader.MAX_SCAN)
-                + "\",\"userInput\":\"not reached\"}"));
+    assertThrows(
+        HistoryUserInputReader.ScanLimitExceeded.class,
+        () ->
+            read(
+                "{\"context\":\""
+                    + repeat("x", HistoryUserInputReader.MAX_SCAN)
+                    + "\",\"userInput\":\"not reached\"}"));
   }
 }

@@ -7,6 +7,15 @@ import java.io.Reader;
 /** Bounded root-field extraction from paged legacy metadata; never materializes a full envelope. */
 public final class HistoryUserInputReader {
   public static final int MAX_SCAN = 262144, MAX_PREFIX = 1500;
+
+  public static final class ScanLimitExceeded extends IllegalStateException {
+    private static final long serialVersionUID = 1L;
+
+    private ScanLimitExceeded() {
+      super("Metadata scan bound");
+    }
+  }
+
   private final Reader reader;
   private int pending = -2, scanned;
 
@@ -152,7 +161,7 @@ public final class HistoryUserInputReader {
       pending = -2;
       return c;
     }
-    if (++scanned > MAX_SCAN) throw new IOException("Metadata scan bound");
+    if (++scanned > MAX_SCAN) throw new ScanLimitExceeded();
     return reader.read();
   }
 

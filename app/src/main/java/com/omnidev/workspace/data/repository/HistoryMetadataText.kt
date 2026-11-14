@@ -36,7 +36,8 @@ internal object HistoryMetadataText {
     }
 
     private fun extract(content: String, reader: Reader): String {
-        val input = reader.use { HistoryUserInputReader.readPrefix(it) }
+        val input = try { reader.use { HistoryUserInputReader.readPrefix(it) } }
+        catch (_: HistoryUserInputReader.ScanLimitExceeded) { return "" }
         return bounded(input?.takeIf { it.isNotBlank() } ?: content)
     }
 
