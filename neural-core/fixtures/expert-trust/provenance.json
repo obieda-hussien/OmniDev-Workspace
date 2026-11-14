@@ -1,0 +1,17 @@
+{
+  "source_files": {
+    "ar-SA.jsonl": "b604b44d3bb94e4f71f64d041229e16ceb42d7b89385df7c82873d2514737186",
+    "en-US.jsonl": "c70f75c6a543a26e249ec383df67733ad9b1066f6c0406c2e04a3f03356e407e",
+    "LICENSE": "c2e6ea015269147de02117ebdd91f30ef09831251f5345fa8365273b1db1d435",
+    "NOTICE.md": "b90534ccd20c6f0e1e5239567af0d150496339542b75a15bfbc3e1e737593ddb"
+  },
+  "rows": 80,
+  "groups": 40,
+  "positive_rows": 0,
+  "license": "CC-BY-4.0; upstream LICENSE and NOTICE retained in massive-refusal",
+  "limits": "Unused official-test negatives only; no fresh supported, mixed-language or Egyptian labels.",
+  "files": {
+    "neural-core/fixtures/expert-trust/fresh.tsv": "9f0f505d87a835800cd0ffaf953304974e55cab4708d78eaa89b69c9571aa132",
+    "neural-core/fixtures/expert-trust/protocol.json": "710182090c40e03717a90694dfdec4ffa6a5d709fec39ad22d07d1a1d252da76"
+  }
+}

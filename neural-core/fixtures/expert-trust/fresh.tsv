@@ -1,0 +1,81 @@
+source_id	source_partition	locale	intent	expected_domain	text
+5128	test	ar-SA	transport_ticket	-	تذاكر السفر السعودية
+5128	test	en-US	transport_ticket	-	confirm a travel ticket to german
+12127	test	ar-SA	transport_ticket	-	حفر الباطن خمسة الفجر في الأحد قطار
+12127	test	en-US	transport_ticket	-	i need to go to dundee at five am on sunday by train
+12150	test	ar-SA	transport_ticket	-	الرياض قطار الشرقية الويكند هذا
+12150	test	en-US	transport_ticket	-	olly book me a ticket to paris on eurostar this weekend
+12162	test	ar-SA	transport_ticket	-	قطار
+12162	test	en-US	transport_ticket	-	can you book a train ticket
+12166	test	ar-SA	transport_ticket	-	قطار الرياض مكة
+12166	test	en-US	transport_ticket	-	book my train ticket from las vegas to los angeles
+12233	test	ar-SA	transport_ticket	-	قطار الرياض
+12233	test	en-US	transport_ticket	-	google train tickets to washington d. c.
+12235	test	ar-SA	transport_ticket	-	قطار نهاية الأسبوع
+12235	test	en-US	transport_ticket	-	please purchase a train ticket for this weekend
+12281	test	ar-SA	transport_ticket	-	قطار الرياض جدة
+12281	test	en-US	transport_ticket	-	please book a train ticket from london to manchester
+12291	test	ar-SA	transport_ticket	-	جدة
+12291	test	en-US	transport_ticket	-	ticket for bombay
+12293	test	ar-SA	transport_ticket	-	تذكرة للرياض
+12293	test	en-US	transport_ticket	-	ticket for delhi
+10471	test	ar-SA	lists_createoradd	-	أبي أسوي قائمة مهام جديدة
+10471	test	en-US	lists_createoradd	-	i need to create a new to do list
+10472	test	ar-SA	lists_createoradd	-	ساعدني أبدأ قائمة المطبخ
+10472	test	en-US	lists_createoradd	-	help me start my kitchen list
+10501	test	ar-SA	lists_createoradd	-	ظيف البروكلي لقائمة البقالة
+10501	test	en-US	lists_createoradd	-	add broccoli to my grocery list
+10503	test	ar-SA	lists_createoradd	-	ظيف البريد لقائمة مهام السبت
+10503	test	en-US	lists_createoradd	-	add the post office to my list of errands for saturday
+10513	test	ar-SA	lists_createoradd	-	أبي أسوي قائمة تسوق لهذا الأسبوع
+10513	test	en-US	lists_createoradd	-	i want to make this week's shopping list
+10563	test	ar-SA	lists_createoradd	-	ممكن تسوي لي قائمة
+10563	test	en-US	lists_createoradd	-	can you create a list for me
+10600	test	ar-SA	lists_createoradd	-	لو سمحت حدث قائمة البقالة حقي وظيف جالون واثنين بالمية حليب
+10600	test	en-US	lists_createoradd	-	please update my grocery list with one gallon of two percent milk
+10608	test	ar-SA	lists_createoradd	-	ابحث عن العنصر
+10608	test	en-US	lists_createoradd	-	search the item
+10621	test	ar-SA	lists_createoradd	-	ظيف مرقوق لقائمة الأكل
+10621	test	en-US	lists_createoradd	-	add paav bhaji in menu card
+10636	test	ar-SA	lists_createoradd	-	ابدأ قائمة من الموجودين
+10636	test	en-US	lists_createoradd	-	create a list that is available
+15747	test	ar-SA	email_addcontact	-	ظيف email هذا الشخص
+15747	test	en-US	email_addcontact	-	add this person's email
+15987	test	ar-SA	email_addcontact	-	ظيف هذا email الجديد مع جهات الإتصال
+15987	test	en-US	email_addcontact	-	add this new email with contact
+16158	test	ar-SA	email_addcontact	-	تذكر هذا email
+16158	test	en-US	email_addcontact	-	remember this email
+16225	test	ar-SA	email_addcontact	-	افتح جهات الاتصال
+16225	test	en-US	email_addcontact	-	open contacts
+16455	test	ar-SA	email_addcontact	-	ظيف email جديد لجهات الإتصال حقتي faris at gmail dot com
+16455	test	en-US	email_addcontact	-	add new email to my contacts macs at gmail dot com
+16470	test	ar-SA	email_addcontact	-	حطي هذا email في جهات أتصالي
+16470	test	en-US	email_addcontact	-	please add this email to my contacts
+16693	test	ar-SA	email_addcontact	-	ضيف محل أجهزة لوس في الرياض لجهات الإتصال في الإيميل
+16693	test	en-US	email_addcontact	-	add lowes hardware to my contact emails located in cleveland ohio
+16694	test	ar-SA	email_addcontact	-	دور على email شركة كيان وحطه في قائمة جهات الإتصال حقتي
+16694	test	en-US	email_addcontact	-	locate the email to giant eagle and put it into my contact list
+16781	test	ar-SA	email_addcontact	-	ضيف هذا الايميل لجهات الاتصال حقتي وبعدها ارسل له email
+16781	test	en-US	email_addcontact	-	add this email address to my contacts and send an email to
+16846	test	ar-SA	email_addcontact	-	بالله عليك ضف لي ايميل هاني حميد في جهات الاتصال حقي على ياهو
+16846	test	en-US	email_addcontact	-	please add an email for john doe to my contacts johndoe at yahoo dot com
+27	test	ar-SA	iot_cleaning	-	المكان وسخ هنا ابدأ التنظيف
+27	test	en-US	iot_cleaning	-	it's dirty here make some noise
+31	test	ar-SA	iot_cleaning	-	ممر
+31	test	en-US	iot_cleaning	-	hoover the hallway
+290	test	ar-SA	iot_cleaning	-	شغل المكنسة الكهربائية
+290	test	en-US	iot_cleaning	-	start a vacuum cleaner
+292	test	ar-SA	iot_cleaning	-	شغل المكنسة الكهربية
+292	test	en-US	iot_cleaning	-	turn on the vacuum cleaner
+635	test	ar-SA	iot_cleaning	-	لو سمحت شغل المكنسة الكهربائية
+635	test	en-US	iot_cleaning	-	please start vacuum cleaner
+843	test	ar-SA	iot_cleaning	-	شغل robot roomba
+843	test	en-US	iot_cleaning	-	start the robot roomba
+864	test	ar-SA	iot_cleaning	-	يقوم الروبوت بتنظيف غرفة المعيشة الآن
+864	test	en-US	iot_cleaning	-	robot vacuum the living room now
+1059	test	ar-SA	iot_cleaning	-	شغل المكنسة الكهربائية الآلية
+1059	test	en-US	iot_cleaning	-	turn on the robot vacuum cleaner
+1151	test	ar-SA	iot_cleaning	-	شغل مكنسة الكهرباء
+1151	test	en-US	iot_cleaning	-	start vacuum cleaner
+1703	test	ar-SA	iot_cleaning	-	المكنسة حقي لازم تشتغل بين عشرة و احدعش الصباح كل يوم
+1703	test	en-US	iot_cleaning	-	my vacuum cleaner should start between ten to eleven am everyday
