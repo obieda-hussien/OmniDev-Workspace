@@ -16,6 +16,7 @@ python3 scripts/prepare_massive_refusal.py --verify
 python3 scripts/reserve_residual_eval.py --verify
 python3 scripts/reserve_utility_eval.py --verify
 python3 scripts/prepare_prototype_challenges.py --verify
+python3 scripts/reserve_trust_eval.py --verify
 compile_java "${compat[@]}" -encoding UTF-8 -d "$fixture_classes" \
   neural-core/src/main/java/com/omnidev/workspace/domain/neural/*.java \
   neural-core/training/com/omnidev/workspace/domain/neural/*.java
@@ -31,12 +32,13 @@ compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_
   neural-core/checkpoints/bilingual-refusal-v1/TrainedBilingualRefusalCheckpoint.java \
   neural-core/checkpoints/rich-text-v1/*.java neural-core/checkpoints/public-refusal-v1/*.java \
   neural-core/checkpoints/public-decision-v1/*.java neural-core/checkpoints/residual-adapter-v1/*.java \
-  neural-core/checkpoints/utility-expert-v2/*.java neural-core/checkpoints/prototype-support-v1/*.java \
-  neural-core/smoke/AndroidFixtureExporter.java neural-core/smoke/ResidualAndroidFixtureExporter.java neural-core/smoke/UtilityAndroidFixtureExporter.java neural-core/smoke/PrototypeAndroidFixtureExporter.java
+  neural-core/checkpoints/utility-expert-v2/*.java neural-core/checkpoints/prototype-support-v1/*.java neural-core/checkpoints/expert-trust-v1/*.java \
+  neural-core/smoke/AndroidFixtureExporter.java neural-core/smoke/ResidualAndroidFixtureExporter.java neural-core/smoke/UtilityAndroidFixtureExporter.java neural-core/smoke/PrototypeAndroidFixtureExporter.java neural-core/smoke/ExpertTrustAndroidFixtureExporter.java
 java -cp "$fixture_classes" AndroidFixtureExporter "$fixture_output"
 java -cp "$fixture_classes" ResidualAndroidFixtureExporter "$fixture_output"
 java -cp "$fixture_classes" UtilityAndroidFixtureExporter "$fixture_output"
 java -cp "$fixture_classes" PrototypeAndroidFixtureExporter "$fixture_output"
+java -cp "$fixture_classes" com.omnidev.workspace.domain.neural.ExpertTrustAndroidFixtureExporter "$fixture_output"
 fixture_package="$fixture_output/java/com/omnidev/workspace/neural/probe"
 mkdir -p "$fixture_package"
 for checkpoint in TrainedTextIntentCheckpoint TrainedRefusalGateCheckpoint; do
@@ -44,7 +46,7 @@ for checkpoint in TrainedTextIntentCheckpoint TrainedRefusalGateCheckpoint; do
 done
 { echo 'package com.omnidev.workspace.neural.probe;'; cat neural-core/checkpoints/bilingual-refusal-v1/TrainedBilingualRefusalCheckpoint.java; } \
   > "$fixture_package/TrainedBilingualRefusalCheckpoint.java"
-for checkpoint in neural-core/checkpoints/rich-text-v1/*.java neural-core/checkpoints/public-refusal-v1/*.java neural-core/checkpoints/public-decision-v1/*.java neural-core/checkpoints/residual-adapter-v1/*.java neural-core/checkpoints/utility-expert-v2/*.java neural-core/checkpoints/prototype-support-v1/*.java; do
+for checkpoint in neural-core/checkpoints/rich-text-v1/*.java neural-core/checkpoints/public-refusal-v1/*.java neural-core/checkpoints/public-decision-v1/*.java neural-core/checkpoints/residual-adapter-v1/*.java neural-core/checkpoints/utility-expert-v2/*.java neural-core/checkpoints/prototype-support-v1/*.java neural-core/checkpoints/expert-trust-v1/*.java; do
   { echo 'package com.omnidev.workspace.neural.probe;'; cat "$checkpoint"; } > "$fixture_package/$(basename "$checkpoint")"
 done
 python3 - "$fixture_output" <<'PY'
@@ -62,5 +64,6 @@ compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_
   neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/ResidualNeuralProbeContract.java \
   neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/UtilityNeuralProbeContract.java \
   neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/PrototypeNeuralProbeContract.java \
+  neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/ExpertTrustNeuralProbeContract.java \
   neural-core/smoke/AndroidProbeSmoke.java
-java -cp "$fixture_classes" AndroidProbeSmoke "$fixture_output/assets/probes.tsv" "$fixture_output/assets/bilingual-cascade.tsv" "$fixture_output/assets/rich-presence.tsv" "$fixture_output/assets/public-probes.tsv" "$fixture_output/assets/residual-probes.tsv" "$fixture_output/assets/utility-probes.tsv" "$fixture_output/assets/prototype-probes.tsv"
+java -cp "$fixture_classes" AndroidProbeSmoke "$fixture_output/assets/probes.tsv" "$fixture_output/assets/bilingual-cascade.tsv" "$fixture_output/assets/rich-presence.tsv" "$fixture_output/assets/public-probes.tsv" "$fixture_output/assets/residual-probes.tsv" "$fixture_output/assets/utility-probes.tsv" "$fixture_output/assets/prototype-probes.tsv" "$fixture_output/assets/trust-probes.tsv"

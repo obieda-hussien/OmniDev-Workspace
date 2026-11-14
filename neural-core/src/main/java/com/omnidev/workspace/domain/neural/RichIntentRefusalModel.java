@@ -30,6 +30,12 @@ public final class RichIntentRefusalModel {
         }
         this.refusal = refusal; this.refusalCutoff = refusalCutoff;
     }
+    String checkpointFingerprint() {
+        return new CheckpointFingerprint("rich-refusal-v1").text(prior.checkpointFingerprint()).text(encoder.fingerprint())
+            .text(presence.checkpointFingerprint()).number(threshold).integer(requireMatch?1:0)
+            .text(refusal==null?"none":refusal.checkpointFingerprint()).number(refusalCutoff).finish();
+    }
+
     public TinyDecisionModel.Decision classify(String text, double minimumProbability, double minimumMargin) {
         String normalized = BilingualTextEncoder.normalize(text);
         float[] base = BilingualTextEncoder.encodeNormalized(normalized);

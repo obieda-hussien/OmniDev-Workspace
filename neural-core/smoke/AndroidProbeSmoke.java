@@ -3,6 +3,7 @@ import com.omnidev.workspace.neural.probe.PublicNeuralProbeContract;
 import com.omnidev.workspace.neural.probe.ResidualNeuralProbeContract;
 import com.omnidev.workspace.neural.probe.UtilityNeuralProbeContract;
 import com.omnidev.workspace.neural.probe.PrototypeNeuralProbeContract;
+import com.omnidev.workspace.neural.probe.ExpertTrustNeuralProbeContract;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -44,10 +45,17 @@ public final class AndroidProbeSmoke {
         rejectPrototype(prototypeFixture.substring(0,prototypeFixture.lastIndexOf('\n',prototypeFixture.length()-2)+1));
         rejectPrototype(prototypeFixture.replaceFirst("CHOICE","FORGED_SUCCESS"));
         rejectPrototype(prototypeFixture.replaceFirst("cutoffs\\t[^\\n]+","cutoffs\t[NaN]"));
-        System.out.println("Android host probes: 139 original + 699 public + 859 residual + 995 utility + 1070 prototype cases and 18 corrupt-fixture rejections passed; ART execution still required.");
+        String trustFixture=new String(Files.readAllBytes(Paths.get(args[7])),StandardCharsets.UTF_8);
+        ExpertTrustNeuralProbeContract.verify(new StringReader(trustFixture));
+        rejectTrust(trustFixture.replaceFirst("[0-9a-f]{64}","0000000000000000000000000000000000000000000000000000000000000000"));
+        rejectTrust(trustFixture.substring(0,trustFixture.lastIndexOf('\n',trustFixture.length()-2)+1));
+        rejectTrust(trustFixture.replaceFirst("CHOICE","FORGED_SUCCESS"));
+        rejectTrust(trustFixture.replaceFirst("temperature\\t[^\\n]+","temperature\t99"));
+        System.out.println("Android host probes: 139 original + 699 public + 859 residual + 995 utility + 1070 prototype + 1150 trust cases and 22 corrupt-fixture rejections passed; ART execution still required.");
     }
     private static void rejectPublic(String text) throws Exception { try { PublicNeuralProbeContract.verify(new StringReader(text)); } catch (IllegalStateException expected) { return; } throw new AssertionError("Corrupt public probe accepted"); }
     private static void rejectResidual(String text) throws Exception { try { ResidualNeuralProbeContract.verify(new StringReader(text)); } catch (IllegalStateException expected) { return; } throw new AssertionError("Corrupt residual probe accepted"); }
+    private static void rejectTrust(String text)throws Exception{try{ExpertTrustNeuralProbeContract.verify(new StringReader(text));}catch(IllegalStateException expected){return;}throw new AssertionError("Corrupt trust probe accepted");}
     private static void rejectPrototype(String text)throws Exception{try{PrototypeNeuralProbeContract.verify(new StringReader(text));}catch(IllegalStateException expected){return;}throw new AssertionError("Corrupt prototype probe accepted");}
     private static void rejectUtility(String text)throws Exception{try{UtilityNeuralProbeContract.verify(new StringReader(text));}catch(IllegalStateException expected){return;}throw new AssertionError("Corrupt utility probe accepted");}
     private static void reject(String fixture) throws Exception {

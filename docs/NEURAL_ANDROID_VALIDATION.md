@@ -110,3 +110,8 @@ See [UTILITY_AWARE_EXPERT_TRAINING.md](UTILITY_AWARE_EXPERT_TRAINING.md) for min
 ## Bounded prototype support follow-up
 
 The isolated test APK adds 1,070 bank/policy probes and requires `prototype_parity_passed` with the exact count in a fresh run report. Host generation additionally rejects corrupted bank metadata, cutoffs, decisions and truncated fixtures. This verifies runtime compatibility; the new authored mixed-language retention failure still blocks production. See [PROTOTYPE_SUPPORT_TRAINING.md](PROTOTYPE_SUPPORT_TRAINING.md).
+
+
+## Counterfactual trust selector
+
+The isolated test APK adds1,150 trust-v1 cases and requires fresh `trust_parity_passed`/`trust_probes` results. Full frozen-base fingerprints, fixed numerical risk inputs, whole-text decisions, dense/sparse identity and corruption rejection are verified. Both the initial and paired-rehearsal models fail retention; neither is activated in the app. See [EXPERT_TRUST_TRAINING.md](EXPERT_TRUST_TRAINING.md).

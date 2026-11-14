@@ -49,6 +49,11 @@ public final class TinyDecisionModel {
         this.temperature = temperature;
     }
 
+    String checkpointFingerprint() {
+        CheckpointFingerprint hash=new CheckpointFingerprint("tiny-decision-v1").text(network.checkpointFingerprint()).number(temperature).integer(labels.length);
+        for(String label:labels)hash.text(label);return hash.finish();
+    }
+
     public Decision decide(float[] features, double minimumProbability, double minimumMargin) {
         if (!unit(minimumProbability) || !unit(minimumMargin)) {
             throw new IllegalArgumentException("Invalid abstention thresholds");

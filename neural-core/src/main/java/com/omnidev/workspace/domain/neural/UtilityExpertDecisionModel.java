@@ -104,6 +104,66 @@ public final class UtilityExpertDecisionModel {
     this.prototypes = prototypes;
   }
 
+  public String checkpointFingerprint() {
+    CheckpointFingerprint hash =
+        new CheckpointFingerprint("utility-policy-v1")
+            .text(teacher.checkpointFingerprint())
+            .text(encoder.fingerprint())
+            .text(expert.checkpointFingerprint());
+    for (int d = 0; d < 5; d++) {
+      hash.number(reject[d]).number(change[d]).number(support[d]);
+      if (prototypeCutoffs != null) hash.number(prototypeCutoffs[d]);
+    }
+    return hash.text(prototypes == null ? "none" : prototypes.fingerprint()).finish();
+  }
+
+  boolean hasPrototypeProtection() {
+    return prototypes != null;
+  }
+
+  static final class Review {
+    final TinyDecisionModel.Decision before, proposed, rawExpert;
+    final float[] features;
+
+    Review(
+        TinyDecisionModel.Decision before,
+        TinyDecisionModel.Decision proposed,
+        TinyDecisionModel.Decision rawExpert,
+        float[] features) {
+      this.before = before;
+      this.proposed = proposed;
+      this.rawExpert = rawExpert;
+      this.features = features;
+    }
+  }
+
+  // Optional trust review shares the teacher encoding and never runs in the legacy classify path.
+  Review review(String text, double probability, double margin) {
+    if (prototypes != null)
+      throw new IllegalArgumentException("Trust requires an unguarded frozen utility policy");
+    RichIntentRefusalModel.Prepared p = teacher.prepare(text, probability, margin);
+    TinyDecisionModel.Decision before = p.decision;
+    validateTeacher(before);
+    if (before.status == TinyDecisionModel.Status.ABSTAIN)
+      return new Review(before, before, null, null);
+    int domain = domain(before.choice);
+    TinyDecisionModel.Decision raw = expert.decide(p.features, 0, 0);
+    if (raw.status == TinyDecisionModel.Status.ABSTAIN)
+      return new Review(before, before, null, null);
+    float score = teacher.domainSupport(p.features)[domain];
+    TinyDecisionModel.Decision proposed =
+        choose(
+            before,
+            raw,
+            reject[domain],
+            change[domain],
+            score,
+            support[domain],
+            probability,
+            margin);
+    return new Review(before, proposed, raw, ExpertTrustDecisionModel.features(before, raw, score));
+  }
+
   public TinyDecisionModel.Decision classify(String text, double probability, double margin) {
     RichIntentRefusalModel.Prepared prepared = teacher.prepare(text, probability, margin);
     TinyDecisionModel.Decision before = prepared.decision;

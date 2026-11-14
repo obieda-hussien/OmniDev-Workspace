@@ -62,6 +62,7 @@ assert report['public_parity_passed'] and report['public_probes'] == 699
 assert report['residual_parity_passed'] and report['residual_probes'] == 859
 assert report['utility_parity_passed'] and report['utility_probes'] == 995
 assert report['prototype_parity_passed'] and report['prototype_probes'] == 1070
+assert report['trust_parity_passed'] and report['trust_probes'] == 1150
 if sys.argv[2] == 'true':
     benchmark = json.loads((directory / 'benchmark.json').read_text())
     assert benchmark['encoding_included'] and benchmark['timing_assertions'] is False and benchmark['run_id'] == sys.argv[3]

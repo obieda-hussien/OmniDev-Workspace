@@ -25,6 +25,9 @@ on:
       - 'scripts/test_utility_data.py'
       - 'scripts/train_utility_expert.sh'
       - 'scripts/train_prototype_support.sh'
+      - 'scripts/train_expert_trust.sh'
+      - 'scripts/reserve_trust_eval.py'
+      - 'scripts/test_trust_data.py'
       - 'scripts/prepare_prototype_challenges.py'
       - 'scripts/test_prototype_data.py'
       - '.github/scripts/run-neural-android-tests.sh'
@@ -58,6 +61,9 @@ on:
       - 'scripts/test_utility_data.py'
       - 'scripts/train_utility_expert.sh'
       - 'scripts/train_prototype_support.sh'
+      - 'scripts/train_expert_trust.sh'
+      - 'scripts/reserve_trust_eval.py'
+      - 'scripts/test_trust_data.py'
       - 'scripts/prepare_prototype_challenges.py'
       - 'scripts/test_prototype_data.py'
       - '.github/scripts/run-neural-android-tests.sh'
@@ -254,6 +260,35 @@ jobs:
         with:
           name: prototype-support-${{ github.run_id }}
           path: build/prototype-support/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  expert-trust-training:
+    name: Counterfactual trust training + fixed-base integrity
+    needs: java-compat
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify reservation, counterfactual labels, both four-fit protocols and compiled checkpoints
+        run: |
+          python3 scripts/test_trust_data.py
+          bash scripts/train_expert_trust.sh --initial
+          bash scripts/train_expert_trust.sh
+      - name: Upload learned selector and complete quality-regression evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: expert-trust-${{ github.run_id }}
+          path: |
+            build/expert-trust/
+            build/expert-trust-v2/
           if-no-files-found: ignore
           retention-days: 30
 
