@@ -1,0 +1,19 @@
+{
+  "production_eligible": false,
+  "raw_retrieval_regressed": true,
+  "guard_is_post_hoc_diagnostic": true,
+  "independent_validation_required": true,
+  "artifact_sha256": {
+    "knowledge/omni-product.jsonl": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+    "docs/OMNI_PRODUCT_KNOWLEDGE.md": "afd2fac2014b7cd550c552cd493efd607a9cbd2c61f77615facd419dbb9cf6de",
+    "neural-core/fixtures/product-support/queries.tsv": "04c16ff3a83d8ca7227b4e3e3cad5ce9e6e2b0d6fe7e8338be68b71543d66899",
+    "neural-core/fixtures/product-support/protocol.json": "a87f01757ec47c259e4f3093f693a0dbd99e7ba2f035cefd0816a7e4c6229f45",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/ProductSupportModel.java": "13febeba5ca3c92ce82f3a2891db2438c116518c8a26f4f11250ad52777844cc",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/TinyNeuralRuntime.java": "15150007800a4ad9f31c15a153f984159f374a8917db1aa8f1065006ce84d3df",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/OmniRamLite.java": "c4e9a978a8f8c45f7db98d92ce1bd5a9ac90de69cd6d1c8551477b6d07b86dc9",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/BilingualTextEncoder.java": "efcb54f1c8e0c447a96786240c817589820d19f841ec8fa8bb8ad2f19ca635d5",
+    "neural-core/training/com/omnidev/workspace/domain/neural/ProductSupportExperiment.java": "8ab2af332358e7f2d9d5deb12729612011cb0bdfd46f4ea29391a11119aa6b6a",
+    "build/product-support/TrainedProductSupport.java": "2094abf2540461476e4df737e9e408868a44ddc46618dbce87528e90476eba15",
+    "build/product-support/expected.tsv": "b1f2cad6f4587f4fdf65d96a39ceb7edb7e4144c3b6cc837dc181cddfd2d9f00"
+  }
+}
