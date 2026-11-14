@@ -27,11 +27,14 @@ interface ChatSessionDao {
     @Query("SELECT s.id FROM chat_sessions s LEFT JOIN chat_history_metadata h ON s.id = h.sessionId WHERE h.sessionId IS NULL OR h.modelVersion < :version OR h.lastUserRowId < COALESCE((SELECT MAX(m.id) FROM chat_messages m WHERE m.sessionId = s.id AND m.role = 'USER'), 0) ORDER BY s.lastUpdated DESC, s.id DESC LIMIT :limit")
     suspend fun pendingHistoryMetadata(version: Int, limit: Int): List<Long>
 
-    @Query("SELECT id, substr(content, 1, 1500) AS content, substr(metadataJson, 1, 8000) AS metadataJson FROM chat_messages WHERE sessionId = :id AND role = 'USER' ORDER BY id ASC LIMIT 3")
+    @Query("SELECT id, substr(content, 1, 1500) AS content FROM chat_messages WHERE sessionId = :id AND role = 'USER' ORDER BY id ASC LIMIT 3")
     suspend fun firstHistoryInputs(id: Long): List<HistoryMetadataInput>
 
-    @Query("SELECT id, substr(content, 1, 1500) AS content, substr(metadataJson, 1, 8000) AS metadataJson FROM chat_messages WHERE sessionId = :id AND role = 'USER' ORDER BY id DESC LIMIT 3")
+    @Query("SELECT id, substr(content, 1, 1500) AS content FROM chat_messages WHERE sessionId = :id AND role = 'USER' ORDER BY id DESC LIMIT 3")
     suspend fun latestHistoryInputs(id: Long): List<HistoryMetadataInput>
+
+    @Query("SELECT substr(metadataJson, :offset, 2048) FROM chat_messages WHERE id = :rowId AND role = 'USER'")
+    fun historyMetadataPage(rowId: Long, offset: Int): String?
 
     @Transaction
     suspend fun createWithMetadata(session: ChatSessionEntity, metadata: ChatHistoryMetadataEntity): Long {
@@ -48,7 +51,7 @@ interface ChatSessionDao {
         val inputs = (firstHistoryInputs(id) + latestHistoryInputs(id)).distinctBy { it.id }.sortedBy { it.id }
         val latest = inputs.maxOfOrNull { it.id } ?: 0L
         if (previous.modelVersion >= ChatMetadataModel.VERSION && previous.lastUserRowId >= latest) return false
-        val texts = inputs.map { HistoryMetadataText.original(it.content, it.metadataJson) }.ifEmpty { listOf(session.title.substringBefore(" • Status: ")) }
+        val texts = inputs.map { input -> HistoryMetadataText.original(input.content) { offset -> historyMetadataPage(input.id, offset).orEmpty() } }.ifEmpty { listOf(session.title.substringBefore(" • Status: ")) }
         val result = ChatMetadataModel.analyze(texts, session.source, session.sourceAppPackage)
         saveHistoryMetadata(previous.copy(
             topic = if (previous.topicOrigin == "manual") previous.topic else result.topic,
@@ -91,7 +94,7 @@ interface ChatSessionDao {
         updateTitleAndTimestamp(id, "$title • Status: $label", timestamp)
     }
 
-    @Query("UPDATE chat_sessions SET title = CASE WHEN EXISTS(SELECT 1 FROM chat_history_metadata WHERE sessionId = :id AND titleOrigin = 'manual') THEN title ELSE :title END, lastUpdated = :timestamp WHERE id = :id")
+    @Query("UPDATE chat_sessions SET title = CASE WHEN EXISTS(SELECT 1 FROM chat_history_metadata WHERE sessionId = :id AND titleOrigin IN ('manual', 'automatic')) THEN title ELSE :title END, lastUpdated = :timestamp WHERE id = :id")
     suspend fun touchProvidedTitle(id: Long, title: String, timestamp: Long)
 
     @Query("SELECT * FROM chat_sessions WHERE backgroundKey = :key LIMIT 1")
@@ -166,7 +169,7 @@ interface ChatSessionDao {
     ): List<ChatSessionEntity>
 
     @Query(
-        "UPDATE chat_sessions SET sourceAppName = :appName, title = CASE WHEN EXISTS(SELECT 1 FROM chat_history_metadata WHERE sessionId = :id AND titleOrigin = 'manual') THEN title ELSE :title END, lastUpdated = :timestamp " +
+        "UPDATE chat_sessions SET sourceAppName = :appName, title = CASE WHEN EXISTS(SELECT 1 FROM chat_history_metadata WHERE sessionId = :id AND titleOrigin IN ('manual', 'automatic')) THEN title ELSE :title END, lastUpdated = :timestamp " +
             "WHERE id = :id"
     )
     suspend fun touchExternalSession(
@@ -190,4 +193,4 @@ interface ChatSessionDao {
 }
 
 /** Bounded projection: never loads attachments, source context or tool output. */
-data class HistoryMetadataInput(val id: Long, val content: String, val metadataJson: String)
+data class HistoryMetadataInput(val id: Long, val content: String)
