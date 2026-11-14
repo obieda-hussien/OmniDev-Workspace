@@ -110,6 +110,8 @@ The follow-up [pairwise support experiment](docs/PAIRWISE_SUPPORT_TRAINING.md) t
 
 ## Launcher discovery and Home control
 
+The [bilingual field-fusion experiment](docs/HYBRID_SUPPORT_RETRIEVAL.md) compares RRF and fixed controls with four trained convex fusion heads. On 108 newly authored single/compound probes, complete primary-requirement coverage within three results rises from 48/72 to 55/72; Arabic top-1 rises from 11/24 to 14/24. Overall top-1 still trails lexical retrieval (52/72 vs 55/72), English regresses and selective coverage stays low. Its eight fitted coefficients plus fixed zero bias occupy 36 raw FP32 bytes; this excludes the indexes, documents and runtime. It stays explicit experimental retrieval, preserves original quotations and retains the old default. No phone performance or production readiness is claimed.
+
 The companion Launcher integration now supports scoped capability discovery, catalog/version diagnostics,
 Home layout snapshots, existing-app icon moves, grid migration and drawer rule folders. Install the
 matching Launcher PR #16 and Workspace PR #194 builds with the same signing certificate and enable

@@ -50,6 +50,7 @@ for checkpoint in neural-core/checkpoints/rich-text-v1/*.java neural-core/checkp
   { echo 'package com.omnidev.workspace.neural.probe;'; cat "$checkpoint"; } > "$fixture_package/$(basename "$checkpoint")"
 done
 bash scripts/prepare_support_android.sh "$fixture_output"
+bash scripts/prepare_hybrid_android.sh "$fixture_output"
 python3 - "$fixture_output" <<'PY'
 import hashlib, pathlib, sys
 root = pathlib.Path(sys.argv[1])
@@ -71,3 +72,6 @@ java -cp "$fixture_classes" AndroidProbeSmoke "$fixture_output/assets/probes.tsv
 
 compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_classes"   "$fixture_output/java/com/omnidev/workspace/domain/neural/"*.java   neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/SupportRetrievalProbeContract.java   neural-core/smoke/SupportRetrievalAndroidSmoke.java
 java -cp "$fixture_classes" SupportRetrievalAndroidSmoke "$fixture_output/assets"
+
+compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_classes"   neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/HybridSupportProbeContract.java   neural-core/smoke/HybridSupportAndroidSmoke.java
+java -cp "$fixture_classes" HybridSupportAndroidSmoke "$fixture_output/assets"
