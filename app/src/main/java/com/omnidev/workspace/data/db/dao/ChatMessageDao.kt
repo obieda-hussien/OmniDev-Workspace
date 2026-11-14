@@ -54,6 +54,9 @@ interface ChatMessageDao {
     @Update
     suspend fun updateRow(message: ChatMessageEntity)
 
+    @Query("UPDATE chat_history_metadata SET modelVersion = 0 WHERE sessionId = :sessionId")
+    suspend fun invalidateHistoryMetadata(sessionId: Long)
+
     /** Replace only the latest user turn. Deletion and edit either both commit or both roll back. */
     @Transaction
     suspend fun replaceLastTurn(expectedUserId: String, replacement: ChatMessageEntity): Boolean {
@@ -62,6 +65,7 @@ interface ChatMessageDao {
         require(replacement.role == "USER")
         deleteTurnOutputs(replacement.sessionId, original.id, original.messageId)
         updateRow(replacement.copy(id = original.id))
+        invalidateHistoryMetadata(replacement.sessionId)
         return true
     }
 

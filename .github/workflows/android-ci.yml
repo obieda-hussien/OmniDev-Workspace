@@ -46,6 +46,11 @@ jobs:
       - name: Validate English project text and tool/skill catalog
         run: python3 scripts/check_project_language.py
 
+      - name: Verify documentation-only product knowledge
+        run: |
+          python3 scripts/build_product_knowledge.py --verify
+          python3 scripts/test_product_knowledge.py
+
       - name: Self-test dependency security policy
         run: python3 scripts/test_dependency_security.py
 

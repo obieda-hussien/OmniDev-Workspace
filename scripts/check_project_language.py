@@ -37,7 +37,14 @@ def main() -> None:
         path = ROOT / name
         if not path.is_file():
             continue
-        if path.suffix in {'.md', '.xml', '.toml', '.kts', '.pro'}:
+        if name == 'docs/OMNI_PRODUCT_KNOWLEDGE.md':
+            # Reviewed product FAQ translations only; normal authored UI/docs remain English.
+            from build_product_knowledge import records
+            try:
+                records()
+            except ValueError as error:
+                failures.append(f'{name}: {error}')
+        elif path.suffix in {'.md', '.xml', '.toml', '.kts', '.pro'}:
             if ARABIC.search(path.read_text()):
                 failures.append(f'{name}: authored prose/resources must be English')
         elif path.suffix == '.kt' and ('/src/main/' in name or name in reviewed):

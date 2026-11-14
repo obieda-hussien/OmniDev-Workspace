@@ -114,15 +114,15 @@ class TeamStateRoomTest {
             val store = TeamStateEngine(RoomTeamStateBackend(db)) { 100L }
             store.create("team", session, "Saved objective", "/tmp", "owner")
             assertEquals("Saved objective", store.summaries(session).single().originalObjective)
-            assertEquals(20, db.openHelper.readableDatabase.version)
-            for (version in 1 until 20) {
+            assertEquals(21, db.openHelper.readableDatabase.version)
+            for (version in 1 until 21) {
                 var next = version
-                while (next < 20) {
+                while (next < 21) {
                     val migration = OmniDevDatabase.ALL_MIGRATIONS.single { it.startVersion == next }
                     assertTrue(migration.endVersion > next)
                     next = migration.endVersion
                 }
-                assertEquals(20, next)
+                assertEquals(21, next)
             }
         } finally { db.close() }
     }

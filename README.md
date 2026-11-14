@@ -17,10 +17,13 @@ The repository contains the Android application, native inference integration, J
 
 **Start here:** [Quick start](#quick-start) · [Choose an edition](#editions-and-capability-policy) · [Build from source](#build-from-source) · [Documentation map](#documentation-map) · [Authorized development](CONTRIBUTING.md) · [Get help](SUPPORT.md) · [Report a vulnerability](SECURITY.md)
 
-> This README describes the implementation through **15 October 2026**, at source revision [`07328faa`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/07328faa8a066a77727343a45fce5b7e25b545cb). Current source and completed CI results take precedence over older planning documents. OmniDev Workspace is **proprietary**, with publicly visible source and controlled development. Rights in original project material are reserved; see [LICENSE.md](LICENSE.md) before any reuse or distribution.
+> Product documentation refreshed **14 November 2026**, against inspected baseline main [`d08e99e9`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/d08e99e92491c94757299fdf56f7815ae41fe34b) and the chat-history metadata changes in this revision. Historical repository statistics below remain explicitly dated snapshots. Current source and completed CI results take precedence over older planning documents. OmniDev Workspace is **proprietary**, with publicly visible source and controlled development. Rights in original project material are reserved; see [LICENSE.md](LICENSE.md) before any reuse or distribution.
 
 ## Contents
 
+- [Chat titles, topics and source filters](#chat-titles-topics-and-source-filters)
+- [Current runtime milestones](#current-runtime-milestones)
+- [Product support knowledge and future training](#product-support-knowledge-and-future-training)
 - [Repository size and source statistics](#repository-size-and-source-statistics)
 - [Recent maintenance](#recent-maintenance)
 - [What OmniDev Workspace does](#what-omnidev-workspace-does)
@@ -60,6 +63,47 @@ The repository contains the Android application, native inference integration, J
 - [Contributing, support and repository maintenance](#contributing-support-and-repository-maintenance)
 - [Ownership, licensing and acknowledgments](#ownership-licensing-and-acknowledgments)
 
+## Chat titles, topics and source filters
+
+New in-app conversations receive short local extractive titles from user input. The current title/category engine is a **deterministic local baseline**, with no cloud model call, large downloaded weights, permanent service or chat-training job. It is separate from the experimental neural-core classifiers. Greetings can keep a generic title until a substantive request arrives. Common token assignments, bearer values, URLs and contact identifiers are removed from automatic titles; this is not a universal secret detector.
+
+Open **conversation history → Topics** to filter Development, Device, Research, Omni help, Messaging, Connected apps, Writing, Personal, General or Uncategorized. Use **Apps mentioned** for WhatsApp, Telegram, Discord, GitHub, Slack, Gmail, Notion, MCP, OmniLink, AndroidIDE and connected-app tags. Search matches saved titles, topics, source labels and mentioned-app aliases, including Arabic normalization.
+
+**Sources** remains an independent filter for the stored entry channel: App, Telegram, Discord, WhatsApp bridge or Connected apps. A conversation about WhatsApp inside App remains App-originated. A label never enables a service, grants a permission or authorizes external sending. Source, topic, mentioned-app and search filters can be combined.
+
+A conversation row's **Category** action sets a persistent manual label or returns to Automatic. **Rename** protects the chosen title from automatic updates. Existing/provided and external contact titles are retained; **Use local suggested title** lets the user explicitly adopt a generated suggestion. Opening history backfills older labels in cancellable batches of 20 sessions, using at most six bounded USER inputs per session. Assistant/tool output does not categorize chats. Deletion cascades to the derived metadata, while existing transcripts, pins, source identity and agent evidence remain intact.
+
+Room version 21 adds one `chat_history_metadata` table without replacing session/message rows. Label generation, manual overrides and status-title updates use short local transactions; no provider or tool runs in those transactions. Editing a user message invalidates its labels, and interrupted updates can be reconstructed from saved user rows. Heavier future learned inference must run outside transactions with revision checks. See [implementation and validation](docs/CHAT_HISTORY_METADATA.md).
+
+## Current runtime milestones
+
+| Phase | Source state | User-facing boundary |
+|---|---|---|
+| P0 — Finish protocol | Implemented | Model prose or generic tool success does not prove completion |
+| P1 — Persistent task state | Implemented | Objectives, plans, invocations and evidence are durably attributed |
+| P2 — Task continuation | Implemented | Unknown side effects block blind retry and require exact reconciliation |
+| P3 — Structured planning | Implemented | Verified completed dependencies unlock later steps |
+| P4 — Smart tool surface | Implemented | Bounded permitted schemas; retrieval is separate from authorization |
+| P5 — Team completion | Implemented | Attempt-owned worker receipts and verified dependencies remain authoritative |
+| P6 — Durable teams | Implemented | Persisted coordinator/worker state, user-directed recovery and ownership checks |
+| P7 — Tool correction | Deterministic advisory components implemented | Suggestions do not silently rewrite or execute ambiguous proposals |
+| P8 — Broader autonomous verification | Further roadmap | Existing finish gates remain in force; do not claim universal postcondition verification |
+| P9 — Neural specialists | Experimental checkpoints and evaluation | Failed retention gates stay recorded; weights are not enabled in the normal APK |
+| P10 — Desktop bridge | Roadmap | No mandatory desktop/cloud backend or unrestricted remote execution |
+
+Read [persistent tasks](docs/PERSISTENT_TASK_STATE.md), [recovery](docs/AGENT_EXECUTION_RECOVERY.md), [structured planning](docs/STRUCTURED_PLANNING.md), [smart tool surface](docs/SMART_TOOL_SURFACE.md), [team completion](docs/TEAM_COMPLETION_PROTOCOL.md) and [durable teams](docs/DURABLE_TEAM_RUNTIME.md). Ordinary chat remains separate from persistent Agent/Team tasks. Supported flavor policies, provider abstraction, Android permissions and user approvals still apply.
+
+## Product support knowledge and future training
+
+The [bilingual product FAQ](docs/OMNI_PRODUCT_KNOWLEDGE.md) explains activation prerequisites, mode selection, edition limits, providers, GitHub access, messaging bridges, connected apps, MCP, recovery and troubleshooting. It distinguishes implemented, experimental and planned features. A larger assistant should identify the installed edition/revision, actual permissions and redacted error before recommending a documented setting or diagnostic; documentation is not proof that a particular action succeeded.
+
+A reproducible [documentation-only support corpus](knowledge/omni-product.jsonl) is prepared for **future** retrieval/training. `scripts/build_product_knowledge.py` accepts only the reviewed FAQ allowlist, groups Arabic/English translations, records document hashes and rejects code fences. It does not read project `.kt`/`.java` sources, private conversations, databases, credentials or logs. No training or model activation is performed by exporting this file. Future evaluation must keep translations grouped and preserve permission/edition boundaries.
+
+```sh
+python3 scripts/build_product_knowledge.py
+python3 scripts/build_product_knowledge.py --verify
+```
+
 ## Launcher discovery and Home control
 
 The companion Launcher integration now supports scoped capability discovery, catalog/version diagnostics,
@@ -94,14 +138,19 @@ See the [full format breakdown and counting method](docs/REPOSITORY_STATS.md). T
 python3 scripts/repository_stats.py --ref HEAD --format markdown
 ```
 
-The source catalog contains **152 unique local tool definitions**, or **150 names after excluding two hidden legacy aliases**, and **7 bundled agent skills**. Counts cover all registered optional providers and God Mode definitions; actual session visibility depends on edition and capability settings. Connected MCP tools and runtime discovery/mode helpers are additional. See the [complete catalog and reproducible count](docs/TOOL_AND_SKILL_CATALOG.md).
+The historical catalog snapshot counted **152 unique local tool definitions**, or **150 names after excluding two hidden legacy aliases**, and **7 bundled agent skills**. Counts cover all registered optional providers and God Mode definitions; actual session visibility depends on edition and capability settings. Connected MCP tools and runtime discovery/mode helpers are additional. See the [complete catalog and reproducible count](docs/TOOL_AND_SKILL_CATALOG.md).
 
 For repository access, installed integrations, Actions controls and public-source limitations, see [Repository security](docs/REPOSITORY_SECURITY.md).
 
 ## Recent maintenance
 
+This section combines the current runtime milestones above with explicitly documented earlier maintenance. Historical measurements are not new device benchmarks.
+
 | Area | Current implementation | Details |
 |---|---|---|
+| Local history metadata | Persistent topics, multi-service tags, protected chosen names and lazy local backfill | [History metadata](docs/CHAT_HISTORY_METADATA.md) |
+| Durable Agent/Team recovery | P0–P6 finish/persistence/recovery contracts remain authoritative | [Durable teams](docs/DURABLE_TEAM_RUNTIME.md) |
+| Product-support corpus | Bilingual, status-labelled documentation export; no source code or private chats | [Product knowledge](docs/OMNI_PRODUCT_KNOWLEDGE.md) |
 | Runtime backend recovery | Per-run capability circuits stop repeated unavailable Android/Termux routes; an honest final limitation report replaces backend retry checkpoints while independent tools remain usable | [Runtime recovery contract](docs/TOOL_EXECUTION_CONTRACT.md#runtime-backend-recovery) |
 | Accessibility ANR repair | One background observer, one pending refresh, a 500 ms interval after each scan, and one iterative pass bounded to 256 nodes, 255 child requests, 48 levels and 120 ms before starting further requests | [Regression scope and device checks](docs/accessibility-anr-regression.md) |
 | Snapshot and teaching lifecycle | Window transitions invalidate pending observations even inside the same package; teaching uses a bounded session-tagged queue and releases copied events/nodes | [PR #192](https://github.com/obieda-hussien/OmniDev-Workspace/pull/192) |
@@ -117,7 +166,7 @@ OmniDev is organized around a shared conversation and execution environment. The
 
 | Area | Current implementation | What you need |
 |---|---|---|
-| Conversation | Configurable text models, streaming replies, saved sessions, reply context and attachments | A configured remote provider or a supported local model |
+| Conversation | Configurable text models, streaming replies, saved sessions, local titles/topics, source filters, reply context and attachments | A configured remote provider or a supported local model |
 | Single-agent work | A bounded planning/tool/observation loop with runtime validation and visible activity | An edition and task scope that permit the requested tools |
 | Agent teams | Coordinator planning, worker execution, shared budgets and evidence-based handoff | Independent work suitable for delegation and configured model assignments |
 | Code context | Local repository indexing, symbol lookup and ranked excerpts with file/line references | A readable local project and a selected scope |

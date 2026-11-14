@@ -13,6 +13,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import com.omnidev.workspace.data.db.entities.ChatHistoryMetadataEntity
+import com.omnidev.workspace.domain.history.ChatMetadataModel
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -60,8 +63,6 @@ class ChatRepository(
          */
         private const val MAX_STORED_MESSAGE_CHARS = 100_000
         private const val MAX_STORED_SOURCE_CONTEXT_CHARS = 250_000
-        private const val SESSION_STATUS_SEPARATOR = " • Status: "
-        private const val DEFAULT_SESSION_TITLE = "New conversation"
         private val externalSessionMutex = Mutex()
     }
 
@@ -79,12 +80,16 @@ class ChatRepository(
     }
 
     suspend fun replaceLastTurn(sessionId: Long, expectedUserId: String, replacement: ChatMessage): Boolean =
-        withContext(Dispatchers.Default) { messageDao.replaceLastTurn(expectedUserId, ChatMessageEntity(
-            sessionId = sessionId, role = replacement.role.name,
-            content = replacement.content.take(MAX_STORED_MESSAGE_CHARS), timestamp = replacement.timestamp,
-            messageId = replacement.messageId, replyToMessageId = replacement.replyToMessageId,
-            metadataJson = metadata(replacement)
-        )) }
+        withContext(Dispatchers.Default) {
+            val replaced = messageDao.replaceLastTurn(expectedUserId, ChatMessageEntity(
+                sessionId = sessionId, role = replacement.role.name,
+                content = replacement.content.take(MAX_STORED_MESSAGE_CHARS), timestamp = replacement.timestamp,
+                messageId = replacement.messageId, replyToMessageId = replacement.replyToMessageId,
+                metadataJson = metadata(replacement)
+            ))
+            if (replaced) sessionDao.refreshHistoryMetadata(sessionId)
+            replaced
+        }
 
     suspend fun updateMetadata(sessionId: Long, message: ChatMessage) =
         withContext(Dispatchers.Default) {
@@ -100,12 +105,33 @@ class ChatRepository(
         messageDao.observeMediaBySession(sessionId).distinctUntilChanged()
 
     fun observeSessions(): Flow<List<ChatSessionEntity>> = sessionDao.observeAll()
+    fun observeHistoryMetadata() = sessionDao.observeHistoryMetadata()
+
+    /** Cancellable, lazy backfill. Each batch is bounded; no transcript-wide model call. */
+    suspend fun refreshHistoryMetadata() = withContext(Dispatchers.IO) {
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            val ids = sessionDao.pendingHistoryMetadata(ChatMetadataModel.VERSION, 20)
+            if (ids.isEmpty()) break
+            sessionDao.refreshHistoryMetadataBatch(ids)
+            yield()
+        }
+    }
+
+    suspend fun setHistoryTopic(id: Long, topic: String?) {
+        require(topic == null || ChatMetadataModel.Topic.values().any { it.id == topic })
+        sessionDao.setHistoryTopic(id, topic)
+    }
 
     /**
      * Creates a new session with the given title and returns its generated ID.
      */
-    suspend fun createSession(title: String): Long =
-        sessionDao.insert(ChatSessionEntity(title = title))
+    suspend fun createSession(title: String): Long {
+        val result = ChatMetadataModel.analyze(listOf(title), ChatSessionEntity.SOURCE_APP, "")
+        return sessionDao.createWithMetadata(ChatSessionEntity(title = result.title),
+            ChatHistoryMetadataEntity(0, topic = result.topic, generatedTitle = result.title,
+                serviceTags = result.serviceTags, titleOrigin = "automatic"))
+    }
 
     /**
      * Resolve a durable conversation owned by an external application.
@@ -176,7 +202,7 @@ class ChatRepository(
      * Updates the session title and last-updated timestamp.
      */
     suspend fun touchSession(sessionId: Long, title: String) {
-        sessionDao.updateTitleAndTimestamp(sessionId, title, System.currentTimeMillis())
+        sessionDao.touchProvidedTitle(sessionId, title, System.currentTimeMillis())
     }
 
     /**
@@ -184,14 +210,7 @@ class ChatRepository(
      * Existing status suffixes are replaced; the original title is preserved.
      */
     suspend fun updateSessionRunStatus(sessionId: Long, statusLabel: String) {
-        val session = sessionDao.getById(sessionId) ?: return
-        val baseTitle = session.title.substringBefore(SESSION_STATUS_SEPARATOR).trim()
-        val normalizedBase = baseTitle.ifBlank { DEFAULT_SESSION_TITLE }
-        sessionDao.updateTitleAndTimestamp(
-            id = sessionId,
-            title = "$normalizedBase$SESSION_STATUS_SEPARATOR$statusLabel",
-            timestamp = System.currentTimeMillis()
-        )
+        sessionDao.setRunStatus(sessionId, statusLabel, System.currentTimeMillis())
     }
 
     /**
@@ -210,7 +229,7 @@ class ChatRepository(
         consoleEntries: List<AgentConsoleEntry> = emptyList(),
         sourceContextJson: String = ""
     ): Long = withContext(Dispatchers.Default) {
-        messageDao.insert(
+        val rowId = messageDao.insert(
             ChatMessageEntity(
                 sessionId = sessionId,
                 role = message.role.name,
@@ -223,7 +242,8 @@ class ChatRepository(
                 sourceContextJson = sourceContextJson.take(MAX_STORED_SOURCE_CONTEXT_CHARS)
             )
         )
-
+        if (rowId >= 0 && message.role == MessageRole.USER) sessionDao.refreshHistoryMetadata(sessionId)
+        rowId
     }
 
     /**
@@ -302,7 +322,7 @@ class ChatRepository(
 
     /** Renames the given session. */
     suspend fun renameSession(sessionId: Long, newTitle: String) {
-        sessionDao.updateTitle(sessionId, newTitle)
+        sessionDao.renameWithOwnership(sessionId, newTitle.take(200))
     }
 
     /**
@@ -315,7 +335,7 @@ class ChatRepository(
     suspend fun findOrCreateTelegramSession(telegramChatId: Long, title: String): Long {
         val existing = sessionDao.getByTelegramChatId(telegramChatId)
         if (existing != null) {
-            sessionDao.updateTitleAndTimestamp(existing.id, title, System.currentTimeMillis())
+            sessionDao.touchProvidedTitle(existing.id, title, System.currentTimeMillis())
             return existing.id
         }
         return sessionDao.insert(
@@ -330,7 +350,7 @@ class ChatRepository(
     suspend fun findOrCreateDiscordSession(discordChannelId: String, title: String): Long {
         val existing = sessionDao.getByDiscordChannelId(discordChannelId)
         if (existing != null) {
-            sessionDao.updateTitleAndTimestamp(existing.id, title, System.currentTimeMillis())
+            sessionDao.touchProvidedTitle(existing.id, title, System.currentTimeMillis())
             return existing.id
         }
         return sessionDao.insert(
@@ -345,7 +365,7 @@ class ChatRepository(
     suspend fun findOrCreateWhatsAppBridgeSession(jid: String, title: String): Long {
         val existing = sessionDao.getByWhatsAppJid(jid)
         if (existing != null) {
-            sessionDao.updateTitleAndTimestamp(existing.id, title, System.currentTimeMillis())
+            sessionDao.touchProvidedTitle(existing.id, title, System.currentTimeMillis())
             return existing.id
         }
         return sessionDao.insert(
