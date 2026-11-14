@@ -2,9 +2,15 @@
 set -euo pipefail
 compat=(--release 8)
 verify_artifacts=false
+paired=true
 for option in "$@"; do
-  case "$option" in --source-target-only) compat=(-source 8 -target 8 -Xlint:-options) ;; --verify-artifacts) verify_artifacts=true ;; *) echo 'Unknown option' >&2; exit 2 ;; esac
+  case "$option" in --initial) paired=false ;; --source-target-only) compat=(-source 8 -target 8 -Xlint:-options) ;; --verify-artifacts) verify_artifacts=true ;; *) echo 'Unknown option' >&2; exit 2 ;; esac
 done
+trust_output=build/expert-trust-v2
+trust_checkpoint=neural-core/checkpoints/expert-trust-v2
+trust_fit_args=()
+if [[ "$paired" == true ]]; then trust_fit_args=(--paired-rehearsal)
+else trust_output=build/expert-trust; trust_checkpoint=neural-core/checkpoints/expert-trust-v1; fi
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
 compile_java() { if command -v javac >/dev/null 2>&1; then javac "$@"; else java -m jdk.compiler/com.sun.tools.javac.Main "$@"; fi; }
@@ -23,19 +29,19 @@ compile_java "${compat[@]}" -encoding UTF-8 -cp "$out" -d "$out" neural-core/che
 compile_java "${compat[@]}" -encoding UTF-8 -cp "$out" -d "$out" neural-core/checkpoints/prototype-support-v1/*.java
 python3 scripts/reserve_trust_eval.py --verify
 if [[ "$verify_artifacts" != true ]]; then
-  java -cp "$out" com.omnidev.workspace.domain.neural.ExpertTrustExperiment build/expert-trust
+  java -cp "$out" com.omnidev.workspace.domain.neural.ExpertTrustExperiment "$trust_output" "${trust_fit_args[@]}"
 fi
-compile_java "${compat[@]}" -encoding UTF-8 -cp "$out" -d "$out" build/expert-trust/*.java
+compile_java "${compat[@]}" -encoding UTF-8 -cp "$out" -d "$out" "$trust_output"/*.java
 compile_java "${compat[@]}" -encoding UTF-8 -cp "$out" -d "$out" neural-core/smoke/ExpertTrustTrainingSmoke.java neural-core/smoke/ExpertTrustCheckpointSmoke.java
-java -cp "$out" com.omnidev.workspace.domain.neural.ExpertTrustTrainingSmoke build/expert-trust/training-controls.json
-java -cp "$out" com.omnidev.workspace.domain.neural.ExpertTrustCheckpointSmoke build/expert-trust/expected.tsv
-if [[ -d neural-core/checkpoints/expert-trust-v1 ]]; then
-  compile_java "${compat[@]}" -encoding UTF-8 -cp "$out" -d "$out" neural-core/checkpoints/expert-trust-v1/*.java
-  java -cp "$out" com.omnidev.workspace.domain.neural.ExpertTrustCheckpointSmoke build/expert-trust/expected.tsv
+java -cp "$out" com.omnidev.workspace.domain.neural.ExpertTrustTrainingSmoke "$trust_output/training-controls.json" "${trust_fit_args[@]}"
+java -cp "$out" com.omnidev.workspace.domain.neural.ExpertTrustCheckpointSmoke "$trust_output/expected.tsv"
+if [[ -d "$trust_checkpoint" ]]; then
+  compile_java "${compat[@]}" -encoding UTF-8 -cp "$out" -d "$out" "$trust_checkpoint"/*.java
+  java -cp "$out" com.omnidev.workspace.domain.neural.ExpertTrustCheckpointSmoke "$trust_output/expected.tsv"
 fi
-python3 - <<'PYMETA'
-import hashlib,json,pathlib
-out=pathlib.Path('build/expert-trust');r=json.loads((out/'report.json').read_text())
+python3 - "$trust_output" <<'PYMETA'
+import hashlib,json,pathlib,sys
+out=pathlib.Path(sys.argv[1]);r=json.loads((out/'report.json').read_text())
 r['training_controls']=json.loads((out/'training-controls.json').read_text())
 paths=list(out.glob('*.java'))
 for folder in ['rich-text-v1','public-refusal-v1','utility-expert-v2','prototype-support-v1']:

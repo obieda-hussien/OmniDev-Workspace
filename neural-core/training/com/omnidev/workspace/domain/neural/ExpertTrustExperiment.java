@@ -46,11 +46,17 @@ public final class ExpertTrustExperiment {
   }
 
   public static void main(String[] args) throws Exception {
-    if (args.length != 1) throw new IllegalArgumentException("Expected trust artifact directory");
+    if (args.length < 1
+        || args.length > 2
+        || args.length == 2 && !args[1].equals("--paired-rehearsal"))
+      throw new IllegalArgumentException("Expected trust artifact directory");
+    boolean paired = args.length == 2;
     UtilityExpertDecisionModel base = PrototypeSupportExperiment.utility(true);
     List<Row> rows = ResidualAdapterExperiment.rows();
     disjoint(rows);
-    List<Item> train = items(PublicRefusalCorpus.split(rows, "train"), base),
+    List<Row> sourceTrain = PublicRefusalCorpus.split(rows, "train"),
+        fittingRows = paired ? PairedTrustRehearsal.augment(sourceTrain) : sourceTrain;
+    List<Item> train = items(fittingRows, base),
         dev = items(PublicRefusalCorpus.split(rows, "development"), base),
         cal = items(PublicRefusalCorpus.split(rows, "calibration"), base);
     Map<String, List<OfflineDecisionTrainer.Example>> fitting = examples(train),
@@ -99,7 +105,7 @@ public final class ExpertTrustExperiment {
             new Candidate(
                 fit.model,
                 network,
-                "width" + width + "_seed" + seed,
+                (paired ? "paired_" : "") + "width" + width + "_seed" + seed,
                 temperature,
                 utility(dev, trust, cutoffs),
                 fit.validationLoss,
@@ -200,6 +206,10 @@ public final class ExpertTrustExperiment {
         new StringBuilder(
                 "{\"production_eligible\":false,\"prior_sets\":\"4301_observed_regressions\",\"new_reservation\":\"80_public_official_test_negatives_only_no_positive_claim\",\"base_sha256\":")
             .append(q(base.checkpointFingerprint()))
+            .append(",\"paired_rehearsal\":")
+            .append(paired)
+            .append(",\"synthetic_train_added\":")
+            .append(fittingRows.size() - sourceTrain.size())
             .append(",\"selected\":")
             .append(q(selected.source))
             .append(",\"parameters\":")
@@ -250,6 +260,14 @@ public final class ExpertTrustExperiment {
         .append("},\"host_timing\":")
         .append(benchmark(train, teacher, base, model))
         .append("}\n");
+    if (paired) {
+      int pos = report.indexOf("80_public_official_test_negatives_only_no_positive_claim");
+      if (pos >= 0)
+        report.replace(
+            pos,
+            pos + "80_public_official_test_negatives_only_no_positive_claim".length(),
+            "observed_V1_negative_reservation_not_fresh");
+    }
     Files.write(output.resolve("report.json"), report.toString().getBytes(StandardCharsets.UTF_8));
     System.out.print(report);
   }
@@ -565,11 +583,11 @@ public final class ExpertTrustExperiment {
 
   private static String dummySource() {
     return "import com.omnidev.workspace.domain.neural.*;\n"
-               + "public final class TrainedExpertTrust{public static final double"
-               + " TEMPERATURE=1;public static TinyNeuralRuntime model(){return new"
-               + " TinyNeuralRuntime(new TinyNeuralRuntime.Dense(20,2,new float[40],new"
-               + " float[2],TinyNeuralRuntime.Activation.LINEAR));}\n"
-               + "}";
+        + "public final class TrainedExpertTrust{public static final double"
+        + " TEMPERATURE=1;public static TinyNeuralRuntime model(){return new"
+        + " TinyNeuralRuntime(new TinyNeuralRuntime.Dense(20,2,new float[40],new"
+        + " float[2],TinyNeuralRuntime.Activation.LINEAR));}\n"
+        + "}";
   }
 
   private static String join(double[] values) {

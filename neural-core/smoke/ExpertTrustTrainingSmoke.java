@@ -8,10 +8,29 @@ public final class ExpertTrustTrainingSmoke {
   public static void main(String[] args) throws Exception {
     UtilityExpertDecisionModel base = PrototypeSupportExperiment.utility(true);
     List<Row> rows = ResidualAdapterExperiment.rows();
-    List<ExpertTrustExperiment.Item>
-        train = ExpertTrustExperiment.items(PublicRefusalCorpus.split(rows, "train"), base),
+    List<Row> sourceTrain = PublicRefusalCorpus.split(rows, "train"),
+        fittingRows = args.length == 2 ? PairedTrustRehearsal.augment(sourceTrain) : sourceTrain;
+    List<ExpertTrustExperiment.Item> train = ExpertTrustExperiment.items(fittingRows, base),
         dev = ExpertTrustExperiment.items(PublicRefusalCorpus.split(rows, "development"), base),
         cal = ExpertTrustExperiment.items(PublicRefusalCorpus.split(rows, "calibration"), base);
+    List<Row> augmented = PairedTrustRehearsal.augment(sourceTrain);
+    Map<String, String> labels = new HashMap<>();
+    for (Row r : sourceTrain) labels.put(r.group, r.expected);
+    Set<String> texts = new HashSet<>();
+    for (Row r : augmented) {
+      if (!r.split.equals("train") || !Objects.equals(labels.get(r.group), r.expected))
+        throw new AssertionError("Rehearsal lost source intent/identity");
+      if (r.kind.equals("trust_paired_rehearsal")
+          && (!r.language.equals("mixed") || r.text.length() > 512))
+        throw new AssertionError("Rehearsal shape changed");
+      if (!texts.add(BilingualTextEncoder.normalize(r.text)))
+        throw new AssertionError("Duplicate rehearsal text");
+    }
+    try {
+      PairedTrustRehearsal.augment(PublicRefusalCorpus.split(rows, "development"));
+      throw new AssertionError("Development used for rehearsal");
+    } catch (IllegalArgumentException expected) {
+    }
     int correctTeacherRawRejected = 0, positive = 0, negative = 0;
     Map<String, Integer> strata = new TreeMap<>();
     for (ExpertTrustExperiment.Item item : train)
@@ -49,7 +68,7 @@ public final class ExpertTrustTrainingSmoke {
                 cutoffs[UtilityExpertDecisionModel.domain(item.review.before.choice)])))
           throw new AssertionError("Known correct constraint lost");
       }
-    if (args.length == 1) {
+    if (args.length >= 1) {
       StringBuilder json =
           new StringBuilder("{\"correct_teacher_raw_rejected\":")
               .append(correctTeacherRawRejected)

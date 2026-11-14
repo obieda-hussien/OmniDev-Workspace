@@ -40,15 +40,23 @@ class TrustDataTest(unittest.TestCase):
         self.reject(lambda rows: rows.pop())
         self.reject(lambda rows: rows[0].update(intent='general_joke'))
 
-    def test_checkpoint_manifest_keeps_the_known_failure(self):
-        report = json.loads((ROOT / 'neural-core/checkpoints/expert-trust-v1/report.json').read_text())
-        self.assertFalse(report['production_eligible'])
-        self.assertFalse(report['observed_retention_passed'])
-        self.assertEqual(report['evaluations']['observed_holdout']['trust']['previous_correct_lost'], 2)
-        for language in ['ar', 'en']:
-            self.assertEqual(report['evaluations']['new_negative_' + language]['known'], 0)
-        for path, expected in report['artifact_sha256'].items():
-            self.assertEqual(hashlib.sha256((ROOT / path).read_bytes()).hexdigest(), expected)
+    def test_checkpoint_manifests_keep_both_failures(self):
+        for version, losses in [('expert-trust-v1', 2), ('expert-trust-v2', 4)]:
+            report = json.loads((ROOT / 'neural-core/checkpoints' / version / 'report.json').read_text())
+            self.assertFalse(report['production_eligible'])
+            self.assertFalse(report['observed_retention_passed'])
+            self.assertEqual(report['evaluations']['observed_holdout']['trust']['previous_correct_lost'], losses)
+            for language in ['ar', 'en']:
+                self.assertEqual(report['evaluations']['new_negative_' + language]['known'], 0)
+            for path, expected in report['artifact_sha256'].items():
+                self.assertEqual(hashlib.sha256((ROOT / path).read_bytes()).hexdigest(), expected)
+
+    def test_rehearsal_coverage_and_followup_disclosure(self):
+        report = json.loads((ROOT / 'neural-core/checkpoints/expert-trust-v2/report.json').read_text())
+        self.assertTrue(report['paired_rehearsal'])
+        self.assertEqual(report['synthetic_train_added'], 646)
+        self.assertEqual(report['training_controls']['strata']['mixed:0'], 12)
+        self.assertEqual(report['new_reservation'], 'observed_V1_negative_reservation_not_fresh')
 
 
 if __name__ == '__main__':

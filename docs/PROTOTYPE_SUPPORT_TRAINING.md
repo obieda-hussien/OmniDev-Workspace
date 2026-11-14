@@ -69,3 +69,8 @@ bash scripts/prepare_neural_android_fixtures.sh /tmp/omni-neural-fixtures
 `--source-target-only` is a constrained-host fallback; it does not prove Java 8 API compatibility. CI uses strict `--release 8`. The prototype training job refits the bank, verifies exported and committed policies and uploads reports even when model-quality flags are false. Infrastructure integrity passing must not be confused with model promotion.
 
 The next quality step needs genuinely independent bilingual/mixed-language labels and broader refusal coverage, followed by a preregistered retention/refusal tradeoff. Increasing model size or fitting the newly exposed failure would not provide that evidence. The normal application remains unaffected while that work is evaluated.
+
+
+## Learned trust follow-up
+
+[EXPERT_TRUST_TRAINING.md](EXPERT_TRUST_TRAINING.md) compares a small learned keep/use gate with this prototype policy. It records the missing mixed-language keep stratum, synthetic training-only paired rehearsal and both failed retention outcomes. No universal improvement or production activation is claimed.

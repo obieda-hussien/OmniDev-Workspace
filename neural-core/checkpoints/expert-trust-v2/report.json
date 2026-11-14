@@ -1,0 +1,477 @@
+{
+  "production_eligible": false,
+  "prior_sets": "4301_observed_regressions",
+  "new_reservation": "observed_V1_negative_reservation_not_fresh",
+  "base_sha256": "665d23ee255ff5dfb1714114d238c3a0fccc348adaeaffa15b83abfaf7a07a3e",
+  "paired_rehearsal": true,
+  "synthetic_train_added": 646,
+  "selected": "paired_width0_seed97",
+  "parameters": 42,
+  "active_learned_parameters": 42,
+  "temperature": 1.5,
+  "cutoffs": [
+    0.0,
+    0.6,
+    0.8,
+    0.7,
+    0.0
+  ],
+  "development_utility": 0.7361864986864979,
+  "teacher_development_utility": 0.5540468790468788,
+  "counterfactual_train": 768,
+  "balanced_train": 1686,
+  "counterfactual_development": 136,
+  "counterfactual_calibration": 127,
+  "fits": [
+    {
+      "source": "paired_width0_seed42",
+      "parameters": 42,
+      "epoch": 20,
+      "epochs_run": 45,
+      "validation_nll": 0.7707192031499984,
+      "temperature": 1.5,
+      "development_utility": 0.7153531653531647,
+      "cutoffs": [
+        0.5,
+        0.7,
+        0.8,
+        0.9,
+        0.0
+      ]
+    },
+    {
+      "source": "paired_width0_seed97",
+      "parameters": 42,
+      "epoch": 5,
+      "epochs_run": 30,
+      "validation_nll": 0.7150092334407114,
+      "temperature": 1.5,
+      "development_utility": 0.7361864986864979,
+      "cutoffs": [
+        0.0,
+        0.6,
+        0.8,
+        0.7,
+        0.0
+      ]
+    },
+    {
+      "source": "paired_width8_seed42",
+      "parameters": 186,
+      "epoch": 5,
+      "epochs_run": 30,
+      "validation_nll": 0.9188239236451782,
+      "temperature": 2.0,
+      "development_utility": 0.7058834683834676,
+      "cutoffs": [
+        0.7,
+        0.9,
+        0.8,
+        1.1,
+        0.0
+      ]
+    },
+    {
+      "source": "paired_width8_seed97",
+      "parameters": 186,
+      "epoch": 5,
+      "epochs_run": 30,
+      "validation_nll": 1.0600696353238657,
+      "temperature": 2.0,
+      "development_utility": 0.7197723572723566,
+      "cutoffs": [
+        0.7,
+        0.8,
+        0.8,
+        0.6,
+        0.5
+      ]
+    }
+  ],
+  "evaluations": {
+    "observed_holdout": {
+      "rows": 1462,
+      "known": 399,
+      "required_refusals": 1063,
+      "teacher": {
+        "accepted": 862,
+        "accepted_correct": 233,
+        "accepted_errors": 629,
+        "unsupported_refused": 505,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 643,
+        "accepted_correct": 253,
+        "accepted_errors": 390,
+        "unsupported_refused": 716,
+        "previous_correct_lost": 4,
+        "lost_cases": [
+          {
+            "group": "compose:build-flavors:build-regression",
+            "language": "mixed"
+          },
+          {
+            "group": "compose:build-regression:build-flavors",
+            "language": "mixed"
+          },
+          {
+            "group": "massive-122",
+            "language": "en"
+          },
+          {
+            "group": "authored-encouragement",
+            "language": "mixed"
+          }
+        ],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 744,
+        "accepted_correct": 249,
+        "accepted_errors": 495,
+        "unsupported_refused": 619,
+        "previous_correct_lost": 1,
+        "lost_cases": [
+          {
+            "group": "authored-encouragement",
+            "language": "mixed"
+          }
+        ],
+        "lost_cases_truncated": false
+      },
+      "trust": {
+        "accepted": 679,
+        "accepted_correct": 251,
+        "accepted_errors": 428,
+        "unsupported_refused": 680,
+        "previous_correct_lost": 4,
+        "lost_cases": [
+          {
+            "group": "compose:build-flavors:build-regression",
+            "language": "mixed"
+          },
+          {
+            "group": "compose:build-regression:build-flavors",
+            "language": "mixed"
+          },
+          {
+            "group": "massive-122",
+            "language": "en"
+          },
+          {
+            "group": "authored-encouragement",
+            "language": "mixed"
+          }
+        ],
+        "lost_cases_truncated": false
+      }
+    },
+    "authored_ar": {
+      "rows": 25,
+      "known": 20,
+      "required_refusals": 5,
+      "teacher": {
+        "accepted": 21,
+        "accepted_correct": 10,
+        "accepted_errors": 11,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 20,
+        "accepted_correct": 10,
+        "accepted_errors": 10,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 21,
+        "accepted_correct": 10,
+        "accepted_errors": 11,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "trust": {
+        "accepted": 20,
+        "accepted_correct": 10,
+        "accepted_errors": 10,
+        "unsupported_refused": 0,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      }
+    },
+    "new_negative_ar": {
+      "rows": 40,
+      "known": 0,
+      "required_refusals": 40,
+      "teacher": {
+        "accepted": 17,
+        "accepted_correct": 0,
+        "accepted_errors": 17,
+        "unsupported_refused": 23,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 13,
+        "accepted_correct": 0,
+        "accepted_errors": 13,
+        "unsupported_refused": 27,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 13,
+        "accepted_correct": 0,
+        "accepted_errors": 13,
+        "unsupported_refused": 27,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "trust": {
+        "accepted": 13,
+        "accepted_correct": 0,
+        "accepted_errors": 13,
+        "unsupported_refused": 27,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      }
+    },
+    "authored_en": {
+      "rows": 25,
+      "known": 20,
+      "required_refusals": 5,
+      "teacher": {
+        "accepted": 17,
+        "accepted_correct": 16,
+        "accepted_errors": 1,
+        "unsupported_refused": 5,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 17,
+        "accepted_correct": 16,
+        "accepted_errors": 1,
+        "unsupported_refused": 5,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 17,
+        "accepted_correct": 16,
+        "accepted_errors": 1,
+        "unsupported_refused": 5,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "trust": {
+        "accepted": 17,
+        "accepted_correct": 16,
+        "accepted_errors": 1,
+        "unsupported_refused": 5,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      }
+    },
+    "new_negative_en": {
+      "rows": 40,
+      "known": 0,
+      "required_refusals": 40,
+      "teacher": {
+        "accepted": 20,
+        "accepted_correct": 0,
+        "accepted_errors": 20,
+        "unsupported_refused": 20,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 11,
+        "accepted_correct": 0,
+        "accepted_errors": 11,
+        "unsupported_refused": 29,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 16,
+        "accepted_correct": 0,
+        "accepted_errors": 16,
+        "unsupported_refused": 24,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "trust": {
+        "accepted": 12,
+        "accepted_correct": 0,
+        "accepted_errors": 12,
+        "unsupported_refused": 28,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      }
+    },
+    "authored_mixed": {
+      "rows": 25,
+      "known": 20,
+      "required_refusals": 5,
+      "teacher": {
+        "accepted": 17,
+        "accepted_correct": 15,
+        "accepted_errors": 2,
+        "unsupported_refused": 3,
+        "previous_correct_lost": 0,
+        "lost_cases": [],
+        "lost_cases_truncated": false
+      },
+      "utility_v2": {
+        "accepted": 14,
+        "accepted_correct": 14,
+        "accepted_errors": 0,
+        "unsupported_refused": 5,
+        "previous_correct_lost": 1,
+        "lost_cases": [
+          {
+            "group": "authored-encouragement",
+            "language": "mixed"
+          }
+        ],
+        "lost_cases_truncated": false
+      },
+      "prototype": {
+        "accepted": 15,
+        "accepted_correct": 14,
+        "accepted_errors": 1,
+        "unsupported_refused": 4,
+        "previous_correct_lost": 1,
+        "lost_cases": [
+          {
+            "group": "authored-encouragement",
+            "language": "mixed"
+          }
+        ],
+        "lost_cases_truncated": false
+      },
+      "trust": {
+        "accepted": 14,
+        "accepted_correct": 14,
+        "accepted_errors": 0,
+        "unsupported_refused": 5,
+        "previous_correct_lost": 1,
+        "lost_cases": [
+          {
+            "group": "authored-encouragement",
+            "language": "mixed"
+          }
+        ],
+        "lost_cases_truncated": false
+      }
+    }
+  },
+  "host_timing": {
+    "phone_measurement": false,
+    "encoding_included": true,
+    "calls_per_batch": 144,
+    "warmup_per_mode": 512,
+    "batches": 8,
+    "checksum": 0.9999089535415921,
+    "teacher": {
+      "batch_average_ns": [
+        22046.041666666668,
+        21959.3125,
+        22062.17361111111,
+        24882.875,
+        21877.38888888889,
+        49644.59722222222,
+        21875.4375,
+        22651.67361111111
+      ],
+      "median_batch_average_ns": 22054.10763888889
+    },
+    "utility_v2": {
+      "batch_average_ns": [
+        24241.909722222223,
+        24200.041666666668,
+        24012.118055555555,
+        24929.055555555555,
+        25155.847222222223,
+        26017.631944444445,
+        24888.430555555555,
+        24437.694444444445
+      ],
+      "median_batch_average_ns": 24663.0625
+    },
+    "trust": {
+      "batch_average_ns": [
+        26144.145833333332,
+        25761.069444444445,
+        25924.506944444445,
+        26323.375,
+        25852.17361111111,
+        26203.680555555555,
+        26231.215277777777,
+        27040.625
+      ],
+      "median_batch_average_ns": 26173.913194444445
+    }
+  },
+  "training_controls": {
+    "correct_teacher_raw_rejected": 4,
+    "use_targets": 717,
+    "keep_targets": 51,
+    "strata": {
+      "ar:0": 20,
+      "ar:1": 281,
+      "en:0": 19,
+      "en:1": 267,
+      "mixed:0": 12,
+      "mixed:1": 169
+    }
+  },
+  "artifact_sha256": {
+    "neural-core/checkpoints/expert-trust-v2/TrainedExpertTrust.java": "191795ccb9a3b51ce4f055937615caf2274ee14c85cd9846886fb6bad1248081",
+    "neural-core/checkpoints/rich-text-v1/TrainedRichVocabulary.java": "b277f2a7c97d549632d399929f029c12479d6492eef0deb9aaf2973ab7a37a1d",
+    "neural-core/checkpoints/rich-text-v1/TrainedRichPresence.java": "397a27d1a7736f41ebd15a311d289307e715f0d6c7ed03a05fe6926a61f55e45",
+    "neural-core/checkpoints/public-refusal-v1/TrainedPublicRefusal.java": "d79539ac9455ccbb84be796fd334ba3b35cd7193ae9a4d07a1dbd5528ead3fe0",
+    "neural-core/checkpoints/utility-expert-v2/TrainedUtilityExpert.java": "5d0620826db3f332c0ed8f334c171a9b6ab5e6700cb0f5d0a7ea8190aa6a434b",
+    "neural-core/checkpoints/prototype-support-v1/TrainedPrototypePolicy.java": "f9b5d289928230863d2bbac2ddf2c45a2af8bfa6db3bdf32ca505c78d9c58d24",
+    "neural-core/checkpoints/prototype-support-v1/TrainedDomainPrototypes.java": "cd18085d6c6e2a2bb08d20508f07ab89a8108464ab6ff173fe782d3422baed39",
+    "neural-core/fixtures/expert-trust/protocol.json": "710182090c40e03717a90694dfdec4ffa6a5d709fec39ad22d07d1a1d252da76",
+    "neural-core/fixtures/expert-trust/fresh.tsv": "9f0f505d87a835800cd0ffaf953304974e55cab4708d78eaa89b69c9571aa132",
+    "neural-core/fixtures/expert-trust/rehearsal-protocol.json": "54753aed08af05c375f725b8ac98916085da7838c464b0063234ffabc9198c7f",
+    "neural-core/fixtures/expert-trust/provenance.json": "cd4a90be1f644deab6ba27a802cdaf124a08b271cf23db2d5d85bf8d73304911",
+    "neural-core/fixtures/text-intents.tsv": "e1aac35b6d45015e0798bb039ab8f6bee33e96720fa72f3f4ebb42c477ba4fd1",
+    "neural-core/fixtures/clinc-subset/rejection.tsv": "ecc3598ed5c2385ecbcd5ab3fef3e5d4ba36112342b0239287ff0a0bf65b1843",
+    "neural-core/fixtures/bilingual-refusal/corpus.tsv": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e",
+    "neural-core/fixtures/massive-refusal/corpus.tsv": "f300371ef4656d78fc22449066250918d5f6270afafb53595232351b1d95b6e8",
+    "neural-core/fixtures/rich-text/fresh-english.tsv": "e76fc84ba71146ca181d21e648997bfd76ab2790091334125ea9d35107e9ecc0",
+    "neural-core/fixtures/decision-challenges.tsv": "4378e3ebc46396f732a5bd1d18d5bd79e3a0e9c2cc98d70c0c894fea3b43f869",
+    "neural-core/fixtures/residual-adapter/fresh.tsv": "05add51a7760a1ad743f3830de7597522f32314f33764a7ea19d7451a2a8fffa",
+    "neural-core/fixtures/utility-expert/fresh.tsv": "adc025471833aa05b2affa2f296bdf83fea1be7c50215aebbcc3706a41204213",
+    "neural-core/fixtures/prototype-support/authored.tsv": "631dd708c7bd59dd6bca98b9204a9cdf1b8953d39280bb28861fa3cbc49ff102"
+  },
+  "observed_retention_passed": false,
+  "promotion_blocker": "4 earlier-correct observed cases lost; no new supported or mixed-language positives; physical-device validation absent."
+}
