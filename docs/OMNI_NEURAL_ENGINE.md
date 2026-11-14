@@ -68,3 +68,8 @@ has been asserted yet.
    tool-intent specialist in shadow mode (never granting access).
 5. Only then integrate a behind-flag adapter with Existing P0/P2/P3 and
    Smart Tool Surface, and check all five product flavors.
+
+
+## Prototype support experiment
+
+[PROTOTYPE_SUPPORT_TRAINING.md](PROTOTYPE_SUPPORT_TRAINING.md) documents a bounded 60 KiB support bank around the frozen utility expert, its retention/refusal tradeoff, a newly exposed mixed-language failure and reproducible host/ART test contracts. No normal APK integration or production-quality claim is introduced.

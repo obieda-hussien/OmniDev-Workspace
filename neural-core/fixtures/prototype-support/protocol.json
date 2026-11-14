@@ -1,0 +1,11 @@
+{
+  "version": "prototype-support-v1",
+  "before_fit": true,
+  "purpose": "Learn a small support memory for the frozen utility expert, rather than changing old test labels or weakening completion gates.",
+  "data": "Keep existing train/development/calibration partitions and frozen utility-v2 neural weights/policy. Prior scored sets are observed regressions. Freeze a new explicitly assistant-authored developer/device/challenge suite before fitting; it is not independent human-labelled traffic or upstream public benchmark data.",
+  "fit": "Known training rows only where original teacher chose the true label. One unit-normalized centroid per domain/language (5 domains x ar/en/mixed). Normalize each row, average within semantic source group, normalize that group, then average groups equally and normalize to FP32. Require all 15 strata. At most15360 prototype floats and no raw utterance storage in runtime.",
+  "calibration": "For each prior domain compute prototype cosine support for previously correct known calibration rows only. Set protection cutoff to max(0,minimum observed support-1e-4), so those observed calibration cases are protected. Missing calibration support disables adaptation for that domain. This is an empirical floor, not a conformal or universal correctness guarantee.",
+  "policy": "The prototype layer can only restore the frozen teacher's original decision when the utility expert would change or reject it and prior-domain support meets the floor. Never upgrade a teacher abstention or ignore caller thresholds. Choose guarded adaptation or full teacher fallback independently per domain on development language/outcome balanced utility; strict improvement required, ties fallback. Preserve original correct development/training decisions, bound all lists and clone all runtime arrays. No test-based threshold fitting.",
+  "evaluation": "Export prototypes and enabled-domain policy before scoring any new authored case. Report old teacher, unprotected utility-v2 and protected policy, accepted-correct, rejected unsupported, individual earlier-correct losses and latency. Old sets remain observed; the authored suite is a limited new engineering challenge, not generalization evidence.",
+  "production_eligible": false
+}

@@ -1,0 +1,12 @@
+{
+  "rows": 75,
+  "groups": 25,
+  "author": "assistant-authored synthetic engineering challenge",
+  "annotation": "Labels follow the narrow five-domain single-step experiment, not tool authorization.",
+  "training_use": "none; held out from prototype fit and threshold/route selection",
+  "files": {
+    "neural-core/fixtures/prototype-support/authored.tsv": "631dd708c7bd59dd6bca98b9204a9cdf1b8953d39280bb28861fa3cbc49ff102",
+    "neural-core/fixtures/prototype-support/protocol.json": "bba6bacebb6e63901f1aa2dbbf3dd5539a219a58cf4344e2c0aa838b4f6d6a70",
+    "docs/TOOL_EXECUTION_CONTRACT.md": "b5adf1cbeea52f8ba4d4c018424e337c051681ef2220dcdcc8b970d5441aecea"
+  }
+}

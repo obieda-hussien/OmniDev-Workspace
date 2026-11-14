@@ -11,6 +11,8 @@ public final class UtilityExpertDecisionModel {
   private final RichTextEncoder encoder;
   private final TinyDecisionModel expert;
   private final double[] reject, change, support;
+  private final DomainPrototypeSupport prototypes;
+  private final double[] prototypeCutoffs;
 
   public UtilityExpertDecisionModel(
       RichIntentRefusalModel teacher,
@@ -40,6 +42,32 @@ public final class UtilityExpertDecisionModel {
       double[] change,
       double[] support,
       String fingerprint) {
+    this(
+        teacher,
+        encoder,
+        network,
+        temperature,
+        reject,
+        change,
+        support,
+        fingerprint,
+        null,
+        null,
+        null);
+  }
+
+  public UtilityExpertDecisionModel(
+      RichIntentRefusalModel teacher,
+      RichTextEncoder encoder,
+      TinyNeuralRuntime network,
+      double temperature,
+      double[] reject,
+      double[] change,
+      double[] support,
+      String fingerprint,
+      DomainPrototypeSupport prototypes,
+      double[] prototypeCutoffs,
+      String prototypeFingerprint) {
     if (teacher == null
         || encoder == null
         || network == null
@@ -58,6 +86,22 @@ public final class UtilityExpertDecisionModel {
     this.teacher = teacher;
     this.encoder = encoder;
     this.expert = new TinyDecisionModel(network, RichTextDecisionModel.labels(), temperature);
+    if (prototypes == null) {
+      if (prototypeCutoffs != null || prototypeFingerprint != null)
+        throw new IllegalArgumentException("Incomplete prototype policy");
+      this.prototypeCutoffs = null;
+    } else {
+      if (!fingerprint.equals(prototypes.vocabularyFingerprint())
+          || !prototypes.fingerprint().equals(prototypeFingerprint)
+          || prototypeCutoffs == null
+          || prototypeCutoffs.length != 5)
+        throw new IllegalArgumentException("Foreign prototype pairing");
+      for (double cutoff : prototypeCutoffs)
+        if (!Double.isFinite(cutoff) || cutoff < 0 || cutoff > 1 && cutoff != DISABLED)
+          throw new IllegalArgumentException("Invalid prototype protection cutoff");
+      this.prototypeCutoffs = prototypeCutoffs.clone();
+    }
+    this.prototypes = prototypes;
   }
 
   public TinyDecisionModel.Decision classify(String text, double probability, double margin) {
@@ -94,15 +138,39 @@ public final class UtilityExpertDecisionModel {
                 || candidate.probability < reject[domain]
             ? 0
             : teacher.domainSupport(features)[domain];
-    return choose(
-        before,
-        candidate,
-        reject[domain],
-        change[domain],
-        score,
-        support[domain],
-        probability,
-        margin);
+    TinyDecisionModel.Decision proposed =
+        choose(
+            before,
+            candidate,
+            reject[domain],
+            change[domain],
+            score,
+            support[domain],
+            probability,
+            margin);
+    if (proposed == before || prototypes == null || prototypeCutoffs[domain] == DISABLED)
+      return proposed;
+    return prototypeGuard(
+        before, proposed, prototypes.similarity(features, domain), prototypeCutoffs[domain]);
+  }
+
+  static TinyDecisionModel.Decision prototypeGuard(
+      TinyDecisionModel.Decision before,
+      TinyDecisionModel.Decision proposed,
+      float similarity,
+      double cutoff) {
+    validateTeacher(before);
+    if (proposed == null
+        || !Float.isFinite(similarity)
+        || similarity < 0
+        || similarity > 1
+        || !Double.isFinite(cutoff)
+        || cutoff < 0
+        || cutoff > 1 && cutoff != DISABLED)
+      throw new IllegalArgumentException("Invalid prototype decision");
+    return before.status == TinyDecisionModel.Status.ABSTAIN || similarity >= cutoff
+        ? before
+        : proposed;
   }
 
   static TinyDecisionModel.Decision choose(

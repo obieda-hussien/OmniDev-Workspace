@@ -22,7 +22,7 @@ public final class NeuralAndroidRuntimeTest {
         NeuralProbeContract.verify(probes);
         verifyCascade(probes);
         verifyRich(probes);
-        int publicProbes, residualProbes, utilityProbes;
+        int publicProbes, residualProbes, utilityProbes, prototypeProbes;
         try (Reader reader = new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("public-probes.tsv"), StandardCharsets.UTF_8)) {
             publicProbes = PublicNeuralProbeContract.verify(reader);
         }
@@ -32,10 +32,14 @@ public final class NeuralAndroidRuntimeTest {
         try(Reader reader=new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("utility-probes.tsv"),StandardCharsets.UTF_8)){
             utilityProbes=UtilityNeuralProbeContract.verify(reader);
         }
+        try(Reader reader=new InputStreamReader(InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("prototype-probes.tsv"),StandardCharsets.UTF_8)){
+            prototypeProbes=PrototypeNeuralProbeContract.verify(reader);
+        }
         writeReport("correctness.json", environment().put("parity_passed", true).put("probes", probes.size())
                 .put("cascade_parity_passed", true).put("rich_parity_passed", true).put("public_parity_passed", true).put("public_probes", publicProbes)
                 .put("residual_parity_passed", true).put("residual_probes", residualProbes)
                 .put("utility_parity_passed", true).put("utility_probes", utilityProbes)
+                .put("prototype_parity_passed", true).put("prototype_probes", prototypeProbes)
                 .put("host_art_probability_tolerance", 1e-6).put("dense_sparse_exact", true));
     }
 
@@ -52,6 +56,11 @@ public final class NeuralAndroidRuntimeTest {
         rejects(() -> utility.classify(new String(oversized),0.6,0.15));
         rejects(() -> utility.classify(new String(expanding),0.6,0.15));
         rejects(() -> utility.classify("source",Double.NaN,0.15));
+        UtilityExpertDecisionModel prototype=PrototypeNeuralProbeContract.model(true);
+        rejects(() -> prototype.classify(null,.6,.15));
+        rejects(() -> prototype.classify(new String(oversized),.6,.15));
+        rejects(() -> prototype.classify(new String(expanding),.6,.15));
+        rejects(() -> prototype.classify("source",Double.NaN,.15));
     }
 
     @Test public void optInWholeTextBenchmark() throws Exception {

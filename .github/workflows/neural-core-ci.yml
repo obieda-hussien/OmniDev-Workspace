@@ -24,6 +24,9 @@ on:
       - 'scripts/reserve_utility_eval.py'
       - 'scripts/test_utility_data.py'
       - 'scripts/train_utility_expert.sh'
+      - 'scripts/train_prototype_support.sh'
+      - 'scripts/prepare_prototype_challenges.py'
+      - 'scripts/test_prototype_data.py'
       - '.github/scripts/run-neural-android-tests.sh'
       - '.github/scripts/neural-emulator-cleanup.sh'
       - 'scripts/test_neural_emulator_cleanup.py'
@@ -54,6 +57,9 @@ on:
       - 'scripts/reserve_utility_eval.py'
       - 'scripts/test_utility_data.py'
       - 'scripts/train_utility_expert.sh'
+      - 'scripts/train_prototype_support.sh'
+      - 'scripts/prepare_prototype_challenges.py'
+      - 'scripts/test_prototype_data.py'
       - '.github/scripts/run-neural-android-tests.sh'
       - '.github/scripts/neural-emulator-cleanup.sh'
       - 'scripts/test_neural_emulator_cleanup.py'
@@ -222,6 +228,32 @@ jobs:
         with:
           name: utility-expert-${{ github.run_id }}
           path: build/utility-expert-v2/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  prototype-training:
+    name: Bounded prototype fit + retention evidence
+    needs: java-compat
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify authored provenance, real-row fitter and exported/committed policies
+        run: |
+          python3 scripts/test_prototype_data.py
+          bash scripts/train_prototype_support.sh
+      - name: Upload support bank and complete quality-regression evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: prototype-support-${{ github.run_id }}
+          path: build/prototype-support/
           if-no-files-found: ignore
           retention-days: 30
 
