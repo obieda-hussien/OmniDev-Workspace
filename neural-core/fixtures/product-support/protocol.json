@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "source": "knowledge/omni-product.jsonl",
+  "source_sha256": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+  "query_sha256": "04c16ff3a83d8ca7227b4e3e3cad5ce9e6e2b0d6fe7e8338be68b71543d66899",
+  "query_count": 234,
+  "author": "explicitly authored experimental support questions; not independent human review or user traffic",
+  "split_unit": "entire FAQ topic / unsupported scenario including all translations and paraphrases",
+  "candidate_corpus": "all reviewed FAQ documents searchable in every split; held out query topics, not unseen documents",
+  "selection": "four fits: linear/tanh8 x seeds42/97; development retrieval utility then loss then parameters; calibration thresholds only; test after source export",
+  "production_eligible": false
+}
