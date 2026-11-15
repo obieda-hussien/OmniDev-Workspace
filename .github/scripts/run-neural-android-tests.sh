@@ -47,7 +47,7 @@ bash .github/scripts/gradle-with-retry.sh "${gradle_args[@]}" :neural-android:co
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
   "-Pandroid.testInstrumentationRunnerArguments.neuralProbeRun=$neural_run_id" \
   "-Pandroid.testInstrumentationRunnerArguments.neuralBenchmark=$neural_benchmark" || neural_status=$?
-for report in correctness benchmark support-correctness hybrid-correctness expanded-correctness memory-correctness reliability-correctness; do
+for report in correctness benchmark support-correctness hybrid-correctness expanded-correctness memory-correctness reliability-correctness subword-correctness; do
   if adb exec-out run-as com.omnidev.workspace.neuralprobe cat "files/$report.json" > "$report_dir/$report.tmp"; then
     mv "$report_dir/$report.tmp" "$report_dir/$report.json"
   else rm -f "$report_dir/$report.tmp"; fi
@@ -73,6 +73,8 @@ memory = json.loads((directory / 'memory-correctness.json').read_text())
 assert memory['memory_parity_passed'] and memory['predictions'] == 1239 and memory['retained_default_checks'] == 1239 and memory['documents'] == 58 and memory['run_id'] == sys.argv[3]
 reliability = json.loads((directory / 'reliability-correctness.json').read_text())
 assert reliability['reliability_parity_passed'] and reliability['predictions'] == 1368 and reliability['retained_default_checks'] == 1368 and reliability['documents'] == 58 and reliability['run_id'] == sys.argv[3]
+subword = json.loads((directory / 'subword-correctness.json').read_text())
+assert subword['subword_parity_passed'] and subword['predictions'] == 1488 and subword['retained_default_checks'] == 1488 and subword['documents'] == 58 and subword['run_id'] == sys.argv[3]
 assert report['contract_parity_passed'] and report['contract_probes'] == 1366
 if sys.argv[2] == 'true':
     benchmark = json.loads((directory / 'benchmark.json').read_text())

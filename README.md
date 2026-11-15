@@ -120,6 +120,8 @@ The compact v5 runtime preserves raw numerical outputs across1,239 queries and70
 
 The [v6 correctness-selector experiment](docs/SUPPORT_RELIABILITY.md) fits8 linear/tanh candidates on group-excluded TRAIN retrieval and separately calibrates confidence and acceptance. The selected113-parameter head preserves original references and rankings, with1,368 compiled probes and exact retained-default checks. On129 newly reserved authored questions, useful acceptance remains32 correct/zero wrong, unchanged from v5; observed regressions add errors when acceptance expands. A veto removes two old errors but loses two correct acceptances. These failed promotion gates are retained; neither this selector nor its veto is activated in the normal APK.
 
+The [v7 tolerant-token experiment](docs/SUBWORD_SUPPORT.md) adds TRAIN-only gram/Dice coverage and compares16 clean/typo-view fits. On120 targeted authored robustness questions, the DEV-selected113-parameter head increases accepted-correct references24→42, including Arabic4→10, with zero observed stress errors; ranking stays frozen. The augmented arm is reported separately and is not chosen using test scores. Old regression errors increase, so production eligibility remains false. Compiled source/default checks cover1,488 queries and both matched training arms; the normal APK retains its prior behavior.
+
 The companion Launcher integration now supports scoped capability discovery, catalog/version diagnostics,
 Home layout snapshots, existing-app icon moves, grid migration and drawer rule folders. Install the
 matching Launcher PR #16 and Workspace PR #194 builds with the same signing certificate and enable
