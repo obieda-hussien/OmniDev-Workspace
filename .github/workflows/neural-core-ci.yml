@@ -31,6 +31,7 @@ on:
       - 'scripts/train_hybrid_support.sh'
       - 'scripts/train_expanded_support.sh'
       - 'scripts/train_query_memory.sh'
+      - 'scripts/audit_query_memory_runtime.sh'
       - 'scripts/prepare_query_memory.py'
       - 'scripts/test_query_memory.py'
       - 'scripts/finalize_query_memory.py'
@@ -100,6 +101,7 @@ on:
       - 'scripts/train_hybrid_support.sh'
       - 'scripts/train_expanded_support.sh'
       - 'scripts/train_query_memory.sh'
+      - 'scripts/audit_query_memory_runtime.sh'
       - 'scripts/prepare_query_memory.py'
       - 'scripts/test_query_memory.py'
       - 'scripts/finalize_query_memory.py'
@@ -534,5 +536,29 @@ jobs:
         with:
           name: query-memory-${{ github.run_id }}
           path: build/query-memory-v5/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  query-memory-runtime:
+    name: Compact memory raw parity + host footprint audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compare the pinned runtime and compact index without refitting
+        run: bash scripts/audit_query_memory_runtime.sh
+      - name: Upload host measurements without timing thresholds
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: query-memory-runtime-${{ github.run_id }}
+          path: build/query-memory-runtime-audit/**/*.json
           if-no-files-found: ignore
           retention-days: 30

@@ -77,24 +77,43 @@ public final class SupportQueryMemory {
     }
   }
 
+  /** Exact index counts and primitive array payload only; not retained heap or APK size. */
+  public static final class IndexStats {
+    public final int wordTerms, characterTerms, similarityPostings, coveragePostings;
+    public final long primitiveArrayPayloadBytes;
+
+    private IndexStats(
+        int wordTerms, int characterTerms, int similarity, int coverage, int examples) {
+      this.wordTerms = wordTerms;
+      this.characterTerms = characterTerms;
+      similarityPostings = similarity;
+      coveragePostings = coverage;
+      // Coverage aliases word postings; it owns no additional arrays.
+      primitiveArrayPayloadBytes = 12L * similarity + 4L * examples;
+    }
+  }
+
   private static final class View {
-    final Map<String, Integer> df = new TreeMap<>();
+    static final class Term {
+      final double idf;
+      final int[] examples;
+      final double[] values;
 
-    static final class Posting {
-      final int example;
-      final double value;
-
-      Posting(int example, double value) {
-        this.example = example;
-        this.value = value;
+      Term(double idf, int count) {
+        this.idf = idf;
+        examples = new int[count];
+        values = new double[count];
       }
     }
 
-    final Map<String, List<Posting>> postings = new TreeMap<>();
+    final Map<String, Term> dictionary = new HashMap<>();
     final int size;
+    final double unknownIdf;
 
     View(List<Exemplar> examples, boolean chars) {
       size = examples.size();
+      unknownIdf = 1 + Math.log(size + 1.0);
+      Map<String, Integer> df = new TreeMap<>();
       List<Map<String, Integer>> raw = new ArrayList<>();
       for (Exemplar e : examples) {
         Map<String, Integer> terms = terms(e.text, chars);
@@ -102,47 +121,61 @@ public final class SupportQueryMemory {
         for (String t : terms.keySet()) df.put(t, df.getOrDefault(t, 0) + 1);
       }
       if (df.size() > 100000) throw new IllegalArgumentException("Unbounded exemplar vocabulary");
-      for (int i = 0; i < raw.size(); i++)
-        for (Map.Entry<String, Double> t : vector(raw.get(i)).entrySet())
-          postings
-              .computeIfAbsent(t.getKey(), k -> new ArrayList<>())
-              .add(new Posting(i, t.getValue()));
+      for (Map.Entry<String, Integer> e : df.entrySet())
+        dictionary.put(
+            e.getKey(), new Term(1 + Math.log((size + 1.0) / (e.getValue() + 1)), e.getValue()));
+      Map<String, Integer> positions = new HashMap<>();
+      for (int i = 0; i < raw.size(); i++) {
+        Map<String, Integer> row = raw.get(i);
+        double[] values = values(row);
+        int j = 0;
+        for (String key : row.keySet()) {
+          Term term = dictionary.get(key);
+          int offset = positions.getOrDefault(key, 0);
+          term.examples[offset] = i;
+          term.values[offset] = values[j++];
+          positions.put(key, offset + 1);
+        }
+      }
     }
 
-    Map<String, Double> vector(Map<String, Integer> terms) {
-      Map<String, Double> out = new TreeMap<>();
+    double[] values(Map<String, Integer> terms) {
+      double[] out = new double[terms.size()];
       double norm = 0;
+      int i = 0;
       for (Map.Entry<String, Integer> e : terms.entrySet()) {
-        double v =
-            (1 + Math.log(e.getValue()))
-                * (1 + Math.log((size + 1.0) / (df.getOrDefault(e.getKey(), 0) + 1)));
-        out.put(e.getKey(), v);
-        norm += v * v;
+        Term term = dictionary.get(e.getKey());
+        double value = (1 + Math.log(e.getValue())) * (term == null ? unknownIdf : term.idf);
+        out[i++] = value;
+        norm += value * value;
       }
       double divisor = Math.sqrt(norm);
-      if (divisor > 0)
-        for (Map.Entry<String, Double> e : out.entrySet()) e.setValue(e.getValue() / divisor);
-      return Collections.unmodifiableMap(out);
+      if (divisor > 0) for (i = 0; i < out.length; i++) out[i] /= divisor;
+      return out;
     }
 
-    double[] scores(String query, boolean chars) {
-      Map<String, Double> q = vector(terms(query, chars));
+    double[] scores(String normalized, boolean chars) {
+      Map<String, Integer> q = terms(normalized, chars);
+      double[] values = values(q);
       double[] scores = new double[size];
       // Query terms remain sorted, preserving the original dot-product accumulation order.
-      for (Map.Entry<String, Double> term : q.entrySet()) {
-        List<Posting> matches = postings.get(term.getKey());
-        if (matches != null)
-          for (Posting p : matches) scores[p.example] += term.getValue() * p.value;
+      int i = 0;
+      for (String key : q.keySet()) {
+        Term term = dictionary.get(key);
+        double value = values[i++];
+        if (term != null)
+          for (int p = 0; p < term.examples.length; p++)
+            scores[term.examples[p]] += value * term.values[p];
       }
-      for (int i = 0; i < size; i++) scores[i] = Math.min(1, Math.max(0, scores[i]));
+      for (i = 0; i < size; i++) scores[i] = Math.min(1, Math.max(0, scores[i]));
       return scores;
     }
   }
 
   private final HybridSupportRetriever base;
-  private final List<Exemplar> examples;
+  private final String[] exampleGroups;
   private final List<Topic> topics;
-  private final List<Set<String>> tokens;
+  private final int[] exampleTopics;
   private final Map<String, Integer> topicIndex = new TreeMap<>();
   private final View words, characters;
   private final TinyNeuralRuntime head;
@@ -202,16 +235,18 @@ public final class SupportQueryMemory {
     copy.sort(Comparator.comparing(e -> e.id));
     Set<String> ids = new HashSet<>();
     Map<String, String> groups = new HashMap<>();
-    tokens = new ArrayList<>();
+    exampleTopics = new int[copy.size()];
+    exampleGroups = new String[copy.size()];
     for (Exemplar e : copy) {
       if (e == null || !ids.add(e.id) || !topicIndex.containsKey(e.topic))
         throw new IllegalArgumentException("Duplicate/foreign exemplar");
       String old = groups.put(e.group, e.topic);
       if (old != null && !old.equals(e.topic))
         throw new IllegalArgumentException("Conflicting exemplar group");
-      tokens.add(Collections.unmodifiableSet(wordTokens(e.text)));
+      int index = ids.size() - 1;
+      exampleTopics[index] = topicIndex.get(e.topic);
+      exampleGroups[index] = e.group;
     }
-    this.examples = Collections.unmodifiableList(copy);
     fingerprint = fingerprint(original.fingerprint(), copy);
     if (expectedFingerprint != null && !expectedFingerprint.equals(fingerprint))
       throw new IllegalArgumentException("Query-memory fingerprint mismatch");
@@ -227,6 +262,21 @@ public final class SupportQueryMemory {
     return head.parameterCount();
   }
 
+  public IndexStats indexStats() {
+    int similarity = 0, coverage = 0;
+    for (Map.Entry<String, View.Term> entry : words.dictionary.entrySet()) {
+      similarity += entry.getValue().examples.length;
+      if (entry.getKey().startsWith("w:")) coverage += entry.getValue().examples.length;
+    }
+    for (View.Term term : characters.dictionary.values()) similarity += term.examples.length;
+    return new IndexStats(
+        words.dictionary.size(),
+        characters.dictionary.size(),
+        similarity,
+        coverage,
+        exampleGroups.length);
+  }
+
   public List<Row> rows(String query, String excludedGroup) {
     if (query == null || query.length() > 512 || excludedGroup != null && !label(excludedGroup))
       throw new IllegalArgumentException("Invalid query-memory request");
@@ -239,15 +289,17 @@ public final class SupportQueryMemory {
         wc = new double[topics.size()],
         cc = new double[topics.size()],
         coverage = new double[topics.size()];
-    for (int i = 0; i < examples.size(); i++) {
-      Exemplar e = examples.get(i);
-      if (e.group.equals(excludedGroup)) continue;
-      int topic = topicIndex.get(e.topic);
+    int[] overlap = new int[exampleGroups.length];
+    for (String token : q) {
+      View.Term matching = words.dictionary.get("w:" + token);
+      if (matching != null) for (int index : matching.examples) overlap[index]++;
+    }
+    for (int i = 0; i < exampleGroups.length; i++) {
+      if (exampleGroups[i].equals(excludedGroup)) continue;
+      int topic = exampleTopics[i];
       wc[topic] = Math.max(wc[topic], w[i]);
       cc[topic] = Math.max(cc[topic], c[i]);
-      int overlap = 0;
-      for (String term : q) if (tokens.get(i).contains(term)) overlap++;
-      coverage[topic] = Math.max(coverage[topic], overlap / (double) q.size());
+      coverage[topic] = Math.max(coverage[topic], overlap[i] / (double) q.size());
     }
     List<Row> rows = new ArrayList<>();
     for (int i = 0; i < topics.size(); i++) {
@@ -268,7 +320,10 @@ public final class SupportQueryMemory {
   public Result search(String query, int limit) {
     if (limit < 1 || limit > 10) throw new IllegalArgumentException("Invalid memory result bound");
     List<Hit> hits = new ArrayList<>();
-    for (Row r : rows(query, null)) if (score(r) > 0) hits.add(new Hit(r, score(r)));
+    for (Row r : rows(query, null)) {
+      double score = score(r);
+      if (score > 0) hits.add(new Hit(r, score));
+    }
     hits.sort(
         Comparator.comparingDouble((Hit h) -> h.score).reversed().thenComparing(h -> h.topic.id));
     boolean accepted =

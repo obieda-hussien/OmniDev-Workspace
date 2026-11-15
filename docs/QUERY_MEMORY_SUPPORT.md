@@ -137,3 +137,61 @@ coordinates, repeated four-fit/selection reproduction,1,239 compiled predictions
 and24,780 original-reference checks passed. The candidate loses24 previously accepted-correct
 results across combined old/new splits; every ID remains recorded. Packaged host contracts pass;
 new ART/Gradle/strict Java8 API checks remain CI evidence, not local device results.
+
+## Compact index runtime audit (2026-11-15)
+
+The next change preserves the representation, weights, calibration and every observed quality
+result. Each vocabulary term now owns primitive example-index and FP64-value arrays instead of
+one object per posting and separate retained document-frequency trees. IDF is computed once per
+term. Sorted query accumulation and unknown-term contributions to the vector norm remain intact.
+Coverage reuses the unigram posting arrays, so it no longer scans a token set for every exemplar.
+Construction validates and fingerprints the original examples, then retains only group identities
+and topic indexes. It releases the exemplar objects and their question text. No lower-precision
+weights, policy retuning, new training data or query-history cache is introduced.
+
+`IndexStats` returns immutable counts and the exact primitive-array payload. Coverage posting
+counts describe aliases into the word view; they must not be counted twice as allocated arrays.
+These counts exclude object headers, dictionaries, strings, group identities and the base retriever.
+
+The optional host audit compiles the pinned pre-change runtime from commit
+`cce17b7545c00168ac99cc7245f362b15b3b124c` and the current runtime with identical surrounding
+sources/checkpoints. It compares1,239 queries and70,844 rows, including complete TRAIN-group
+exclusion. Raw feature/score/coverage bits, ordering at limits1/3/10, acceptance and original
+reference fields produce the same SHA256 digest. Two new JUnit tests independently compare dense
+cosine scans against sparse postings with repeated/OOV/Arabic/Unicode queries and group exclusions,
+and verify shared-posting counts and caller-copy isolation. The complete module now passes104
+real local JUnit tests using the Java8 source/target fallback.
+
+One recorded host run, with198 warmup queries followed by10 batches of64 rotating DEV queries:
+
+| Host observation | Pinned runtime | Compact runtime |
+|---|---:|---:|
+| Reachable index and exemplar-metadata shallow bytes |2,960,080|1,831,544|
+| Objects reachable from those roots |91,671|55,964|
+| Median of batch means, end-to-end search |763,874ns|588,522ns|
+| Median allocated bytes per query across batches |718,451|709,454.5|
+
+The counted graph is38.1% smaller. A Java agent sums `Instrumentation.getObjectSize` once per
+identity and follows every non-static reference from the word/character views and exemplar
+metadata roots; inaccessible fields fail the audit. This includes strings, maps and array headers,
+but excludes the base retriever, FAQ documents, head, topics, application and temporary peak heap.
+It is not whole-model retained heap, APK size or a physical Infinix measurement. JVM object layout,
+GC and hardware affect results. Allocation savings are modest (about1.3% in this run); most
+end-to-end allocation is outside the compacted index. The latency numbers are descriptive host
+batch means, not request percentiles or a guaranteed speedup. No timing threshold gates correctness.
+
+Raw observations, class counts, source pin and numeric digest are saved in
+`neural-core/checkpoints/query-memory-v5/runtime-audit.json`. To reproduce after fetching the pinned
+commit into the checkout:
+
+```sh
+bash scripts/audit_query_memory_runtime.sh
+# Constrained local JDK fallback:
+bash scripts/audit_query_memory_runtime.sh --source-target-only
+```
+
+The dedicated CI job uses JDK17 and strict Java8 API compilation, records fresh host measurements,
+and checks before/after numerical parity without asserting equal timings or object sizes across
+hosts. The existing API30 contract continues to test the current candidate. New CI results are
+separate evidence; local host execution does not establish ART or physical-device correctness.
+The experimental quality limitations and frozen production default described above still apply.

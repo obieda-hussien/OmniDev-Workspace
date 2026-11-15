@@ -116,6 +116,8 @@ The [expanded support-data experiment](docs/EXPANDED_SUPPORT_DATA.md) adds 642 e
 
 The [TRAIN-query memory experiment](docs/QUERY_MEMORY_SUPPORT.md) changes the lexical representation rather than increasing model size: a bounded index of 351 supported training questions adds word/bigram and character3/4 similarities while returning only original FAQ references. Whole training scenario groups and translations are excluded from exemplar matching during fitting. On 138 newly authored probes, first-topic accuracy is 91/105 supported versus frozen v4's 78/105, and all-primary@3 is 97/105 versus90/105. Selective coverage remains26/105, with zero observed fresh errors but four errors on older combined probes. A uniform control wins over four fitted heads; no learned-head gain or production readiness is claimed. The frozen default and normal APK stay unchanged.
 
+The compact v5 runtime preserves raw numerical outputs across1,239 queries and70,844 rows, including TRAIN-group exclusion. An optional host instrumentation audit measures the reachable query indexes and exemplar metadata at2,960,080 bytes before and1,831,544 after (38.1% smaller), excluding the base retriever, documents and application. Primitive postings share coverage lookups; initialization discards exemplar objects after fingerprinting. Host measurements and reproduction are recorded in the experiment guide; they are not physical-phone RAM, battery or latency results.
+
 The companion Launcher integration now supports scoped capability discovery, catalog/version diagnostics,
 Home layout snapshots, existing-app icon moves, grid migration and drawer rule folders. Install the
 matching Launcher PR #16 and Workspace PR #194 builds with the same signing certificate and enable

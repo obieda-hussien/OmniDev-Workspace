@@ -1,0 +1,137 @@
+{
+  "host_only": true,
+  "physical_device_tested": false,
+  "baseline_commit": "cce17b7545c00168ac99cc7245f362b15b3b124c",
+  "runtime_sha256": "9aa22ff9b87ec58d4587350b3b8cf85237b530efb828974049d03c4b2c6ebb79",
+  "java_version": "openjdk version \"21.0.13\" 2026-10-20\nOpenJDK Runtime Environment (build 21.0.13+9-1-deb13u2-Debian)\nOpenJDK 64-Bit Server VM (build 21.0.13+9-1-deb13u2-Debian, mixed mode, sharing)",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "arms": {
+    "baseline": {
+      "audit": {
+        "host_only": true,
+        "physical_device_tested": false,
+        "queries": 1239,
+        "rows_including_group_exclusion": 70844,
+        "raw_bits_sha256": "fbe560092daf153c0b07096dcb9597b971987760f921857f268b18f7794a5080",
+        "warmup_queries": 198,
+        "batch_mean_ns": [
+          825172,
+          782208,
+          844055,
+          752886,
+          750761,
+          765186,
+          784845,
+          762562,
+          727988,
+          752735
+        ],
+        "allocated_bytes_per_query_batch_mean": [
+          770132,
+          717739,
+          702810,
+          701410,
+          719163,
+          748508,
+          772856,
+          715166,
+          682141,
+          722648
+        ],
+        "allocation_supported": true,
+        "checksum": 2215,
+        "retained_heap_measured": false,
+        "timing_assertions": false
+      },
+      "footprint": {
+        "host_only": true,
+        "physical_device_tested": false,
+        "index_roots": "[examples, tokens, words, characters]",
+        "reachable_index_objects": 91671,
+        "reachable_index_shallow_bytes": 2960080,
+        "whole_model_heap_measured": false,
+        "peak_heap_measured": false,
+        "class_counts": {
+          "[B": 12774,
+          "[Ljava.lang.Object;": 9211,
+          "com.omnidev.workspace.domain.neural.SupportQueryMemory$Exemplar": 351,
+          "com.omnidev.workspace.domain.neural.SupportQueryMemory$View": 2,
+          "com.omnidev.workspace.domain.neural.SupportQueryMemory$View$Posting": 25661,
+          "java.lang.Integer": 49,
+          "java.lang.Object": 1,
+          "java.lang.String": 12774,
+          "java.util.ArrayList": 9211,
+          "java.util.Collections$UnmodifiableRandomAccessList": 1,
+          "java.util.Collections$UnmodifiableSet": 351,
+          "java.util.TreeMap": 355,
+          "java.util.TreeMap$Entry": 20579,
+          "java.util.TreeSet": 351
+        }
+      }
+    },
+    "compact": {
+      "audit": {
+        "host_only": true,
+        "physical_device_tested": false,
+        "queries": 1239,
+        "rows_including_group_exclusion": 70844,
+        "raw_bits_sha256": "fbe560092daf153c0b07096dcb9597b971987760f921857f268b18f7794a5080",
+        "warmup_queries": 198,
+        "batch_mean_ns": [
+          697578,
+          671435,
+          568928,
+          584367,
+          574028,
+          588932,
+          637559,
+          588112,
+          554226,
+          591232
+        ],
+        "allocated_bytes_per_query_batch_mean": [
+          764138,
+          708573,
+          693927,
+          692471,
+          710336,
+          739706,
+          763523,
+          705671,
+          673104,
+          713678
+        ],
+        "allocation_supported": true,
+        "checksum": 2215,
+        "retained_heap_measured": false,
+        "timing_assertions": false
+      },
+      "footprint": {
+        "host_only": true,
+        "physical_device_tested": false,
+        "index_roots": "[exampleGroups, exampleTopics, words, characters]",
+        "reachable_index_objects": 55964,
+        "reachable_index_shallow_bytes": 1831544,
+        "whole_model_heap_measured": false,
+        "peak_heap_measured": false,
+        "class_counts": {
+          "[B": 9560,
+          "[D": 9209,
+          "[I": 9210,
+          "[Ljava.lang.String;": 1,
+          "[Ljava.util.HashMap$Node;": 2,
+          "com.omnidev.workspace.domain.neural.SupportQueryMemory$View": 2,
+          "com.omnidev.workspace.domain.neural.SupportQueryMemory$View$Term": 9209,
+          "java.lang.String": 9560,
+          "java.util.HashMap": 2,
+          "java.util.HashMap$Node": 9209
+        }
+      }
+    }
+  },
+  "raw_numeric_and_reference_parity": true,
+  "timing_assertions": false,
+  "whole_model_heap_measured": false,
+  "peak_heap_measured": false,
+  "scope": "Reachable word/character indexes and exemplar metadata only; excludes base retriever, documents, head, app and temporary peak allocations."
+}
