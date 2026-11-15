@@ -35,4 +35,18 @@ def validate(rows=None,protocol=None):
     if len(groups)!=41 or any(g[1]!=expected for g in groups.values()) or counts!={'train':96,'development':36,'temperature':18,'policy':24,'fresh':72}:raise ValueError('Incomplete balanced contrast groups')
     if {r['topic'] for r in rows if r['split']!='fresh'}!=topics:raise ValueError('Missing contrast topics')
     return rows
-if __name__=='__main__':print('Answerability pairs verified:',len(validate()),'rows; contrast translations and polarity stay grouped')
+def validate_followup(rows=None,protocol=None):
+    original=validate();p=json.loads((DATA/'followup-protocol.json').read_text()) if protocol is None else protocol
+    rows=read(DATA/'followup.tsv') if rows is None else rows
+    if p['count']!=48 or p['followup_sha256']!=hashlib.sha256((DATA/'followup.tsv').read_bytes()).hexdigest() or any(p[k] is not False for k in ('production_eligible','independent_human_labels','physical_device_tested')):raise ValueError('Follow-up reservation mismatch')
+    seen={normalized(r['query']) for r in original};ids={r['id'] for r in original};topics={r['topic'] for r in original};groups={}
+    for name in ('product-support/queries.tsv','product-support-v2/fresh.tsv','hybrid-support-v3/fresh.tsv','support-data-v4/queries.tsv','query-memory-v5/fresh.tsv','support-reliability-v6/fresh.tsv','support-subword-v7/fresh.tsv'):
+        for r in read(FIXTURES/name):seen.add(normalized(r['query']));ids.add(r['id'])
+    for r in rows:
+        if set(r)!={'id','group','split','language','topic','label','query'} or r['split']!='followup' or r['topic'] not in topics or r['label'] not in ('0','1') or r['language'] not in ('en','ar','mixed') or not 4<=len(r['query'])<=512 or r['id'] in ids or normalized(r['query']) in seen:raise ValueError('Invalid/observed follow-up row')
+        group=groups.setdefault(r['group'],[r['topic'],set()]);key=(r['language'],r['label'])
+        if group[0]!=r['topic'] or key in group[1]:raise ValueError('Follow-up translation conflict')
+        group[1].add(key);seen.add(normalized(r['query']));ids.add(r['id'])
+    if len(rows)!=48 or len(groups)!=8 or any(g[1]!={(lang,label) for lang in ('en','ar','mixed') for label in ('0','1')} for g in groups.values()):raise ValueError('Incomplete follow-up groups')
+    return rows
+if __name__=='__main__':print('Answerability pairs verified:',len(validate()),'initial and',len(validate_followup()),'follow-up rows')

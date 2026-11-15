@@ -14,4 +14,7 @@ class Pairs(unittest.TestCase):
     def test_source(self):self.p['source_sha256']='0'*64;self.reject()
     def test_claim(self):self.p['independent_human_labels']=True;self.reject()
     def test_language(self):self.rows[0]['language']='ar';self.reject()
+    def test_followup(self):self.assertEqual(48,len(data.validate_followup()))
+    def test_followup_missing(self):
+        with self.assertRaises(ValueError):data.validate_followup(data.read(data.DATA/'followup.tsv')[:-1])
 if __name__=='__main__':unittest.main()
