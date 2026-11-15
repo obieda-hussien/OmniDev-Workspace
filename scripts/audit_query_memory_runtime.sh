@@ -13,7 +13,12 @@ python3 scripts/prepare_query_memory.py build/query-memory-v5
 compile_java(){ if command -v javac >/dev/null 2>&1; then javac "$@"; else java -m jdk.compiler/com.sun.tools.javac.Main "$@"; fi; }
 sources=()
 for source in neural-core/src/main/java/com/omnidev/workspace/domain/neural/*.java; do
-  if [[ "$source" != "$runtime_path" ]]; then sources+=("$source"); fi
+  # The pinned index predates the optional selector API; that separate head is audited by its own job.
+  if [[ "$source" != "$runtime_path" && "$source" != */SupportReliabilityModel.java ]]; then sources+=("$source"); fi
+done
+training_sources=()
+for source in neural-core/training/com/omnidev/workspace/domain/neural/*.java; do
+  if [[ "$source" != */SupportReliabilityExperiment.java ]]; then training_sources+=("$source"); fi
 done
 for arm in baseline compact; do
   classes="$output/$arm/classes"
@@ -21,7 +26,7 @@ for arm in baseline compact; do
   runtime="$runtime_path"
   if [[ "$arm" == baseline ]]; then runtime="$output/baseline/SupportQueryMemory.java"; fi
   compile_java "${compat[@]}" -encoding UTF-8 -d "$classes" "${sources[@]}" "$runtime" \
-    neural-core/training/com/omnidev/workspace/domain/neural/*.java \
+    "${training_sources[@]}" \
     neural-core/checkpoints/product-support-v1/TrainedProductSupport.java \
     neural-core/checkpoints/support-data-v4/TrainedExpandedSupport.java \
     neural-core/checkpoints/query-memory-v5/TrainedQueryMemory.java \

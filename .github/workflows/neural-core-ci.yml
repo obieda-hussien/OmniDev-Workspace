@@ -2,7 +2,7 @@ name: Omni Neural Core (experimental)
 
 on:
   pull_request:
-    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2', 'feat/neural-hybrid-support', 'feat/neural-support-data-v4']
+    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2', 'feat/neural-hybrid-support', 'feat/neural-support-data-v4', 'feat/neural-query-memory']
     paths:
       - 'neural-core/**'
       - 'neural-android/**'
@@ -31,6 +31,12 @@ on:
       - 'scripts/train_hybrid_support.sh'
       - 'scripts/train_expanded_support.sh'
       - 'scripts/train_query_memory.sh'
+      - 'scripts/train_support_reliability.sh'
+      - 'scripts/prepare_support_reliability.py'
+      - 'scripts/test_support_reliability.py'
+      - 'scripts/finalize_support_reliability.py'
+      - 'scripts/prepare_support_reliability_android.sh'
+      - 'docs/SUPPORT_RELIABILITY.md'
       - 'scripts/audit_query_memory_runtime.sh'
       - 'scripts/prepare_query_memory.py'
       - 'scripts/test_query_memory.py'
@@ -101,6 +107,12 @@ on:
       - 'scripts/train_hybrid_support.sh'
       - 'scripts/train_expanded_support.sh'
       - 'scripts/train_query_memory.sh'
+      - 'scripts/train_support_reliability.sh'
+      - 'scripts/prepare_support_reliability.py'
+      - 'scripts/test_support_reliability.py'
+      - 'scripts/finalize_support_reliability.py'
+      - 'scripts/prepare_support_reliability_android.sh'
+      - 'docs/SUPPORT_RELIABILITY.md'
       - 'scripts/audit_query_memory_runtime.sh'
       - 'scripts/prepare_query_memory.py'
       - 'scripts/test_query_memory.py'
@@ -560,5 +572,28 @@ jobs:
         with:
           name: query-memory-runtime-${{ github.run_id }}
           path: build/query-memory-runtime-audit/**/*.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  support-reliability-training:
+    name: Learned correctness selector + disjoint calibration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify numerical gradients, eight fits, calibration boundaries and compiled predictions
+        run: bash scripts/train_support_reliability.sh
+      - name: Upload all selector results including failed promotion gates
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: support-reliability-${{ github.run_id }}
+          path: build/support-reliability-v6/
           if-no-files-found: ignore
           retention-days: 30

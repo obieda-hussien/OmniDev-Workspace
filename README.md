@@ -118,6 +118,8 @@ The [TRAIN-query memory experiment](docs/QUERY_MEMORY_SUPPORT.md) changes the le
 
 The compact v5 runtime preserves raw numerical outputs across1,239 queries and70,844 rows, including TRAIN-group exclusion. An optional host instrumentation audit measures the reachable query indexes and exemplar metadata at2,960,080 bytes before and1,831,544 after (38.1% smaller), excluding the base retriever, documents and application. Primitive postings share coverage lookups; initialization discards exemplar objects after fingerprinting. Host measurements and reproduction are recorded in the experiment guide; they are not physical-phone RAM, battery or latency results.
 
+The [v6 correctness-selector experiment](docs/SUPPORT_RELIABILITY.md) fits8 linear/tanh candidates on group-excluded TRAIN retrieval and separately calibrates confidence and acceptance. The selected113-parameter head preserves original references and rankings, with1,368 compiled probes and exact retained-default checks. On129 newly reserved authored questions, useful acceptance remains32 correct/zero wrong, unchanged from v5; observed regressions add errors when acceptance expands. A veto removes two old errors but loses two correct acceptances. These failed promotion gates are retained; neither this selector nor its veto is activated in the normal APK.
+
 The companion Launcher integration now supports scoped capability discovery, catalog/version diagnostics,
 Home layout snapshots, existing-app icon moves, grid migration and drawer rule folders. Install the
 matching Launcher PR #16 and Workspace PR #194 builds with the same signing certificate and enable
