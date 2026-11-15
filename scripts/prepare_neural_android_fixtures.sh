@@ -57,6 +57,7 @@ bash scripts/prepare_expanded_android.sh "$fixture_output"
 bash scripts/prepare_query_memory_android.sh "$fixture_output"
 bash scripts/prepare_support_reliability_android.sh "$fixture_output"
 bash scripts/prepare_subword_support_android.sh "$fixture_output"
+bash scripts/prepare_answerability_support_android.sh "$fixture_output"
 python3 - "$fixture_output" <<'PY'
 import hashlib, pathlib, sys
 root = pathlib.Path(sys.argv[1])
@@ -98,3 +99,8 @@ compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_
   neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/SubwordSupportProbeContract.java \
   neural-core/smoke/SubwordSupportAndroidSmoke.java
 java -cp "$fixture_classes" SubwordSupportAndroidSmoke "$fixture_output/assets"
+
+compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_classes" \
+  neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/AnswerabilitySupportProbeContract.java \
+  neural-core/smoke/AnswerabilitySupportAndroidSmoke.java
+java -cp "$fixture_classes" AnswerabilitySupportAndroidSmoke "$fixture_output/assets"

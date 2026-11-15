@@ -95,6 +95,9 @@ Read [persistent tasks](docs/PERSISTENT_TASK_STATE.md), [recovery](docs/AGENT_EX
 
 ## Product support knowledge and future training
 
+The [v8 paired answerability experiment](docs/ANSWERABILITY_SUPPORT.md) adds a 1,025-parameter lexical veto after the tiny support proposer. Eight matched fits improve explicit-reference classification on 72 authored pairs from 49 to 62 correct, while the initial decision policy makes no pipeline change. A separately reserved fixed-head calibration reduces old accepted errors from 12 to 7 but loses 48 correct acceptances, so it fails preservation and remains disabled. Both outcomes, the 48-question follow-up, compiled checkpoints and source/default parity are preserved for reproducible evaluation; the frozen production default is unchanged.
+
+
 The [bilingual product FAQ](docs/OMNI_PRODUCT_KNOWLEDGE.md) explains activation prerequisites, mode selection, edition limits, providers, GitHub access, messaging bridges, connected apps, MCP, recovery and troubleshooting. It distinguishes implemented, experimental and planned features. A larger assistant should identify the installed edition/revision, actual permissions and redacted error before recommending a documented setting or diagnostic; documentation is not proof that a particular action succeeded.
 
 A reproducible [documentation-only support corpus](knowledge/omni-product.jsonl) is prepared for **future** retrieval/training. `scripts/build_product_knowledge.py` accepts only the reviewed FAQ allowlist, groups Arabic/English translations, records document hashes and rejects code fences. It does not read project `.kt`/`.java` sources, private conversations, databases, credentials or logs. No training or model activation is performed by exporting this file. Future evaluation must keep translations grouped and preserve permission/edition boundaries.

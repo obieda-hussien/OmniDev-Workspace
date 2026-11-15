@@ -17,4 +17,15 @@ class Pairs(unittest.TestCase):
     def test_followup(self):self.assertEqual(48,len(data.validate_followup()))
     def test_followup_missing(self):
         with self.assertRaises(ValueError):data.validate_followup(data.read(data.DATA/'followup.tsv')[:-1])
+    def followup_reject(self,mutate):
+        rows=data.read(data.DATA/'followup.tsv');p=json.loads((data.DATA/'followup-protocol.json').read_text());mutate(rows,p)
+        with self.assertRaises(ValueError):data.validate_followup(rows,p)
+    def test_followup_duplicate(self):self.followup_reject(lambda r,p:r.__setitem__(1,r[0]))
+    def test_followup_old_text(self):self.followup_reject(lambda r,p:r[0].__setitem__('query',self.rows[0]['query']))
+    def test_followup_role(self):self.followup_reject(lambda r,p:r[0].__setitem__('split','train'))
+    def test_followup_language(self):self.followup_reject(lambda r,p:r[0].__setitem__('language','ar'))
+    def test_followup_polarity(self):self.followup_reject(lambda r,p:r[0].__setitem__('label','0'))
+    def test_followup_claim(self):self.followup_reject(lambda r,p:p.__setitem__('physical_device_tested',True))
+    def test_followup_identity(self):self.followup_reject(lambda r,p:p.__setitem__('initial_selected_source_sha256','wrong'))
+    def test_followup_version(self):self.followup_reject(lambda r,p:p.__setitem__('version',9))
 if __name__=='__main__':unittest.main()
