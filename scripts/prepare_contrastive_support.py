@@ -1,4 +1,4 @@
-"""Validate the pre-training recall experiment reservation and existing-data exclusions."""
+"""Validate the pre-training contrastive experiment reservation and existing-data exclusions."""
 import csv,hashlib,json,re
 from pathlib import Path
 from prepare_recall_support import validate as validate_prior

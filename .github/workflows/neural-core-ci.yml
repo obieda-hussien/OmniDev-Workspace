@@ -2,7 +2,7 @@ name: Omni Neural Core (experimental)
 
 on:
   pull_request:
-    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2', 'feat/neural-hybrid-support', 'feat/neural-support-data-v4', 'feat/neural-query-memory', 'feat/neural-selective-support', 'feat/neural-subword-support', 'feat/neural-answerability-support']
+    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2', 'feat/neural-hybrid-support', 'feat/neural-support-data-v4', 'feat/neural-query-memory', 'feat/neural-selective-support', 'feat/neural-subword-support', 'feat/neural-answerability-support', 'feat/neural-recall-aware-support']
     paths:
       - 'neural-core/**'
       - 'neural-android/**'
@@ -50,6 +50,12 @@ on:
       - 'scripts/prepare_recall_support_android.sh'
       - 'scripts/finalize_recall_support.py'
       - 'docs/RECALL_AWARE_SUPPORT.md'
+      - 'scripts/train_contrastive_support.sh'
+      - 'scripts/prepare_contrastive_support.py'
+      - 'scripts/test_contrastive_support.py'
+      - 'scripts/prepare_contrastive_support_android.sh'
+      - 'scripts/finalize_contrastive_support.py'
+      - 'docs/CONTRASTIVE_SUPPORT.md'
       - 'scripts/prepare_support_reliability.py'
       - 'scripts/test_support_reliability.py'
       - 'scripts/finalize_support_reliability.py'
@@ -144,6 +150,12 @@ on:
       - 'scripts/prepare_recall_support_android.sh'
       - 'scripts/finalize_recall_support.py'
       - 'docs/RECALL_AWARE_SUPPORT.md'
+      - 'scripts/train_contrastive_support.sh'
+      - 'scripts/prepare_contrastive_support.py'
+      - 'scripts/test_contrastive_support.py'
+      - 'scripts/prepare_contrastive_support_android.sh'
+      - 'scripts/finalize_contrastive_support.py'
+      - 'docs/CONTRASTIVE_SUPPORT.md'
       - 'scripts/prepare_support_reliability.py'
       - 'scripts/test_support_reliability.py'
       - 'scripts/finalize_support_reliability.py'
@@ -700,5 +712,28 @@ jobs:
         with:
           name: recall-support-${{ github.run_id }}
           path: build/recall-support-v9/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  contrastive-support-training:
+    name: Balanced pairwise training + linear/nonlinear matched arms
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify pairwise backpropagation, eight fits, all exported arms and policies
+        run: bash scripts/train_contrastive_support.sh
+      - name: Upload pair classification gains and all acceptance limitations
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: contrastive-support-${{ github.run_id }}
+          path: build/contrastive-support-v10/
           if-no-files-found: ignore
           retention-days: 30

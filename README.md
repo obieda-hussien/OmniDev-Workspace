@@ -95,6 +95,9 @@ Read [persistent tasks](docs/PERSISTENT_TASK_STATE.md), [recovery](docs/AGENT_EX
 
 ## Product support knowledge and future training
 
+The [v10 balanced contrastive experiment](docs/CONTRASTIVE_SUPPORT.md) compares eight linear/nonlinear and BCE/pairwise fits. DEV selects an 8,209-parameter tanh head: on the same 96 new authored query/reference pairs it scores **84/96**, versus 49/96 for v9's selected weighted head and 82/96 for its unit-weight comparison. Final accepted-answer counts stay **30 correct/6 wrong** for both v9 and v10 on those questions; classification gains are not pipeline gains. All correct acceptances are preserved on observed 1,872 queries, all matched arms and failures are exported, and production remains disabled.
+
+
 The [v9 recall-aware experiment](docs/RECALL_AWARE_SUPPORT.md) runs eight positive-weighted fits and a broader783-row fitting/development/calibration guard. On observed1,782 queries it retains all841 correct acceptances and reduces wrong25→24; on90 newly reserved authored queries it retains29 correct and reduces wrong6→5. These are small targeted gains. The selected weighted head worsens balanced explicit-reference classification50/90 versus72/90 for the unit-weight arm. All arms, controls and remaining errors are retained; the guard is not an unbiased risk bound and no experimental model is enabled by this result.
 
 
