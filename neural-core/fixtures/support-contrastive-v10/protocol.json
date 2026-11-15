@@ -1,0 +1,17 @@
+{
+  "version": 10,
+  "count": 96,
+  "groups": 16,
+  "fresh_sha256": "1b50ea14de74b511567739a41a58c99cb7c79ee1d398298bc3ca1496df77b7d3",
+  "source": "knowledge/omni-product.jsonl",
+  "source_sha256": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+  "contrast_sha256": "c64137d74abe8aab8bda2ebf715f19ead7fb17d2f18c48d211856abe7118d300",
+  "frozen_v9_sha256": "737f3116a9cfeb21d08ab40bfed6b712cac053a566e50c8d8806f0b71e640d77",
+  "data": "Reuse TRAIN507/DEV135/TEMP66/POLICY75 and the783-row full-proposer preservation guard exactly. Pairwise training uses only48 positive/negative same-group same-language pairs in the96 TRAIN contrast rows; no pairs from DEV/calibration/evaluation. New96 are16 authored pairs x2 labels x3 languages. Translations and polarity remain grouped, same known topics and no independent human labels or real traffic.",
+  "training": "Eight actual fits: hidden0 linear1025 params or hidden8 tanh8209 params x ranking weight0/.25 x seed42/97. Balanced unweighted BCE plus lambda mean softplus(-(positive_logit-negative_logit)) plus L2 .001 on all parameters. Sparse double training, deployed FP32 snapshots selected by unweighted macro-language DEV NLL; ties fewer params, lambda0, seed42. AdamW batch32 BCE and16 contrast pairs per update, learning rate.003,clip5,decay1e-4,max100 epochs/patience12; shuffle rows and pairs each epoch even lambda0. Xavier-style hidden initialization std sqrt(2/(1024+8)), output std1/sqrt8; linear std.01; zero biases.",
+  "calibration": "Unweighted TEMP66 NLL grid .5/.75/1/1.5/2/3. Guarded threshold0..1 by.025 preserves every accepted-correct of the frozen full proposer on783 fitting/DEV/CAL rows, minimizes wrong onPOLICY75 then largest threshold. Policy-only75 comparator retained. Guard includes fitting data and own TRAIN exemplars and is not an unbiased risk/conformal/out-of-fold guarantee. No old1872 or new96 evaluation labels select head/threshold. Export all selected/matched factories and decision policies before scoring new96.",
+  "evaluation": "Keep observed1872 labels frozen. Evaluate new96, old1872, v7stress120, matched linear/nonlinear and BCE/ranking arms, policy-only comparison, explicit-reference NLL/Brier/classification/pair order, original source/default parity and raw FP32 snapshots. Do not promote an arm by fresh outcome. Selected head stays optional, no production activation, no phone benchmark. A small lexical pair MLP is not semantic entailment or a general model.",
+  "production_eligible": false,
+  "independent_human_labels": false,
+  "physical_device_tested": false
+}
