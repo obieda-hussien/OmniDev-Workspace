@@ -1,0 +1,17 @@
+import copy,json,unittest
+import prepare_answerability_support as data
+class Pairs(unittest.TestCase):
+    def setUp(self):self.rows=data.read(data.DATA/'contrast.tsv')+data.read(data.DATA/'fresh.tsv');self.p=json.loads((data.DATA/'protocol.json').read_text())
+    def reject(self):
+        with self.assertRaises(ValueError):data.validate(self.rows,self.p)
+    def test_valid(self):self.assertEqual(246,len(data.validate()))
+    def test_missing(self):self.rows.pop();self.reject()
+    def test_identity(self):self.rows[1]['id']=self.rows[0]['id'];self.reject()
+    def test_pair_split(self):self.rows[0]['split']='fresh';self.reject()
+    def test_polarity_duplicate(self):self.rows[0]['label']='0';self.reject()
+    def test_foreign_topic(self):self.rows[0]['topic']='invented';self.reject()
+    def test_old_text(self):self.rows[0]['query']=data.read(data.FIXTURES/'product-support/queries.tsv')[0]['query'];self.reject()
+    def test_source(self):self.p['source_sha256']='0'*64;self.reject()
+    def test_claim(self):self.p['independent_human_labels']=True;self.reject()
+    def test_language(self):self.rows[0]['language']='ar';self.reject()
+if __name__=='__main__':unittest.main()
