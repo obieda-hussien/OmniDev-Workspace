@@ -95,6 +95,9 @@ Read [persistent tasks](docs/PERSISTENT_TASK_STATE.md), [recovery](docs/AGENT_EX
 
 ## Product support knowledge and future training
 
+The [v9 recall-aware experiment](docs/RECALL_AWARE_SUPPORT.md) runs eight positive-weighted fits and a broader783-row fitting/development/calibration guard. On observed1,782 queries it retains all841 correct acceptances and reduces wrong25→24; on90 newly reserved authored queries it retains29 correct and reduces wrong6→5. These are small targeted gains. The selected weighted head worsens balanced explicit-reference classification50/90 versus72/90 for the unit-weight arm. All arms, controls and remaining errors are retained; the guard is not an unbiased risk bound and no experimental model is enabled by this result.
+
+
 The [v8 paired answerability experiment](docs/ANSWERABILITY_SUPPORT.md) adds a 1,025-parameter lexical veto after the tiny support proposer. Eight matched fits improve explicit-reference classification on 72 authored pairs from 49 to 62 correct, while the initial decision policy makes no pipeline change. A separately reserved fixed-head calibration reduces old accepted errors from 12 to 7 but loses 48 correct acceptances, so it fails preservation and remains disabled. Both outcomes, the 48-question follow-up, compiled checkpoints and source/default parity are preserved for reproducible evaluation; the frozen production default is unchanged.
 
 
