@@ -95,6 +95,8 @@ Read [persistent tasks](docs/PERSISTENT_TASK_STATE.md), [recovery](docs/AGENT_EX
 
 ## Product support knowledge and future training
 
+The [v11 topic reranking experiment](neural-core/fixtures/topic-rerank-v11/protocol.md) tested 20 score mixtures against the frozen v10 checkpoint. Among 507 training queries, every accepted error concerned an unsupported question, so switching references could repair zero training errors. Development selected the original order. On 48 reserved authored questions, v10 answered 6 of 24 supported questions correctly and refused all 24 unsupported questions. Of the 18 supported refusals, 14 already had the right reference in first place. All 18 refusals occurred before the v10 answerability head was called. No new runtime head ships. [Reproducible results](neural-core/checkpoints/topic-rerank-v11/report.json).
+
 The [v10 balanced contrastive experiment](docs/CONTRASTIVE_SUPPORT.md) compares eight linear/nonlinear and BCE/pairwise fits. DEV selects an 8,209-parameter tanh head: on the same 96 new authored query/reference pairs it scores **84/96**, versus 49/96 for v9's selected weighted head and 82/96 for its unit-weight comparison. Final accepted-answer counts stay **30 correct/6 wrong** for both v9 and v10 on those questions; classification gains are not pipeline gains. All correct acceptances are preserved on observed 1,872 queries, all matched arms and failures are exported, and production remains disabled.
 
 
