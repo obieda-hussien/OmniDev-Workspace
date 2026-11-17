@@ -20,3 +20,7 @@ python3 scripts/prepare_query_memory.py build/query-memory-v5
 java -Xmx768m -cp "$classes" com.omnidev.workspace.domain.neural.TopicRerankFeatures "$out/features.tsv"
 python3 scripts/fit_topic_rerank.py "$out/features.tsv" "$out/report.json"
 cmp neural-core/checkpoints/topic-rerank-v11/report.json "$out/report.json"
+python3 -m unittest discover -s scripts -p 'test_refusal_rescue.py'
+java -Xmx768m -cp "$classes" com.omnidev.workspace.domain.neural.TopicRerankFeatures "$out/rescue-features.tsv" --rescue
+python3 scripts/fit_refusal_rescue.py "$out/rescue-features.tsv" "$out/rescue-report.json"
+cmp neural-core/checkpoints/refusal-rescue-v12/report.json "$out/rescue-report.json"

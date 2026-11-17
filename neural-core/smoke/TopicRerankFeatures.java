@@ -15,7 +15,8 @@ public final class TopicRerankFeatures {
       String language,
       Set<String> primary,
       String query,
-      Map<String, String> golden) {
+      Map<String, String> golden,
+      boolean rescue) {
     SupportContrastiveModel.Result result = model.search(query, 10);
     if (golden != null && !ContrastiveSupportExperiment.probe(id, result).equals(golden.remove(id)))
       throw new AssertionError("Frozen v10 parity: " + id);
@@ -30,13 +31,17 @@ public final class TopicRerankFeatures {
                 Boolean.toString(result.accepted)));
     for (SupportQueryMemory.Hit hit :
         result.matches.subList(0, Math.min(3, result.matches.size()))) {
-      double probability = result.accepted ? model.score(query, hit.topic.id) : 0;
+      double probability =
+          (result.accepted || (rescue && !result.proposalAccepted && hit == result.matches.get(0)))
+              ? model.score(query, hit.topic.id)
+              : 0;
       fields.add(hit.topic.id + ":" + hit.score + ":" + hit.coverage + ":" + probability);
     }
     out.println(String.join("\t", fields));
   }
 
   public static void main(String[] args) throws Exception {
+    boolean rescue = args.length == 2 && args[1].equals("--rescue");
     List<ProductSupportModel.Article> docs =
         ProductSupportExperiment.loadArticles(Paths.get("build/product-support/documents.tsv"));
     List<SupportQueryMemory.Exemplar> exemplars =
@@ -71,41 +76,59 @@ public final class TopicRerankFeatures {
             c.pair.language,
             c.primary,
             c.query,
-            golden);
+            golden,
+            rescue);
         seen.add(HybridSupportRetriever.normalize(c.query, true));
       }
       if (!golden.isEmpty()) throw new AssertionError("Missing old predictions");
-      Set<String> pairs = new HashSet<>();
-      List<String> rows =
-          Files.readAllLines(Paths.get("neural-core/fixtures/topic-rerank-v11/pairs.tsv"));
-      if (rows.size() != 17 || !rows.get(0).equals("topic\tlabel\ten\tar\tmixed"))
-        throw new AssertionError("Fixture schema");
-      for (String line : rows.subList(1, rows.size())) {
-        String[] f = line.split("\t", -1);
-        if (f.length != 5
-            || !topics.contains(f[0])
-            || !f[1].matches("[01]")
-            || !pairs.add(f[0] + "/" + f[1])) throw new AssertionError("Fixture topic/label");
-        for (int i = 0; i < 3; i++) {
-          String lang = Arrays.asList("en", "ar", "mixed").get(i);
-          String q = f[i + 2];
-          if (q.trim().isEmpty() || !seen.add(HybridSupportRetriever.normalize(q, true)))
-            throw new AssertionError("Repeated fixture");
-          emit(
-              out,
-              model,
-              "rerank11-" + f[0] + "-" + f[1] + "-" + lang,
-              "reserved",
-              lang,
-              f[1].equals("1") ? Collections.singleton(f[0]) : Collections.emptySet(),
-              q,
-              null);
-        }
-      }
-      for (String key : pairs)
-        if (!pairs.contains(key.substring(0, key.length() - 1) + (key.endsWith("0") ? "1" : "0")))
-          throw new AssertionError("Missing pair");
+      fixture(out, model, topics, seen, "topic-rerank-v11", 16, "rerank11-", "reserved", rescue);
+      if (rescue)
+        fixture(out, model, topics, seen, "refusal-rescue-v12", 12, "rescue12-", "fresh12", true);
       if (out.checkError()) throw new IOException("Feature output failed");
     }
+  }
+
+  static void fixture(
+      PrintWriter out,
+      SupportContrastiveModel model,
+      Set<String> topics,
+      Set<String> seen,
+      String fixture,
+      int count,
+      String prefix,
+      String split,
+      boolean rescue)
+      throws Exception {
+    Set<String> pairs = new HashSet<>();
+    List<String> rows =
+        Files.readAllLines(Paths.get("neural-core/fixtures/" + fixture + "/pairs.tsv"));
+    if (rows.size() != count + 1 || !rows.get(0).equals("topic\tlabel\ten\tar\tmixed"))
+      throw new AssertionError("Fixture schema");
+    for (String line : rows.subList(1, rows.size())) {
+      String[] f = line.split("\t", -1);
+      if (f.length != 5
+          || !topics.contains(f[0])
+          || !f[1].matches("[01]")
+          || !pairs.add(f[0] + "/" + f[1])) throw new AssertionError("Fixture topic/label");
+      for (int i = 0; i < 3; i++) {
+        String lang = Arrays.asList("en", "ar", "mixed").get(i);
+        String q = f[i + 2];
+        if (q.trim().isEmpty() || !seen.add(HybridSupportRetriever.normalize(q, true)))
+          throw new AssertionError("Repeated fixture");
+        emit(
+            out,
+            model,
+            prefix + f[0] + "-" + f[1] + "-" + lang,
+            split,
+            lang,
+            f[1].equals("1") ? Collections.singleton(f[0]) : Collections.emptySet(),
+            q,
+            null,
+            rescue);
+      }
+    }
+    for (String key : pairs)
+      if (!pairs.contains(key.substring(0, key.length() - 1) + (key.endsWith("0") ? "1" : "0")))
+        throw new AssertionError("Missing pair");
   }
 }
