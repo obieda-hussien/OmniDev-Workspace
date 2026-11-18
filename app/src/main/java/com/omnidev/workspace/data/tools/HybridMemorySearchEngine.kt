@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.tools
 
 import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
+import com.omnidev.workspace.domain.engine.LocalSpecialistAdvice
 
 /**
  * Shared retrieval engine for Omni Memory.
@@ -40,14 +41,23 @@ object HybridMemorySearchEngine {
 
         val queryEmbedding = OmniMemoryEmbedder.embed(cleanQuery)
 
-        return corpus.asSequence()
+        val order = compareByDescending<Match> { it.score }.thenByDescending { it.snippet.createdAt }
+        val shortlist = corpus.asSequence()
             .mapNotNull { snippet -> score(snippet, normalizedQuery, queryTokens, queryEmbedding) }
-            .sortedWith(
-                compareByDescending<Match> { it.score }
-                    .thenByDescending { it.snippet.createdAt }
-            )
-            .take(topK)
+            .sortedWith(order)
+            .take(maxOf(topK, NEURAL_SHORTLIST))
             .toList()
+        if (shortlist.size <= 1) return shortlist.take(topK)
+        val model = LocalSpecialistAdvice.models ?: return shortlist.take(topK)
+        val encodedQuery = model.embed(cleanQuery)
+        val rescored = shortlist.take(NEURAL_SHORTLIST).map { match ->
+            // The learned vector only reorders matches admitted by the existing relevance checks.
+            val snippet = match.snippet
+            val vector = model.embed("${snippet.content} ${snippet.tags} ${snippet.category}")
+            val similarity = OmniMemoryEmbedder.cosine(encodedQuery, vector).coerceIn(0f, 1f)
+            match.copy(score = (match.score + 0.04 * similarity).coerceAtMost(1.0))
+        } + shortlist.drop(NEURAL_SHORTLIST)
+        return rescored.sortedWith(order).take(topK)
     }
 
     private fun score(
@@ -153,6 +163,7 @@ object HybridMemorySearchEngine {
     }
 
     private val WHITESPACE = Regex("\\s+")
+    private const val NEURAL_SHORTLIST = 24
     private const val MAX_QUERY_TOKENS = 64
     private const val MAX_EMBEDDING_CACHE = 4096
     private const val MIN_SEMANTIC_SCORE = 0.15

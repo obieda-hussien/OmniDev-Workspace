@@ -119,7 +119,17 @@ class ChatToolLoop(
         val definitions = (tools?.getToolDefinitions().orEmpty() + remote)
             .filter { toolAccessMode != "DISABLED" && (it.name in CHAT_TOOLS || it.name in remoteNames) && it.name !in disabled }
         mentionFocus.validateTools(definitions.map { it.name }.toSet())
-        val orderedDefinitions = definitions.sortedBy { it.name !in mentionFocus.tools }.take(48)
+        val ranked = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            LocalSpecialistAdvice.rank(userRequest, definitions)
+        }
+        val orderedDefinitions = definitions.sortedBy { definition ->
+            if (definition.name in mentionFocus.tools) -1
+            else ranked.indexOf(definition.name).takeIf { it >= 0 } ?: ranked.size
+        }.take(48)
+        val specialistContext = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            LocalSpecialistAdvice.explanationContext(userRequest) +
+                LocalSpecialistAdvice.operationContext(userRequest, orderedDefinitions)
+        }
         val allowed = definitions.map { it.name }.toSet()
         val history = base.messages.toMutableList()
         val seen = mutableSetOf<String>()
@@ -159,7 +169,7 @@ class ChatToolLoop(
                 messages = history.toList(),
                 tools = if (!finalize) orderedDefinitions + if (OmniMode.permitted(OmniMode.AGENT)) listOf(MODE_TOOL) else emptyList() else null,
                 responsePrefix = answer.toString(),
-                systemPrompt = base.systemPrompt.orEmpty() + "\n" + mentionFocus.prompt() + if (!finalize) "" else if (continuingAnswer)
+                systemPrompt = base.systemPrompt.orEmpty() + "\n" + mentionFocus.prompt() + if (!finalize) specialistContext else if (continuingAnswer)
                     "\nContinue the interrupted final answer without tools or repetition." else
                     "\nThe last tool batch made no executable progress. Give the best answer from verified evidence, explain blocked actions, and do not request more tools or claim unfinished work is complete."
             )

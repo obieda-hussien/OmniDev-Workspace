@@ -25,6 +25,11 @@ class RunToolCatalog(
     private val preferences = preferred
     private val demanded = linkedSetOf<String>()
     private var focus: ToolSurfaceFocus? = null
+    private var lastAdviceQuery = ""
+    private var lastAdviceDefinitions = emptyList<ToolDefinition>()
+    private var lastAdvice = ""
+    private var lastRankingQuery = ""
+    private var lastRanking = emptyList<String>()
     private var currentObjective = objective
     private var selection = ToolSurfaceSelector.select(emptyList(), budget)
     val surface: ToolSurfaceSnapshot get() = selection.snapshot
@@ -34,6 +39,18 @@ class RunToolCatalog(
     }
 
     fun definitions(): List<ToolDefinition> = selection.definitions
+
+    fun advisoryContext(): String {
+        val query = focus?.query ?: currentObjective
+        val visible = definitions()
+        if (query != lastAdviceQuery || visible != lastAdviceDefinitions) {
+            lastAdviceQuery = query
+            lastAdviceDefinitions = visible
+            lastAdvice = LocalSpecialistAdvice.operationContext(query, visible) +
+                LocalSpecialistAdvice.explanationContext(query)
+        }
+        return lastAdvice
+    }
 
     /** Recipes may invoke permitted tools that have not been loaded into the model's prompt. */
     fun isPermitted(name: String): Boolean = catalog.any { it.name == name }
@@ -161,6 +178,10 @@ class RunToolCatalog(
         val queryTerms = words(query)
         if (queryTerms.isEmpty() || limit <= 0) return emptyList()
         val domains = IntentClassifier.getRelevantDomains(query) + additionalDomains
+        if (!lexicalOnly && query != lastRankingQuery) {
+            lastRanking = LocalSpecialistAdvice.rank(query, catalog)
+            lastRankingQuery = query
+        }
         val scores = catalog.map { tool ->
             val tokens = terms.getValue(tool.name)
             val nameTokens = words(tool.name)
@@ -174,7 +195,10 @@ class RunToolCatalog(
             val domain = if (IntentClassifier.getToolDomain(tool.name) in domains) 1.5 else 0.0
             val specialization = if (IntentClassifier.getToolDomain(tool.name) in focusedDomains) 4.0 else 0.0
             val history = if (lexical > 0) (quality[tool.name] ?: 0f).coerceIn(-1f, 1f) * 0.3 else 0.0
-            tool to (if (lexicalOnly && lexical <= 0 && exact <= 0) 0.0 else normalizedLexical + exact + domain + specialization + history)
+            val learnedRank = if (lexicalOnly) -1 else lastRanking.indexOf(tool.name)
+            val learned = if (learnedRank < 0) 0.0 else 3.0 / (learnedRank + 1)
+            tool to (if (lexicalOnly && lexical <= 0 && exact <= 0) 0.0
+                else normalizedLexical + exact + domain + specialization + history + learned)
         }
         return scores.filter { it.second > 0 }.sortedWith(
             compareByDescending<Pair<ToolDefinition, Double>> { it.second }.thenBy { it.first.name }
