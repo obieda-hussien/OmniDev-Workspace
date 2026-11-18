@@ -27,10 +27,10 @@ interface ChatSessionDao {
     @Query("SELECT s.id FROM chat_sessions s LEFT JOIN chat_history_metadata h ON s.id = h.sessionId WHERE h.sessionId IS NULL OR h.modelVersion < :version OR h.lastUserRowId < COALESCE((SELECT MAX(m.id) FROM chat_messages m WHERE m.sessionId = s.id AND m.role = 'USER'), 0) ORDER BY s.lastUpdated DESC, s.id DESC LIMIT :limit")
     suspend fun pendingHistoryMetadata(version: Int, limit: Int): List<Long>
 
-    @Query("SELECT id, substr(content, 1, 1500) AS content FROM chat_messages WHERE sessionId = :id AND role = 'USER' ORDER BY id ASC LIMIT 3")
+    @Query("SELECT id, substr(content, 1, " + ChatMetadataModel.MAX_TEXT_CHARS + ") AS content FROM chat_messages WHERE sessionId = :id AND role = 'USER' ORDER BY id ASC LIMIT 3")
     suspend fun firstHistoryInputs(id: Long): List<HistoryMetadataInput>
 
-    @Query("SELECT id, substr(content, 1, 1500) AS content FROM chat_messages WHERE sessionId = :id AND role = 'USER' ORDER BY id DESC LIMIT 3")
+    @Query("SELECT id, substr(content, 1, " + ChatMetadataModel.MAX_TEXT_CHARS + ") AS content FROM chat_messages WHERE sessionId = :id AND role = 'USER' ORDER BY id DESC LIMIT 9")
     suspend fun latestHistoryInputs(id: Long): List<HistoryMetadataInput>
 
     @Query("SELECT CASE WHEN role = 'ASSISTANT' AND instr(metadataJson, '\"titleReplyComplete\":true') > 0 " +
@@ -48,7 +48,7 @@ interface ChatSessionDao {
         return id
     }
 
-    /** A short local transaction (six bounded USER inputs); no provider, tool or network call. */
+    /** A short local transaction (twelve bounded USER inputs); no provider, tool or network call. */
     @Transaction
     suspend fun refreshHistoryMetadata(id: Long): Boolean {
         val session = getById(id) ?: return false

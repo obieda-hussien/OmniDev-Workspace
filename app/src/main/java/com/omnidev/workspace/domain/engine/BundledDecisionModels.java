@@ -31,7 +31,7 @@ final class BundledDecisionModels {
         }
     }
 
-    static final int MAX_CONTEXT_CHARS = 8192;
+    static final int MAX_CONTEXT_CHARS = 32768;
     private static final Pattern WORD = Pattern.compile("[\\p{L}\\p{N}]+");
 
     static boolean supportsInspection(String input) {
@@ -41,6 +41,10 @@ final class BundledDecisionModels {
         if (text.length() <= BilingualTextEncoder.MAX_CHARS) return supportsShortInspection(text);
         if (!topicMatches(text)) return false;
         // Check the fitted short heads on whole-word windows as well as the full topic vector.
+        // Inspect a complete suffix window first for diagnostic details at the end of long logs.
+        int suffix = text.length() - BilingualTextEncoder.MAX_CHARS;
+        while (suffix < text.length() && !Character.isWhitespace(text.charAt(suffix - 1))) suffix++;
+        if (suffix < text.length() && supportsShortInspection(text.substring(suffix))) return true;
         int start = 0;
         while (start < text.length()) {
             int end = Math.min(text.length(), start + BilingualTextEncoder.MAX_CHARS);

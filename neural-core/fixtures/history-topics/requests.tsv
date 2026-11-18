@@ -71,3 +71,9 @@ test	personal	رتب وقت المذاكرة للامتحان الأسبوع ا�
 test	personal	Plan a weekly gym schedule around my night shifts
 test	general	ممكن تبص على ده
 test	general	Could you tell me more about that
+train	connected_apps	عايز أربط التطبيقات ببعض وأنقل الملفات تلقائي بين الحسابات
+train	connected_apps	Unify my linked account integrations and synchronize their folders
+train	research	هات دراسات مستقلة وقارن الدليل والمراجع في الآخر
+train	writing	ظبطلي الأسلوب وراجع الإملاء واختصر الفقرة
+train	personal	ازاي أوفق بين ورديات الشغل ومراجعة المحاضرات
+train	device	البطارية بتخلص بالليل رغم إن شاشة الموبايل مقفولة

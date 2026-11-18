@@ -103,7 +103,7 @@ public final class ChatMetadataModelTest {
     String t = analyze(text).title;
     assertTrue(t.codePointCount(0, t.length()) <= 64);
     assertFalse(t.contains("�"));
-    List<String> many = new ArrayList<>(Collections.nCopies(6, "Hello"));
+    List<String> many = new ArrayList<>(Collections.nCopies(ChatMetadataModel.MAX_TEXTS, "Hello"));
     many.add("WhatsApp Telegram");
     assertFalse(
         ChatMetadataModel.hasService(

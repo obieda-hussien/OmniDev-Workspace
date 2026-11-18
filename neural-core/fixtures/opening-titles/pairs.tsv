@@ -149,3 +149,7 @@ train	battery	Any suggestions?	The overnight battery loss is caused by idle apps
 train	network	فهمني ده	ضعف إشارة شبكة اللاسلكي بيعمل انقطاع متكرر في الاتصال بالراوتر
 train	network	شوفلي ده	غير قناة الوايرلس في الراوتر لو فيه تشويش وإشارة الشبكة غير مستقرة
 train	network	What went wrong?	Wireless interference interrupts the WiFi link whenever the signal is low
+train	battery	ممكن تبص؟	التشخيص إن الشحن بينقص والموبايل مقفول لأن التطبيقات بتستهلك البطارية في الخلفية بالليل
+train	battery	What's the issue?	Idle battery loss is caused by apps waking the phone overnight
+train	network	فسر ده	الشبكة اللاسلكية بتفصل كل شوية مع ضعف إشارة الراوتر
+train	room	شوف المشكلة	تحديث جدول في Room غيّر مخطط قاعدة البيانات وبيحتاج ترحيل الأعمدة

@@ -36,8 +36,8 @@ class BundledDecisionRoutingTest {
     }
 
     @Test fun readsEvidencePastTheOriginalWindow() {
-        val prompt = "Inspect " + "zz ".repeat(900) + "the GitHub repository branch and git status"
+        val prompt = "Inspect " + "zz ".repeat(9000) + "the GitHub repository branch and git status"
         assertTrue(BundledDecisionModels.supportsInspection(prompt))
-        assertFalse(BundledDecisionModels.supportsInspection(prompt + "z".repeat(8192)))
+        assertFalse(BundledDecisionModels.supportsInspection(prompt + "z".repeat(BundledDecisionModels.MAX_CONTEXT_CHARS)))
     }
 }

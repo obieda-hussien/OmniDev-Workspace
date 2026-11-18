@@ -23,6 +23,11 @@ public class Evaluate {
             boolean supported = BundledDecisionModels.supportsInspection(cells[2]);
             matrix[(cells[1].equals("1") ? 0 : 2) + (supported ? 0 : 1)]++;
         }
+        String log = "Inspect " + String.join("", java.util.Collections.nCopies(9000, "zz "));
+        if (!BundledDecisionModels.supportsInspection(log + "the GitHub repository branch and git status")
+                || BundledDecisionModels.supportsInspection(log + "the weather tomorrow")) {
+            throw new AssertionError("Long inspection context regression");
+        }
         counts.forEach((split, m) -> System.out.printf("%s TP=%d FN=%d FP=%d TN=%d%n",
                 split, m[0], m[1], m[2], m[3]));
     }

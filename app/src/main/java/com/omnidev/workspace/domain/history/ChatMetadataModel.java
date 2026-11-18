@@ -6,10 +6,10 @@ import java.util.regex.Pattern;
 
 /** Bounded local extractive baseline. It neither trains on chats nor authorizes tools. */
 public final class ChatMetadataModel {
-  public static final int VERSION = 6,
-      MAX_TEXTS = 6,
-      MAX_TEXT_CHARS = 1500,
-      MAX_REPLY_CHARS = 6000,
+  public static final int VERSION = 7,
+      MAX_TEXTS = 12,
+      MAX_TEXT_CHARS = 3072,
+      MAX_REPLY_CHARS = 24000,
       MAX_TITLE_CODEPOINTS = 64;
 
   public enum Topic {
@@ -184,6 +184,9 @@ public final class ChatMetadataModel {
     return new Result(chosen, topic, services);
   }
 
+  private static final Pattern TOPIC_CHANGE = Pattern.compile(
+      "^(?:new topic|switching topics|change of topic|موضوع (?:تاني|جديد)|خلينا نغير الموضوع)(?: |$)");
+
   private static Topic learnedTopic(List<String> turns) {
     int[] votes = new int[HistoryTopicWeights.LABELS.length];
     for (int i = 0; i < turns.size(); i++) {
@@ -192,6 +195,7 @@ public final class ChatMetadataModel {
       int[] scores = HistoryTopicWeights.scores(new HashSet<>(Arrays.asList(turn.split(" +"))));
       int winner = strongest(scores, 700);
       if (winner < 0 || "general".equals(HistoryTopicWeights.LABELS[winner])) continue;
+      if (TOPIC_CHANGE.matcher(turn).find()) Arrays.fill(votes, 0);
       int recentWeight = i >= turns.size() - 2 ? 2 : 1;
       votes[winner] += recentWeight * Math.min(1800, margin(scores, winner));
     }
@@ -225,11 +229,19 @@ public final class ChatMetadataModel {
       + "can you take a look|could you (?:check|look at) this|what should i do here|"
       + "is there a fix|i am stuck|what am i missing|what s causing this|do you see the problem|what can i do)");
 
+  private static final Pattern CONCLUSION = Pattern.compile(
+      "(?imu)^\\h*(?:conclusion|root cause|diagnosis|الخلاصة|الخلاصه|التشخيص|السبب الرئيسي)\\h*[:：]\\h*");
+
   public static String openingTitle(String user, String reply, String fallback) {
     if (user == null || reply == null || reply.trim().isEmpty()) return fallback;
     String request = clean(clipChars(user, MAX_TEXT_CHARS));
     if (!GENERIC_OPENING.matcher(normalize(request)).matches()) return fallback;
-    String answer = clean(clipChars(reply, MAX_REPLY_CHARS));
+    String evidence = FENCES.matcher(clipChars(reply, MAX_REPLY_CHARS)).replaceAll(" ");
+    java.util.regex.Matcher conclusion = CONCLUSION.matcher(evidence);
+    int conclusionStart = -1;
+    while (conclusion.find()) conclusionStart = conclusion.end();
+    if (conclusionStart >= 0) evidence = evidence.substring(conclusionStart);
+    String answer = clean(evidence);
     Set<String> terms = new HashSet<>(Arrays.asList(normalize(answer).split("\\s+")));
     int[] scores = OpeningTitleWeights.scores(terms);
     int best = strongest(scores, 550);

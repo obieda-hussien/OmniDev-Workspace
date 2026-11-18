@@ -30,6 +30,16 @@ public final class OpeningTitleEvaluation {
         String dominant = ChatMetadataModel.analyze(Arrays.asList("Fix the Kotlin coroutine cancellation in the repository",
                 "اربط نوشن مع التطبيقات المتصلة للمزامنة", "Connect linked accounts and sync files between apps"), "app", "").topic;
         require("connected_apps", dominant);
+        String oldTopic = "The Bluetooth headset pairing request timed out. ";
+        String log = String.join("", Collections.nCopies(410, oldTopic));
+        require("Room database migration", ChatMetadataModel.openingTitle("Can you take a look?",
+                log + "\nRoot cause: SQLite schema verification in Room fails after upgrading the database version", "Fallback"));
+        require("Fallback", ChatMetadataModel.openingTitle("Can you take a look?", log +
+                "\nConclusion: Could you provide more details?", "Fallback"));
+        List<String> history = new ArrayList<>(Collections.nCopies(10, "Fix the Kotlin coroutine cancellation in the repository"));
+        history.add("موضوع جديد رتب جدول مذاكرة قبل الامتحان");
+        history.add("Organize my weekly study and revision sessions");
+        require("personal", ChatMetadataModel.analyze(history, "app", "").topic);
         totals.forEach((split, c) -> System.out.printf("%s: correct=%d/%d missed=%d wrong_title=%d%n", split, c[1], c[0], c[2], c[3]));
     }
 
