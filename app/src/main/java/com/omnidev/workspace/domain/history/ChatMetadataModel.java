@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 /** Bounded local extractive baseline. It neither trains on chats nor authorizes tools. */
 public final class ChatMetadataModel {
-  public static final int VERSION = 4,
+  public static final int VERSION = 5,
       MAX_TEXTS = 6,
       MAX_TEXT_CHARS = 1500,
       MAX_TITLE_CODEPOINTS = 64;
@@ -182,19 +182,23 @@ public final class ChatMetadataModel {
       + "وضحلي السبب|ده حصل ليه|مش شغال|تساعدني|ساعدني(?: في الموضوع)?|رتبلي ده|محتاج اظبط الدنيا|"
       + "can you (?:help|check|explain this)|any (?:idea|ideas|suggestions|thoughts|fix)|"
       + "what (?:happened here|went wrong|about this)|what s (?:the issue|missing)|"
-      + "please help|help me(?: organize this| plan)?|need a hand|look at this|inspect this|why is this happening)");
+      + "please help|help me(?: organize this| plan)?|need a hand|look at this|inspect this|why is this happening|"
+      + "ممكن (?:توضح|تشرح ده|تساعدني في دي)|معلش بص علي ده|بص(?:لي)? علي (?:ده|دي)|شوفلي الحوار ده|"
+      + "محتاج مساعده|مش فاهم الحته دي|انا مش فاهم|ايه سبب ده|المشكله دي حلها ايه|ينفع تشوف دي|"
+      + "can you take a look|could you (?:check|look at) this|what should i do here|"
+      + "is there a fix|i am stuck|what am i missing|what s causing this|do you see the problem|what can i do)");
 
   public static String openingTitle(String user, String reply, String fallback) {
     if (user == null || reply == null || reply.trim().isEmpty()) return fallback;
     String request = clean(clipChars(user, MAX_TEXT_CHARS));
     if (!GENERIC_OPENING.matcher(normalize(request)).matches()) return fallback;
     String answer = clean(clipChars(reply, MAX_TEXT_CHARS));
-    Set<String> terms = new HashSet<>(Arrays.asList(normalize(request + " " + answer).split("\\s+")));
+    Set<String> terms = new HashSet<>(Arrays.asList(normalize(answer).split("\\s+")));
     int[] scores = OpeningTitleWeights.scores(terms);
     int best = 0;
     for (int i = 1; i < scores.length; i++) if (scores[i] > scores[best]) best = i;
     for (int i = 0; i < scores.length; i++) {
-      if (i != best && scores[best] - scores[i] < 900) return fallback;
+      if (i != best && scores[best] - scores[i] < 550) return fallback;
     }
     boolean ar = hasArabic(request);
     switch (OpeningTitleWeights.LABELS[best]) {
@@ -203,6 +207,11 @@ public final class ChatMetadataModel {
       case "bluetooth": return ar ? "اتصال سماعة البلوتوث" : "Bluetooth headset connection";
       case "notifications": return ar ? "إشعارات واتساب" : "WhatsApp notifications";
       case "study": return ar ? "تنظيم جدول المذاكرة" : "Study and revision schedule";
+      case "room": return ar ? "ترحيل قاعدة بيانات Room" : "Room database migration";
+      case "compose": return ar ? "إدارة حالة واجهة Compose" : "Jetpack Compose UI state";
+      case "apk": return ar ? "توقيع وتثبيت APK" : "APK signing and installation";
+      case "battery": return ar ? "استهلاك بطارية الهاتف" : "Android battery drain";
+      case "network": return ar ? "مشاكل اتصال الواي فاي" : "Wi-Fi connection issues";
       default: return fallback;
     }
   }

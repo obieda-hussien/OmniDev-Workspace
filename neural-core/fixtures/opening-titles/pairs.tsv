@@ -70,3 +70,76 @@ novel	other	Please help	The station ticket counter opens after sunrise
 novel	other	ايه الحل	ابعتهالي تاني عشان التفاصيل مش واضحة
 novel	other	Inspect this	Sure, which item should I inspect?
 novel	other	راجع حساب الكهرباء	The Bluetooth settings menu is open
+train	room	فهمني ده	ترحيل قاعدة بيانات Room يحتاج migration بعد تغيير schema
+train	room	ممكن توضح؟	The Room database fails because the schema migration is missing
+train	room	معلش بص على ده	خطأ SQLite بعد تحديث إصدار قاعدة بيانات Room
+train	room	What should I do here?	Add a Room migration for the SQLite database schema
+train	room	شوفلي الحوار ده	تغيير أعمدة قاعدة بيانات روم يحتاج تحديث نسخة الـ schema
+train	room	Can you take a look?	The Android Room schema validation failed after the migration
+train	compose	المشكلة دي حلها ايه	إعادة التركيب في Jetpack Compose بتحصل لما تتغير state
+train	compose	Could you check this?	The Compose layout recomposes because the state changes every frame
+train	compose	محتاج مساعدة	The lazy list in Jetpack Compose needs stable keys to preserve item state
+train	compose	مش فاهم الحتة دي	في Compose استخدم remember لحفظ حالة الواجهة أثناء إعادة التركيب
+train	compose	What's the issue?	The composable screen should collect state with lifecycle awareness
+train	compose	ممكن تشرح ده؟	واجهة Jetpack Compose بتعيد رسم العناصر لما حالة الشاشة تتغير
+train	apk	بصلي على دي	تثبيت ملف APK فشل عشان توقيع التطبيق مختلف
+train	apk	Is there a fix?	The APK signature differs from the installed app signing certificate
+train	apk	ينفع تشوف دي	الحزمة مرفوضة أثناء التثبيت بسبب شهادة توقيع APK
+train	apk	I am stuck	The APK installation is blocked by a certificate mismatch
+train	apk	شوف المشكلة دي	التطبيق المثبت متوقع توقيع مختلف عن نسخة apk الجديدة
+train	apk	What am I missing?	Sign the Android APK with the same signing key before installing the update
+train	battery	بص على ده	استهلاك بطارية الهاتف عالي بسبب تشغيل التطبيقات في الخلفية
+train	battery	Any idea?	Battery drain comes from background apps keeping the device awake
+train	battery	ممكن تساعدني في دي	راجع استهلاك البطارية في إعدادات أندرويد وتطبيقات الخلفية
+train	battery	Can you explain this?	Android battery usage shows the background process drains power overnight
+train	battery	شوفلي دي	وضع توفير الطاقة يقلل استنزاف بطارية الموبايل
+train	battery	What's causing this?	The phone battery drains because of background sync
+train	network	ايه اللي حاصل	اتصال الواي فاي بينقطع عشان إشارة الراوتر ضعيفة
+train	network	Do you see the problem?	The phone disconnects from WiFi when the router signal drops
+train	network	انا مش فاهم	جرب تفحص إعدادات شبكة الواي فاي والراوتر
+train	network	What can I do?	The WiFi connection is unstable and the router keeps reconnecting
+train	network	ايه سبب ده	مشكلة اتصال واي فاي في الشبكة المحلية
+train	network	Could you look at this?	The device cannot connect to the Wi-Fi router
+train	other	بصلي على دي	ابعت تفاصيل أكتر عن الحالة الحالية
+train	other	What should I do here?	The right bus arrives at the downtown stop
+train	other	ممكن توضح	اسم الشركة مكتوب جنب توقيع صاحب العقد
+train	other	Can you take a look?	The meeting agenda has two items
+train	other	مش فاهم الحتة دي	غير مناسب للاستخدام في الأكل
+train	other	Could you check this?	The ticket includes a seat reservation
+train	other	شوفلي الحوار ده	ملف فيه امثلة مش واضحة ابعت السؤال
+train	other	What am I missing?	You might be referring to one of several different issues
+train	other	محتاج مساعدة	بطارية السيارة محتاجة فحص ميكانيكي
+train	other	Is there a fix?	The build quality of this chair depends on the material
+train	other	ممكن تشرح ده؟	فروع البنك لها ساعات عمل مختلفة
+train	other	What's causing this?	Houseplants wilt when the soil stays dry
+expanded	room	ممكن توضح؟	Room رفض فتح قاعدة البيانات بعد تغيير الأعمدة من غير migration
+expanded	room	Can you take a look?	SQLite schema verification in Room fails after upgrading the database version
+expanded	compose	محتاج مساعدة	حالة الـ LazyColumn في Jetpack Compose بتضيع لما العناصر تعيد التركيب
+expanded	compose	Could you check this?	The Jetpack Compose screen is recomposing when the UI state updates
+expanded	apk	بصلي على دي	ملف APK الجديد بيترفض وقت التثبيت بسبب اختلاف شهادة التوقيع
+expanded	apk	Is there a fix?	The installed app and your APK were signed with different Android signing certificates
+expanded	battery	ممكن تساعدني في دي؟	تطبيقات الخلفية بتستهلك بطارية الموبايل وهو مقفول طول الليل
+expanded	battery	What's causing this?	Background sync keeps waking Android and increases battery drain
+expanded	network	ايه سبب ده؟	إشارة الراوتر بتضعف والواي فاي بيفصل باستمرار
+expanded	network	Could you look at this?	The home Wi-Fi router drops the connection whenever the signal gets weak
+expanded	other	شوفلي الحوار ده	ممكن تبعت الجزء اللي عايزني أبص عليه؟
+expanded	other	Can you take a look?	The oven timer needs to be set manually
+expanded	other	راجع عقد الإيجار	The APK signature is different
+expanded	other	What's causing this?	The router was only one idea. Please share the exact issue.
+expanded	other	محتاج مساعدة	توقيع عقد الإيجار محتاج شاهدين
+expanded	other	What should I do here?	Review the shuttle arrival schedule before your trip
+train	git	Could you explain this?	Git could not rebase the feature branch because files have unresolved conflicts
+train	git	ممكن تفهمني	مستودع git فيه تضارب تعديلات بين فرعي الإصلاح والإصدار
+train	git	أي اقتراح	فرع git اتأخر عن الفرع الرئيسي ودمج التغييرات محتاج حل التعارض
+train	git	I don't get it	Your Git repository history diverged from the branch you are trying to merge
+boundary	other	Can you explain this?	We discussed Gradle and battery usage earlier. What exactly would you like help with?
+boundary	other	بص هنا	افتح واي فاي لو محتاج الإنترنت. ممكن تبعت تفاصيل الطلب؟
+boundary	other	ممكن توضح؟	شهادة التوقيع هنا معناها موافقة الشركة على عقد الإيجار
+boundary	other	Any ideas?	This is a digital camera photo of a hotel room
+boundary	other	Can you help?	The bus fare depends on the fare zone and the hour
+boundary	other	ممكن تساعدني في دي؟	احسب المدخرات بعد خصم الإيجار والأكل
+boundary	other	Please help	The signing of the rental agreement is scheduled for Monday
+boundary	other	بصلي على دي	الراوتر احتمال من ضمن احتمالات لكن ابعت تقرير واضح عشان نعرف السبب
+boundary	other	ممكن توضح؟	الموبايل فيه بطارية وبيشتغل على شبكة لاسلكية، محتاج تفاصيل عن طلبك
+boundary	gradle	ايه اللي حاصل؟	Gradle cannot resolve the Kotlin plugin during the build
+boundary	room	شوفلي ده	Migration of the Room database schema needs an updated SQLite column definition

@@ -15,6 +15,7 @@ public final class OpeningTitleEvaluation {
             int[] counts = totals.computeIfAbsent(cells[0], ignored -> new int[4]);
             counts[0]++;
             if (cells[1].equals(actual)) counts[1]++;
+            else System.out.println(cells[0] + " " + cells[1] + " => " + actual + " : " + cells[2]);
             if (!cells[1].equals("other") && actual.equals("other")) counts[2]++;
             if (!cells[1].equals(actual) && !actual.equals("other")) counts[3]++;
         }
@@ -27,6 +28,11 @@ public final class OpeningTitleEvaluation {
         if (title.contains("Bluetooth") || title.contains("البلوتوث")) return "bluetooth";
         if (title.contains("WhatsApp") || title.contains("واتساب")) return "notifications";
         if (title.contains("Study") || title.contains("المذاكرة")) return "study";
+        if (title.contains("Room")) return "room";
+        if (title.contains("Compose")) return "compose";
+        if (title.contains("APK")) return "apk";
+        if (title.contains("battery") || title.contains("بطارية")) return "battery";
+        if (title.contains("Wi-Fi") || title.contains("الواي فاي")) return "network";
         throw new AssertionError("Unexpected title: " + title);
     }
 }
