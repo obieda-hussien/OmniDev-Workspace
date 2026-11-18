@@ -1,0 +1,13 @@
+topic	label	en	ar	mixed
+profile-reference	1	What must be enabled for generation to use my profile photo?	حطيت صورة في ملفي إيه المطلوب عشان النموذج يستخدمها كمرجع؟	حطيت صورة في profile إيه المطلوب عشان النموذج يستخدمها كمرجع؟
+profile-reference	0	What exact face-match percentage does generation guarantee for my profile photo?	حطيت صورة في ملفي إيه نسبة تطابق الوش اللي النموذج بيضمنها؟	حطيت صورة في profile إيه نسبة تطابق الوش اللي النموذج بيضمنها؟
+media-jobs	1	Where does the job card appear after I request image generation?	بعد طلب توليد صورة ألاقي كارت المهمة في أنهي محادثة؟	بعد طلب توليد صورة ألاقي كارت job في أنهي محادثة؟
+media-jobs	0	Exactly how many days before the image generation job card deletes itself?	بعد طلب توليد صورة كارت المهمة بيتمسح تلقائي بعد كام يوم بالظبط؟	بعد طلب توليد صورة كارت job بيتمسح تلقائي بعد كام يوم بالظبط؟
+little-omni	1	What setting enables the moving local companion?	أفعّل الرفيق الصغير منين لو عايزه يظهر ويتحرك؟	أفعّل Little Omni منين لو عايزه يظهر ويتحرك؟
+little-omni	0	What setting enables daily step counting in the moving local companion?	أفعّل أنهي إعداد في الرفيق الصغير عشان يحسب خطواتي اليومية؟	أفعّل أنهي إعداد في Little Omni عشان يحسب خطواتي اليومية؟
+finish-evidence	1	Which evidence lets the team verify a worker saying the task finished?	لو العامل قال خلصت إيه اللي يثبت للمجموعة إن التكليف اتنفذ؟	لو worker قال خلصت إيه اللي يثبت للمجموعة إن التكليف اتنفذ؟
+finish-evidence	0	Where can I download an externally stamped certificate for a worker saying the task finished?	لو العامل قال خلصت أنزل منين شهادة إنجازه بختم جهة خارجية؟	لو worker قال خلصت أنزل منين شهادة إنجازه بختم جهة خارجية؟
+configure-provider	1	Where do I select the text model after adding its provider key?	بعد إضافة المفتاح أختار نموذج النص منين؟	بعد إضافة API key أختار نموذج النص منين؟
+configure-provider	0	Where can I get the exact next reply price in pennies before choosing the model?	بعد إضافة المفتاح أعرف منين سعر الرد الجاي بالقرش قبل اختيار النموذج؟	بعد إضافة API key أعرف منين سعر الرد الجاي بالقرش قبل اختيار النموذج؟
+learned-routines	1	How can I review and run the captured routine?	بعد ما أسجل خطوات الروتين أراجعها وأشغّلها منين؟	بعد ما أسجل خطوات routine أراجعها وأشغّلها منين؟
+learned-routines	0	How can I retrieve a screen recording of every captured routine execution?	بعد ما أسجل خطوات الروتين أستعيد تسجيل الشاشة بتاع كل تشغيل منين؟	بعد ما أسجل خطوات routine أستعيد تسجيل الشاشة بتاع كل تشغيل منين؟

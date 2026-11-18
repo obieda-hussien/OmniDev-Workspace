@@ -1,0 +1,13 @@
+topic	label	en	ar	mixed
+history-legacy	1	Will opening my old pinned thread overwrite the name I picked for it?	لما أفتح شات قديم مثبت الاسم اللي اخترته له هيتكتب فوقه؟	لو فتحت pinned chat قديم هل الاسم اللي اخترته له هيتغير؟
+history-legacy	0	How many milliseconds apart are the metadata migration batches for old threads?	الفاصل بين دفعات تحديث بيانات المحادثات القديمة كام مللي ثانية؟	بين كل migration batch للتاريخ القديم والتانية كام millisecond؟
+choose-mode	1	Which mode fits a single explanation that needs no workers or tools?	أنهي وضع يناسب شرح بسيط من غير عمال ولا أدوات؟	لشرح بس من غير tools أختار أنهي mode؟
+choose-mode	0	Which mode gives workers a fixed allowance of 500 free requests every week?	أنهي وضع بيدي كل عامل خمسمية طلب ببلاش كل أسبوع؟	أنهي mode بيدي كل worker خمسمية free requests أسبوعيا؟
+recover-task	1	A write started and the app closed before the result arrived. What should I verify before retrying?	الكتابة بدأت والتطبيق قفل قبل النتيجة أراجع إيه قبل ما أعيدها؟	لو write بدأ والتطبيق قفل قبل النتيجة أعمل إيه قبل retry؟
+recover-task	0	Where can I download a signed PDF certificate for every recovered operation?	أنزّل منين شهادة موقعة بصيغة بي دي إف لكل عملية مسترجعة؟	منين أنزل signed PDF لكل recovered operation؟
+provider-failure	1	The provider hostname stopped resolving mid-task. What progress can I keep?	اسم خادم المزود مبقاش بيتحل لنُقطة اتصال في نص المهمة أحتفظ بإيه من التقدم؟	لو hostname بتاع المزود مبقاش بيتحل وسط المهمة إيه من progress أحتفظ بيه؟
+provider-failure	0	What is the precise cash refund per failed provider hostname lookup?	كام قيمة التعويض النقدي بالظبط عن كل مرة اسم خادم المزود ميتحلش؟	كام cash refund عن كل failed DNS lookup للمزود؟
+memory-recall	1	When recall finds a saved chat message, can I trace which conversation it came from?	لما الاسترجاع يلاقي رسالة محفوظة أقدر أعرف جت من أنهي محادثة؟	لما recall يلاقي saved message أعرف مصدرها منين؟
+memory-recall	0	Can I ask recall to mail a daily digest of all archived messages?	أقدر أخلي الاسترجاع يبعت على البريد ملخص يومي لكل الرسايل المؤرشفة؟	ينفع recall يبعت daily email بكل رسايل الأرشيف؟
+local-inference	1	After loading the native library, what else do I need before inference works on my phone?	بعد تحميل المكتبة الأصلية إيه كمان محتاجه عشان النموذج يشتغل على تليفوني؟	بعد تحميل native library إيه اللي ناقص عشان inference يشتغل على موبايلي؟
+local-inference	0	Which phone inference setting guarantees exactly eight hours of battery life?	أنهي إعداد للتشغيل المحلي يضمنلي تمن ساعات بطارية بالظبط؟	أنهي local inference setting يضمن تمن ساعات battery بالظبط؟

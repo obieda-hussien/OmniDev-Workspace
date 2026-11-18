@@ -1,0 +1,30 @@
+name: Companion context training
+on:
+  pull_request:
+    paths:
+      - 'experiments/companion/**'
+      - 'app/src/main/java/com/omnidev/workspace/ui/companion/**'
+      - '.github/workflows/companion-context-training.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  train:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Train and replay companion checkpoints
+        shell: bash
+        run: |
+          mkdir -p build/companion-training
+          src=app/src/main/java/com/omnidev/workspace/ui/companion
+          kotlinc "$src"/{CompanionLearning,CompanionMind,CompanionMotion}.kt experiments/companion/ContextTraining.kt -include-runtime -d build/companion-training.jar
+          java -jar build/companion-training.jar build/companion-training
+          cat build/companion-training/accuracy.csv >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: companion-context-training
+          path: build/companion-training/
