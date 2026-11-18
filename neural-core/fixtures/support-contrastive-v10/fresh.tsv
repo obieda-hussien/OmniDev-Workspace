@@ -1,0 +1,97 @@
+id	group	split	language	topic	label	query
+contrast10-fresh-history-topics-1-en	contrast10-fresh-history-topics	fresh	en	history-topics	1	Can topic browsing be combined with the other saved history filters?
+contrast10-fresh-history-topics-1-ar	contrast10-fresh-history-topics	fresh	ar	history-topics	1	تصفح المواضيع ينفع يشتغل مع فلاتر السجل التانية المحفوظة؟
+contrast10-fresh-history-topics-1-mixed	contrast10-fresh-history-topics	fresh	mixed	history-topics	1	هل topic browsing ينفع مع other saved history filters؟
+contrast10-fresh-history-topics-0-en	contrast10-fresh-history-topics	fresh	en	history-topics	0	Which undocumented exact floating-point vector is assigned to my saved topic?
+contrast10-fresh-history-topics-0-ar	contrast10-fresh-history-topics	fresh	ar	history-topics	0	إيه المتجه العشري الدقيق غير الموثق المخصص لموضوعي المحفوظ؟
+contrast10-fresh-history-topics-0-mixed	contrast10-fresh-history-topics	fresh	mixed	history-topics	0	إيه undocumented exact floating-point vector لموضوعي المحفوظ؟
+contrast10-fresh-history-sources-1-en	contrast10-fresh-history-sources	fresh	en	history-sources	1	Is AndroidIDE an example of a mentioned-app tag rather than a new incoming chat channel?
+contrast10-fresh-history-sources-1-ar	contrast10-fresh-history-sources	fresh	ar	history-sources	1	أندرويد آي دي إي مثال لوسم تطبيق مذكور مش قناة جديدة لوصول الشات؟
+contrast10-fresh-history-sources-1-mixed	contrast10-fresh-history-sources	fresh	mixed	history-sources	1	هل AndroidIDE من mentioned-app tags مش new incoming chat channel؟
+contrast10-fresh-history-sources-0-en	contrast10-fresh-history-sources	fresh	en	history-sources	0	What measured global percentage of all incoming chats used AndroidIDE yesterday?
+contrast10-fresh-history-sources-0-ar	contrast10-fresh-history-sources	fresh	ar	history-sources	0	النسبة العالمية المقاسة لكل الشاتات الواردة من أندرويد آي دي إي امبارح كام؟
+contrast10-fresh-history-sources-0-mixed	contrast10-fresh-history-sources	fresh	mixed	history-sources	0	كام measured global percentage للشاتات من AndroidIDE امبارح؟
+contrast10-fresh-configure-provider-1-en	contrast10-fresh-configure-provider	fresh	en	configure-provider	1	Should a model provider credential be included in a public diagnostic chat?
+contrast10-fresh-configure-provider-1-ar	contrast10-fresh-configure-provider	fresh	ar	configure-provider	1	أحط بيانات دخول مزود النموذج في شات تشخيص علني؟
+contrast10-fresh-configure-provider-1-mixed	contrast10-fresh-configure-provider	fresh	mixed	configure-provider	1	هل model provider credential يتحط في public diagnostic chat؟
+contrast10-fresh-configure-provider-0-en	contrast10-fresh-configure-provider	fresh	en	configure-provider	0	What is the precise API credential saved in a different user account?
+contrast10-fresh-configure-provider-0-ar	contrast10-fresh-configure-provider	fresh	ar	configure-provider	0	إيه قيمة بيانات دخول الواجهة الدقيقة المحفوظة في حساب مستخدم مختلف؟
+contrast10-fresh-configure-provider-0-mixed	contrast10-fresh-configure-provider	fresh	mixed	configure-provider	0	إيه precise API credential المحفوظ في different user account؟
+contrast10-fresh-edition-policy-1-en	contrast10-fresh-edition-policy	fresh	en	edition-policy	1	Do Android permission grants stay separate from a selected edition label?
+contrast10-fresh-edition-policy-1-ar	contrast10-fresh-edition-policy	fresh	ar	edition-policy	1	أذونات أندرويد بتفضل متطلبات منفصلة عن اسم النسخة المختارة؟
+contrast10-fresh-edition-policy-1-mixed	contrast10-fresh-edition-policy	fresh	mixed	edition-policy	1	هل Android permission grants منفصلة عن selected edition label؟
+contrast10-fresh-edition-policy-0-en	contrast10-fresh-edition-policy	fresh	en	edition-policy	0	What exact secret system-signing certificate key ships with every OEM build?
+contrast10-fresh-edition-policy-0-ar	contrast10-fresh-edition-policy	fresh	ar	edition-policy	0	إيه المفتاح السري الدقيق لشهادة توقيع النظام الموجود في كل نسخة مصنعة؟
+contrast10-fresh-edition-policy-0-mixed	contrast10-fresh-edition-policy	fresh	mixed	edition-policy	0	إيه exact secret system-signing certificate key لكل OEM build؟
+contrast10-fresh-finish-evidence-1-en	contrast10-fresh-finish-evidence	fresh	en	finish-evidence	1	Does finding a tool schema alone establish a finished objective?
+contrast10-fresh-finish-evidence-1-ar	contrast10-fresh-finish-evidence	fresh	ar	finish-evidence	1	العثور على تعريف الأداة لوحده يثبت إن الهدف انتهى؟
+contrast10-fresh-finish-evidence-1-mixed	contrast10-fresh-finish-evidence	fresh	mixed	finish-evidence	1	هل finding tool schema alone يثبت finished objective؟
+contrast10-fresh-finish-evidence-0-en	contrast10-fresh-finish-evidence	fresh	en	finish-evidence	0	What is the exact cryptographic digest of the unretrieved runtime completion receipt?
+contrast10-fresh-finish-evidence-0-ar	contrast10-fresh-finish-evidence	fresh	ar	finish-evidence	0	إيه البصمة التشفيرية الدقيقة لإيصال إكمال وقت التشغيل اللي ما اتجابش؟
+contrast10-fresh-finish-evidence-0-mixed	contrast10-fresh-finish-evidence	fresh	mixed	finish-evidence	0	إيه exact cryptographic digest للـunretrieved runtime completion receipt؟
+contrast10-fresh-recover-task-1-en	contrast10-fresh-recover-task	fresh	en	recover-task	1	Must a saved approval requirement still be honored when a team recovers?
+contrast10-fresh-recover-task-1-ar	contrast10-fresh-recover-task	fresh	ar	recover-task	1	شرط الموافقة المحفوظ لازم يتنفذ برضه لما الفريق يستعيد شغله؟
+contrast10-fresh-recover-task-1-mixed	contrast10-fresh-recover-task	fresh	mixed	recover-task	1	هل saved approval requirement يفضل مطلوب لما team recovers؟
+contrast10-fresh-recover-task-0-en	contrast10-fresh-recover-task	fresh	en	recover-task	0	What exact unseen external write happened during my missing recovery interval?
+contrast10-fresh-recover-task-0-ar	contrast10-fresh-recover-task	fresh	ar	recover-task	0	إيه عملية الكتابة الخارجية الدقيقة غير المرئية اللي حصلت في فترة الاستعادة المفقودة عندي؟
+contrast10-fresh-recover-task-0-mixed	contrast10-fresh-recover-task	fresh	mixed	recover-task	0	إيه exact unseen external write في missing recovery interval عندي؟
+contrast10-fresh-shizuku-prerequisites-1-en	contrast10-fresh-shizuku-prerequisites	fresh	en	shizuku-prerequisites	1	Can a working Termux shell by itself demonstrate privileged Android backend readiness?
+contrast10-fresh-shizuku-prerequisites-1-ar	contrast10-fresh-shizuku-prerequisites	fresh	ar	shizuku-prerequisites	1	صدفة تيرمكس اللي شغالة لوحدها تثبت جاهزية الباك إند المميز في أندرويد؟
+contrast10-fresh-shizuku-prerequisites-1-mixed	contrast10-fresh-shizuku-prerequisites	fresh	mixed	shizuku-prerequisites	1	هل working Termux shell لوحدها تثبت privileged Android backend readiness؟
+contrast10-fresh-shizuku-prerequisites-0-en	contrast10-fresh-shizuku-prerequisites	fresh	en	shizuku-prerequisites	0	What undocumented exact IPC transaction identifier is live in my current Shizuku session?
+contrast10-fresh-shizuku-prerequisites-0-ar	contrast10-fresh-shizuku-prerequisites	fresh	ar	shizuku-prerequisites	0	إيه معرف معاملة الاتصال الداخلي الدقيق غير الموثق النشط في جلسة شيزوكو الحالية عندي؟
+contrast10-fresh-shizuku-prerequisites-0-mixed	contrast10-fresh-shizuku-prerequisites	fresh	mixed	shizuku-prerequisites	0	إيه undocumented exact IPC transaction identifier في current Shizuku session عندي؟
+contrast10-fresh-telegram-owner-1-en	contrast10-fresh-telegram-owner	fresh	en	telegram-owner	1	Does an outgoing destination grant an arbitrary incoming Telegram user control?
+contrast10-fresh-telegram-owner-1-ar	contrast10-fresh-telegram-owner	fresh	ar	telegram-owner	1	وجهة الإرسال الخارجي بتدي أي مستخدم تليجرام داخل صلاحية التحكم؟
+contrast10-fresh-telegram-owner-1-mixed	contrast10-fresh-telegram-owner	fresh	mixed	telegram-owner	1	هل outgoing destination تدي arbitrary incoming Telegram user control؟
+contrast10-fresh-telegram-owner-0-en	contrast10-fresh-telegram-owner	fresh	en	telegram-owner	0	What exact verification code is inside another owner private pairing chat?
+contrast10-fresh-telegram-owner-0-ar	contrast10-fresh-telegram-owner	fresh	ar	telegram-owner	0	إيه رمز التحقق الدقيق الموجود داخل شات الربط الخاص بمالك تاني؟
+contrast10-fresh-telegram-owner-0-mixed	contrast10-fresh-telegram-owner	fresh	mixed	telegram-owner	0	إيه exact verification code في another owner private pairing chat؟
+contrast10-fresh-discord-connected-1-en	contrast10-fresh-discord-connected	fresh	en	discord-connected	1	Does writing Discord in a title authorize a message to that service?
+contrast10-fresh-discord-connected-1-ar	contrast10-fresh-discord-connected	fresh	ar	discord-connected	1	كتابة اسم ديسكورد في العنوان تدي إذن بإرسال رسالة للخدمة؟
+contrast10-fresh-discord-connected-1-mixed	contrast10-fresh-discord-connected	fresh	mixed	discord-connected	1	هل writing Discord in title يعمل authorization لإرسال message للخدمة؟
+contrast10-fresh-discord-connected-0-en	contrast10-fresh-discord-connected	fresh	en	discord-connected	0	Which precise unpublished reliability percentile was measured for Discord receivers?
+contrast10-fresh-discord-connected-0-ar	contrast10-fresh-discord-connected	fresh	ar	discord-connected	0	أنهي مئين موثوقية دقيق غير منشور اتقاس لمستقبلات ديسكورد؟
+contrast10-fresh-discord-connected-0-mixed	contrast10-fresh-discord-connected	fresh	mixed	discord-connected	0	أنهي precise unpublished reliability percentile للـDiscord receivers؟
+contrast10-fresh-local-model-size-1-en	contrast10-fresh-local-model-size	fresh	en	local-model-size	1	Is a whole-application memory measurement the same as the local title rule engine cost?
+contrast10-fresh-local-model-size-1-ar	contrast10-fresh-local-model-size	fresh	ar	local-model-size	1	قياس ذاكرة التطبيق كله هو نفس تكلفة محرك قواعد العناوين المحلي؟
+contrast10-fresh-local-model-size-1-mixed	contrast10-fresh-local-model-size	fresh	mixed	local-model-size	1	هل whole-application memory measurement هي نفس local title rule engine cost؟
+contrast10-fresh-local-model-size-0-en	contrast10-fresh-local-model-size	fresh	en	local-model-size	0	What exact measured battery drain did title labeling cause on my phone this hour?
+contrast10-fresh-local-model-size-0-ar	contrast10-fresh-local-model-size	fresh	ar	local-model-size	0	تصنيف العناوين سبب استنزاف بطارية مقاس قد إيه بالضبط على تلفوني الساعة دي؟
+contrast10-fresh-local-model-size-0-mixed	contrast10-fresh-local-model-size	fresh	mixed	local-model-size	0	إيه exact measured battery drain بسبب title labeling على تلفوني الساعة دي؟
+contrast10-fresh-future-knowledge-training-1-en	contrast10-fresh-future-knowledge-training	fresh	en	future-knowledge-training	1	Does the documentation export allowlist include private databases as support training text?
+contrast10-fresh-future-knowledge-training-1-ar	contrast10-fresh-future-knowledge-training	fresh	ar	future-knowledge-training	1	قائمة تصدير التوثيق المسموحة بتضم قواعد البيانات الخاصة كنص تدريب للدعم؟
+contrast10-fresh-future-knowledge-training-1-mixed	contrast10-fresh-future-knowledge-training	fresh	mixed	future-knowledge-training	1	هل documentation export allowlist تشمل private databases كنص support training؟
+contrast10-fresh-future-knowledge-training-0-en	contrast10-fresh-future-knowledge-training	fresh	en	future-knowledge-training	0	What exact private database rows were secretly used by an unpublished future training run?
+contrast10-fresh-future-knowledge-training-0-ar	contrast10-fresh-future-knowledge-training	fresh	ar	future-knowledge-training	0	إيه الصفوف الدقيقة من قاعدة بيانات خاصة اللي استعملها سرًا تدريب مستقبلي غير منشور؟
+contrast10-fresh-future-knowledge-training-0-mixed	contrast10-fresh-future-knowledge-training	fresh	mixed	future-knowledge-training	0	إيه exact private database rows اللي استخدمها unpublished future training run؟
+contrast10-fresh-support-diagnostics-1-en	contrast10-fresh-support-diagnostics	fresh	en	support-diagnostics	1	Should the observed result be checked before reporting a diagnostic fix as successful?
+contrast10-fresh-support-diagnostics-1-ar	contrast10-fresh-support-diagnostics	fresh	ar	support-diagnostics	1	لازم نراجع النتيجة اللي حصلت قبل ما نقول إن إصلاح التشخيص نجح؟
+contrast10-fresh-support-diagnostics-1-mixed	contrast10-fresh-support-diagnostics	fresh	mixed	support-diagnostics	1	هل observed result لازم يتراجع قبل reporting diagnostic fix as successful؟
+contrast10-fresh-support-diagnostics-0-en	contrast10-fresh-support-diagnostics	fresh	en	support-diagnostics	0	What exact device edition and revision are installed on an unidentified remote phone?
+contrast10-fresh-support-diagnostics-0-ar	contrast10-fresh-support-diagnostics	fresh	ar	support-diagnostics	0	إيه نسخة التطبيق ومراجعته الدقيقين المثبتين على هاتف بعيد غير محدد؟
+contrast10-fresh-support-diagnostics-0-mixed	contrast10-fresh-support-diagnostics	fresh	mixed	support-diagnostics	0	إيه exact installed edition and revision على unidentified remote phone؟
+contrast10-fresh-voice-wake-1-en	contrast10-fresh-voice-wake	fresh	en	voice-wake	1	Can device language and installed recognition assets change local voice results?
+contrast10-fresh-voice-wake-1-ar	contrast10-fresh-voice-wake	fresh	ar	voice-wake	1	لغة الجهاز وملفات التعرف المثبتة ممكن يغيروا نتائج الصوت المحلي؟
+contrast10-fresh-voice-wake-1-mixed	contrast10-fresh-voice-wake	fresh	mixed	voice-wake	1	هل device language وinstalled recognition assets يغيروا local voice results؟
+contrast10-fresh-voice-wake-0-en	contrast10-fresh-voice-wake	fresh	en	voice-wake	0	What exact unpublished wake false-accept rate was measured for my accent yesterday?
+contrast10-fresh-voice-wake-0-ar	contrast10-fresh-voice-wake	fresh	ar	voice-wake	0	معدل القبول الخاطئ الدقيق غير المنشور للنداء اللي اتقاس للهجتي امبارح كام؟
+contrast10-fresh-voice-wake-0-mixed	contrast10-fresh-voice-wake	fresh	mixed	voice-wake	0	إيه exact unpublished wake false-accept rate للهجتي امبارح؟
+contrast10-fresh-screen-assistant-1-en	contrast10-fresh-screen-assistant	fresh	en	screen-assistant	1	Does having a restoration bubble itself grant Accessibility action access?
+contrast10-fresh-screen-assistant-1-ar	contrast10-fresh-screen-assistant	fresh	ar	screen-assistant	1	وجود فقاعة استرجاع المساعد لوحده يمنح صلاحية أفعال إمكانية الوصول؟
+contrast10-fresh-screen-assistant-1-mixed	contrast10-fresh-screen-assistant	fresh	mixed	screen-assistant	1	هل restoration bubble لوحدها تدي Accessibility action access؟
+contrast10-fresh-screen-assistant-0-en	contrast10-fresh-screen-assistant	fresh	en	screen-assistant	0	What exact private screenshot pixels are on another device not connected to this session?
+contrast10-fresh-screen-assistant-0-ar	contrast10-fresh-screen-assistant	fresh	ar	screen-assistant	0	إيه بكسلات لقطة الشاشة الخاصة الدقيقة على جهاز تاني مش متوصل بالجلسة دي؟
+contrast10-fresh-screen-assistant-0-mixed	contrast10-fresh-screen-assistant	fresh	mixed	screen-assistant	0	إيه exact private screenshot pixels على another unconnected device؟
+contrast10-fresh-media-jobs-1-en	contrast10-fresh-media-jobs	fresh	en	media-jobs	1	Should an interrupted known media operation be inspected before another creation request?
+contrast10-fresh-media-jobs-1-ar	contrast10-fresh-media-jobs	fresh	ar	media-jobs	1	عملية وسائط معروفة اتقطعت لازم تتفحص قبل تقديم طلب إنشاء جديد؟
+contrast10-fresh-media-jobs-1-mixed	contrast10-fresh-media-jobs	fresh	mixed	media-jobs	1	هل interrupted known media operation تتفحص قبل another creation request؟
+contrast10-fresh-media-jobs-0-en	contrast10-fresh-media-jobs	fresh	en	media-jobs	0	What exact undisclosed GPU-hour bill did my provider incur on that media job?
+contrast10-fresh-media-jobs-0-ar	contrast10-fresh-media-jobs	fresh	ar	media-jobs	0	فاتورة ساعات المعالج الرسومي الدقيقة غير المعلنة اللي المزود دفعها للعملية دي كام؟
+contrast10-fresh-media-jobs-0-mixed	contrast10-fresh-media-jobs	fresh	mixed	media-jobs	0	إيه exact undisclosed GPU-hour bill للـprovider على media job دي؟
+contrast10-fresh-profile-reference-1-en	contrast10-fresh-profile-reference	fresh	en	profile-reference	1	Does saving a reference photo demonstrate that every image provider used it?
+contrast10-fresh-profile-reference-1-ar	contrast10-fresh-profile-reference	fresh	ar	profile-reference	1	حفظ صورة مرجعية يثبت إن كل مزود صور استخدمها؟
+contrast10-fresh-profile-reference-1-mixed	contrast10-fresh-profile-reference	fresh	mixed	profile-reference	1	هل saving reference photo يثبت إن every image provider استخدمها؟
+contrast10-fresh-profile-reference-0-en	contrast10-fresh-profile-reference	fresh	en	profile-reference	0	What exact original private reference photo is stored in a different account?
+contrast10-fresh-profile-reference-0-ar	contrast10-fresh-profile-reference	fresh	ar	profile-reference	0	إيه الصورة المرجعية الخاصة الأصلية الدقيقة المحفوظة في حساب مختلف؟
+contrast10-fresh-profile-reference-0-mixed	contrast10-fresh-profile-reference	fresh	mixed	profile-reference	0	إيه exact original private reference photo المحفوظة في different account؟

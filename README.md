@@ -95,6 +95,25 @@ Read [persistent tasks](docs/PERSISTENT_TASK_STATE.md), [recovery](docs/AGENT_EX
 
 ## Product support knowledge and future training
 
+The [v15 quantity evidence check](docs/QUANTITY_EVIDENCE.md) verifies the requested unit and scope for two documented values. On 36 targeted authored questions it preserved seven correct acceptances and prevented four wrong ones. Two mixed-language scope mismatches passed the check in isolation.
+
+The [v14 lexical follow-up](docs/PAIRED_RESCUE.md#lexical-filtering-follow-up-v14) fits two filters on 450 matched examples across 19 topics. Both filters produce the same result on 36 new questions and still confuse a character limit with a message count.
+
+The [v13 topic-held-out experiment](docs/PAIRED_RESCUE.md) fits two small selectors on paired English, Egyptian Arabic and code-switched examples. The selected arm gains no answers on six held-out topics. An 18-fold retrospective audit recovers six correct answers and adds four errors.
+
+The [v12 refusal recovery experiment](docs/REFUSAL_RESCUE.md) compares retrieval-only, pair-score and six-coefficient learned acceptance on first-stage refusals. The selected rule adds 80 correct and 15 wrong historical answers, and one correct answer on 36 reserved authored questions. Automatic rescue remains experimental.
+
+The [v11 topic reranking experiment](neural-core/fixtures/topic-rerank-v11/protocol.md) tested 20 score mixtures against the frozen v10 checkpoint. Among 507 training queries, every accepted error concerned an unsupported question, so switching references could repair zero training errors. Development selected the original order. On 48 reserved authored questions, v10 answered 6 of 24 supported questions correctly and refused all 24 unsupported questions. Of the 18 supported refusals, 14 already had the right reference in first place. All 18 refusals occurred before the v10 answerability head was called. No new runtime head ships. [Reproducible results](neural-core/checkpoints/topic-rerank-v11/report.json).
+
+The [v10 balanced contrastive experiment](docs/CONTRASTIVE_SUPPORT.md) compares eight linear/nonlinear and BCE/pairwise fits. DEV selects an 8,209-parameter tanh head: on the same 96 new authored query/reference pairs it scores **84/96**, versus 49/96 for v9's selected weighted head and 82/96 for its unit-weight comparison. Final accepted-answer counts stay **30 correct/6 wrong** for both v9 and v10 on those questions; classification gains are not pipeline gains. All correct acceptances are preserved on observed 1,872 queries, all matched arms and failures are exported, and production remains disabled.
+
+
+The [v9 recall-aware experiment](docs/RECALL_AWARE_SUPPORT.md) runs eight positive-weighted fits and a broader783-row fitting/development/calibration guard. On observed1,782 queries it retains all841 correct acceptances and reduces wrong25→24; on90 newly reserved authored queries it retains29 correct and reduces wrong6→5. These are small targeted gains. The selected weighted head worsens balanced explicit-reference classification50/90 versus72/90 for the unit-weight arm. All arms, controls and remaining errors are retained; the guard is not an unbiased risk bound and no experimental model is enabled by this result.
+
+
+The [v8 paired answerability experiment](docs/ANSWERABILITY_SUPPORT.md) adds a 1,025-parameter lexical veto after the tiny support proposer. Eight matched fits improve explicit-reference classification on 72 authored pairs from 49 to 62 correct, while the initial decision policy makes no pipeline change. A separately reserved fixed-head calibration reduces old accepted errors from 12 to 7 but loses 48 correct acceptances, so it fails preservation and remains disabled. Both outcomes, the 48-question follow-up, compiled checkpoints and source/default parity are preserved for reproducible evaluation; the frozen production default is unchanged.
+
+
 The [bilingual product FAQ](docs/OMNI_PRODUCT_KNOWLEDGE.md) explains activation prerequisites, mode selection, edition limits, providers, GitHub access, messaging bridges, connected apps, MCP, recovery and troubleshooting. It distinguishes implemented, experimental and planned features. A larger assistant should identify the installed edition/revision, actual permissions and redacted error before recommending a documented setting or diagnostic; documentation is not proof that a particular action succeeded.
 
 A reproducible [documentation-only support corpus](knowledge/omni-product.jsonl) is prepared for **future** retrieval/training. `scripts/build_product_knowledge.py` accepts only the reviewed FAQ allowlist, groups Arabic/English translations, records document hashes and rejects code fences. It does not read project `.kt`/`.java` sources, private conversations, databases, credentials or logs. No training or model activation is performed by exporting this file. Future evaluation must keep translations grouped and preserve permission/edition boundaries.

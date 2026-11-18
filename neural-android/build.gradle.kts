@@ -6,7 +6,7 @@ val prepareFixtures by tasks.registering(Exec::class) {
     inputs.files(rootProject.fileTree("neural-core/src/main/java"),
         rootProject.fileTree("neural-core/training"), rootProject.fileTree("neural-core/fixtures"), rootProject.fileTree("neural-core/checkpoints"),
         rootProject.fileTree("neural-core/smoke") {
-            include("*AndroidFixtureExporter.java", "AndroidProbeSmoke.java", "SupportRetrievalAndroidSmoke.java", "HybridSupportAndroidSmoke.java", "ExpandedSupportAndroidSmoke.java", "QueryMemoryAndroidSmoke.java", "SupportReliabilityAndroidSmoke.java", "SubwordSupportAndroidSmoke.java", "ContractIntentCheckpointSmoke.java")
+            include("*AndroidFixtureExporter.java", "AndroidProbeSmoke.java", "SupportRetrievalAndroidSmoke.java", "HybridSupportAndroidSmoke.java", "ExpandedSupportAndroidSmoke.java", "QueryMemoryAndroidSmoke.java", "SupportReliabilityAndroidSmoke.java", "SubwordSupportAndroidSmoke.java", "AnswerabilitySupportAndroidSmoke.java", "RecallAwareSupportAndroidSmoke.java", "ContrastiveSupportAndroidSmoke.java", "ContractIntentCheckpointSmoke.java")
         },
         fileTree("src/androidTest/java/com/omnidev/workspace/neural/probe") {
             include("*ProbeContract.java")
@@ -19,6 +19,9 @@ val prepareFixtures by tasks.registering(Exec::class) {
         rootProject.file("scripts/prepare_support_android.sh"),
         rootProject.file("scripts/prepare_query_memory_android.sh"), rootProject.file("scripts/prepare_query_memory.py"), rootProject.file("scripts/prepare_support_data_v4.py"),
         rootProject.file("scripts/prepare_support_reliability_android.sh"), rootProject.file("scripts/prepare_support_reliability.py"),
+        rootProject.file("scripts/prepare_contrastive_support_android.sh"), rootProject.file("scripts/prepare_contrastive_support.py"),
+        rootProject.file("scripts/prepare_recall_support_android.sh"), rootProject.file("scripts/prepare_recall_support.py"),
+        rootProject.file("scripts/prepare_answerability_support_android.sh"), rootProject.file("scripts/prepare_answerability_support.py"),
         rootProject.file("scripts/prepare_subword_support_android.sh"), rootProject.file("scripts/prepare_subword_support.py"),
         rootProject.file("scripts/prepare_expanded_android.sh"), rootProject.file("scripts/prepare_support_data_v4.py"),
         rootProject.file("scripts/prepare_hybrid_android.sh"), rootProject.file("scripts/prepare_hybrid_support.py"),
