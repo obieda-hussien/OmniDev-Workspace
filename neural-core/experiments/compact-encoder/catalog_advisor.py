@@ -12,12 +12,19 @@ from tool_advisor import catalog as operation_cards, examples, vector
 
 
 def load_cards():
-    return json.loads((HERE / "catalog-cards.json").read_text(encoding="utf-8"))["cards"]
+    source = json.loads((HERE / "catalog-cards.json").read_text(encoding="utf-8"))
+    defensive = json.loads((HERE / "catalog-defensive.json").read_text(encoding="utf-8"))
+    if not set(defensive) <= set(source["excluded_tools"]):
+        raise ValueError("Defensive projections must be scoped to omitted source definitions")
+    return {**source["cards"], **defensive}
 
 
 def training_rows(cards):
     for name, card in cards.items():
-        yield name, name.replace("_", " "), 1.0
+        if "fixed_arguments" not in card:
+            yield name, name.replace("_", " "), 1.0
+        for example in card.get("examples", []):
+            yield name, example, 1.0
         yield name, card["short_description"], 1.0
         yield name, card["long_description"], 1.0
         arguments = "; ".join(p["name"] + ": " + p["description"] for p in card["parameters"])
@@ -104,24 +111,31 @@ class CatalogAdvisor:
                 context = np.average([self.score(turn) for turn in previous], axis=0,
                                      weights=[0.25 ** i for i in range(len(previous))])
                 scores = 0.25 * scores + 0.75 * context
-        if not np.any(scores):
+        eligible = {
+            name for name, card in self.cards.items()
+            if (f"{name}/{card['fixed_arguments']['action']}" if "fixed_arguments" in card else name)
+            in available
+        }
+        if not eligible or not np.any(scores):
             return []
         return [self.labels[i] for i in np.argsort(-scores, kind="stable")
-                if self.labels[i] in available or self.labels[i] == "NO_TOOL"]
+                if self.labels[i] in eligible or self.labels[i] == "NO_TOOL"]
 
     def reference_cards(self, query, available, limit=3, *, history=(), follow_up=False, gloss=None):
         # Suggestions only. Availability is supplied by the live caller.
         ordered = self.ranked_names(query, available, history=history, follow_up=follow_up, gloss=gloss)
         if not ordered or ordered[0] == "NO_TOOL":
             return []
-        return [{"tool": name, **self.cards[name]}
+        return [{"tool": name, **{field: value for field, value in self.cards[name].items()
+                                  if field != "examples"}}
                 for name in [k for k in ordered if k in self.cards][:max(0, limit)]]
 
 
 def evaluate(advisor, path):
     with path.open(encoding="utf-8") as stream:
         rows = list(csv.DictReader(stream, delimiter="\t"))
-    all_tools = set(advisor.cards)
+    all_tools = {f"{name}/{card['fixed_arguments']['action']}" if "fixed_arguments" in card else name
+                 for name, card in advisor.cards.items()}
     for group in sorted({r["language"] for r in rows}):
         selected = [r for r in rows if r["language"] == group]
         top1 = top3 = 0
@@ -154,7 +168,8 @@ if __name__ == "__main__":
     parser.add_argument("--evaluate", type=Path)
     parser.add_argument("--evaluate-context", type=Path)
     parser.add_argument("--query")
-    parser.add_argument("--available", nargs="*", default=[])
+    parser.add_argument("--available", nargs="*", default=[],
+                        help="Active tool names and exact tool/action keys for defensive projections")
     parser.add_argument("--history", type=Path, help="JSON array of prior turns with role and content")
     parser.add_argument("--follow-up", action="store_true", help="Use prior user turns for an ambiguous current request")
     parser.add_argument("--gloss", help="Optional trusted English or Arabic rendering of the user request")

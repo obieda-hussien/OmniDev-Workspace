@@ -1,0 +1,40 @@
+{
+  "android_security_research": {
+    "source": "app/src/main/java/com/omnidev/workspace/data/tools/AndroidSecurityResearchTool.kt",
+    "short_description": "List installed user applications for a defensive inventory.",
+    "long_description": "The list_apps action reports installed user apps and their basic security posture. Use it when the user asks for a local app inventory.",
+    "fixed_arguments": {"action": "list_apps"},
+    "parameters": [],
+    "examples": [
+      "Inventory the installed user apps for a defensive review.",
+      "Show my Android application's inventory and basic security posture.",
+      "اعمل جرد للتطبيقات اللي متثبتة عندي للمراجعة الدفاعية"
+    ]
+  },
+  "security_analyzer": {
+    "source": "app/src/advanced/java/com/omnidev/workspace/data/tools/CompositeToolManager.kt",
+    "short_description": "Summarize permission and network risks for one installed Android app.",
+    "long_description": "The quick_scan action returns summary counts and an overall risk score for one installed package. Use the package name to select the application under defensive review.",
+    "fixed_arguments": {"action": "quick_scan"},
+    "parameters": [
+      {"name": "package_name", "type": "string", "description": "Package name of the installed app under review.", "required": true, "required_for_actions": ["quick_scan"]}
+    ],
+    "examples": [
+      "Show a quick defensive summary of dangerous permissions and network risks for my Android app.",
+      "Give me an aggregate permission risk score for one installed package.",
+      "راجع أذونات التطبيق بتاعي وهات ملخص سريع للمخاطر"
+    ]
+  },
+  "install_tool": {
+    "source": "app/src/advanced/java/com/omnidev/workspace/data/tools/ToolDownloaderEngine.kt",
+    "short_description": "Inspect the local installer and its cached tool status.",
+    "long_description": "The status action shows the local installer status and cached tool information. Use it when troubleshooting the installer.",
+    "fixed_arguments": {"action": "status"},
+    "parameters": [],
+    "examples": [
+      "Check the local tool installer's status and cached packages.",
+      "Diagnose whether the local installer can see its cached tools.",
+      "شوف حالة مثبّت الأدوات والملفات اللي موجودة في الكاش"
+    ]
+  }
+}
