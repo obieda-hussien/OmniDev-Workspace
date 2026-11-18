@@ -1,0 +1,19 @@
+{
+  "version": 7,
+  "fresh_count": 120,
+  "supported": 96,
+  "unsupported": 24,
+  "groups": 40,
+  "source": "knowledge/omni-product.jsonl",
+  "source_sha256": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+  "fresh_sha256": "2c13ea57e75524ac7e667ae1288a13c2662da51ad2af48b772bc1b4943d44e73",
+  "authoring": "Assistant-authored multilingual typo/word-form robustness challenge grounded in the same FAQ; explicitly targeted stress, not unbiased traffic, independent human labels, semantic OOD or unseen topics.",
+  "representation": "Frozen v5 ranking and351 original TRAIN exemplars. New bounded token lexicon of TRAIN-only normalized words with padded3/4-grams, IDF and per-group/topic ownership. Query token Dice>=.6 contributes maximum match per topic; deterministic top128 common-gram vocabulary candidates/token; at most8192 words/400000 postings,512 input units and64 units/word. Whole scenario groups excluded from ownership at TRAIN feature extraction. Original references never rewritten.",
+  "features": "12: top base/word/character scores; top/runner soft coverage; top/runner hard coverage; first-second/third score gaps; signed soft-coverage difference; clipped candidate count/29; clipped normalized token count/32.",
+  "training": "Matched old-only411 and augmented822-view arms. Each original TRAIN query contributes itself and one deterministic single-interior-codepoint deletion in an alphabetic span of6+ codepoints, selected by stable ID hash; if none, duplicate original. All variants inherit original group/primary requirements and are never added to exemplar memory. No new independent examples claimed. Reuse v6 binary AdamW objective/early snapshots: widths0/8 x L2 0/.01 x seeds42/97 in each arm, max120epochs/patience15. Select on DEV99 macro-language NLL then smaller head, original arm then lower seed on remaining ties.",
+  "calibration": "Keep original CAL48 temperature and CAL51 decision group partitions. Temperature grid .5/.75/1/1.5/2/3. Search confidence threshold0..1 by.025, SOFT coverage0/.25/.5/.75 and frozen score margin0/.025/.05/.1 by correct-minus3wrong with errors<=v5 on CAL51. Export before reading120 new stress results. Rank remains frozen. Compare v5/v6/new head/v5-veto and retained v1 default; do not promote automatically.",
+  "evaluation": "Old1368 probes are observed regressions only. Report fresh stress correctness/acceptance and each language, matched-arm outcomes, changed TRAIN views, original source parity, every lost prior-correct or newly wrong acceptance and host end-to-end timings/index counts. All repeated fresh scoring is regression, never retune using it.",
+  "production_eligible": false,
+  "independent_human_labels": false,
+  "physical_device_tested": false
+}

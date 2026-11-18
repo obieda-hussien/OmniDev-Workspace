@@ -1,0 +1,554 @@
+{
+  "selected": "all_hits",
+  "production_eligible": false,
+  "arms": {
+    "refused": {
+      "weights": [
+        -1.3936166718,
+        0.5723862178,
+        1.5009795063,
+        0.5251290818,
+        0.694554,
+        1.3646249871
+      ],
+      "gains": 1,
+      "threshold": 0.7624838211,
+      "samples": 36,
+      "positives": 11,
+      "kind": "logistic",
+      "metrics": {
+        "history": {
+          "n": 2052,
+          "baseline_correct": 915,
+          "baseline_wrong": 38,
+          "eligible": 1097,
+          "eligible_correct": 396,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 915,
+          "final_wrong": 38
+        },
+        "train": {
+          "n": 48,
+          "baseline_correct": 10,
+          "baseline_wrong": 2,
+          "eligible": 36,
+          "eligible_correct": 11,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 10,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 8,
+            "total": 24
+          }
+        },
+        "dev": {
+          "n": 24,
+          "baseline_correct": 7,
+          "baseline_wrong": 2,
+          "eligible": 15,
+          "eligible_correct": 2,
+          "gained": 1,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 8,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 6,
+            "total": 12
+          }
+        },
+        "test": {
+          "n": 36,
+          "baseline_correct": 6,
+          "baseline_wrong": 2,
+          "eligible": 28,
+          "eligible_correct": 11,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 6,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 4,
+            "total": 18
+          }
+        },
+        "test_ar": {
+          "n": 12,
+          "baseline_correct": 1,
+          "baseline_wrong": 0,
+          "eligible": 11,
+          "eligible_correct": 4,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 1,
+          "final_wrong": 0,
+          "pairs": {
+            "complete": 1,
+            "total": 6
+          }
+        },
+        "test_mixed": {
+          "n": 12,
+          "baseline_correct": 1,
+          "baseline_wrong": 0,
+          "eligible": 11,
+          "eligible_correct": 5,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 1,
+          "final_wrong": 0,
+          "pairs": {
+            "complete": 1,
+            "total": 6
+          }
+        },
+        "test_en": {
+          "n": 12,
+          "baseline_correct": 4,
+          "baseline_wrong": 2,
+          "eligible": 6,
+          "eligible_correct": 2,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 4,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 2,
+            "total": 6
+          }
+        }
+      }
+    },
+    "all_hits": {
+      "weights": [
+        -2.0124351276,
+        0.7456333114,
+        2.0347760609,
+        0.8963584959,
+        0.7586792434,
+        1.8939279061
+      ],
+      "gains": 2,
+      "threshold": 0.7036877869,
+      "samples": 48,
+      "positives": 21,
+      "kind": "logistic",
+      "metrics": {
+        "history": {
+          "n": 2052,
+          "baseline_correct": 915,
+          "baseline_wrong": 38,
+          "eligible": 1097,
+          "eligible_correct": 396,
+          "gained": 15,
+          "added_wrong": 1,
+          "added_unsupported": 0,
+          "added_wrong_ids": [
+            "memory-recall-1"
+          ],
+          "final_correct": 930,
+          "final_wrong": 39
+        },
+        "train": {
+          "n": 48,
+          "baseline_correct": 10,
+          "baseline_wrong": 2,
+          "eligible": 36,
+          "eligible_correct": 11,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 10,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 8,
+            "total": 24
+          }
+        },
+        "dev": {
+          "n": 24,
+          "baseline_correct": 7,
+          "baseline_wrong": 2,
+          "eligible": 15,
+          "eligible_correct": 2,
+          "gained": 2,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 9,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 7,
+            "total": 12
+          }
+        },
+        "test": {
+          "n": 36,
+          "baseline_correct": 6,
+          "baseline_wrong": 2,
+          "eligible": 28,
+          "eligible_correct": 11,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 6,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 4,
+            "total": 18
+          }
+        },
+        "test_ar": {
+          "n": 12,
+          "baseline_correct": 1,
+          "baseline_wrong": 0,
+          "eligible": 11,
+          "eligible_correct": 4,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 1,
+          "final_wrong": 0,
+          "pairs": {
+            "complete": 1,
+            "total": 6
+          }
+        },
+        "test_mixed": {
+          "n": 12,
+          "baseline_correct": 1,
+          "baseline_wrong": 0,
+          "eligible": 11,
+          "eligible_correct": 5,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 1,
+          "final_wrong": 0,
+          "pairs": {
+            "complete": 1,
+            "total": 6
+          }
+        },
+        "test_en": {
+          "n": 12,
+          "baseline_correct": 4,
+          "baseline_wrong": 2,
+          "eligible": 6,
+          "eligible_correct": 2,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 4,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 2,
+            "total": 6
+          }
+        }
+      }
+    },
+    "v12_logistic": {
+      "kind": "logistic",
+      "weights": [
+        -2.7602942966,
+        0.3634737465,
+        0.6344885201,
+        0.2081865009,
+        3.8837637217,
+        1.6563344312
+      ],
+      "threshold": 0.8740047677,
+      "metrics": {
+        "history": {
+          "n": 2052,
+          "baseline_correct": 915,
+          "baseline_wrong": 38,
+          "eligible": 1097,
+          "eligible_correct": 396,
+          "gained": 24,
+          "added_wrong": 1,
+          "added_unsupported": 0,
+          "added_wrong_ids": [
+            "memory-recall-1"
+          ],
+          "final_correct": 939,
+          "final_wrong": 39
+        },
+        "train": {
+          "n": 48,
+          "baseline_correct": 10,
+          "baseline_wrong": 2,
+          "eligible": 36,
+          "eligible_correct": 11,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 10,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 8,
+            "total": 24
+          }
+        },
+        "dev": {
+          "n": 24,
+          "baseline_correct": 7,
+          "baseline_wrong": 2,
+          "eligible": 15,
+          "eligible_correct": 2,
+          "gained": 1,
+          "added_wrong": 1,
+          "added_unsupported": 0,
+          "added_wrong_ids": [
+            "paired13-recover-task-1-mixed"
+          ],
+          "final_correct": 8,
+          "final_wrong": 3,
+          "pairs": {
+            "complete": 6,
+            "total": 12
+          }
+        },
+        "test": {
+          "n": 36,
+          "baseline_correct": 6,
+          "baseline_wrong": 2,
+          "eligible": 28,
+          "eligible_correct": 11,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 6,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 4,
+            "total": 18
+          }
+        },
+        "test_ar": {
+          "n": 12,
+          "baseline_correct": 1,
+          "baseline_wrong": 0,
+          "eligible": 11,
+          "eligible_correct": 4,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 1,
+          "final_wrong": 0,
+          "pairs": {
+            "complete": 1,
+            "total": 6
+          }
+        },
+        "test_mixed": {
+          "n": 12,
+          "baseline_correct": 1,
+          "baseline_wrong": 0,
+          "eligible": 11,
+          "eligible_correct": 5,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 1,
+          "final_wrong": 0,
+          "pairs": {
+            "complete": 1,
+            "total": 6
+          }
+        },
+        "test_en": {
+          "n": 12,
+          "baseline_correct": 4,
+          "baseline_wrong": 2,
+          "eligible": 6,
+          "eligible_correct": 2,
+          "gained": 0,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 4,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 2,
+            "total": 6
+          }
+        }
+      }
+    },
+    "v12_retrieval": {
+      "kind": "retrieval",
+      "weights": [
+        -2.7602942966,
+        0.3634737465,
+        0.6344885201,
+        0.2081865009,
+        3.8837637217,
+        1.6563344312
+      ],
+      "threshold": 0.4021847,
+      "metrics": {
+        "history": {
+          "n": 2052,
+          "baseline_correct": 915,
+          "baseline_wrong": 38,
+          "eligible": 1097,
+          "eligible_correct": 396,
+          "gained": 81,
+          "added_wrong": 15,
+          "added_unsupported": 7,
+          "added_wrong_ids": [
+            "memory-recall-1",
+            "history-sources-fresh-ar",
+            "hybrid-12-en",
+            "data4-little-omni-4-en",
+            "data4-unknown-18-ar",
+            "memory5-27-en",
+            "memory5-27-mixed",
+            "memory5-39-ar",
+            "reliability6-23-en",
+            "reliability6-38-en",
+            "answer8-contrast-discord-connected-0-en",
+            "answer8-followup-shizuku-prerequisites-0-en",
+            "contrast10-fresh-configure-provider-1-en",
+            "contrast10-fresh-profile-reference-0-ar",
+            "rerank11-discord-connected-0-en"
+          ],
+          "final_correct": 996,
+          "final_wrong": 53
+        },
+        "train": {
+          "n": 48,
+          "baseline_correct": 10,
+          "baseline_wrong": 2,
+          "eligible": 36,
+          "eligible_correct": 11,
+          "gained": 1,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 11,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 9,
+            "total": 24
+          }
+        },
+        "dev": {
+          "n": 24,
+          "baseline_correct": 7,
+          "baseline_wrong": 2,
+          "eligible": 15,
+          "eligible_correct": 2,
+          "gained": 1,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 8,
+          "final_wrong": 2,
+          "pairs": {
+            "complete": 6,
+            "total": 12
+          }
+        },
+        "test": {
+          "n": 36,
+          "baseline_correct": 6,
+          "baseline_wrong": 2,
+          "eligible": 28,
+          "eligible_correct": 11,
+          "gained": 4,
+          "added_wrong": 1,
+          "added_unsupported": 1,
+          "added_wrong_ids": [
+            "paired13-finish-evidence-0-en"
+          ],
+          "final_correct": 10,
+          "final_wrong": 3,
+          "pairs": {
+            "complete": 7,
+            "total": 18
+          }
+        },
+        "test_ar": {
+          "n": 12,
+          "baseline_correct": 1,
+          "baseline_wrong": 0,
+          "eligible": 11,
+          "eligible_correct": 4,
+          "gained": 1,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 2,
+          "final_wrong": 0,
+          "pairs": {
+            "complete": 2,
+            "total": 6
+          }
+        },
+        "test_mixed": {
+          "n": 12,
+          "baseline_correct": 1,
+          "baseline_wrong": 0,
+          "eligible": 11,
+          "eligible_correct": 5,
+          "gained": 1,
+          "added_wrong": 0,
+          "added_unsupported": 0,
+          "added_wrong_ids": [],
+          "final_correct": 2,
+          "final_wrong": 0,
+          "pairs": {
+            "complete": 2,
+            "total": 6
+          }
+        },
+        "test_en": {
+          "n": 12,
+          "baseline_correct": 4,
+          "baseline_wrong": 2,
+          "eligible": 6,
+          "eligible_correct": 2,
+          "gained": 2,
+          "added_wrong": 1,
+          "added_unsupported": 1,
+          "added_wrong_ids": [
+            "paired13-finish-evidence-0-en"
+          ],
+          "final_correct": 6,
+          "final_wrong": 3,
+          "pairs": {
+            "complete": 3,
+            "total": 6
+          }
+        }
+      }
+    }
+  }
+}

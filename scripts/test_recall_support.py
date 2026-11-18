@@ -1,0 +1,19 @@
+import json,unittest
+import prepare_recall_support as data
+class RecallData(unittest.TestCase):
+    def setUp(self):self.rows=data.read(data.DATA/'fresh.tsv');self.p=json.loads((data.DATA/'protocol.json').read_text())
+    def reject(self):
+        with self.assertRaises(ValueError):data.validate(self.rows,self.p)
+    def test_valid(self):self.assertEqual(90,len(data.validate()))
+    def test_missing(self):self.rows.pop();self.reject()
+    def test_duplicate_id(self):self.rows[1]['id']=self.rows[0]['id'];self.reject()
+    def test_duplicate_question(self):self.rows[1]['query']=self.rows[0]['query'];self.reject()
+    def test_training_role(self):self.rows[0]['split']='train';self.reject()
+    def test_topic(self):self.rows[0]['topic']='invented';self.reject()
+    def test_pair(self):self.rows[0]['label']='0';self.reject()
+    def test_language(self):self.rows[0]['language']='ar';self.reject()
+    def test_frozen_source(self):self.p['frozen_v8_sha256']='wrong';self.reject()
+    def test_claim(self):self.p['production_eligible']=True;self.reject()
+    def test_observed(self):self.rows[0]['query']=data.read(data.FIXTURES/'support-answerability-v8/fresh.tsv')[0]['query'];self.reject()
+    def test_version(self):self.p['version']=8;self.reject()
+if __name__=='__main__':unittest.main()

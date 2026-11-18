@@ -1,0 +1,17 @@
+topic	label	en	ar	mixed
+history-titles	1	If my opening line is just hello, when does a descriptive name appear?	لو بدأت بكلمة أهلا بس إمتى المحادثة تاخد اسم له معنى؟	لو أول message مجرد hi إمتى الشات ياخد اسم بيوصفه؟
+history-titles	0	Can the naming engine translate every old title into French overnight?	ينفع محرك التسمية يترجم كل العناوين القديمة للفرنساوي بالليل؟	ينفع أعمل overnight translation لكل عناوين الشات القديمة؟
+history-topics	1	Which history control restores automatic categorization after I picked Writing?	لو اخترت تصنيف كتابة بإيدي أرجع للتصنيف التلقائي منين في السجل؟	بعد ما اخترت Writing من history أرجع التصنيف تلقائي إزاي؟
+history-topics	0	Can I define a new category called invoices and give it a custom color?	أقدر أضيف تصنيف جديد اسمه فواتير وأختار له لون بنفسي؟	فيه custom color لو ضفت category جديدة اسمها فواتير؟
+history-sources	1	If I mention Slack in the app, which filter still identifies where the chat began?	لو ذكرت سلاك جوه التطبيق أنهي فلتر يبين المكان اللي بدأت منه المحادثة؟	لو كتبت Slack جوه التطبيق أنهي filter يوضح الشات بدأ فين؟
+history-sources	0	Can I get a monthly pie chart of chat origins from the source filter?	فلتر مصدر الشات يطلع رسم دايري شهري لنسب القنوات؟	ممكن source filter يطلع monthly chart بنسبة كل قناة؟
+telegram-owner	1	Does the destination chat number also identify who may control the bot?	رقم الشات اللي ببعت عليه هو كمان اللي بيحدد مين مسموح له يتحكم في البوت؟	هل outgoing chat number بيدي صاحبه تحكم في البوت؟
+telegram-owner	0	Can I schedule the bot to rotate incoming owners every Monday?	أقدر أجدول تبديل مالك البوت اللي بيتلقى الأوامر كل اتنين؟	أقدر أعمل schedule يبدل bot owner كل اتنين؟
+discord-connected	1	Can a Discord mention in a saved chat grant permission to send to a server?	ذكر ديسكورد في محادثة محفوظة بيدي إذن إرسال لسيرفر؟	لو Discord اتذكر في الشات المحفوظ ده يسمح بـ send للسيرفر؟
+discord-connected	0	Can a history tag import every voice recording from a Discord server?	وسم السجل يقدر يستورد كل التسجيلات الصوتية من سيرفر ديسكورد؟	ممكن history tag يستورد كل voice recordings من سيرفر ديسكورد؟
+finish-evidence	1	If one worker skipped its assignment, can the final summary count it as done?	لو واحد من الوكلاء تخطى تكليفه هل الملخص النهائي يحسبه خلص؟	لو worker تخطى تكليفه هل final summary يحسب الخطوة خلصت؟
+finish-evidence	0	Does each worker receipt contain a notarized timestamp accepted in court?	كل إيصال إنجاز من الوكيل فيه توقيت موثق ومعتمد في المحكمة؟	هل worker receipt فيه توقيت notarized معتمد للمحكمة؟
+local-model-size	1	Does naming a chat make the phone download a separate language model?	تسمية المحادثة بتخلي الموبايل ينزل نموذج لغة منفصل؟	هل chat naming محتاج الموبايل يحمل language model لوحده؟
+local-model-size	0	What exact peak in megabytes does history naming reach on my handset?	كام ميجابايت بالظبط بتوصل لها ذاكرة تسمية السجل على موبايلي؟	عايز peak RAM بالميجا بالظبط لتسمية السجل على موبايلي
+voice-wake	1	Should wake training include recordings that sound different from my positive examples?	تدريب كلمة التنبيه محتاج تسجيلات مختلفة فعلا عن أمثلة النطق الصح؟	هل wake training محتاج contrasts مختلفة عن تسجيلاتي الصح؟
+voice-wake	0	Can the wake phrase trainer clone my voice into a new narration voice?	مدرب كلمة التنبيه يقدر ينسخ صوتي ويطلعه كصوت راوي جديد؟	ينفع wake trainer يعمل voice clone عشان أستخدمه في التعليق الصوتي؟

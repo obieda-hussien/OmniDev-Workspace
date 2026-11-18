@@ -1,0 +1,1 @@
+{"host_only":true,"physical_device_tested":false,"warmup_queries_per_arm":99,"rounds":8,"queries_per_round":32,"baseline_batch_mean_ns":[666509, 547386, 565416, 519864, 511660, 527252, 579969, 528706],"selector_batch_mean_ns":[722207, 627315, 779470, 588836, 561646, 563775, 624735, 573258],"head_parameters":113,"checksum":1536,"peak_heap_measured":false,"timing_assertions":false}
