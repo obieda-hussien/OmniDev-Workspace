@@ -84,7 +84,7 @@
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/IntentClassifier.kt": {
-    "sha256": "15ecf046b61b0e26b6ad10c09503faefe0abca116ac49cc22188c0e4de5bd5d9",
+    "sha256": "222e4332b4abc28c2746e3ca99beed04c9a1a268ab7027d3918852220e83de99",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/LauncherExecutionLedger.kt": {

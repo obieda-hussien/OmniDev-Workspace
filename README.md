@@ -65,7 +65,9 @@ The repository contains the Android application, native inference integration, J
 
 ## Bundled Auto decision models
 
-All app editions include the public decision and refusal checkpoints (7,175 learned parameters combined) and their fitted Arabic/English vocabulary. Auto consults them offline when an explicit inspection request would otherwise fall back to Chat. An accepted repository, build or device proposal can select Agent. Uncertain, unsupported and over-limit inputs retain the existing route. The neural path accepts up to 2,048 UTF-16 units before and after normalization. Tool permissions and Team selection continue to use the existing runtime checks.
+Auto routes explicit inspections locally using the bundled domain and refusal models plus a 317-coefficient topic classifier (7,492 learned parameters in total). The topic classifier reads up to 8,192 UTF-16 units per message. For longer inputs it checks the full topic vector and runs the existing short decision heads over whole-word windows. A short follow-up such as “check it” can use the immediately preceding user turn in the same chat. An explicit reply to a different turn disables that inference. The execution pipeline receives the original request and its existing conversation history; tool authorization and Team selection keep their existing checks.
+
+The trainer is `scripts/train_context_inspection.py` (Python, NumPy and scikit-learn). Run `bash scripts/evaluate_context_inspection.sh` to replay the exported Java models. On the 20 previously observed inspection examples, accepted in-scope requests rose from 0/10 to 8/10 with 0/10 out-of-scope accepts. On 12 separate authored probes, the combined heads accepted 5/6 inspections and 1/6 unrelated requests. These small probes measure routing proposals, not completed tool actions.
 
 ## Chat titles, topics and source filters
 

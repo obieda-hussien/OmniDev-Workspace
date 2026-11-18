@@ -1072,7 +1072,11 @@ class ChatViewModel(
             val who = if (ref.role == MessageRole.USER) "you" else "OmniDev"
             "[Replying to $who: \"${ref.content.take(150).replace("\n", " ")}\"]\n\n"
         }.orEmpty()
-        runHistory = replacing?.prefix ?: state.messages
+        val turnHistory = replacing?.prefix ?: state.messages
+        runHistory = turnHistory
+        val replyId = if (replacing == null) state.replyingTo?.messageId else replacing.user.replyToMessageId
+        val inspectionReference = turnHistory.lastOrNull { it.role == MessageRole.USER }
+            ?.takeIf { replyId == null || replyId == it.messageId }
         val userMessage = ChatMessage(
             role = MessageRole.USER,
             content = replyPrefix + input + attachmentNote,
@@ -1153,9 +1157,9 @@ class ChatViewModel(
                 }
                 when (mode) {
                     OmniMode.AUTO -> {
-                        val baseline = IntentClassifier.classify(input)
+                        val baseline = IntentClassifier.classify(input, inspectionReference?.userInput)
                         // Team mode is text-only; keep screen questions on a vision-capable path.
-                        val classified = classifyTaskComplexity(input)
+                        val classified = classifyTaskComplexity(input, baseline)
                         val resolved = if (focus.tools.any { it !in com.omnidev.workspace.domain.engine.ChatToolLoop.CHAT_TOOLS }) OmniMode.AGENT
                             else if (imageAttachments.isNotEmpty() && classified == OmniMode.SWARM)
                             OmniMode.AGENT else classified
@@ -1296,9 +1300,9 @@ class ChatViewModel(
         }
     }
 
-    internal fun classifyTaskComplexity(input: String): OmniMode =
+    internal fun classifyTaskComplexity(input: String, baseline: OmniMode = IntentClassifier.classify(input)): OmniMode =
         com.omnidev.workspace.domain.engine.ModeOutcomeLearner.recommendExecutionMode(
-            input, IntentClassifier.classify(input)
+            input, baseline
         )
 
     private fun turnMentionFocus(fallback: String): com.omnidev.workspace.domain.engine.MentionFocus {

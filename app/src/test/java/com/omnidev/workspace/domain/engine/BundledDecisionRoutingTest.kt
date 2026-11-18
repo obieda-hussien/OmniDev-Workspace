@@ -23,4 +23,21 @@ class BundledDecisionRoutingTest {
         assertFalse(BundledDecisionModels.supportsInspection("\uFDFA".repeat(180)))
         assertEquals(OmniMode.CHAT, IntentClassifier.classify("What is a GitHub repository?"))
     }
+
+    @Test fun followUpDependsOnTheReferencedUserTurn() {
+        val technical = "Inspect the GitHub repository branch and git status"
+        val unrelated = "Check the weather tomorrow"
+        for (followUp in listOf("check it", "افحصها")) {
+            assertEquals(OmniMode.AGENT, IntentClassifier.classify(followUp, technical))
+            assertEquals(OmniMode.CHAT, IntentClassifier.classify(followUp, unrelated))
+            assertEquals(OmniMode.CHAT, IntentClassifier.classify(followUp))
+        }
+        assertEquals(OmniMode.CHAT, IntentClassifier.classify("thanks", technical))
+    }
+
+    @Test fun readsEvidencePastTheOriginalWindow() {
+        val prompt = "Inspect " + "zz ".repeat(900) + "the GitHub repository branch and git status"
+        assertTrue(BundledDecisionModels.supportsInspection(prompt))
+        assertFalse(BundledDecisionModels.supportsInspection(prompt + "z".repeat(8192)))
+    }
 }

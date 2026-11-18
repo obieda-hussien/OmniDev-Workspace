@@ -1,0 +1,75 @@
+split	label	text
+train	1	git merge conflicts in the repository
+train	1	staged commits and branch history
+train	1	uncommitted edits in the working tree
+train	1	آخر كوميت في الريبو المحلي
+train	1	تعديلات الفرع وسجل الكوميتات
+train	1	تغييرات مستودع جيت قبل الدمج
+train	1	CI pipeline and Gradle dependencies
+train	1	نتيجة تجميع المشروع وسجل البناء
+train	1	تجميعة الديباج وقائمة اختبارات Gradle
+train	1	build log from the release job
+train	1	compilation failure in the Kotlin module
+train	1	الـ commit الجديد على البرانش
+train	1	سطوع شاشة التليفون الحالي
+train	1	حالة البلوتوث في إعدادات الجهاز
+train	1	مستوى صوت السماعة على الموبايل
+train	1	هاتف أندرويد وخيارات الواي فاي
+train	1	display brightness slider on the phone
+train	1	Bluetooth settings on my Android device
+train	1	the volume level on this handset
+train	1	Android battery settings and screen timeout
+train	0	review my study notes and dates
+train	0	الطقس في المدينة بكرة
+train	0	مواعيد القطارات للمحافظة
+train	0	الفرع الجديد بتاع البنك
+train	0	حساب تكلفة البناء والمواد
+train	0	build a grocery list
+train	0	the release date of that movie
+train	0	حالة الطقس في المندرة
+train	0	مواعيد فتح المحل في سموحة
+train	0	حالة الطلب مع خدمة العملاء
+train	0	سعر الموبايل في السوق
+train	0	the phone number for the restaurant
+train	0	مسألة محاسبة عن نتيجة المشروع
+train	0	list the teams at the top of the league
+dev	1	اختبارات تجميعة Gradle وقفت
+dev	1	brightness settings for this Android handset
+dev	1	تغييرات الريبو على الفرع التجريبي
+dev	1	the current commit in my local repository
+dev	0	مواعيد أتوبيس المطار
+dev	0	موبايل للبيع في فرع سيدي جابر
+dev	0	a grocery delivery to the bank branch
+dev	0	the build quality of my new desk
+test	1	راجع البرانش اللي عليه كوميت الإصلاح
+test	1	شوف سجل تجميع الموديول في Gradle
+test	1	افحص إعدادات البلوتوث بعد توصيل السماعة
+test	1	inspect the repository before switching branches
+test	1	check device brightness after the reboot
+test	1	review the build log for the failed CI job
+test	0	شوف نتيجة المحاضرة في مادة نظم المعلومات
+test	0	راجع تاريخ افتتاح الفرع بتاع المصنع
+test	0	افحص ميزانية البناء في ملف الحسابات
+test	0	check when the film will release in Cairo
+test	0	review the lunch order for my study group
+test	0	inspect the model number on this invoice
+regression	1	شوف آخر كوميت في الريبو بتاع المشروع
+regression	1	راجعلي الفرق بين الفرع الحالي وفرع الإصدار في git
+regression	1	افحص سبب فشل تجميع التطبيق في Gradle
+regression	1	راجع نتيجة بناء نسخة الديباج بتاعت امبارح
+regression	1	شوف سطوع شاشة الجهاز مضبوط على كام
+regression	1	افحص حالة البلوتوث في الموبايل
+regression	1	Inspect the uncommitted changes on my release branch
+regression	1	Check the Android build output for failed tasks
+regression	1	Review the latest commit on my topic branch
+regression	1	افحص الـ build log بتاع Gradle
+regression	0	شوف سعر البن النهارده في إسكندرية
+regression	0	راجع ترتيب الفرق بعد ماتش امبارح
+regression	0	افحص إجابة السؤال التالت في المحاسبة
+regression	0	شوف ميعاد الأتوبيس الجاي
+regression	0	راجع جدول مذاكرتي الأسبوع ده
+regression	0	Check my grocery list for duplicate items
+regression	0	Review yesterday's football scores
+regression	0	Inspect the punctuation in this paragraph
+regression	0	شوف لو عندي meeting بكرة الصبح
+regression	0	Check the train schedule to Alexandria
