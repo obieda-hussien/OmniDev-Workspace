@@ -1,0 +1,13 @@
+group	topic	label	en	ar	mixed
+history-count	local-model-size	1	What upper bound does the local history engine put on short inputs from me?	إيه الحد الأعلى لعدد رسايلي القصيرة اللي بياخدها محرك السجل؟	الـ history engine بياخد بحد أقصى كام input قصير مني؟
+history-symbols	local-model-size	0	What upper bound does the local history engine put on letters inside one input from me?	إيه الحد الأعلى لعدد الحروف جوه الرسالة الواحدة اللي بياخدها محرك السجل؟	الـ history engine بياخد بحد أقصى كام letter جوه كل input؟
+history-window	local-model-size	0	How many minutes of my recent messages fit in the local history window?	نافذة السجل المحلي بتشمل كام دقيقة من رسايلي الأخيرة؟	الـ history window بتشمل كام minute من الرسايل الأخيرة؟
+history-size	local-model-size	0	How many bytes may each saved input occupy before the history engine trims it?	كل رسالة محفوظة مسموح لها بكام بايت قبل ما محرك السجل يقصها؟	كل user input مسموح له بكام byte قبل ما history يقصه؟
+bridge-listen	whatsapp-bridge	1	Give me the listening port used by the WhatsApp companion on this handset.	عايز رقم البورت اللي بيسمع عليه جسر واتساب على الموبايل ده.	عايز listening port بتاع WhatsApp companion على موبايلي ده.
+bridge-remote	whatsapp-bridge	0	Give me the public-facing port number of the hosted WhatsApp relay.	عايز رقم البورت العام لسيرفر ترحيل واتساب المستضاف بره الجهاز.	عايز public port بتاع hosted WhatsApp relay بره الموبايل.
+bridge-other-device	whatsapp-bridge	0	Which port should a second handset use for a separately hosted WhatsApp relay?	تليفون تاني يتصل على بورت كام لخادم واتساب المنفصل؟	تليفون تاني يستخدم أنهي port مع separate WhatsApp relay؟
+bridge-setup	whatsapp-bridge	1	Which three setup values go in Workspace for my paired local bridge?	بعد ربط الجسر المحلي إيه التلات بيانات اللي أدخلهم في ورك سبيس؟	بعد pairing للجسر إيه التلات settings اللي أدخلهم في Workspace؟
+pair-expiry	telegram-owner	0	How many seconds does the Telegram owner pairing code remain usable?	كود اقتران مالك تيليجرام يفضل صالح كام ثانية؟	كود Telegram owner pairing يفضل شغال كام second؟
+pair-scope	telegram-owner	1	Where should I enter the temporary owner pairing code for the Telegram integration?	أدخل كود ربط مالك تيليجرام المؤقت فين عشان الربط يتم؟	أكتب temporary owner code فين عشان Telegram pairing يتم؟
+inference-time	local-inference	0	What exact millisecond latency does native inference guarantee on a phone?	الاستدلال الأصلي على الموبايل بيضمن زمن كام مللي ثانية بالظبط؟	الـ native inference بيضمن latency كام ms على الهاتف؟
+inference-setup	local-inference	1	If I only have the native library, which other requirements should I check?	معايا المكتبة الأصلية بس إيه متطلبات التشغيل التانية اللي أراجعها؟	لو معايا native library بس أراجع أنهي requirements عشان أشغل النموذج؟

@@ -1,0 +1,28 @@
+name: Omni topic rerank replay
+on:
+  pull_request:
+    paths:
+      - 'neural-core/**'
+      - 'knowledge/omni-product.jsonl'
+      - 'scripts/*topic_rerank*'
+      - 'scripts/*refusal_rescue*'
+      - 'scripts/*paired_rescue*'
+      - 'scripts/*lexical_rescue*'
+      - 'scripts/evaluate_quantity_evidence.py'
+      - '.github/workflows/neural-topic-rerank.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: bash scripts/train_topic_rerank.sh
