@@ -51,3 +51,5 @@ java -Xmx768m -cp "$classes" com.omnidev.workspace.domain.neural.QuantityEvidenc
 python3 scripts/evaluate_quantity_evidence.py audit "$quantity" "$lexical/features.tsv"
 for artifact in report.json android-cases.tsv; do cmp "neural-core/checkpoints/quantity-evidence-v15/$artifact" "$quantity/$artifact"; done
 java -cp "$classes" com.omnidev.workspace.domain.neural.QuantityEvidenceSmoke build/product-support/documents.tsv "$quantity/android-cases.tsv"
+"${compiler[@]}" "${compat[@]}" -encoding UTF-8 -cp "$classes" -d "$classes" neural-core/smoke/LongFaqSmoke.java
+java -cp "$classes" com.omnidev.workspace.domain.neural.LongFaqSmoke
