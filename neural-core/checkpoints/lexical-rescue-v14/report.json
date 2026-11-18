@@ -1,0 +1,273 @@
+{
+  "selected": "control",
+  "training": 450,
+  "train_topics": [
+    "choose-mode",
+    "configure-provider",
+    "discord-connected",
+    "finish-evidence",
+    "future-knowledge-training",
+    "history-legacy",
+    "history-sources",
+    "history-titles",
+    "history-topics",
+    "learned-routines",
+    "little-omni",
+    "local-inference",
+    "media-jobs",
+    "memory-recall",
+    "model-routing",
+    "profile-reference",
+    "provider-failure",
+    "shizuku-prerequisites",
+    "voice-wake"
+  ],
+  "dev_topics": [
+    "git-environment",
+    "github-access",
+    "recover-task",
+    "telegram-owner"
+  ],
+  "test_topics": [
+    "edition-policy",
+    "local-model-size",
+    "mcp-tools",
+    "screen-assistant",
+    "support-diagnostics",
+    "whatsapp-bridge"
+  ],
+  "production_eligible": false,
+  "arms": {
+    "control": {
+      "cutoff": 0,
+      "metrics": {
+        "development": {
+          "n": 114,
+          "gained": 5,
+          "wrong": 0,
+          "unsupported": 0,
+          "wrong_ids": [],
+          "base_correct": 33,
+          "base_wrong": 9
+        },
+        "historical": {
+          "n": 2160,
+          "gained": 87,
+          "wrong": 16,
+          "unsupported": 8,
+          "wrong_ids": [
+            "memory-recall-1",
+            "history-sources-fresh-ar",
+            "hybrid-12-en",
+            "data4-little-omni-4-en",
+            "data4-unknown-18-ar",
+            "memory5-27-en",
+            "memory5-27-mixed",
+            "memory5-39-ar",
+            "reliability6-23-en",
+            "reliability6-38-en",
+            "answer8-contrast-discord-connected-0-en",
+            "answer8-followup-shizuku-prerequisites-0-en",
+            "contrast10-fresh-configure-provider-1-en",
+            "contrast10-fresh-profile-reference-0-ar",
+            "rerank11-discord-connected-0-en",
+            "paired13-finish-evidence-0-en"
+          ],
+          "base_correct": 938,
+          "base_wrong": 44
+        },
+        "fresh": {
+          "n": 36,
+          "gained": 2,
+          "wrong": 3,
+          "unsupported": 3,
+          "wrong_ids": [
+            "lex14-whatsapp-bridge-0-mixed",
+            "lex14-local-model-size-0-ar",
+            "lex14-local-model-size-0-mixed"
+          ],
+          "base_correct": 9,
+          "base_wrong": 4
+        },
+        "en": {
+          "n": 12,
+          "gained": 0,
+          "wrong": 0,
+          "unsupported": 0,
+          "wrong_ids": [],
+          "base_correct": 3,
+          "base_wrong": 2
+        },
+        "ar": {
+          "n": 12,
+          "gained": 1,
+          "wrong": 1,
+          "unsupported": 1,
+          "wrong_ids": [
+            "lex14-local-model-size-0-ar"
+          ],
+          "base_correct": 2,
+          "base_wrong": 1
+        },
+        "mixed": {
+          "n": 12,
+          "gained": 1,
+          "wrong": 2,
+          "unsupported": 2,
+          "wrong_ids": [
+            "lex14-whatsapp-bridge-0-mixed",
+            "lex14-local-model-size-0-mixed"
+          ],
+          "base_correct": 4,
+          "base_wrong": 1
+        }
+      }
+    },
+    "numeric": {
+      "cutoff": 0.45,
+      "metrics": {
+        "development": {
+          "n": 114,
+          "gained": 5,
+          "wrong": 0,
+          "unsupported": 0,
+          "wrong_ids": [],
+          "base_correct": 33,
+          "base_wrong": 9
+        },
+        "historical": {
+          "n": 2160,
+          "gained": 83,
+          "wrong": 9,
+          "unsupported": 3,
+          "wrong_ids": [
+            "memory-recall-1",
+            "hybrid-12-en",
+            "memory5-27-en",
+            "memory5-27-mixed",
+            "memory5-39-ar",
+            "reliability6-23-en",
+            "contrast10-fresh-configure-provider-1-en",
+            "rerank11-discord-connected-0-en",
+            "paired13-finish-evidence-0-en"
+          ],
+          "base_correct": 938,
+          "base_wrong": 44
+        },
+        "fresh": {
+          "n": 36,
+          "gained": 1,
+          "wrong": 1,
+          "unsupported": 1,
+          "wrong_ids": [
+            "lex14-local-model-size-0-mixed"
+          ],
+          "base_correct": 9,
+          "base_wrong": 4
+        },
+        "en": {
+          "n": 12,
+          "gained": 0,
+          "wrong": 0,
+          "unsupported": 0,
+          "wrong_ids": [],
+          "base_correct": 3,
+          "base_wrong": 2
+        },
+        "ar": {
+          "n": 12,
+          "gained": 1,
+          "wrong": 0,
+          "unsupported": 0,
+          "wrong_ids": [],
+          "base_correct": 2,
+          "base_wrong": 1
+        },
+        "mixed": {
+          "n": 12,
+          "gained": 0,
+          "wrong": 1,
+          "unsupported": 1,
+          "wrong_ids": [
+            "lex14-local-model-size-0-mixed"
+          ],
+          "base_correct": 4,
+          "base_wrong": 1
+        }
+      }
+    },
+    "lexical": {
+      "cutoff": 0.45,
+      "metrics": {
+        "development": {
+          "n": 114,
+          "gained": 5,
+          "wrong": 0,
+          "unsupported": 0,
+          "wrong_ids": [],
+          "base_correct": 33,
+          "base_wrong": 9
+        },
+        "historical": {
+          "n": 2160,
+          "gained": 85,
+          "wrong": 9,
+          "unsupported": 2,
+          "wrong_ids": [
+            "memory-recall-1",
+            "hybrid-12-en",
+            "data4-little-omni-4-en",
+            "memory5-27-en",
+            "memory5-27-mixed",
+            "reliability6-23-en",
+            "contrast10-fresh-configure-provider-1-en",
+            "rerank11-discord-connected-0-en",
+            "paired13-finish-evidence-0-en"
+          ],
+          "base_correct": 938,
+          "base_wrong": 44
+        },
+        "fresh": {
+          "n": 36,
+          "gained": 1,
+          "wrong": 1,
+          "unsupported": 1,
+          "wrong_ids": [
+            "lex14-local-model-size-0-mixed"
+          ],
+          "base_correct": 9,
+          "base_wrong": 4
+        },
+        "en": {
+          "n": 12,
+          "gained": 0,
+          "wrong": 0,
+          "unsupported": 0,
+          "wrong_ids": [],
+          "base_correct": 3,
+          "base_wrong": 2
+        },
+        "ar": {
+          "n": 12,
+          "gained": 1,
+          "wrong": 0,
+          "unsupported": 0,
+          "wrong_ids": [],
+          "base_correct": 2,
+          "base_wrong": 1
+        },
+        "mixed": {
+          "n": 12,
+          "gained": 0,
+          "wrong": 1,
+          "unsupported": 1,
+          "wrong_ids": [
+            "lex14-local-model-size-0-mixed"
+          ],
+          "base_correct": 4,
+          "base_wrong": 1
+        }
+      }
+    }
+  }
+}

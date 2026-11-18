@@ -12,16 +12,21 @@ python3 scripts/prepare_product_support.py build/product-support
 python3 scripts/prepare_query_memory.py build/query-memory-v5
 compile_java(){ if command -v javac >/dev/null 2>&1; then javac "$@"; else java -m jdk.compiler/com.sun.tools.javac.Main "$@"; fi; }
 sources=()
-for source in neural-core/src/main/java/com/omnidev/workspace/domain/neural/*.java; do
-  if [[ "$source" != "$runtime_path" ]]; then sources+=("$source"); fi
-done
+# Keep the audited graph fixed as later independent specialists add new API dependencies.
+while IFS= read -r source; do
+  if [[ "$source" == *.java && "$source" != "$runtime_path" ]]; then sources+=("$source"); fi
+done < <(git ls-tree -r --name-only "$baseline" -- neural-core/src/main/java)
+training_sources=()
+while IFS= read -r source; do
+  if [[ "$source" == *.java ]]; then training_sources+=("$source"); fi
+done < <(git ls-tree -r --name-only "$baseline" -- neural-core/training)
 for arm in baseline compact; do
   classes="$output/$arm/classes"
   mkdir -p "$classes"
   runtime="$runtime_path"
   if [[ "$arm" == baseline ]]; then runtime="$output/baseline/SupportQueryMemory.java"; fi
   compile_java "${compat[@]}" -encoding UTF-8 -d "$classes" "${sources[@]}" "$runtime" \
-    neural-core/training/com/omnidev/workspace/domain/neural/*.java \
+    "${training_sources[@]}" \
     neural-core/checkpoints/product-support-v1/TrainedProductSupport.java \
     neural-core/checkpoints/support-data-v4/TrainedExpandedSupport.java \
     neural-core/checkpoints/query-memory-v5/TrainedQueryMemory.java \

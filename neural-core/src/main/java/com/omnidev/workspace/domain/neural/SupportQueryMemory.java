@@ -258,6 +258,17 @@ public final class SupportQueryMemory {
     return fingerprint;
   }
 
+  String contractFingerprint() {
+    return new CheckpointFingerprint(VERSION)
+        .text(fingerprint)
+        .text(base.rankingFingerprint())
+        .text(head.checkpointFingerprint())
+        .number(minimum)
+        .number(margin)
+        .number(coverage)
+        .finish();
+  }
+
   public int parameterCount() {
     return head.parameterCount();
   }
@@ -326,12 +337,14 @@ public final class SupportQueryMemory {
     }
     hits.sort(
         Comparator.comparingDouble((Hit h) -> h.score).reversed().thenComparing(h -> h.topic.id));
-    boolean accepted =
-        !hits.isEmpty()
-            && hits.get(0).score >= minimum
-            && hits.get(0).coverage >= coverage
-            && (hits.size() == 1 || hits.get(0).score - hits.get(1).score >= margin);
-    return new Result(hits.subList(0, Math.min(limit, hits.size())), accepted);
+    return new Result(hits.subList(0, Math.min(limit, hits.size())), accepts(hits));
+  }
+
+  boolean accepts(List<Hit> hits) {
+    return !hits.isEmpty()
+        && hits.get(0).score >= minimum
+        && hits.get(0).coverage >= coverage
+        && (hits.size() == 1 || hits.get(0).score - hits.get(1).score >= margin);
   }
 
   private static boolean label(String s) {

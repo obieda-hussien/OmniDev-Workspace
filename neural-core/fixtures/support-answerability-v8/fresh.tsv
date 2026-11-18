@@ -1,0 +1,73 @@
+id	group	split	language	topic	label	query
+answer8-fresh-whatsapp-bridge-1-en	answer8-fresh-whatsapp-bridge	fresh	en	whatsapp-bridge	1	Does the guide bind the companion locally at 127.0.0.1:3000?
+answer8-fresh-whatsapp-bridge-1-ar	answer8-fresh-whatsapp-bridge	fresh	ar	whatsapp-bridge	1	الدليل محدد إن الرفيق بيربط محليًا على 127.0.0.1:3000؟
+answer8-fresh-whatsapp-bridge-1-mixed	answer8-fresh-whatsapp-bridge	fresh	mixed	whatsapp-bridge	1	هل الـguide محدد loopback binding على 127.0.0.1:3000؟
+answer8-fresh-whatsapp-bridge-0-en	answer8-fresh-whatsapp-bridge	fresh	en	whatsapp-bridge	0	What encryption round count is used inside the WhatsApp session-key derivation?
+answer8-fresh-whatsapp-bridge-0-ar	answer8-fresh-whatsapp-bridge	fresh	ar	whatsapp-bridge	0	عدد جولات التشفير داخل اشتقاق مفتاح جلسة واتساب كام؟
+answer8-fresh-whatsapp-bridge-0-mixed	answer8-fresh-whatsapp-bridge	fresh	mixed	whatsapp-bridge	0	كام encryption rounds جوه WhatsApp session-key derivation؟
+answer8-fresh-github-access-1-en	answer8-fresh-github-access	fresh	en	github-access	1	Is authorizing repository control independent of the cloud model login?
+answer8-fresh-github-access-1-ar	answer8-fresh-github-access	fresh	ar	github-access	1	تفويض التحكم في المستودع مستقل عن تسجيل دخول الموديل السحابي؟
+answer8-fresh-github-access-1-mixed	answer8-fresh-github-access	fresh	mixed	github-access	1	الـrepository-control authorization مستقل عن cloud model login؟
+answer8-fresh-github-access-0-en	answer8-fresh-github-access	fresh	en	github-access	0	What is the exact expiration timestamp of the maintainer repository token?
+answer8-fresh-github-access-0-ar	answer8-fresh-github-access	fresh	ar	github-access	0	الوقت الدقيق لانتهاء رمز المستودعات الخاص بالقائم على المشروع إمتى؟
+answer8-fresh-github-access-0-mixed	answer8-fresh-github-access	fresh	mixed	github-access	0	إمتى exact expiration timestamp للـmaintainer repository token؟
+answer8-fresh-recover-task-1-en	answer8-fresh-recover-task	fresh	en	recover-task	1	Must an uncertain write be inspected before the resumed worker repeats it?
+answer8-fresh-recover-task-1-ar	answer8-fresh-recover-task	fresh	ar	recover-task	1	لازم الكتابة اللي نتيجتها مش مؤكدة تتراجع قبل العامل المستأنف ما يعيدها؟
+answer8-fresh-recover-task-1-mixed	answer8-fresh-recover-task	fresh	mixed	recover-task	1	لازم uncertain write تتفحص قبل resumed worker يعيدها؟
+answer8-fresh-recover-task-0-en	answer8-fresh-recover-task	fresh	en	recover-task	0	What exact hidden recovery transaction sequence was saved on my phone?
+answer8-fresh-recover-task-0-ar	answer8-fresh-recover-task	fresh	ar	recover-task	0	رقم تسلسل معاملة الاستعادة المخفية اللي اتحفظ على موبايلي كام؟
+answer8-fresh-recover-task-0-mixed	answer8-fresh-recover-task	fresh	mixed	recover-task	0	إيه exact hidden recovery transaction sequence المحفوظ على تلفوني؟
+answer8-fresh-voice-wake-1-en	answer8-fresh-voice-wake	fresh	en	voice-wake	1	Are microphone consent and installed speech resources needed before voice enrollment?
+answer8-fresh-voice-wake-1-ar	answer8-fresh-voice-wake	fresh	ar	voice-wake	1	إذن الميكروفون وملفات الكلام المثبتة مطلوبين قبل تسجيل أمثلة الصوت؟
+answer8-fresh-voice-wake-1-mixed	answer8-fresh-voice-wake	fresh	mixed	voice-wake	1	هل microphone consent وinstalled speech resources مطلوبين قبل voice enrollment؟
+answer8-fresh-voice-wake-0-en	answer8-fresh-voice-wake	fresh	en	voice-wake	0	What audited Egyptian-dialect recognition percentage does the listener achieve on my phone?
+answer8-fresh-voice-wake-0-ar	answer8-fresh-voice-wake	fresh	ar	voice-wake	0	نسبة التعرف المدققة على اللهجة المصرية اللي المستمع بيحققها على موبايلي كام؟
+answer8-fresh-voice-wake-0-mixed	answer8-fresh-voice-wake	fresh	mixed	voice-wake	0	كام audited Egyptian-dialect recognition percentage على تلفوني؟
+answer8-fresh-model-routing-1-en	answer8-fresh-model-routing	fresh	en	model-routing	1	Do experimental specialist checkpoints remain separate from ordinary chat permission?
+answer8-fresh-model-routing-1-ar	answer8-fresh-model-routing	fresh	ar	model-routing	1	أوزان المتخصصات التجريبية لسه منفصلة عن صلاحيات الدردشة العادية؟
+answer8-fresh-model-routing-1-mixed	answer8-fresh-model-routing	fresh	mixed	model-routing	1	الـexperimental specialist checkpoints لسه منفصلة عن ordinary chat permission؟
+answer8-fresh-model-routing-0-en	answer8-fresh-model-routing	fresh	en	model-routing	0	What confidential production router hostname is currently in service?
+answer8-fresh-model-routing-0-ar	answer8-fresh-model-routing	fresh	ar	model-routing	0	اسم خادم موجه الإنتاج السري الموجود في الخدمة دلوقتي إيه؟
+answer8-fresh-model-routing-0-mixed	answer8-fresh-model-routing	fresh	mixed	model-routing	0	إيه confidential production router hostname الشغال دلوقتي؟
+answer8-fresh-profile-reference-1-en	answer8-fresh-profile-reference	fresh	en	profile-reference	1	Can every provider use my saved photo without supporting image inputs?
+answer8-fresh-profile-reference-1-ar	answer8-fresh-profile-reference	fresh	ar	profile-reference	1	كل مزود يقدر يستخدم صورتي المحفوظة من غير دعم مدخلات الصور؟
+answer8-fresh-profile-reference-1-mixed	answer8-fresh-profile-reference	fresh	mixed	profile-reference	1	هل كل provider يقدر يستخدم saved photo من غير image input support؟
+answer8-fresh-profile-reference-0-en	answer8-fresh-profile-reference	fresh	en	profile-reference	0	What private residential postal code is recorded in the owner profile?
+answer8-fresh-profile-reference-0-ar	answer8-fresh-profile-reference	fresh	ar	profile-reference	0	الرمز البريدي السكني الخاص المسجل في ملف المالك كام؟
+answer8-fresh-profile-reference-0-mixed	answer8-fresh-profile-reference	fresh	mixed	profile-reference	0	إيه private residential postal code المسجل في owner profile؟
+answer8-fresh-history-topics-1-en	answer8-fresh-history-topics	fresh	en	history-topics	1	Can the history category control correct a misleading automatic subject label?
+answer8-fresh-history-topics-1-ar	answer8-fresh-history-topics	fresh	ar	history-topics	1	اختيار تصنيف السجل ينفع يصلح وسم موضوع تلقائي مضلل؟
+answer8-fresh-history-topics-1-mixed	answer8-fresh-history-topics	fresh	mixed	history-topics	1	هل history category control يصلح misleading automatic subject label؟
+answer8-fresh-history-topics-0-en	answer8-fresh-history-topics	fresh	en	history-topics	0	What exact embedding width does the unpublished history-topic classifier use?
+answer8-fresh-history-topics-0-ar	answer8-fresh-history-topics	fresh	ar	history-topics	0	عرض التضمين العددي اللي مصنف موضوع السجل غير المنشور بيستخدمه كام بالضبط؟
+answer8-fresh-history-topics-0-mixed	answer8-fresh-history-topics	fresh	mixed	history-topics	0	إيه exact embedding width للـunpublished history-topic classifier؟
+answer8-fresh-history-sources-1-en	answer8-fresh-history-sources	fresh	en	history-sources	1	Can an in-app chat mention Telegram while retaining its App source?
+answer8-fresh-history-sources-1-ar	answer8-fresh-history-sources	fresh	ar	history-sources	1	الشات اللي بدأ من التطبيق ممكن يذكر تليجرام ويفضل مصدره التطبيق؟
+answer8-fresh-history-sources-1-mixed	answer8-fresh-history-sources	fresh	mixed	history-sources	1	هل in-app chat يذكر Telegram ويحتفظ بـApp source؟
+answer8-fresh-history-sources-0-en	answer8-fresh-history-sources	fresh	en	history-sources	0	Which exact external conversation identifier belongs to the developer personal chat?
+answer8-fresh-history-sources-0-ar	answer8-fresh-history-sources	fresh	ar	history-sources	0	معرف المحادثة الخارجية الدقيق الخاص بشات المطور الشخصي إيه؟
+answer8-fresh-history-sources-0-mixed	answer8-fresh-history-sources	fresh	mixed	history-sources	0	إيه exact external conversation ID لشات developer الشخصي؟
+answer8-fresh-mcp-tools-1-en	answer8-fresh-mcp-tools	fresh	en	mcp-tools	1	Should a corrected argument be validated against the live permitted tool definition?
+answer8-fresh-mcp-tools-1-ar	answer8-fresh-mcp-tools	fresh	ar	mcp-tools	1	المدخل المصحح لازم يتراجع على تعريف الأداة الحالي المسموح؟
+answer8-fresh-mcp-tools-1-mixed	answer8-fresh-mcp-tools	fresh	mixed	mcp-tools	1	هل corrected argument لازم يتراجع على live permitted tool definition؟
+answer8-fresh-mcp-tools-0-en	answer8-fresh-mcp-tools	fresh	en	mcp-tools	0	Which private schema extension revision is deployed on the developer production host?
+answer8-fresh-mcp-tools-0-ar	answer8-fresh-mcp-tools	fresh	ar	mcp-tools	0	مراجعة امتداد التعريف الخاصة اللي منشورة على خادم إنتاج المطور كام؟
+answer8-fresh-mcp-tools-0-mixed	answer8-fresh-mcp-tools	fresh	mixed	mcp-tools	0	إيه private schema extension revision على developer production host؟
+answer8-fresh-media-jobs-1-en	answer8-fresh-media-jobs	fresh	en	media-jobs	1	Can checking an existing job avoid repeating an interrupted media create request?
+answer8-fresh-media-jobs-1-ar	answer8-fresh-media-jobs	fresh	ar	media-jobs	1	فحص عملية موجودة ينفع يتجنب تكرار طلب إنشاء وسائط اتقطع؟
+answer8-fresh-media-jobs-1-mixed	answer8-fresh-media-jobs	fresh	mixed	media-jobs	1	هل Check existing job يتجنب تكرار interrupted media create request؟
+answer8-fresh-media-jobs-0-en	answer8-fresh-media-jobs	fresh	en	media-jobs	0	What exact per-second bill is my active image job accruing right now?
+answer8-fresh-media-jobs-0-ar	answer8-fresh-media-jobs	fresh	ar	media-jobs	0	الفاتورة الدقيقة لكل ثانية اللي عملية الصورة النشطة بتراكمها دلوقتي كام؟
+answer8-fresh-media-jobs-0-mixed	answer8-fresh-media-jobs	fresh	mixed	media-jobs	0	كام exact per-second bill لعملية image job النشطة دلوقتي؟
+answer8-fresh-local-model-size-1-en	answer8-fresh-local-model-size	fresh	en	local-model-size	1	Do lightweight history labels have a different memory budget from downloaded conversational weights?
+answer8-fresh-local-model-size-1-ar	answer8-fresh-local-model-size	fresh	ar	local-model-size	1	تسميات السجل الخفيفة ليها ميزانية ذاكرة مختلفة عن أوزان المحادثة اللي بتتنزل؟
+answer8-fresh-local-model-size-1-mixed	answer8-fresh-local-model-size	fresh	mixed	local-model-size	1	الـlightweight history labels ليها memory budget مختلف عن downloaded conversational weights؟
+answer8-fresh-local-model-size-0-en	answer8-fresh-local-model-size	fresh	en	local-model-size	0	What is the measured current heap allocation of the title engine on this physical device?
+answer8-fresh-local-model-size-0-ar	answer8-fresh-local-model-size	fresh	ar	local-model-size	0	حجم تخصيص الذاكرة الحالي المقاس لمحرك العنوان على الجهاز الفعلي ده كام؟
+answer8-fresh-local-model-size-0-mixed	answer8-fresh-local-model-size	fresh	mixed	local-model-size	0	إيه measured current heap allocation للـtitle engine على جهازي الفعلي؟
+answer8-fresh-future-knowledge-training-1-en	answer8-fresh-future-knowledge-training	fresh	en	future-knowledge-training	1	Does the product-training export exclude private conversations and source-code files?
+answer8-fresh-future-knowledge-training-1-ar	answer8-fresh-future-knowledge-training	fresh	ar	future-knowledge-training	1	تصدير تعليم المنتج بيستبعد المحادثات الخاصة وملفات السورس؟
+answer8-fresh-future-knowledge-training-1-mixed	answer8-fresh-future-knowledge-training	fresh	mixed	future-knowledge-training	1	هل product-training export بيستبعد private conversations وsource-code files؟
+answer8-fresh-future-knowledge-training-0-en	answer8-fresh-future-knowledge-training	fresh	en	future-knowledge-training	0	What exact number of optimizer steps produced the installed product-support checkpoint?
+answer8-fresh-future-knowledge-training-0-ar	answer8-fresh-future-knowledge-training	fresh	ar	future-knowledge-training	0	عدد خطوات المحسن اللي أنتجت أوزان دعم المنتج المثبتة كام بالضبط؟
+answer8-fresh-future-knowledge-training-0-mixed	answer8-fresh-future-knowledge-training	fresh	mixed	future-knowledge-training	0	كام exact optimizer steps أنتجت installed product-support checkpoint؟

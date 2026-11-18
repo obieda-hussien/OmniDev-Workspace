@@ -1,0 +1,18 @@
+{
+  "version": 6,
+  "fresh_count": 129,
+  "supported": 99,
+  "unsupported": 30,
+  "groups": 43,
+  "source": "knowledge/omni-product.jsonl",
+  "source_sha256": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+  "fresh_sha256": "4a096be97def0f7eb08cba233019ec8d946f815908e412453a7ad73a6ae011b8",
+  "authoring": "Assistant-authored FAQ-grounded multilingual scenarios; not independent human labels, real traffic, semantic OOD or held-out topics. Unsupported asks require precise information absent from the FAQ.",
+  "training": "Freeze v5 ranking, base and 351 TRAIN-only exemplars. Fit correctness of its first topic on original/v4 TRAIN411 with whole scenario/translation exclusion. No fresh or old test labels fit weights. Twelve topic-agnostic rank/context features; reuse bounded binary linear/tanh8 AdamW training; widths0/8 x L2 0/.01 x seeds42/97; max120epochs, batch32, rate.01, gradient cap5, decay1e-4, patience15, macro-language DEV99 NLL selection; smaller head breaks ties.",
+  "calibration": "Partition v4 CAL99 into group-disjoint temperature and decision subsets using sorted SHA256(group) order: first16 groups temperature48, remaining17 decision51. Temperature grid .5/.75/1/1.5/2/3 minimizes macro-language NLL. Threshold0..1 by.025 x coverage0/.25/.5/.75 x margin0/.025/.05/.1 by correct-minus3wrong, wrong<=frozen-v5 decision-subset errors. Include unchanged v5 policy fallback; replace only on strictly better utility. Export before reading new fresh scores.",
+  "features": "Top and runner-up base/word/character scores (6), top and runner-up coverage (2), top-minus-runner and top-minus-third score margins (2), candidate count/29 clipped (1), normalized query token count/32 clipped (1). No text/topic identity or query history enters the head.",
+  "evaluation": "Frozen v5, learned selector and learned-veto controls plus retained v1 default. Rank/source identity must remain exact. Report fresh top1 and accepted correct/wrong per language, NLL/Brier/ECE and score-sorted risk/coverage. Old1239 queries are observed regression only, including TRAIN self-matches; record every lost prior-correct and newly wrong acceptance. Independent review, acceptable coverage and device evidence remain absent. Do not promote based on these authored scores.",
+  "production_eligible": false,
+  "independent_human_labels": false,
+  "physical_device_tested": false
+}

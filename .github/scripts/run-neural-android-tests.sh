@@ -47,7 +47,7 @@ bash .github/scripts/gradle-with-retry.sh "${gradle_args[@]}" :neural-android:co
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
   "-Pandroid.testInstrumentationRunnerArguments.neuralProbeRun=$neural_run_id" \
   "-Pandroid.testInstrumentationRunnerArguments.neuralBenchmark=$neural_benchmark" || neural_status=$?
-for report in correctness benchmark support-correctness hybrid-correctness expanded-correctness memory-correctness; do
+for report in correctness benchmark support-correctness hybrid-correctness expanded-correctness memory-correctness reliability-correctness subword-correctness answerability-correctness recall-correctness contrastive-correctness quantity-evidence; do
   if adb exec-out run-as com.omnidev.workspace.neuralprobe cat "files/$report.json" > "$report_dir/$report.tmp"; then
     mv "$report_dir/$report.tmp" "$report_dir/$report.json"
   else rm -f "$report_dir/$report.tmp"; fi
@@ -71,6 +71,18 @@ expanded = json.loads((directory / 'expanded-correctness.json').read_text())
 assert expanded['expanded_parity_passed'] and expanded['predictions'] == 1101 and expanded['retained_default_checks'] == 1101 and expanded['documents'] == 58 and expanded['run_id'] == sys.argv[3]
 memory = json.loads((directory / 'memory-correctness.json').read_text())
 assert memory['memory_parity_passed'] and memory['predictions'] == 1239 and memory['retained_default_checks'] == 1239 and memory['documents'] == 58 and memory['run_id'] == sys.argv[3]
+reliability = json.loads((directory / 'reliability-correctness.json').read_text())
+assert reliability['reliability_parity_passed'] and reliability['predictions'] == 1368 and reliability['retained_default_checks'] == 1368 and reliability['documents'] == 58 and reliability['run_id'] == sys.argv[3]
+subword = json.loads((directory / 'subword-correctness.json').read_text())
+assert subword['subword_parity_passed'] and subword['predictions'] == 1488 and subword['retained_default_checks'] == 1488 and subword['documents'] == 58 and subword['run_id'] == sys.argv[3]
+answerability = json.loads((directory / 'answerability-correctness.json').read_text())
+assert answerability['answerability_parity_passed'] and answerability['predictions'] == 1782 and answerability['retained_default_checks'] == 1782 and answerability['documents'] == 58 and answerability['run_id'] == sys.argv[3]
+recall = json.loads((directory / 'recall-correctness.json').read_text())
+assert recall['recall_parity_passed'] and recall['predictions'] == 1872 and recall['retained_default_checks'] == 1872 and recall['documents'] == 58 and recall['run_id'] == sys.argv[3]
+quantity = json.loads((directory / 'quantity-evidence.json').read_text())
+assert quantity['cases'] == 36 and quantity['run_id'] == sys.argv[3]
+contrastive = json.loads((directory / 'contrastive-correctness.json').read_text())
+assert contrastive['contrastive_parity_passed'] and contrastive['predictions'] == 1968 and contrastive['matched_arm_predictions'] == 7872 and contrastive['retained_default_checks'] == 1968 and contrastive['documents'] == 58 and contrastive['run_id'] == sys.argv[3]
 assert report['contract_parity_passed'] and report['contract_probes'] == 1366
 if sys.argv[2] == 'true':
     benchmark = json.loads((directory / 'benchmark.json').read_text())
