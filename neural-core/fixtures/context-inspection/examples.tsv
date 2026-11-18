@@ -73,3 +73,27 @@ regression	0	Review yesterday's football scores
 regression	0	Inspect the punctuation in this paragraph
 regression	0	شوف لو عندي meeting بكرة الصبح
 regression	0	Check the train schedule to Alexandria
+blind	1	راجع git index بعد نقل الملفات للفرع
+blind	1	check the compiler diagnostics for Kotlin sources
+blind	1	افحص إعدادات شاشة الجهاز ومستوى السطوع
+blind	1	inspect the commit list in the staging repository
+blind	0	راجع جدول النقل للزيارة المدرسية
+blind	0	check this cinema release schedule
+blind	0	شوف المحاضرة فيها واجب محاسبة ولا لأ
+blind	0	review the budget for our weekend picnic
+novel	1	افحص تغيرات git قبل تسجيل الكوميت
+novel	1	check local commits on the repository branch
+novel	1	شوف إعدادات البلوتوث بتاعة الموبايل
+novel	1	review the Gradle compiler output after dependency resolution
+novel	1	راجع تعارضات الدمج في الريبو
+novel	1	inspect the Android display brightness setting
+novel	1	افحص سجل بناء المشروع وإصدار جرادل
+novel	1	check the unstaged changes before the next git commit
+novel	0	راجع نتيجة مادة المحاسبة اللي اتنشرت النهارده
+novel	0	شوف نتيجة المحاضرة وهل فيه واجب
+novel	0	افحص نتيجة الطالب في مادة نظم المعلومات
+novel	0	review the release year of the documentary
+novel	0	check the branch opening hours on Sunday
+novel	0	شوف سعر السماعة المستعملة قبل ما أشتريها
+novel	0	راجع تغييرات جدول المواصلات الجديد
+novel	0	check the build quality of this portable chair

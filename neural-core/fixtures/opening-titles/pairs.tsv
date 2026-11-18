@@ -1,0 +1,72 @@
+split	label	user	reply
+train	gradle	حل المشكلة دي	فشل بناء Gradle في مرحلة التجميع
+train	gradle	What happened here?	The Gradle build failed while compiling Kotlin
+train	gradle	التطبيق مش بيرضى يتبني	راجع إصدار Gradle وإضافة أندرويد
+train	gradle	What's blocking the build?	The Gradle plugin and Kotlin compiler are incompatible
+train	gradle	شوفلي ده	خطأ تجميع المشروع من إعدادات جرادل
+train	gradle	Any idea?	The Android build failed during dependency resolution
+train	gradle	جرادل وقف	سجل بناء التطبيق يوضح فشل تحميل التبعيات
+train	git	شوف المشكلة دي	فرع git المحلي فيه تعارض دمج
+train	git	Inspect this	There is a git merge conflict on the target branch
+train	git	الفرع فيه مشكلة	التعديلات المحلية تعارض الكوميت الجديد
+train	git	Is this recoverable?	Review the Git commit history before merging the branch
+train	git	ده حصل ليه	راجع تغييرات المستودع والفرع قبل الدمج
+train	git	Need a hand	The repository has uncommitted changes on your branch
+train	git	الريبو واقف	فيه conflict في git بين الفرعين
+train	bluetooth	مش شغال	اقتران البلوتوث بالسماعة فشل
+train	bluetooth	Why is this happening?	The Bluetooth headphones failed to pair with the phone
+train	bluetooth	السماعة مبتتصلش	افتح إعدادات البلوتوث وأعد الاقتران
+train	bluetooth	Can you help?	Android Bluetooth pairing is timing out
+train	bluetooth	ايه الحل	مشاكل اتصال السماعة بالهاتف عن طريق بلوتوث
+train	bluetooth	Look at this	The headset lost its Bluetooth connection
+train	bluetooth	الاقتران بيفصل	راجع اتصال Bluetooth بالموبايل
+train	notifications	افحص ده	إشعارات واتساب متوقفة بسبب إعدادات التنبيهات
+train	notifications	What went wrong?	WhatsApp notifications are muted in Android settings
+train	notifications	مفيش أي تنبيه	راجع صلاحية الإشعارات لتطبيق واتساب
+train	notifications	Please help	Enable the WhatsApp notification channel for incoming messages
+train	notifications	مش بيجيلي حاجة	تنبيهات WhatsApp مقفولة على الجهاز
+train	notifications	Any fix?	WhatsApp alerts stop when notifications are disabled
+train	notifications	واتس ساكت	صوت إشعارات واتساب مكتوم
+train	study	رتبلي ده	خطة مذاكرة للامتحان موزعة على الأسبوع
+train	study	Help me organize this	A study timetable divides exam revision into daily sessions
+train	study	المنهج كتير	اعمل جدول مذاكرة للمواد قبل الامتحانات
+train	study	Where do I start?	Split the revision schedule into study blocks
+train	study	محتاج أظبط الدنيا	راجع جدول المذاكرة وأوقات مراجعة الدروس
+train	study	Help me plan	A weekly study plan makes time for exam practice
+train	study	عندي امتحانات	نظم وقت المذاكرة باستخدام خطة أسبوعية
+train	other	حل المشكلة دي	ممكن توضح تفاصيل أكتر؟
+train	other	Hi	Hello, how can I help?
+train	other	ساعدني	حاضر، ابعت التفاصيل
+train	other	شوفلي ده	سعر تذكرة القطار مربوط بموعد السفر
+train	other	What about tomorrow?	The weather forecast predicts rain
+train	other	WhatsApp	You can export the chat transcript as a file
+train	other	عايز واتساب	افتح محادثة مع جهة الاتصال
+train	other	عندي سؤال	تذاكر السينما متاحة يوم الجمعة
+train	other	Build me something	Here is a recipe for a chocolate cake
+train	other	Hello	What would you like to do today?
+train	other	الفرع ده فين	فرع البنك في شارع جانبي
+train	other	Headphones price	Here are current retail prices
+test	gradle	ممكن تبص على دي؟	Gradle فشل وقت بناء نسخة الديباج
+test	gradle	What's the issue?	The build failed resolving the Android Gradle plugin
+test	git	وضحلي السبب	تعارض دمج الفرع منع git من إكمال العملية
+test	git	Can you explain this?	The local repository branch has a merge conflict
+test	bluetooth	ايه اللي حاصل؟	اتصال البلوتوث بالسماعة بيفصل بعد الاقتران
+test	bluetooth	Any suggestions?	The Bluetooth headset pairing request timed out
+test	notifications	بص هنا	إشعارات واتساب مبتوصلش لأن قناة التنبيهات مقفولة
+test	notifications	What's missing?	The WhatsApp notification channel is disabled
+test	study	تساعدني؟	جدول مذاكرة أسبوعي لمراجعة المواد قبل الامتحان
+test	study	Any thoughts?	A revision timetable with short study sessions fits your exam dates
+test	other	اهلا يا اومني	ازيك، محتاج حاجة؟
+test	other	Can you check?	The bus leaves the station in ten minutes
+test	other	ساعدني في الموضوع	حاضر، ابعتلي صورة أو تفاصيل
+test	other	Where is it?	The bank branch is near the train station
+novel	gradle	شوفلي ده	التطبيق بيفشل في خطوة Gradle وقت بناء الـ APK
+novel	git	ممكن تساعدني في دي؟	ملفات الفرع اتعارضت مع الكوميت وقت دمج git
+novel	bluetooth	any fix?	My headset keeps dropping the Bluetooth pairing
+novel	notifications	مش شغال	تنبيهات واتساب مش هتظهر لو صلاحية الإشعارات مقفولة
+novel	study	help me plan	Space your study sessions throughout the revision timetable
+novel	other	حجز تذكرة القطار	We can review a Gradle build later
+novel	other	Please help	The station ticket counter opens after sunrise
+novel	other	ايه الحل	ابعتهالي تاني عشان التفاصيل مش واضحة
+novel	other	Inspect this	Sure, which item should I inspect?
+novel	other	راجع حساب الكهرباء	The Bluetooth settings menu is open

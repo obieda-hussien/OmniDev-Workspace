@@ -10,6 +10,7 @@ import com.omnidev.workspace.domain.neural.bundled.TrainedPublicDecision;
 import com.omnidev.workspace.domain.neural.bundled.TrainedPublicRefusal;
 import com.omnidev.workspace.domain.neural.bundled.TrainedRichVocabulary;
 
+import com.omnidev.workspace.domain.neural.InspectionContrastWeights;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -73,7 +74,15 @@ final class BundledDecisionModels {
             int weight = InspectionTopicHead.weight(term);
             if (weight != 0 && seen.add(term)) score += weight;
         }
-        return score > 0;
+        int evidence = InspectionContrastWeights.scores(contrastTerms(normalized))[0];
+        return score > 0 ? evidence >= 500 : evidence >= 2600;
+    }
+
+    private static Set<String> contrastTerms(String normalized) {
+        Set<String> contrastTerms = new HashSet<>();
+        Matcher contrastWords = WORD.matcher(normalized.replace('ة', 'ه').replace('ٱ', 'ا'));
+        while (contrastWords.find()) contrastTerms.add(contrastWords.group());
+        return contrastTerms;
     }
 
     private static boolean supportsShortInspection(String input) {
@@ -87,7 +96,10 @@ final class BundledDecisionModels {
         if (REFUSAL.infer(features)[0] >= TrainedPublicRefusal.CUTOFF) return false;
         TinyDecisionModel.Decision decision = DOMAIN.decide(features,
                 TrainedPublicDecision.MINIMUM_PROBABILITY, TrainedPublicDecision.MINIMUM_MARGIN);
-        return "repository".equals(decision.choice) || "build".equals(decision.choice)
-                || "device".equals(decision.choice) || (decision.choice == null && topicMatches(input));
+        if ("repository".equals(decision.choice) || "build".equals(decision.choice) || "device".equals(decision.choice)) {
+            Set<String> terms = contrastTerms(BilingualTextEncoder.normalize(input));
+            return !InspectionContrastWeights.hasNegativeAnchor(terms) || InspectionContrastWeights.scores(terms)[0] >= -500;
+        }
+        return decision.choice == null && topicMatches(input);
     }
 }

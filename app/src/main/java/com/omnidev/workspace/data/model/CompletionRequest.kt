@@ -22,7 +22,8 @@ data class ChatMessage(
     val userInput: String? = null,
     /** Mode selected when this user turn began; survives history reloads. */
     val userMode: String? = null,
-    val userScopePath: String? = null
+    val userScopePath: String? = null,
+    val titleReplyComplete: Boolean = false
 )
 
 @Serializable

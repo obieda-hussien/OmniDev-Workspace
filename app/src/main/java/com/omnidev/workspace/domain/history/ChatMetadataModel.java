@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 /** Bounded local extractive baseline. It neither trains on chats nor authorizes tools. */
 public final class ChatMetadataModel {
-  public static final int VERSION = 3,
+  public static final int VERSION = 4,
       MAX_TEXTS = 6,
       MAX_TEXT_CHARS = 1500,
       MAX_TITLE_CODEPOINTS = 64;
@@ -174,6 +174,37 @@ public final class ChatMetadataModel {
     }
     if (chosen.isEmpty()) chosen = arabic ? "محادثة جديدة" : "New conversation";
     return new Result(chosen, topic, services);
+  }
+
+  // Only replace underspecified opening requests. Descriptive user titles retain their detail.
+  private static final Pattern GENERIC_OPENING = Pattern.compile(
+      "(?:حل المشكله دي|شوف(?:لي)? (?:ده|دي|المشكله دي)|ممكن تبص علي دي|بص هنا|ايه (?:الحل|اللي حاصل)|"
+      + "وضحلي السبب|ده حصل ليه|مش شغال|تساعدني|ساعدني(?: في الموضوع)?|رتبلي ده|محتاج اظبط الدنيا|"
+      + "can you (?:help|check|explain this)|any (?:idea|ideas|suggestions|thoughts|fix)|"
+      + "what (?:happened here|went wrong|about this)|what s (?:the issue|missing)|"
+      + "please help|help me(?: organize this| plan)?|need a hand|look at this|inspect this|why is this happening)");
+
+  public static String openingTitle(String user, String reply, String fallback) {
+    if (user == null || reply == null || reply.trim().isEmpty()) return fallback;
+    String request = clean(clipChars(user, MAX_TEXT_CHARS));
+    if (!GENERIC_OPENING.matcher(normalize(request)).matches()) return fallback;
+    String answer = clean(clipChars(reply, MAX_TEXT_CHARS));
+    Set<String> terms = new HashSet<>(Arrays.asList(normalize(request + " " + answer).split("\\s+")));
+    int[] scores = OpeningTitleWeights.scores(terms);
+    int best = 0;
+    for (int i = 1; i < scores.length; i++) if (scores[i] > scores[best]) best = i;
+    for (int i = 0; i < scores.length; i++) {
+      if (i != best && scores[best] - scores[i] < 900) return fallback;
+    }
+    boolean ar = hasArabic(request);
+    switch (OpeningTitleWeights.LABELS[best]) {
+      case "gradle": return ar ? "بناء التطبيق باستخدام Gradle" : "Android build with Gradle";
+      case "git": return ar ? "فروع Git ودمج التغييرات" : "Git branches and merges";
+      case "bluetooth": return ar ? "اتصال سماعة البلوتوث" : "Bluetooth headset connection";
+      case "notifications": return ar ? "إشعارات واتساب" : "WhatsApp notifications";
+      case "study": return ar ? "تنظيم جدول المذاكرة" : "Study and revision schedule";
+      default: return fallback;
+    }
   }
 
   public static boolean hasService(String tags, String id) {
