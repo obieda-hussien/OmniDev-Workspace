@@ -1,0 +1,25 @@
+{
+  "android_security_research": {
+    "summary_ar": "أداة بتجمع مراحل تقييم أمان تطبيقات Android في تقرير واحد، زي جرد التطبيقات وتحليل مكوّناتها.",
+    "summary_en": "Combines stages of an Android application security assessment into a single research workflow.",
+    "examples": ["What is the Android application security research workflow?", "Explain the multi-stage security assessment tool for Android apps.", "يعني إيه أداة البحث الأمني المتكامل لتطبيقات أندرويد؟", "اشرح وظيفة الأداة اللي بتجمع مراحل تقييم أمن تطبيقات أندرويد"]
+  },
+  "enhanced_attack_surface": {
+    "summary_ar": "أداة بتوضح سطح التعرّض في تطبيق Android، يعني المكوّنات اللي ممكن تكون ظاهرة لتطبيقات تانية.",
+    "summary_en": "Describes an Android app's exposed surface, including components visible to other apps.",
+    "examples": ["Which catalog entry describes exposed Android components?", "What is the overview of an app's externally visible components?", "إيه الأداة اللي بتشرح المكونات المكشوفة في تطبيق أندرويد؟", "اشرح معنى سطح التعرض والمكونات الظاهرة للتطبيقات التانية"]
+  },
+  "security_analyzer": {
+    "summary_ar": "أداة بتحلّل المخاطر الأمنية لتطبيق مثبّت، زي الأذونات الحسّاسة وإعدادات الشبكة.",
+    "summary_en": "Summarizes security risks in an installed app, including sensitive permissions and network settings.",
+    "examples": ["What does the installed app's permission risk analyzer describe?", "Explain the tool that summarizes an app's permissions and network risks.", "إيه أداة تحليل مخاطر الصلاحيات وإعدادات الشبكة للتطبيق؟", "اشرح وظيفة محلل الأمان اللي بيراجع أذونات تطبيق متثبت"]
+  },
+  "install_tool": {
+    "summary_ar": "أداة لإدارة تثبيت الأدوات المساعدة، وعرض حالتها والنسخ الموجودة في الكاش.",
+    "summary_en": "Manages installation of helper tools and reports their local status and cached copies.",
+    "examples": ["What is the helper tool installer and cache manager?", "Explain the catalog entry for managing installed helper utilities.", "إيه وظيفة مثبت الأدوات المساعدة والكاش بتاعه؟", "اشرح الأداة اللي بتدير تثبيت الأدوات وبتعرض حالتها"]
+  },
+  "UNKNOWN": {
+    "examples": ["What is the weather today?", "Explain how to write a new note.", "What does the clipboard do?", "Explain how a Git commit works.", "إيه معنى مزامنة ملفات المشروع؟", "يعني إيه متجه في نموذج ذكاء اصطناعي؟", "اشرح وظيفة سجل المحادثات", "عايز أفهم البحث على النت"]
+  }
+}
