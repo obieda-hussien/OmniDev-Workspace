@@ -1,0 +1,31 @@
+kind	label	text
+card	repository	Inspect working tree changes, current branch, recent commits and repository history.
+card	build	Diagnose an Android build failure, compiler errors, Gradle tasks and unit test results.
+card	device	Inspect Android phone settings, device storage, battery usage and running applications.
+card	knowledge	Find documented Omni features and explain how the workspace settings work.
+card	chat	Have a casual conversation or write a simple personal greeting.
+query	repository	مين آخر حد عدّل ملفات المشروع قبل الدمج؟
+query	repository	اعرض الفرق بين النسخة اللي عندي وآخر كوميت
+query	repository	Which local edits have I forgotten to check in?
+query	build	بعد تغيير المكتبة التجميع بيقف، شوف أنهي خطوة وقعت
+query	build	الـ pipeline أحمر، افتح نتيجة اختبارات الوحدة
+query	build	My APK never gets produced. Find the broken compilation step.
+query	device	عايز أعرف إيه اللي واكل شحن تليفوني بالليل
+query	device	المساحة الداخلية قربت تخلص، افحص استهلاك التطبيقات
+query	device	Which installed app is draining my handset?
+query	knowledge	فين في دليل أومني شرح تفعيل الذاكرة؟
+query	knowledge	اشرحلي من التوثيق إعدادات مساحة العمل
+query	knowledge	Where does Omni document how to configure its assistant?
+query	chat	اكتبلي تهنئة خفيفة لزميلي
+query	chat	عامل إيه النهاردة يا صاحبي؟
+query	chat	Help me say happy birthday to a friend.
+fresh	repository	رجعلي أسماء الحاجات اللي اتعدلت ولسه ما اترفعتش
+fresh	repository	List the commits since we branched for release.
+fresh	build	الـ compiler وقف بعد ما غيرت نسخة كوتلن؛ هات رسالة الخطأ
+fresh	build	Check why the unit suite failed in CI.
+fresh	device	افحص ليه مساحة التخزين بتاعة التليفون خلصت
+fresh	device	Show battery consumption by installed package.
+fresh	knowledge	إزاي أستخدم ميزة حفظ السياق حسب شرح Omni؟
+fresh	knowledge	Look up the documented steps for enabling its memory feature.
+fresh	chat	قول لي نكتة خفيفة عالصبح
+fresh	chat	Write a kind good-morning message for my mum.
