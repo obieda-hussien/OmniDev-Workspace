@@ -1,0 +1,106 @@
+tool	language	text
+git_manager	fr	Vérifie les changements locaux et l'état de mon dépôt Git.
+git_manager	es	Revisa los cambios locales y el estado de mi repositorio Git.
+git_manager	de	Prüfe den Status und die lokalen Änderungen im Git-Repository.
+git_manager	pt	Veja o estado do repositório Git e as alterações locais.
+git_manager	tr	Git deposunun durumunu ve yerel değişiklikleri göster.
+git_manager	ja	Gitリポジトリの状態とローカル変更を確認して。
+git_manager	zh	检查 Git 仓库的本地更改和工作区状态。
+git_manager	hi	मेरे Git रिपॉज़िटरी की स्थिति और स्थानीय बदलाव दिखाओ।
+fetch_page	fr	Lis le contenu de cette page à partir de son lien direct.
+fetch_page	es	Lee el contenido de esta página desde el enlace que te pasé.
+fetch_page	de	Lies den Inhalt der Webseite unter diesem Link.
+fetch_page	pt	Leia o conteúdo da página usando este endereço.
+fetch_page	tr	Bu bağlantıdaki web sayfasının içeriğini oku.
+fetch_page	ja	このリンク先のページ本文を読んで。
+fetch_page	zh	读取这个链接对应网页的正文内容。
+fetch_page	hi	इस लिंक से वेबपेज की सामग्री पढ़ो।
+web_search	fr	Cherche des sites sur Internet à propos de ce sujet.
+web_search	es	Busca en internet páginas sobre este tema.
+web_search	de	Suche im Internet nach Webseiten zu diesem Thema.
+web_search	pt	Procure sites na internet sobre esse assunto.
+web_search	tr	Bu konuyla ilgili internette web siteleri ara.
+web_search	ja	このテーマについてインターネットで検索して。
+web_search	zh	在网上搜索这个主题相关的网站。
+web_search	hi	इस विषय पर इंटरनेट पर वेबसाइटें खोजो।
+web_search_deep	fr	Fais une recherche approfondie et compare les sources scientifiques.
+web_search_deep	es	Investiga a fondo y compara las publicaciones científicas.
+web_search_deep	de	Recherchiere gründlich und vergleiche mehrere Studien.
+web_search_deep	pt	Faça uma pesquisa aprofundada e compare os artigos científicos.
+web_search_deep	tr	Derinlemesine araştır ve bilimsel çalışmaları karşılaştır.
+web_search_deep	ja	複数の研究論文を比較して詳しく調べて。
+web_search_deep	zh	深入研究并比较多篇学术论文的证据。
+web_search_deep	hi	गहराई से शोध करो और वैज्ञानिक अध्ययनों की तुलना करो।
+clipboard	fr	Montre le texte copié dans mon presse-papiers.
+clipboard	es	Muestra el texto que copié al portapapeles.
+clipboard	de	Zeige den kopierten Text in meiner Zwischenablage.
+clipboard	pt	Mostre o texto que copiei para a área de transferência.
+clipboard	tr	Panoya kopyaladığım metni göster.
+clipboard	ja	クリップボードにコピーしたテキストを見せて。
+clipboard	zh	显示我复制到剪贴板的文字。
+clipboard	hi	क्लिपबोर्ड में कॉपी किया हुआ पाठ दिखाओ।
+task_manager	fr	Affiche mes tâches en cours dans ma liste.
+task_manager	es	Muestra mis tareas pendientes en la lista personal.
+task_manager	de	Zeige meine offenen Aufgaben auf der Aufgabenliste.
+task_manager	pt	Mostre as tarefas pendentes na minha lista.
+task_manager	tr	Yapılacaklar listemdeki bekleyen görevleri göster.
+task_manager	ja	やることリストの未完了タスクを表示して。
+task_manager	zh	显示我的待办事项清单里未完成的任务。
+task_manager	hi	मेरी सूची के बाकी काम और अधूरे कार्य दिखाओ।
+get_device_info	fr	Indique le niveau de batterie et l'espace libre du téléphone.
+get_device_info	es	Muestra el nivel de batería y el almacenamiento libre del teléfono.
+get_device_info	de	Zeige den Akkustand und freien Speicher des Handys.
+get_device_info	pt	Mostre a bateria e o armazenamento disponível do celular.
+get_device_info	tr	Telefonun pil düzeyini ve depolama alanını göster.
+get_device_info	ja	携帯のバッテリー残量と空き容量を教えて。
+get_device_info	zh	显示手机的电池电量和剩余存储空间。
+get_device_info	hi	फ़ोन की बैटरी और खाली स्टोरेज दिखाओ।
+read_file_lines	fr	Lis uniquement les lignes indiquées de ce fichier.
+read_file_lines	es	Lee solo las líneas indicadas de este archivo.
+read_file_lines	de	Lies nur die angegebenen Zeilen dieser Datei.
+read_file_lines	pt	Leia apenas as linhas indicadas deste arquivo.
+read_file_lines	tr	Bu dosyadaki belirtilen satırları oku.
+read_file_lines	ja	ファイルの指定した行範囲だけ読んで。
+read_file_lines	zh	只读这个文件中指定范围的行。
+read_file_lines	hi	इस फ़ाइल की केवल बताई गई पंक्तियाँ पढ़ो।
+read_chat_session	fr	Résume les messages enregistrés de la conversation numéro 24.
+read_chat_session	es	Resume los mensajes guardados de la conversación número 24.
+read_chat_session	de	Fasse die gespeicherten Nachrichten der Unterhaltung Nummer 24 zusammen.
+read_chat_session	pt	Resuma as mensagens salvas da conversa número 24.
+read_chat_session	tr	24 numaralı konuşmadaki kayıtlı mesajları özetle.
+read_chat_session	ja	会話番号24に保存されたメッセージを要約して。
+read_chat_session	zh	总结编号24的会话中保存的消息。
+read_chat_session	hi	बातचीत नंबर 24 के सहेजे गए संदेशों का सारांश दो।
+search_messages	fr	Trouve les anciens messages contenant ce mot dans mes conversations.
+search_messages	es	Encuentra mensajes antiguos que contengan esta palabra.
+search_messages	de	Suche alte Chatnachrichten mit diesem Stichwort.
+search_messages	pt	Encontre mensagens antigas que contenham esta palavra.
+search_messages	tr	Eski sohbet mesajlarında bu kelimeyi ara.
+search_messages	ja	昔のチャットメッセージからこの言葉を探して。
+search_messages	zh	在历史聊天消息中查找这个关键词。
+search_messages	hi	पुराने चैट संदेशों में इस शब्द को खोजो।
+NO_TOOL	fr	Explique ce que signifie cette commande, sans l'exécuter.
+NO_TOOL	es	Explícame qué hace este comando sin ejecutarlo.
+NO_TOOL	de	Erkläre diesen Befehl, ohne ihn auszuführen.
+NO_TOOL	pt	Explique o significado do comando sem executar nada.
+NO_TOOL	tr	Komutu çalıştırmadan ne anlama geldiğini açıkla.
+NO_TOOL	ja	実行せずにコマンドの意味だけ説明して。
+NO_TOOL	zh	只解释命令的含义，不要执行。
+NO_TOOL	hi	इस कमांड का मतलब समझाओ, इसे चलाना मत।
+read_file_lines	en	Display the selected line range in the source file.
+read_file_lines	en	Read the file from line 24 through line 36 and show that excerpt.
+read_file_lines	en	Output just lines 5 to 19 from notes.txt.
+read_file_lines	ar	وريني سطور من ملف الكود من غير ما تغير فيه حاجة
+delete_lines	en	Remove a range of numbered lines from the file on disk.
+delete_lines	en	Erase lines 10 to 99 from the file.
+replace_lines	en	Overwrite the existing numbered lines with the replacement text.
+insert_lines	en	Insert these new lines before line 20, preserving the existing lines.
+search_messages	en	Find messages in past chats that mention the specific phrase.
+search_messages	en	Look across entire message history for keyword matches.
+search_messages	ar	فتش في الشاتات القديمة كلها عن الجملة دي
+read_chat_message	en	Open exactly one original message using both the message ID and chat ID.
+read_chat_session	en	Read the whole saved conversation by its session ID.
+list_chat_sessions	en	List chat titles and dates so I can choose a conversation.
+fetch_page	en	Read the main article body at the given direct URL.
+web_search	en	Find some web pages online that cover this question.
+web_search_deep	en	Compare research findings across multiple papers with citations.

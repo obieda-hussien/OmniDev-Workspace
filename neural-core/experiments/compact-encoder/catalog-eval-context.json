@@ -1,0 +1,11 @@
+[
+  {"expected": "git_manager", "query": "طب كمل", "follow_up": true, "previous": "شوف حالة git في الريبو المحلي والملفات المتغيرة"},
+  {"expected": "read_file_lines", "query": "بس أول عشرة", "follow_up": true, "previous": "اقرأ السطور المحددة من الملف النصي"},
+  {"expected": "clipboard", "query": "y ahora sí", "follow_up": true, "previous": "Muéstrame lo último copiado al portapapeles."},
+  {"expected": "web_search", "query": "vas-y maintenant", "follow_up": true, "previous": "Cherche sur internet des sites à propos des ordinateurs."},
+  {"expected": "read_chat_session", "query": "نفس اللي قولته بس المحادثة ٨٨", "follow_up": true, "previous": "اقرأ الرسايل في الجلسة المحفوظة باستخدام رقم المحادثة"},
+  {"expected": "fetch_page", "query": "سيب الملفات. افتح المقال من اللينك اللي بعته واقرأ محتوى الصفحة", "follow_up": false, "previous": "اعمل ملف نصي جديد"},
+  {"expected": "clipboard", "query": "Instead, show the current text on my clipboard.", "follow_up": false, "previous": "Find my old chat messages about Kotlin."},
+  {"expected": "NO_TOOL", "query": "اشرحلي يعني إيه git status من غير تنفيذ", "follow_up": false, "previous": "شوف حالة git في المشروع المحلي"},
+  {"expected": "get_device_info", "query": "Покажи заряд батареи и свободное место на телефоне.", "gloss": "Show the phone's battery level and available storage."}
+]
