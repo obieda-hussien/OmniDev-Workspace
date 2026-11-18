@@ -116,3 +116,4 @@ compile_java "${compat[@]}" -encoding UTF-8 -cp "$fixture_classes" -d "$fixture_
   neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/ContrastiveSupportProbeContract.java \
   neural-core/smoke/ContrastiveSupportAndroidSmoke.java
 java -cp "$fixture_classes" ContrastiveSupportAndroidSmoke "$fixture_output/assets"
+cp neural-core/checkpoints/quantity-evidence-v15/android-cases.tsv "$fixture_output/assets/quantity-evidence.tsv"

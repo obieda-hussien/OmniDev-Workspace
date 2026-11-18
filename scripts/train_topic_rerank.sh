@@ -40,3 +40,14 @@ mkdir -p "$lexical"
 java -Xmx768m -cp "$classes" com.omnidev.workspace.domain.neural.TopicRerankFeatures "$lexical/features.tsv" --lexical
 python3 scripts/fit_lexical_rescue.py "$lexical/features.tsv" "$lexical"
 for artifact in report.json weights.json; do cmp "neural-core/checkpoints/lexical-rescue-v14/$artifact" "$lexical/$artifact"; done
+quantity=build/quantity-evidence-v15
+mkdir -p "$quantity"
+python3 scripts/evaluate_quantity_evidence.py prepare "$quantity"
+cutoff=$(python3 -c 'import json;print(json.load(open("neural-core/checkpoints/refusal-rescue-v12/report.json"))["arms"]["retrieval"]["threshold"])')
+"${compiler[@]}" "${compat[@]}" -encoding UTF-8 -cp "$classes" -d "$classes" \
+  neural-core/smoke/{QuantityEvidenceReplay,QuantityEvidenceSmoke}.java \
+  neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/QuantityEvidenceProbeContract.java
+java -Xmx768m -cp "$classes" com.omnidev.workspace.domain.neural.QuantityEvidenceReplay "$quantity/queries.tsv" "$quantity/decisions.tsv" "$cutoff"
+python3 scripts/evaluate_quantity_evidence.py audit "$quantity" "$lexical/features.tsv"
+for artifact in report.json android-cases.tsv; do cmp "neural-core/checkpoints/quantity-evidence-v15/$artifact" "$quantity/$artifact"; done
+java -cp "$classes" com.omnidev.workspace.domain.neural.QuantityEvidenceSmoke build/product-support/documents.tsv "$quantity/android-cases.tsv"

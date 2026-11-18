@@ -95,6 +95,8 @@ Read [persistent tasks](docs/PERSISTENT_TASK_STATE.md), [recovery](docs/AGENT_EX
 
 ## Product support knowledge and future training
 
+The [v15 quantity evidence check](docs/QUANTITY_EVIDENCE.md) verifies the requested unit and scope for two documented values. On 36 targeted authored questions it preserved seven correct acceptances and prevented four wrong ones. Two mixed-language scope mismatches passed the check in isolation.
+
 The [v14 lexical follow-up](docs/PAIRED_RESCUE.md#lexical-filtering-follow-up-v14) fits two filters on 450 matched examples across 19 topics. Both filters produce the same result on 36 new questions and still confuse a character limit with a message count.
 
 The [v13 topic-held-out experiment](docs/PAIRED_RESCUE.md) fits two small selectors on paired English, Egyptian Arabic and code-switched examples. The selected arm gains no answers on six held-out topics. An 18-fold retrospective audit recovers six correct answers and adds four errors.
