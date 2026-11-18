@@ -32,7 +32,7 @@ public final class TopicRerankFeatures {
     for (SupportQueryMemory.Hit hit :
         result.matches.subList(0, Math.min(3, result.matches.size()))) {
       double probability =
-          (result.accepted || (rescue && !result.proposalAccepted && hit == result.matches.get(0)))
+          (result.accepted || (rescue && hit == result.matches.get(0)))
               ? model.score(query, hit.topic.id)
               : 0;
       fields.add(hit.topic.id + ":" + hit.score + ":" + hit.coverage + ":" + probability);
@@ -41,7 +41,9 @@ public final class TopicRerankFeatures {
   }
 
   public static void main(String[] args) throws Exception {
-    boolean rescue = args.length == 2 && args[1].equals("--rescue");
+    boolean lexical = args.length == 2 && args[1].equals("--lexical");
+    boolean paired = lexical || (args.length == 2 && args[1].equals("--paired"));
+    boolean rescue = paired || (args.length == 2 && args[1].equals("--rescue"));
     List<ProductSupportModel.Article> docs =
         ProductSupportExperiment.loadArticles(Paths.get("build/product-support/documents.tsv"));
     List<SupportQueryMemory.Exemplar> exemplars =
@@ -84,6 +86,23 @@ public final class TopicRerankFeatures {
       fixture(out, model, topics, seen, "topic-rerank-v11", 16, "rerank11-", "reserved", rescue);
       if (rescue)
         fixture(out, model, topics, seen, "refusal-rescue-v12", 12, "rescue12-", "fresh12", true);
+      if (paired) {
+        for (String split : Arrays.asList("train", "dev", "test")) {
+          int count = split.equals("train") ? 16 : split.equals("dev") ? 8 : 12;
+          fixture(
+              out,
+              model,
+              topics,
+              seen,
+              "paired-rescue-v13/" + split,
+              count,
+              "paired13-",
+              "paired13-" + split,
+              true);
+        }
+      }
+      if (lexical)
+        fixture(out, model, topics, seen, "lexical-rescue-v14", 12, "lex14-", "fresh14", true);
       if (out.checkError()) throw new IOException("Feature output failed");
     }
   }

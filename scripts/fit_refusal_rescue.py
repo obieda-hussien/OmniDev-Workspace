@@ -32,6 +32,10 @@ def fit(train):
     if len(train) != 507 or any(r.split != 'train' for r in train):
         raise ValueError('Unexpected training cohort')
     samples = [(features(r), int(correct(r))) for r in train if eligible(r)]
+    return fit_samples(samples)
+
+
+def fit_samples(samples):
     counts = [sum(y == label for _, y in samples) for label in (0, 1)]
     if min(counts) == 0:
         raise ValueError('Both classes required')
@@ -61,6 +65,10 @@ def calibrate(dev, arm, weights):
     if len(dev) != 135 or any(r.split != 'development' for r in dev):
         raise ValueError('Unexpected development cohort')
     scores = [(score(r, arm, weights), correct(r)) for r in dev if eligible(r)]
+    return calibrate_scores(scores)
+
+
+def calibrate_scores(scores):
     # A valid threshold must exceed every incorrect score, including ties.
     highest_error = max((s for s, ok in scores if not ok), default=-math.inf)
     wins = [s for s, ok in scores if ok and s > highest_error]
