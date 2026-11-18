@@ -6,7 +6,7 @@ import java.io.Reader;
 
 /** Bounded root-field extraction from paged legacy metadata; never materializes a full envelope. */
 public final class HistoryUserInputReader {
-  public static final int MAX_SCAN = 262144, MAX_PREFIX = 1500;
+  public static final int MAX_SCAN = 262144, MAX_PREFIX = 3072;
 
   public static final class ScanLimitExceeded extends IllegalStateException {
     private static final long serialVersionUID = 1L;

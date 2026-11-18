@@ -8,6 +8,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.db.entities.ChatMessageEntity
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
+import com.omnidev.workspace.data.model.ChatMessage
+import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.repository.ChatRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -41,6 +43,29 @@ class ChatHistoryMetadataRoomTest {
             assertTrue(db.chatSessionDao().historyMetadata(id)!!.serviceTags.contains("|whatsapp|"))
             assertEquals(ChatSessionEntity.SOURCE_APP, db.chatSessionDao().getById(id)!!.source)
         } finally { db.close(); context.deleteDatabase(name) }
+    }
+
+    @Test fun onlyFinalizedOpeningReplyCanRefineAnAutomaticTitle() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(context, OmniDevDatabase::class.java).build()
+        try {
+            val repo = ChatRepository(db.chatSessionDao(), db.chatMessageDao())
+            val id = repo.createSession("Please help")
+            repo.saveMessage(id, ChatMessage(MessageRole.USER, "Please help"))
+            val initial = db.chatSessionDao().getById(id)!!.title
+            val reply = ChatMessage(MessageRole.ASSISTANT, "Working")
+            val row = repo.saveMessage(id, reply)
+            val finalText = "The Android Gradle build failed resolving dependencies"
+            repo.updateRun(row, reply.copy(content = finalText), emptyList())
+            assertEquals(initial, db.chatSessionDao().getById(id)!!.title)
+            repo.updateRun(row, reply.copy(content = finalText, titleReplyComplete = true), emptyList(), id)
+            assertEquals("Android build with Gradle", db.chatSessionDao().getById(id)!!.title)
+            repo.saveMessage(id, ChatMessage(MessageRole.USER, "New topic"))
+            repo.saveMessage(id, ChatMessage(MessageRole.ASSISTANT, "WhatsApp notifications", titleReplyComplete = true))
+            assertEquals("Android build with Gradle", db.chatSessionDao().getById(id)!!.title)
+            repo.renameSession(id, "Mine")
+            repo.updateRun(row, reply.copy(content = finalText, titleReplyComplete = true), emptyList(), id)
+            assertEquals("Mine", db.chatSessionDao().getById(id)!!.title)
+        } finally { db.close() }
     }
 
     @Test fun lateMetadataCannotOverwriteManualNamesOrRecreateDeletedSessions() = runBlocking {

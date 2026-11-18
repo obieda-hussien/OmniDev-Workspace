@@ -6,9 +6,10 @@ import java.util.regex.Pattern;
 
 /** Bounded local extractive baseline. It neither trains on chats nor authorizes tools. */
 public final class ChatMetadataModel {
-  public static final int VERSION = 3,
-      MAX_TEXTS = 6,
-      MAX_TEXT_CHARS = 1500,
+  public static final int VERSION = 7,
+      MAX_TEXTS = 12,
+      MAX_TEXT_CHARS = 3072,
+      MAX_REPLY_CHARS = 24000,
       MAX_TITLE_CODEPOINTS = 64;
 
   public enum Topic {
@@ -90,6 +91,7 @@ public final class ChatMetadataModel {
     StringBuilder body = new StringBuilder();
     String chosen = "";
     boolean arabic = false;
+    List<String> turns = new ArrayList<>(MAX_TEXTS);
     int count = 0;
     if (texts != null)
       for (String raw : texts) {
@@ -98,14 +100,18 @@ public final class ChatMetadataModel {
         String text = clipChars(raw, MAX_TEXT_CHARS);
         arabic |= hasArabic(text);
         String safe = clean(text);
-        body.append(' ')
-            .append(
-                URL.matcher(SECRET.matcher(FENCES.matcher(text).replaceAll(" ")).replaceAll(" "))
-                    .replaceAll(" "));
+        String evidence = URL.matcher(SECRET.matcher(FENCES.matcher(text).replaceAll(" ")).replaceAll(" "))
+            .replaceAll(" ");
+        String normalizedTurn = normalize(evidence);
+        turns.add(normalizedTurn);
+        if (!normalizedTurn.isEmpty()) {
+          if (body.length() > 0) body.append(' ');
+          body.append(normalizedTurn);
+        }
         if (chosen.isEmpty() && !safe.isEmpty() && !GREETING.matcher(safe).matches())
           chosen = title(safe);
       }
-    String normalized = normalize(body.toString());
+    String normalized = body.toString();
     Set<String> words = new HashSet<>(Arrays.asList(normalized.split("\\s+")));
     Set<Service> services = EnumSet.noneOf(Service.class);
     for (Service service : Service.values()) {
@@ -173,7 +179,87 @@ public final class ChatMetadataModel {
       else if (!services.isEmpty()) topic = Topic.CONNECTED_APPS;
     }
     if (chosen.isEmpty()) chosen = arabic ? "محادثة جديدة" : "New conversation";
+    Topic inferred = learnedTopic(turns);
+    if (inferred != Topic.GENERAL) topic = inferred;
     return new Result(chosen, topic, services);
+  }
+
+  private static final Pattern TOPIC_CHANGE = Pattern.compile(
+      "^(?:new topic|switching topics|change of topic|موضوع (?:تاني|جديد)|خلينا نغير الموضوع)(?: |$)");
+
+  private static Topic learnedTopic(List<String> turns) {
+    int[] votes = new int[HistoryTopicWeights.LABELS.length];
+    for (int i = 0; i < turns.size(); i++) {
+      String turn = turns.get(i);
+      if (turn.isEmpty() || GREETING.matcher(turn).matches() || GENERIC_OPENING.matcher(turn).matches()) continue;
+      int[] scores = HistoryTopicWeights.scores(new HashSet<>(Arrays.asList(turn.split(" +"))));
+      int winner = strongest(scores, 700);
+      if (winner < 0 || "general".equals(HistoryTopicWeights.LABELS[winner])) continue;
+      if (TOPIC_CHANGE.matcher(turn).find()) Arrays.fill(votes, 0);
+      int recentWeight = i >= turns.size() - 2 ? 2 : 1;
+      votes[winner] += recentWeight * Math.min(1800, margin(scores, winner));
+    }
+    int winner = strongest(votes, 700);
+    return winner < 0 ? Topic.GENERAL : Topic.fromId(HistoryTopicWeights.LABELS[winner]);
+  }
+
+  private static int margin(int[] scores, int winner) {
+    int second = Integer.MIN_VALUE;
+    for (int i = 0; i < scores.length; i++) {
+      if (i != winner) second = Math.max(second, scores[i]);
+    }
+    return scores[winner] - second;
+  }
+
+  private static int strongest(int[] scores, int minimumMargin) {
+    int winner = 0;
+    for (int i = 1; i < scores.length; i++) if (scores[i] > scores[winner]) winner = i;
+    return margin(scores, winner) >= minimumMargin ? winner : -1;
+  }
+
+  // Only replace underspecified opening requests. Descriptive user titles retain their detail.
+  private static final Pattern GENERIC_OPENING = Pattern.compile(
+      "(?:حل المشكله دي|شوف(?:لي)? (?:ده|دي|المشكله دي)|ممكن تبص علي دي|بص هنا|ايه (?:الحل|اللي حاصل)|"
+      + "وضحلي السبب|ده حصل ليه|مش شغال|تساعدني|ساعدني(?: في الموضوع)?|رتبلي ده|محتاج اظبط الدنيا|"
+      + "can you (?:help|check|explain this)|any (?:idea|ideas|suggestions|thoughts|fix)|"
+      + "what (?:happened here|went wrong|about this)|what s (?:the issue|missing)|"
+      + "please help|help me(?: organize this| plan)?|need a hand|look at this|inspect this|why is this happening|"
+      + "ممكن (?:توضح|تشرح ده|تساعدني في دي)|معلش بص علي ده|بص(?:لي)? علي (?:ده|دي)|شوفلي الحوار ده|"
+      + "محتاج مساعده|مش فاهم الحته دي|انا مش فاهم|ايه سبب ده|المشكله دي حلها ايه|ينفع تشوف دي|"
+      + "can you take a look|could you (?:check|look at) this|what should i do here|"
+      + "is there a fix|i am stuck|what am i missing|what s causing this|do you see the problem|what can i do)");
+
+  private static final Pattern CONCLUSION = Pattern.compile(
+      "(?imu)^\\h*(?:conclusion|root cause|diagnosis|الخلاصة|الخلاصه|التشخيص|السبب الرئيسي)\\h*[:：]\\h*");
+
+  public static String openingTitle(String user, String reply, String fallback) {
+    if (user == null || reply == null || reply.trim().isEmpty()) return fallback;
+    String request = clean(clipChars(user, MAX_TEXT_CHARS));
+    if (!GENERIC_OPENING.matcher(normalize(request)).matches()) return fallback;
+    String evidence = FENCES.matcher(clipChars(reply, MAX_REPLY_CHARS)).replaceAll(" ");
+    java.util.regex.Matcher conclusion = CONCLUSION.matcher(evidence);
+    int conclusionStart = -1;
+    while (conclusion.find()) conclusionStart = conclusion.end();
+    if (conclusionStart >= 0) evidence = evidence.substring(conclusionStart);
+    String answer = clean(evidence);
+    Set<String> terms = new HashSet<>(Arrays.asList(normalize(answer).split("\\s+")));
+    int[] scores = OpeningTitleWeights.scores(terms);
+    int best = strongest(scores, 550);
+    if (best < 0) return fallback;
+    boolean ar = hasArabic(request);
+    switch (OpeningTitleWeights.LABELS[best]) {
+      case "gradle": return ar ? "بناء التطبيق باستخدام Gradle" : "Android build with Gradle";
+      case "git": return ar ? "فروع Git ودمج التغييرات" : "Git branches and merges";
+      case "bluetooth": return ar ? "اتصال سماعة البلوتوث" : "Bluetooth headset connection";
+      case "notifications": return ar ? "إشعارات واتساب" : "WhatsApp notifications";
+      case "study": return ar ? "تنظيم جدول المذاكرة" : "Study and revision schedule";
+      case "room": return ar ? "ترحيل قاعدة بيانات Room" : "Room database migration";
+      case "compose": return ar ? "إدارة حالة واجهة Compose" : "Jetpack Compose UI state";
+      case "apk": return ar ? "توقيع وتثبيت APK" : "APK signing and installation";
+      case "battery": return ar ? "استهلاك بطارية الهاتف" : "Android battery drain";
+      case "network": return ar ? "مشاكل اتصال الواي فاي" : "Wi-Fi connection issues";
+      default: return fallback;
+    }
   }
 
   public static boolean hasService(String tags, String id) {

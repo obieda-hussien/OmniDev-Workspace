@@ -74,10 +74,14 @@ class ChatRepository(
     private fun decodeMetadata(raw: String): ChatMessage? =
         runCatching { json.decodeFromString<ChatMessage>(raw) }.getOrNull()
 
-    suspend fun updateRun(rowId: Long, message: ChatMessage, entries: List<AgentConsoleEntry>) = withContext(Dispatchers.Default) {
+    suspend fun updateRun(rowId: Long, message: ChatMessage, entries: List<AgentConsoleEntry>, titleSessionId: Long? = null) = withContext(Dispatchers.Default) {
         if (rowId < 0) return@withContext
-        messageDao.updateChatRun(rowId, message.content.take(MAX_STORED_MESSAGE_CHARS),
-            AgentConsoleSerializer.serialize(entries), metadata(message))
+        val content = message.content.take(MAX_STORED_MESSAGE_CHARS)
+        val console = AgentConsoleSerializer.serialize(entries)
+        if (message.titleReplyComplete && titleSessionId != null) {
+            messageDao.finishTitleReply(rowId, content, console, metadata(message))
+            sessionDao.refreshHistoryMetadata(titleSessionId)
+        } else messageDao.updateChatRun(rowId, content, console, metadata(message))
     }
 
     suspend fun replaceLastTurn(sessionId: Long, expectedUserId: String, replacement: ChatMessage): Boolean =
@@ -241,9 +245,9 @@ class ChatRepository(
                 replyToMessageId = message.replyToMessageId,
                 metadataJson = metadata(message),
                 sourceContextJson = sourceContextJson.take(MAX_STORED_SOURCE_CONTEXT_CHARS)
-            )
+            ), completedTitleReply = message.titleReplyComplete
         )
-        if (rowId >= 0 && message.role == MessageRole.USER) sessionDao.refreshHistoryMetadata(sessionId)
+        if (rowId >= 0 && (message.role == MessageRole.USER || message.titleReplyComplete)) sessionDao.refreshHistoryMetadata(sessionId)
         rowId
     }
 

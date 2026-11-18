@@ -42,8 +42,9 @@ internal object HistoryMetadataText {
     }
 
     private fun bounded(value: String): String {
-        if (value.length <= 1500) return value
-        val end = if (Character.isHighSurrogate(value[1499])) 1499 else 1500
+        val limit = HistoryUserInputReader.MAX_PREFIX
+        if (value.length <= limit) return value
+        val end = if (Character.isHighSurrogate(value[limit - 1])) limit - 1 else limit
         return value.substring(0, end)
     }
 }

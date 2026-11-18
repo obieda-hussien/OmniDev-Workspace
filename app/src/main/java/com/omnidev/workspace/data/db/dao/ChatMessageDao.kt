@@ -17,6 +17,19 @@ interface ChatMessageDao {
     @Query("UPDATE chat_messages SET content = :content, consoleEntriesJson = :console, metadataJson = :metadata WHERE id = :id")
     suspend fun updateChatRun(id: Long, content: String, console: String, metadata: String)
 
+    @Query("UPDATE chat_history_metadata SET modelVersion = 0 WHERE sessionId = " +
+        "(SELECT sessionId FROM chat_messages WHERE id = :rowId) AND :rowId = " +
+        "(SELECT m.id FROM chat_messages m WHERE m.sessionId = chat_history_metadata.sessionId " +
+        "AND m.role IN ('USER','ASSISTANT') AND m.id > (SELECT MIN(u.id) FROM chat_messages u " +
+        "WHERE u.sessionId = m.sessionId AND u.role = 'USER') ORDER BY m.id LIMIT 1)")
+    suspend fun invalidateOpeningReply(rowId: Long)
+
+    @Transaction
+    suspend fun finishTitleReply(id: Long, content: String, console: String, metadata: String) {
+        updateChatRun(id, content, console, metadata)
+        invalidateOpeningReply(id)
+    }
+
     @Query("UPDATE chat_messages SET metadataJson = :metadata WHERE sessionId = :sessionId AND messageId = :messageId")
     suspend fun updateMetadata(sessionId: Long, messageId: String, metadata: String)
 
@@ -32,9 +45,11 @@ interface ChatMessageDao {
      * the parent no longer exists; never recreate a user-deleted conversation.
      */
     @Transaction
-    suspend fun insert(message: ChatMessageEntity): Long {
+    suspend fun insert(message: ChatMessageEntity, completedTitleReply: Boolean = false): Long {
         if (!sessionExists(message.sessionId)) return -1L
-        return insertRow(message)
+        val rowId = insertRow(message)
+        if (completedTitleReply) invalidateOpeningReply(rowId)
+        return rowId
     }
 
     /** Idempotent worker delivery; a deleted conversation remains deleted. */

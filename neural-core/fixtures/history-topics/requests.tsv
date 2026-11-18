@@ -1,0 +1,79 @@
+split	label	text
+train	development	Fix the Kotlin coroutine cancellation in the repository
+train	development	فشل بناء المشروع عند تشغيل اختبارات Gradle
+train	development	اعمل migration لجدول المستخدمين في Room
+train	development	ظبط state الشاشة في Jetpack Compose
+train	development	Trace the failing CI compile step and inspect git diff
+train	development	راجع ملفات المشروع وحل تعارض الدمج في git
+train	device	بطارية الموبايل بتخلص بسرعة مع تطبيقات الخلفية
+train	device	ظبط إعدادات البلوتوث واقرن السماعة بالجهاز
+train	device	إشارة الراوتر ضعيفة والواي فاي بيفصل
+train	device	Check Android screen brightness and device settings
+train	device	My Bluetooth headset disconnects after pairing
+train	device	راقب حرارة الهاتف واستهلاك البطارية
+train	omni_help	ازاي اشغل Little Omni واظهر الشخصية العائمة
+train	omni_help	فين إعدادات الموافقات في Omni Workspace
+train	omni_help	How do I enable Shizuku mode in OmniDev
+train	omni_help	خلي Omni يستخدم MCP وافهمني طريقة الإعداد
+train	omni_help	Explain how OmniLink works inside Omni Workspace
+train	omni_help	إزاي أفعّل الوكيل في Omni وأظبط صلاحياته
+train	messaging	Send me a summary of the WhatsApp and Telegram conversations
+train	messaging	رسائل واتساب وتيليجرام مش بتظهر في الإشعارات
+train	messaging	رتب محادثات ديسكورد ورد على الرسائل
+train	messaging	Compare WhatsApp Telegram and Discord connected apps
+train	messaging	Find the email thread in Gmail and draft a reply
+train	messaging	ابعت الرد في قناة Slack على الرسالة
+train	connected_apps	Connect Notion with the workspace and sync the pages
+train	connected_apps	اربط نوشن وGoogle Drive ونقل الملفات بينهم
+train	connected_apps	Pair AndroidIDE over OmniLink with the linked app connector
+train	connected_apps	وصل التطبيقات المتصلة واعمل مزامنة للحسابات
+train	connected_apps	Sync files across connected accounts and authorize the connector
+train	connected_apps	اعمل تكامل بين التطبيقين ومزامنة للمجلد
+train	writing	Write a short job application letter
+train	writing	اكتب مقدمة مختصرة عن إدارة الأعمال
+train	writing	ترجم النص للإنجليزي وخليه طبيعي
+train	writing	Proofread this paragraph and improve its wording
+train	writing	ظبط صياغة المقال باللهجة المصرية
+train	writing	Rewrite the email draft in a professional tone
+train	research	ابحث عن دراسات منشورة ومصادر موثوقة للموضوع
+train	research	قارن النتائج في الورقتين العلميتين
+train	research	Find peer reviewed papers and compare their evidence
+train	research	هات مراجع موثوقة عن coroutines والتوثيق
+train	research	Summarize the research findings and cite the sources
+train	research	راجع المصادر وحقق الادعاء بالأدلة
+train	personal	رتب جدول مذاكرة قبل الامتحان
+train	personal	عايز خطة جيم ونظام نوم يناسب الشغل
+train	personal	Organize my weekly study and revision sessions
+train	personal	Plan meals around night shifts and my gym routine
+train	personal	اعمل جدول مراجعة المواد الأسبوع ده
+train	personal	عايز انظم وقتي بين الشغل والمذاكرة والنوم
+train	general	Hello and thanks for your help
+train	general	مش فاهم الكلام ممكن توضح
+train	general	What does that mean exactly
+train	general	ابعتلي تفاصيل أكتر عن الموضوع
+train	general	What time is it right now
+train	general	الدنيا عاملة ايه النهارده
+test	development	Gradle مش بيعدي Kotlin compile
+test	development	Review the git repository before merging my branch
+test	device	راجع استهلاك بطارية الهاتف وتطبيقات الخلفية
+test	device	The Bluetooth pairing fails on my Android phone
+test	omni_help	ازاي افعل MCP في Omni
+test	omni_help	How do I configure permissions for agents inside OmniDev
+test	messaging	دور في رسائل تيليجرام وواتساب
+test	messaging	Find the unread messages in Discord and Slack
+test	connected_apps	اربط نوشن مع التطبيقات المتصلة للمزامنة
+test	connected_apps	Connect linked accounts and sync files between apps
+test	writing	أعد صياغة المقال بشكل واضح
+test	writing	Rewrite this letter for a formal job application
+test	research	عايز دراسات موثوقة ومراجع عن الموضوع
+test	research	Compare these papers and cite reliable sources
+test	personal	رتب وقت المذاكرة للامتحان الأسبوع الجاي
+test	personal	Plan a weekly gym schedule around my night shifts
+test	general	ممكن تبص على ده
+test	general	Could you tell me more about that
+train	connected_apps	عايز أربط التطبيقات ببعض وأنقل الملفات تلقائي بين الحسابات
+train	connected_apps	Unify my linked account integrations and synchronize their folders
+train	research	هات دراسات مستقلة وقارن الدليل والمراجع في الآخر
+train	writing	ظبطلي الأسلوب وراجع الإملاء واختصر الفقرة
+train	personal	ازاي أوفق بين ورديات الشغل ومراجعة المحاضرات
+train	device	البطارية بتخلص بالليل رغم إن شاشة الموبايل مقفولة

@@ -18,7 +18,7 @@ public final class HistoryUserInputReaderTest {
   @Test
   public void longValueDoesNotRequireTheRestOfTheEnvelope() {
     assertEquals(
-        1500, read("{\"userInput\":\"" + repeat("a", 100000) + "\",\"tail\":{}}").length());
+        3072, read("{\"userInput\":\"" + repeat("a", 100000) + "\",\"tail\":{}}").length());
   }
 
   @Test
@@ -39,7 +39,7 @@ public final class HistoryUserInputReaderTest {
 
   @Test
   public void prefixNeverSplitsASurrogatePair() {
-    assertEquals(1499, read("{\"userInput\":\"" + repeat("a", 1499) + "🙂tail\"}").length());
+    assertEquals(3071, read("{\"userInput\":\"" + repeat("a", 3071) + "🙂tail\"}").length());
   }
 
   @Test

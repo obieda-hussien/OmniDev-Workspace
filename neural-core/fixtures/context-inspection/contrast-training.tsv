@@ -1,0 +1,17 @@
+split	label	text
+train	1	التجميع وقع أثناء تحويل كود كوتلن
+train	1	فشل ترجمة الموديول في Gradle والـ compiler رجع error
+train	1	راجع سجل الموديول اللي وقع في مرحلة compilation
+train	1	check why the Android build failed during compilation
+train	1	inspect the build output for compilation diagnostics
+train	1	شوف الكوميت السابق وتعديلات git
+train	1	راجع حالة اتصال سماعة bluetooth بالجهاز
+train	1	compare staged changes with the local git index
+train	0	نتيجة تدريب النادي وتوقيت المحاضرة النهائية
+train	0	مادة إدارة نظم المعلومات بتتكلم عن ايه
+train	0	ملخص محاضرة الدكتور عن نظم الشركات
+train	0	شوف درجة مادة الإدارة وموعد الامتحان
+train	0	the cost to build a garden fence
+train	0	راجع مكان الفرع وهل المحل فاتح
+train	0	build an itinerary for the museum visit
+train	0	شوف سماعة عايز اشتريها بكام

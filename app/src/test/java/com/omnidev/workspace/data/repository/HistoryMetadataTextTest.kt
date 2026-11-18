@@ -12,11 +12,11 @@ class HistoryMetadataTextTest {
         assertEquals("", HistoryMetadataText.original("Quoted private reply", metadata))
     }
     @Test fun clippingPreservesSurrogateBoundaries() {
-        assertEquals(1499, HistoryMetadataText.original("x".repeat(1499) + "😀tail", "{}").length)
+        assertEquals(3071, HistoryMetadataText.original("x".repeat(3071) + "😀tail", "{}").length)
     }
     @Test fun malformedLegacyOrAbsentMetadataKeepsBoundedUserText() {
         assertEquals("hello", HistoryMetadataText.original("hello", "{broken"))
         assertEquals("hello", HistoryMetadataText.original("hello", "{}"))
-        assertEquals(1500, HistoryMetadataText.original("x".repeat(10000), "").length)
+        assertEquals(3072, HistoryMetadataText.original("x".repeat(10000), "").length)
     }
 }
