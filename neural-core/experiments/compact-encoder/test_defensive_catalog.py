@@ -2,14 +2,14 @@
 import unittest
 
 from catalog_advisor import CatalogAdvisor, load_cards
-from model import HERE, Model
+from model import HERE, TextEncoder
 
 
 class DefensiveCatalogTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.cards = load_cards()
-        cls.advisor = CatalogAdvisor(Model(HERE / "weights.npz"), cls.cards,
+        cls.advisor = CatalogAdvisor(TextEncoder(), cls.cards,
                                      HERE / "catalog-advisor.npz")
 
     def test_projections_match_exact_operations(self):

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from model import HERE, Model
+from model import HERE, TextEncoder
 from tool_advisor import vector
 
 CARDS = HERE / "tool-explanations.json"
@@ -86,7 +86,7 @@ def main():
     parser.add_argument("--checkpoint", type=Path, default=CHECKPOINT, help="Path to INT8 weights")
     args = parser.parse_args()
     cards = json.loads(CARDS.read_text(encoding="utf-8"))
-    encoder = Model(HERE / "weights.npz")
+    encoder = TextEncoder()
     if args.fit:
         fit(cards, encoder, args.checkpoint)
     if args.query is None and args.evaluate is None:

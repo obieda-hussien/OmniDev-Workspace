@@ -4,13 +4,13 @@ import unittest
 
 from catalog_advisor import CatalogAdvisor, load_cards
 from explain_tool import CARDS, ToolExplainer
-from model import HERE, Model
+from model import HERE, TextEncoder
 
 
 class ToolExplainerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.encoder = Model(HERE / "weights.npz")
+        cls.encoder = TextEncoder()
         cls.cards = json.loads(CARDS.read_text(encoding="utf-8"))
         cls.explainer = ToolExplainer(cls.cards, cls.encoder)
 

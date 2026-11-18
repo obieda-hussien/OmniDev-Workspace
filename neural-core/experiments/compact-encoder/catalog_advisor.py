@@ -7,7 +7,7 @@ from itertools import islice
 
 import numpy as np
 
-from model import HERE, Model, quantize
+from model import HERE, TextEncoder, quantize
 from tool_advisor import catalog as operation_cards, examples, vector
 
 
@@ -174,7 +174,7 @@ if __name__ == "__main__":
     parser.add_argument("--follow-up", action="store_true", help="Use prior user turns for an ambiguous current request")
     parser.add_argument("--gloss", help="Optional trusted English or Arabic rendering of the user request")
     args = parser.parse_args()
-    encoder = Model(HERE / "weights.npz")
+    encoder = TextEncoder()
     cards = load_cards()
     if args.fit:
         fit(encoder, cards, args.checkpoint)

@@ -5,7 +5,7 @@ import json
 
 import numpy as np
 
-from model import HERE, SLOTS, Model, features
+from model import HERE, SLOTS, TextEncoder, features
 
 
 def catalog():
@@ -15,7 +15,7 @@ def catalog():
 
 def vector(text, encoder):
     ids, values = features(text)
-    x = np.zeros(SLOTS + encoder.head.shape[0], dtype=np.float32)
+    x = np.zeros(SLOTS + encoder.dimensions, dtype=np.float32)
     x[ids] = values
     embedding = encoder.encode(text)
     x[SLOTS:] = 0.5 * embedding / max(np.linalg.norm(embedding), 1e-9)
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     if not isinstance(args.supplied, dict):
         parser.error("--supplied must be a JSON object")
     cards = catalog()
-    encoder = Model(HERE / "weights.npz")
+    encoder = TextEncoder()
     checkpoint = HERE / "tool-advisor.npz"
     if args.fit:
         fit(checkpoint, encoder, cards)
