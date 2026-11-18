@@ -1,0 +1,9 @@
+topic	label	en	ar	mixed
+recover-task	1	What should I establish before resuming an interrupted write?	لو عملية كتابة اتقطعت أعرف إيه قبل محاولة الاستكمال؟	لو عملية write اتقطعت أعرف إيه قبل محاولة الاستكمال؟
+recover-task	0	How do I restore the previous hourly snapshot from the interrupted-write archive?	لو عملية كتابة اتقطعت أرجع نسخة الساعة اللي فاتت من أرشيف الاستكمال إزاي؟	لو عملية write اتقطعت أرجع نسخة الساعة اللي فاتت من أرشيف الاستكمال إزاي؟
+github-access	1	Does connecting the models account give the agent repository access?	ربط حساب النماذج لوحده يكفي عشان الوكيل يشتغل على المستودع؟	ربط حساب Models لوحده يكفي عشان الوكيل يشتغل على المستودع؟
+github-access	0	How many free repository minutes does linking the models account give the agent each month?	ربط حساب النماذج بيدي الوكيل كام دقيقة مجانية كل شهر على المستودع؟	ربط حساب Models بيدي الوكيل كام دقيقة مجانية كل شهر على المستودع؟
+git-environment	1	Which local directory should I check when only a repository name was supplied?	كتبت اسم المستودع ولسه الأمر مش شايف مشروع محلي أراجع أنهي مسار؟	كتبت اسم repo ولسه الأمر مش شايف مشروع محلي أراجع أنهي مسار؟
+git-environment	0	How do I restore a named repository directory from the hourly path snapshot?	كتبت اسم المستودع أرجع مساره المحلي القديم من نسخة المسارات الساعية إزاي؟	كتبت اسم repo أرجع مساره المحلي القديم من نسخة المسارات الساعية إزاي؟
+telegram-owner	1	Does setting the destination replace owner pairing for bot commands?	رقم الوجهة في البوت كفاية عشان أقبل أوامر الشخص ولا محتاج اقتران؟	رقم الوجهة في bot كفاية عشان أقبل أوامر الشخص ولا محتاج اقتران؟
+telegram-owner	0	Exactly how many digits does the bot owner pairing code contain?	كود اقتران صاحب البوت بيتكون من كام رقم بالظبط؟	كود اقتران صاحب bot بيتكون من كام رقم بالظبط؟

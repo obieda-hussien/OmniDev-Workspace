@@ -1,0 +1,20 @@
+{
+  "version": 4,
+  "query_count": 642,
+  "query_sha256": "8e0c7cb5ad9efdc7012b9452b1df968d5860692b4ea1951834a2457af9e13601",
+  "source": "knowledge/omni-product.jsonl",
+  "source_sha256": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+  "authoring": "Assistant-authored scenario questions grounded in the frozen reviewed FAQ. Not independent human review or user traffic. Each triple authored explicitly, not combinatorial prefix/template padding.",
+  "split_unit": "Scenario including all translations; FAQ topics appear in train/dev/cal/fresh. Wording/scenario generalization over the same searchable documents, not held-out-topic or unseen-document evaluation.",
+  "counts": {
+    "development": 99,
+    "fresh": 147,
+    "calibration": 99,
+    "train": 297
+  },
+  "training": "Original114 TRAIN + new TRAIN only; all old DEV/CAL/TEST/v2/v3 probes remain observed regression checks. Four identical v3 projected-SGD fits at rates .05/.15 x seeds42/97, 80epochs max/patience10, no new runtime features.",
+  "selection": "New DEV only (per-language floor against lexical DEV), top1 then MRR then parameter count; same LEGACY/TITLE/RRF/UNIFORM controls. New CAL only selects minimum/margin/coverage, correct minus3wrong. Export before new FRESH scoring. Original dev/cal remain regression only.",
+  "production_eligible": false,
+  "independent_human_labels": false,
+  "physical_device_tested": false
+}

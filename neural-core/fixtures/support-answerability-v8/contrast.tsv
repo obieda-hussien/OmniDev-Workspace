@@ -1,0 +1,175 @@
+id	group	split	language	topic	label	query
+answer8-contrast-history-titles-1-en	answer8-contrast-history-titles	train	en	history-titles	1	What supplies a meaningful automatic name after a greeting-only chat?
+answer8-contrast-history-titles-1-ar	answer8-contrast-history-titles	train	ar	history-titles	1	إيه اللي بيدي الشات اسم واضح بعد ما بدأ بتحية بس؟
+answer8-contrast-history-titles-1-mixed	answer8-contrast-history-titles	train	mixed	history-titles	1	بعد greeting-only chat إيه اللي بيحدد meaningful title؟
+answer8-contrast-history-titles-0-en	answer8-contrast-history-titles	train	en	history-titles	0	Which hidden title-model tokenizer dictionary size is shipped?
+answer8-contrast-history-titles-0-ar	answer8-contrast-history-titles	train	ar	history-titles	0	حجم قاموس توكنات موديل العناوين الخفي المرفق كام؟
+answer8-contrast-history-titles-0-mixed	answer8-contrast-history-titles	train	mixed	history-titles	0	الـhidden title tokenizer vocabulary حجمه كام رقم؟
+answer8-contrast-history-topics-1-en	answer8-contrast-history-topics	policy	en	history-topics	1	How can I correct a saved topic through the conversation category control?
+answer8-contrast-history-topics-1-ar	answer8-contrast-history-topics	policy	ar	history-topics	1	أصحح الموضوع المحفوظ من اختيار تصنيف المحادثة إزاي؟
+answer8-contrast-history-topics-1-mixed	answer8-contrast-history-topics	policy	mixed	history-topics	1	أصحح saved topic من Category control إزاي؟
+answer8-contrast-history-topics-0-en	answer8-contrast-history-topics	policy	en	history-topics	0	What exact confusion matrix is certified for every history category?
+answer8-contrast-history-topics-0-ar	answer8-contrast-history-topics	policy	ar	history-topics	0	فين مصفوفة الالتباس المعتمدة بالأرقام لكل تصنيف سجل؟
+answer8-contrast-history-topics-0-mixed	answer8-contrast-history-topics	policy	mixed	history-topics	0	إيه certified confusion matrix بالأرقام لكل history category؟
+answer8-contrast-history-sources-1-en	answer8-contrast-history-sources	temperature	en	history-sources	1	Does the original entry channel differ from the services mentioned in my text?
+answer8-contrast-history-sources-1-ar	answer8-contrast-history-sources	temperature	ar	history-sources	1	قناة بداية الشات مختلفة عن الخدمات اللي اتذكرت في الكلام؟
+answer8-contrast-history-sources-1-mixed	answer8-contrast-history-sources	temperature	mixed	history-sources	1	الـoriginal entry channel مختلف عن services mentioned في نصي؟
+answer8-contrast-history-sources-0-en	answer8-contrast-history-sources	temperature	en	history-sources	0	What is the internal numeric source identifier of the developer account?
+answer8-contrast-history-sources-0-ar	answer8-contrast-history-sources	temperature	ar	history-sources	0	معرف المصدر الرقمي الداخلي لحساب المطور كام؟
+answer8-contrast-history-sources-0-mixed	answer8-contrast-history-sources	temperature	mixed	history-sources	0	الـdeveloper account عنده internal numeric source ID كام؟
+answer8-contrast-history-legacy-1-en	answer8-contrast-history-legacy	temperature	en	history-legacy	1	Does adding old-chat metadata preserve a provided external contact name?
+answer8-contrast-history-legacy-1-ar	answer8-contrast-history-legacy	temperature	ar	history-legacy	1	إضافة بيانات للشات القديم بتحافظ على اسم جهة الاتصال الخارجي؟
+answer8-contrast-history-legacy-1-mixed	answer8-contrast-history-legacy	temperature	mixed	history-legacy	1	إضافة old-chat metadata بتحافظ على provided contact name؟
+answer8-contrast-history-legacy-0-en	answer8-contrast-history-legacy	temperature	en	history-legacy	0	What exact archive encryption algorithm protects every legacy title?
+answer8-contrast-history-legacy-0-ar	answer8-contrast-history-legacy	temperature	ar	history-legacy	0	أنهي خوارزمية تشفير بالاسم بتحمي كل عنوان قديم في الأرشيف؟
+answer8-contrast-history-legacy-0-mixed	answer8-contrast-history-legacy	temperature	mixed	history-legacy	0	أنهي archive encryption algorithm بالاسم بتحمي legacy titles؟
+answer8-contrast-configure-provider-1-en	answer8-contrast-configure-provider	train	en	configure-provider	1	Where do I enter the compatible server URL before choosing its text model?
+answer8-contrast-configure-provider-1-ar	answer8-contrast-configure-provider	train	ar	configure-provider	1	أدخل عنوان الخادم المتوافق فين قبل اختيار موديل النصوص بتاعه؟
+answer8-contrast-configure-provider-1-mixed	answer8-contrast-configure-provider	train	mixed	configure-provider	1	أدخل compatible server URL فين قبل اختيار text model بتاعه؟
+answer8-contrast-configure-provider-0-en	answer8-contrast-configure-provider	train	en	configure-provider	0	What exact monthly invoice will my configured cloud provider charge?
+answer8-contrast-configure-provider-0-ar	answer8-contrast-configure-provider	train	ar	configure-provider	0	فاتورة المزود السحابي المتظبط عندي الشهر ده كام بالظبط؟
+answer8-contrast-configure-provider-0-mixed	answer8-contrast-configure-provider	train	mixed	configure-provider	0	الـconfigured provider هيحسب monthly invoice كام بالظبط؟
+answer8-contrast-choose-mode-1-en	answer8-contrast-choose-mode	train	en	choose-mode	1	Which mode fits a simple explanation versus work requiring dependent workers?
+answer8-contrast-choose-mode-1-ar	answer8-contrast-choose-mode	train	ar	choose-mode	1	أنهي وضع للشرح البسيط وأنهي وضع للشغل اللي محتاج عمال يعتمدوا على بعض؟
+answer8-contrast-choose-mode-1-mixed	answer8-contrast-choose-mode	train	mixed	choose-mode	1	أنهي mode للشرح وأنهي mode لشغل dependent workers؟
+answer8-contrast-choose-mode-0-en	answer8-contrast-choose-mode	train	en	choose-mode	0	What precise worker scheduling quantum is guaranteed in Team mode?
+answer8-contrast-choose-mode-0-ar	answer8-contrast-choose-mode	train	ar	choose-mode	0	زمن شريحة جدولة العامل المضمون في وضع الفريق كام بالتحديد؟
+answer8-contrast-choose-mode-0-mixed	answer8-contrast-choose-mode	train	mixed	choose-mode	0	الـTeam worker scheduling quantum المضمون كام بالضبط؟
+answer8-contrast-edition-policy-1-en	answer8-contrast-edition-policy	train	en	edition-policy	1	Does installing an edition replace the service consent and Android grants?
+answer8-contrast-edition-policy-1-ar	answer8-contrast-edition-policy	train	ar	edition-policy	1	تثبيت نسخة بيغني عن موافقة الخدمة وأذونات أندرويد؟
+answer8-contrast-edition-policy-1-mixed	answer8-contrast-edition-policy	train	mixed	edition-policy	1	تثبيت edition بيغني عن service consent وAndroid grants؟
+answer8-contrast-edition-policy-0-en	answer8-contrast-edition-policy	train	en	edition-policy	0	Which unpublished Admin signing certificate private key is installed?
+answer8-contrast-edition-policy-0-ar	answer8-contrast-edition-policy	train	ar	edition-policy	0	إيه المفتاح الخاص غير المنشور لشهادة توقيع أدمن المثبتة؟
+answer8-contrast-edition-policy-0-mixed	answer8-contrast-edition-policy	train	mixed	edition-policy	0	إيه الـunpublished Admin certificate private key المثبت؟
+answer8-contrast-finish-evidence-1-en	answer8-contrast-finish-evidence	development	en	finish-evidence	1	Why are tool discovery and generic success insufficient to prove the requested result?
+answer8-contrast-finish-evidence-1-ar	answer8-contrast-finish-evidence	development	ar	finish-evidence	1	ليه اكتشاف الأداة ونجاحها العام مش كفاية لإثبات النتيجة المطلوبة؟
+answer8-contrast-finish-evidence-1-mixed	answer8-contrast-finish-evidence	development	mixed	finish-evidence	1	ليه tool discovery وgeneric success مش كفاية كـcompletion evidence؟
+answer8-contrast-finish-evidence-0-en	answer8-contrast-finish-evidence	development	en	finish-evidence	0	Which exact production finish-ledger nonce was issued to my last worker?
+answer8-contrast-finish-evidence-0-ar	answer8-contrast-finish-evidence	development	ar	finish-evidence	0	رقم التحقق الفريد الفعلي في سجل إكمال آخر عامل عندي إيه؟
+answer8-contrast-finish-evidence-0-mixed	answer8-contrast-finish-evidence	development	mixed	finish-evidence	0	إيه exact production finish-ledger nonce بتاع آخر worker عندي؟
+answer8-contrast-recover-task-1-en	answer8-contrast-recover-task	train	en	recover-task	1	What should be reconciled before retrying a write with an unresolved outcome?
+answer8-contrast-recover-task-1-ar	answer8-contrast-recover-task	train	ar	recover-task	1	أراجع أثر إيه قبل إعادة كتابة نتيجتها لسه مش محسومة؟
+answer8-contrast-recover-task-1-mixed	answer8-contrast-recover-task	train	mixed	recover-task	1	أعمل reconciliation لإيه قبل retry لكتابة unresolved outcome؟
+answer8-contrast-recover-task-0-en	answer8-contrast-recover-task	train	en	recover-task	0	What exact recovery receipt number did my phone persist during its last crash?
+answer8-contrast-recover-task-0-ar	answer8-contrast-recover-task	train	ar	recover-task	0	رقم إيصال الاستعادة الفعلي اللي موبايلي حفظه آخر انهيار كام؟
+answer8-contrast-recover-task-0-mixed	answer8-contrast-recover-task	train	mixed	recover-task	0	آخر crash حفظ recovery receipt number كام على تلفوني فعلًا؟
+answer8-contrast-github-access-1-en	answer8-contrast-github-access	development	en	github-access	1	Which separate repository-control integration is needed besides model credentials?
+answer8-contrast-github-access-1-ar	answer8-contrast-github-access	development	ar	github-access	1	أنهي ربط منفصل للتحكم في المستودعات مطلوب غير بيانات الموديل؟
+answer8-contrast-github-access-1-mixed	answer8-contrast-github-access	development	mixed	github-access	1	أنهي repository-control integration مطلوب غير model credentials؟
+answer8-contrast-github-access-0-en	answer8-contrast-github-access	development	en	github-access	0	What is the secret repository-control token belonging to the developer?
+answer8-contrast-github-access-0-ar	answer8-contrast-github-access	development	ar	github-access	0	إيه رمز التحكم السري في المستودعات الخاص بالمطور؟
+answer8-contrast-github-access-0-mixed	answer8-contrast-github-access	development	mixed	github-access	0	هات secret repository-control token الخاص بالـdeveloper؟
+answer8-contrast-git-environment-1-en	answer8-contrast-git-environment	development	en	git-environment	1	Why does a local Git command require an actual selected checkout directory?
+answer8-contrast-git-environment-1-ar	answer8-contrast-git-environment	development	ar	git-environment	1	ليه أمر جيت المحلي محتاج مجلد نسخة مستنسخة متحدد فعليًا؟
+answer8-contrast-git-environment-1-mixed	answer8-contrast-git-environment	development	mixed	git-environment	1	ليه local Git محتاج selected checkout directory فعلي؟
+answer8-contrast-git-environment-0-en	answer8-contrast-git-environment	development	en	git-environment	0	What is the developer workstation absolute private checkout path?
+answer8-contrast-git-environment-0-ar	answer8-contrast-git-environment	development	ar	git-environment	0	مسار النسخة الخاصة المطلق على جهاز المطور إيه؟
+answer8-contrast-git-environment-0-mixed	answer8-contrast-git-environment	development	mixed	git-environment	0	إيه absolute private checkout path على developer workstation؟
+answer8-contrast-shizuku-prerequisites-1-en	answer8-contrast-shizuku-prerequisites	train	en	shizuku-prerequisites	1	Which service state and app grant are required beyond a working Termux shell?
+answer8-contrast-shizuku-prerequisites-1-ar	answer8-contrast-shizuku-prerequisites	train	ar	shizuku-prerequisites	1	محتاج أنهي حالة خدمة وإذن تطبيق غير إن شيل تيرمكس شغال؟
+answer8-contrast-shizuku-prerequisites-1-mixed	answer8-contrast-shizuku-prerequisites	train	mixed	shizuku-prerequisites	1	محتاج أنهي service state وapp grant غير شيل Termux الشغال؟
+answer8-contrast-shizuku-prerequisites-0-en	answer8-contrast-shizuku-prerequisites	train	en	shizuku-prerequisites	0	What exact privileged binder object address is currently allocated on my phone?
+answer8-contrast-shizuku-prerequisites-0-ar	answer8-contrast-shizuku-prerequisites	train	ar	shizuku-prerequisites	0	عنوان كائن البايندر المميز المخصص دلوقتي على موبايلي إيه بالظبط؟
+answer8-contrast-shizuku-prerequisites-0-mixed	answer8-contrast-shizuku-prerequisites	train	mixed	shizuku-prerequisites	0	إيه exact privileged binder object address الحالي على موبايلي؟
+answer8-contrast-telegram-owner-1-en	answer8-contrast-telegram-owner	train	en	telegram-owner	1	Does an outgoing Telegram destination substitute for private owner pairing?
+answer8-contrast-telegram-owner-1-ar	answer8-contrast-telegram-owner	train	ar	telegram-owner	1	وجهة إرسال تليجرام بتقوم مقام ربط المالك في الخاص؟
+answer8-contrast-telegram-owner-1-mixed	answer8-contrast-telegram-owner	train	mixed	telegram-owner	1	الـoutgoing Telegram destination بتغني عن private owner pairing؟
+answer8-contrast-telegram-owner-0-en	answer8-contrast-telegram-owner	train	en	telegram-owner	0	What is the private numeric Telegram user identity of the maintainer?
+answer8-contrast-telegram-owner-0-ar	answer8-contrast-telegram-owner	train	ar	telegram-owner	0	هوية مستخدم تليجرام الرقمية الخاصة بالقائم على المشروع كام؟
+answer8-contrast-telegram-owner-0-mixed	answer8-contrast-telegram-owner	train	mixed	telegram-owner	0	إيه private numeric Telegram user ID بتاع maintainer؟
+answer8-contrast-whatsapp-bridge-1-en	answer8-contrast-whatsapp-bridge	train	en	whatsapp-bridge	1	Which loopback host and port does the same-phone bridge bind to?
+answer8-contrast-whatsapp-bridge-1-ar	answer8-contrast-whatsapp-bridge	train	ar	whatsapp-bridge	1	جسر نفس التلفون بيربط على أنهي عنوان داخلي ومنفذ؟
+answer8-contrast-whatsapp-bridge-1-mixed	answer8-contrast-whatsapp-bridge	train	mixed	whatsapp-bridge	1	الـsame-phone bridge بيربط على أنهي loopback host وport؟
+answer8-contrast-whatsapp-bridge-0-en	answer8-contrast-whatsapp-bridge	train	en	whatsapp-bridge	0	Which cryptographic key derivation salt protects the bridge pairing archive?
+answer8-contrast-whatsapp-bridge-0-ar	answer8-contrast-whatsapp-bridge	train	ar	whatsapp-bridge	0	قيمة ملح اشتقاق مفتاح التشفير لحماية أرشيف ربط الجسر إيه؟
+answer8-contrast-whatsapp-bridge-0-mixed	answer8-contrast-whatsapp-bridge	train	mixed	whatsapp-bridge	0	إيه cryptographic key derivation salt لأرشيف bridge pairing؟
+answer8-contrast-discord-connected-1-en	answer8-contrast-discord-connected	train	en	discord-connected	1	What account access and receiver trust are separate from a Connected apps history tag?
+answer8-contrast-discord-connected-1-ar	answer8-contrast-discord-connected	train	ar	discord-connected	1	إيه صلاحيات الحساب وثقة المستقبل المنفصلة عن وسم التطبيقات المتصلة في السجل؟
+answer8-contrast-discord-connected-1-mixed	answer8-contrast-discord-connected	train	mixed	discord-connected	1	إيه account access وreceiver trust المنفصلين عن Connected apps tag؟
+answer8-contrast-discord-connected-0-en	answer8-contrast-discord-connected	train	en	discord-connected	0	What exact Discord gateway shard count is deployed for the account?
+answer8-contrast-discord-connected-0-ar	answer8-contrast-discord-connected	train	ar	discord-connected	0	عدد تقسيمات بوابة ديسكورد المنشورة للحساب كام بالتحديد؟
+answer8-contrast-discord-connected-0-mixed	answer8-contrast-discord-connected	train	mixed	discord-connected	0	إيه exact deployed Discord gateway shard count للحساب؟
+answer8-contrast-mcp-tools-1-en	answer8-contrast-mcp-tools	policy	en	mcp-tools	1	Why must a proposed corrected tool call match the currently permitted schema?
+answer8-contrast-mcp-tools-1-ar	answer8-contrast-mcp-tools	policy	ar	mcp-tools	1	ليه استدعاء الأداة المصحح لازم يطابق التعريف المسموح دلوقتي؟
+answer8-contrast-mcp-tools-1-mixed	answer8-contrast-mcp-tools	policy	mixed	mcp-tools	1	ليه corrected tool call لازم يطابق current permitted schema؟
+answer8-contrast-mcp-tools-0-en	answer8-contrast-mcp-tools	policy	en	mcp-tools	0	Which unpublished MCP extension build number is running on the maintainer server?
+answer8-contrast-mcp-tools-0-ar	answer8-contrast-mcp-tools	policy	ar	mcp-tools	0	رقم بناء امتداد إم سي بي غير المنشور على سيرفر القائم بالمشروع كام؟
+answer8-contrast-mcp-tools-0-mixed	answer8-contrast-mcp-tools	policy	mixed	mcp-tools	0	إيه unpublished MCP extension build number على maintainer server؟
+answer8-contrast-provider-failure-1-en	answer8-contrast-provider-failure	temperature	en	provider-failure	1	How should a DNS lookup failure change repeated provider requests?
+answer8-contrast-provider-failure-1-ar	answer8-contrast-provider-failure	temperature	ar	provider-failure	1	فشل البحث عن اسم الخادم المفروض يغير تكرار طلبات المزود إزاي؟
+answer8-contrast-provider-failure-1-mixed	answer8-contrast-provider-failure	temperature	mixed	provider-failure	1	إزاي DNS lookup failure يغير repeated provider requests؟
+answer8-contrast-provider-failure-0-en	answer8-contrast-provider-failure	temperature	en	provider-failure	0	What private production resolver IP address does the team operate today?
+answer8-contrast-provider-failure-0-ar	answer8-contrast-provider-failure	temperature	ar	provider-failure	0	عنوان محلل أسماء الإنتاج الخاص بالفريق النهارده إيه؟
+answer8-contrast-provider-failure-0-mixed	answer8-contrast-provider-failure	temperature	mixed	provider-failure	0	إيه private production resolver IP اللي الفريق مشغله النهارده؟
+answer8-contrast-model-routing-1-en	answer8-contrast-model-routing	train	en	model-routing	1	Do optional experimental intent weights already establish production tool control?
+answer8-contrast-model-routing-1-ar	answer8-contrast-model-routing	train	ar	model-routing	1	أوزان النية التجريبية الاختيارية تثبت إن التحكم في الأدوات شغال فعليًا؟
+answer8-contrast-model-routing-1-mixed	answer8-contrast-model-routing	train	mixed	model-routing	1	الـexperimental intent weights تثبت production tool control فعلي؟
+answer8-contrast-model-routing-0-en	answer8-contrast-model-routing	train	en	model-routing	0	What is the secret production endpoint password for the intent router?
+answer8-contrast-model-routing-0-ar	answer8-contrast-model-routing	train	ar	model-routing	0	كلمة مرور نقطة الإنتاج السرية لموجه النية إيه؟
+answer8-contrast-model-routing-0-mixed	answer8-contrast-model-routing	train	mixed	model-routing	0	إيه secret production endpoint password للـintent router؟
+answer8-contrast-local-model-size-1-en	answer8-contrast-local-model-size	train	en	local-model-size	1	Does bounded local history labeling need a permanent service or large weight download?
+answer8-contrast-local-model-size-1-ar	answer8-contrast-local-model-size	train	ar	local-model-size	1	تصنيف السجل المحلي المحدود محتاج خدمة دايمة أو تنزيل أوزان كبيرة؟
+answer8-contrast-local-model-size-1-mixed	answer8-contrast-local-model-size	train	mixed	local-model-size	1	الـbounded local labeling محتاج permanent service أو large weights؟
+answer8-contrast-local-model-size-0-en	answer8-contrast-local-model-size	train	en	local-model-size	0	What exact peak resident memory did history labeling consume on my physical phone today?
+answer8-contrast-local-model-size-0-ar	answer8-contrast-local-model-size	train	ar	local-model-size	0	أعلى ذاكرة فعلية لتصنيف السجل على موبايلي النهارده كام بالظبط؟
+answer8-contrast-local-model-size-0-mixed	answer8-contrast-local-model-size	train	mixed	local-model-size	0	إيه exact peak resident memory لتصنيف السجل على موبايلي النهارده؟
+answer8-contrast-future-knowledge-training-1-en	answer8-contrast-future-knowledge-training	train	en	future-knowledge-training	1	Does exporting reviewed FAQ content itself prove that a model has been trained?
+answer8-contrast-future-knowledge-training-1-ar	answer8-contrast-future-knowledge-training	train	ar	future-knowledge-training	1	تصدير محتوى الأسئلة المراجعة لوحده يثبت إن موديل اتدرب؟
+answer8-contrast-future-knowledge-training-1-mixed	answer8-contrast-future-knowledge-training	train	mixed	future-knowledge-training	1	تصدير reviewed FAQ content لوحده يثبت إن model training حصل؟
+answer8-contrast-future-knowledge-training-0-en	answer8-contrast-future-knowledge-training	train	en	future-knowledge-training	0	How many actual gradient updates trained the latest installed support weights?
+answer8-contrast-future-knowledge-training-0-ar	answer8-contrast-future-knowledge-training	train	ar	future-knowledge-training	0	كام تحديث مشتقات فعلي درب أوزان الدعم المثبتة الأخيرة؟
+answer8-contrast-future-knowledge-training-0-mixed	answer8-contrast-future-knowledge-training	train	mixed	future-knowledge-training	0	كام actual gradient updates دربت أحدث installed support weights؟
+answer8-contrast-support-diagnostics-1-en	answer8-contrast-support-diagnostics	development	en	support-diagnostics	1	Which redacted installation and provider details help narrow an Omni fault?
+answer8-contrast-support-diagnostics-1-ar	answer8-contrast-support-diagnostics	development	ar	support-diagnostics	1	أنهي تفاصيل نسخة ومزود بعد إخفاء أسرارها تساعد في تحديد عطل أومني؟
+answer8-contrast-support-diagnostics-1-mixed	answer8-contrast-support-diagnostics	development	mixed	support-diagnostics	1	أنهي redacted installation وprovider details تساعد في تشخيص عطل Omni؟
+answer8-contrast-support-diagnostics-0-en	answer8-contrast-support-diagnostics	development	en	support-diagnostics	0	What personal email and mobile number does the developer use for private diagnostics?
+answer8-contrast-support-diagnostics-0-ar	answer8-contrast-support-diagnostics	development	ar	support-diagnostics	0	المطور بيستخدم إيميل ورقم موبايل شخصي إيه للتشخيص الخاص؟
+answer8-contrast-support-diagnostics-0-mixed	answer8-contrast-support-diagnostics	development	mixed	support-diagnostics	0	إيه personal email وmobile number للـdeveloper في private diagnostics؟
+answer8-contrast-voice-wake-1-en	answer8-contrast-voice-wake	train	en	voice-wake	1	Is the wake listener user-started foreground work with installed recognition assets?
+answer8-contrast-voice-wake-1-ar	answer8-contrast-voice-wake	train	ar	voice-wake	1	مستمع النداء بيتشغل من المستخدم في المقدمة ومعاه ملفات تعرف مثبتة؟
+answer8-contrast-voice-wake-1-mixed	answer8-contrast-voice-wake	train	mixed	voice-wake	1	الـwake listener user-started foreground work ومعاه recognition assets مثبتة؟
+answer8-contrast-voice-wake-0-en	answer8-contrast-voice-wake	train	en	voice-wake	0	What exact measured Arabic wake false-accept rate is certified on my device?
+answer8-contrast-voice-wake-0-ar	answer8-contrast-voice-wake	train	ar	voice-wake	0	معدل القبول الخاطئ المقاس والمعتمد للنداء العربي على جهازي كام بالظبط؟
+answer8-contrast-voice-wake-0-mixed	answer8-contrast-voice-wake	train	mixed	voice-wake	0	إيه exact measured Arabic wake false-accept rate المعتمد على جهازي؟
+answer8-contrast-screen-assistant-1-en	answer8-contrast-screen-assistant	development	en	screen-assistant	1	Are opening the assistant panel and controlling another app separate permission steps?
+answer8-contrast-screen-assistant-1-ar	answer8-contrast-screen-assistant	development	ar	screen-assistant	1	فتح لوحة المساعد والتحكم في تطبيق تاني خطوتين أذونات مختلفتين؟
+answer8-contrast-screen-assistant-1-mixed	answer8-contrast-screen-assistant	development	mixed	screen-assistant	1	فتح assistant panel والتحكم في app تاني separate permission steps؟
+answer8-contrast-screen-assistant-0-en	answer8-contrast-screen-assistant	development	en	screen-assistant	0	What exact private screen coordinate calibration matrix is stored for the developer device?
+answer8-contrast-screen-assistant-0-ar	answer8-contrast-screen-assistant	development	ar	screen-assistant	0	مصفوفة معايرة إحداثيات الشاشة الخاصة المحفوظة لجهاز المطور إيه بالتحديد؟
+answer8-contrast-screen-assistant-0-mixed	answer8-contrast-screen-assistant	development	mixed	screen-assistant	0	إيه exact private screen coordinate calibration matrix لجهاز developer؟
+answer8-contrast-learned-routines-1-en	answer8-contrast-learned-routines	development	en	learned-routines	1	Can an approved supported recipe replay locally and pause at an uncertain step?
+answer8-contrast-learned-routines-1-ar	answer8-contrast-learned-routines	development	ar	learned-routines	1	الوصفة المدعومة الموافق عليها ممكن تتنفذ محليًا وتقف عند خطوة مش مؤكدة؟
+answer8-contrast-learned-routines-1-mixed	answer8-contrast-learned-routines	development	mixed	learned-routines	1	الـapproved supported recipe تتعاد locally وتقف عند uncertain step؟
+answer8-contrast-learned-routines-0-en	answer8-contrast-learned-routines	development	en	learned-routines	0	What is the private encrypted recipe vault master password?
+answer8-contrast-learned-routines-0-ar	answer8-contrast-learned-routines	development	ar	learned-routines	0	كلمة المرور الرئيسية لخزنة الوصفات المشفرة الخاصة إيه؟
+answer8-contrast-learned-routines-0-mixed	answer8-contrast-learned-routines	development	mixed	learned-routines	0	إيه private encrypted recipe vault master password؟
+answer8-contrast-media-jobs-1-en	answer8-contrast-media-jobs	train	en	media-jobs	1	Why should an existing provider operation be checked before a duplicate create request?
+answer8-contrast-media-jobs-1-ar	answer8-contrast-media-jobs	train	ar	media-jobs	1	ليه أراجع عملية المزود الموجودة قبل إرسال طلب إنشاء مكرر؟
+answer8-contrast-media-jobs-1-mixed	answer8-contrast-media-jobs	train	mixed	media-jobs	1	ليه أراجع existing provider operation قبل duplicate create request؟
+answer8-contrast-media-jobs-0-en	answer8-contrast-media-jobs	train	en	media-jobs	0	What exact ninety-ninth-percentile queue delay is guaranteed for my media account?
+answer8-contrast-media-jobs-0-ar	answer8-contrast-media-jobs	train	ar	media-jobs	0	زمن التأخير المضمون عند المئين تسعة وتسعين لطابور حساب الوسائط كام؟
+answer8-contrast-media-jobs-0-mixed	answer8-contrast-media-jobs	train	mixed	media-jobs	0	إيه exact guaranteed p99 queue delay لحساب media بتاعي؟
+answer8-contrast-profile-reference-1-en	answer8-contrast-profile-reference	policy	en	profile-reference	1	Does using a stored reference image require explicit enablement and a compatible model?
+answer8-contrast-profile-reference-1-ar	answer8-contrast-profile-reference	policy	ar	profile-reference	1	استخدام صورة مرجعية محفوظة محتاج تفعيل صريح وموديل متوافق؟
+answer8-contrast-profile-reference-1-mixed	answer8-contrast-profile-reference	policy	mixed	profile-reference	1	استخدام stored reference image محتاج explicit enablement وcompatible model؟
+answer8-contrast-profile-reference-0-en	answer8-contrast-profile-reference	policy	en	profile-reference	0	What is the private home street address shown in the developer profile?
+answer8-contrast-profile-reference-0-ar	answer8-contrast-profile-reference	policy	ar	profile-reference	0	عنوان شارع بيت المطور الخاص اللي ظاهر في ملفه إيه؟
+answer8-contrast-profile-reference-0-mixed	answer8-contrast-profile-reference	policy	mixed	profile-reference	0	إيه private home street address الظاهر في developer profile؟
+answer8-contrast-little-omni-1-en	answer8-contrast-little-omni	policy	en	little-omni	1	Does the animated local companion differ from the remote text model and action approval?
+answer8-contrast-little-omni-1-ar	answer8-contrast-little-omni	policy	ar	little-omni	1	الرفيق المحلي المتحرك مختلف عن موديل النص البعيد وعن تصريح الأفعال؟
+answer8-contrast-little-omni-1-mixed	answer8-contrast-little-omni	policy	mixed	little-omni	1	الـanimated local companion مختلف عن remote text model وaction approval؟
+answer8-contrast-little-omni-0-en	answer8-contrast-little-omni	policy	en	little-omni	0	What exact secret animation authoring passphrase does the companion developer use?
+answer8-contrast-little-omni-0-ar	answer8-contrast-little-omni	policy	ar	little-omni	0	عبارة المرور السرية اللي مطور الرفيق بيستخدمها لصناعة الحركة إيه؟
+answer8-contrast-little-omni-0-mixed	answer8-contrast-little-omni	policy	mixed	little-omni	0	إيه exact secret animation authoring passphrase عند companion developer؟
+answer8-contrast-memory-recall-1-en	answer8-contrast-memory-recall	train	en	memory-recall	1	Can saved chat messages and standalone knowledge facts have different source references?
+answer8-contrast-memory-recall-1-ar	answer8-contrast-memory-recall	train	ar	memory-recall	1	رسائل الشات المحفوظة وحقائق المعرفة المنفصلة ليهم مراجع مختلفة؟
+answer8-contrast-memory-recall-1-mixed	answer8-contrast-memory-recall	train	mixed	memory-recall	1	الـsaved chat messages وstandalone knowledge facts ليهم source references مختلفة؟
+answer8-contrast-memory-recall-0-en	answer8-contrast-memory-recall	train	en	memory-recall	0	What is the complete private message archive of the project maintainer?
+answer8-contrast-memory-recall-0-ar	answer8-contrast-memory-recall	train	ar	memory-recall	0	إيه أرشيف الرسائل الخاص الكامل للقائم على المشروع؟
+answer8-contrast-memory-recall-0-mixed	answer8-contrast-memory-recall	train	mixed	memory-recall	0	هات complete private message archive للـproject maintainer؟
+answer8-contrast-local-inference-1-en	answer8-contrast-local-inference	train	en	local-inference	1	Does native library loading still require a compatible model file and observed inference output?
+answer8-contrast-local-inference-1-ar	answer8-contrast-local-inference	train	ar	local-inference	1	تحميل المكتبة الأصلية لسه محتاج ملف موديل متوافق وناتج استدلال ظاهر؟
+answer8-contrast-local-inference-1-mixed	answer8-contrast-local-inference	train	mixed	local-inference	1	الـnative library loading لسه محتاج compatible model file وobserved inference output؟
+answer8-contrast-local-inference-0-en	answer8-contrast-local-inference	train	en	local-inference	0	What exact licensed tokenizer token count is used by my downloaded conversational weights?
+answer8-contrast-local-inference-0-ar	answer8-contrast-local-inference	train	ar	local-inference	0	عدد توكنات القاموس المرخص في أوزان المحادثة اللي نزلتها كام بالظبط؟
+answer8-contrast-local-inference-0-mixed	answer8-contrast-local-inference	train	mixed	local-inference	0	إيه exact licensed tokenizer token count في downloaded conversational weights؟
