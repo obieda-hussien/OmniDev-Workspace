@@ -63,6 +63,10 @@ The repository contains the Android application, native inference integration, J
 - [Contributing, support and repository maintenance](#contributing-support-and-repository-maintenance)
 - [Ownership, licensing and acknowledgments](#ownership-licensing-and-acknowledgments)
 
+## Bundled Auto decision models
+
+All app editions include the public decision and refusal checkpoints (7,175 learned parameters combined) and their fitted Arabic/English vocabulary. Auto consults them offline when an explicit inspection request would otherwise fall back to Chat. An accepted repository, build or device proposal can select Agent. Uncertain, unsupported and over-limit inputs retain the existing route. The neural path accepts up to 2,048 UTF-16 units before and after normalization. Tool permissions and Team selection continue to use the existing runtime checks.
+
 ## Chat titles, topics and source filters
 
 New in-app conversations receive short local extractive titles from user input. The current title/category engine is a **deterministic local baseline**, with no cloud model call, large downloaded weights, permanent service or chat-training job. It is separate from the experimental neural-core classifiers. Greetings can keep a generic title until a substantive request arrives. Common token assignments, bearer values, URLs and contact identifiers are removed from automatic titles; this is not a universal secret detector.

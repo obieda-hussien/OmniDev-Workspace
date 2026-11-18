@@ -414,6 +414,7 @@ android.applicationVariants.configureEach {
 }
 
 dependencies {
+    implementation(project(":neural-core"))
     constraints {
         // DataStore/AndroidX can retain an older Lite protobuf runtime. This is a
         // minimum on an existing transitive module, not another bundled SDK.

@@ -315,6 +315,8 @@ object IntentClassifier {
                     signals.mutationIntent >= 0.16f))
     }
 
+    private val inspectionRequest = Regex("""^(?:inspect|check|review|افحص|راجع|اتأكد من|شوف)(?:\s|$)""", RegexOption.IGNORE_CASE)
+
     /**
      * Hysteresis margins prevent unstable Agent <-> Team flipping on borderline prompts.
      */
@@ -342,6 +344,10 @@ object IntentClassifier {
 
             scores.agent >= 0.48f &&
                 scores.agent >= scores.chat + 0.03f -> OmniMode.AGENT
+
+            signals.conversationalIntent == 0f && signals.mutationIntent == 0f &&
+                inspectionRequest.containsMatchIn(input.trimStart()) &&
+                BundledDecisionModels.supportsInspection(input) -> OmniMode.AGENT
 
             else -> OmniMode.CHAT
         }
