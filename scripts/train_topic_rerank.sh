@@ -24,3 +24,13 @@ python3 -m unittest discover -s scripts -p 'test_refusal_rescue.py'
 java -Xmx768m -cp "$classes" com.omnidev.workspace.domain.neural.TopicRerankFeatures "$out/rescue-features.tsv" --rescue
 python3 scripts/fit_refusal_rescue.py "$out/rescue-features.tsv" "$out/rescue-report.json"
 cmp neural-core/checkpoints/refusal-rescue-v12/report.json "$out/rescue-report.json"
+python3 -m unittest discover -s scripts -p 'test_paired_rescue.py'
+paired=build/paired-rescue-v13
+checkpoint=neural-core/checkpoints/paired-rescue-v13
+mkdir -p "$paired"
+java -Xmx768m -cp "$classes" com.omnidev.workspace.domain.neural.TopicRerankFeatures "$paired/features.tsv" --paired
+python3 scripts/fit_paired_rescue.py "$paired/features.tsv" "$paired"
+python3 scripts/audit_paired_rescue.py "$paired/features.tsv" "$paired/rotation.json"
+for artifact in policy.tsv report.json rotation.json; do cmp "$checkpoint/$artifact" "$paired/$artifact"; done
+"${compiler[@]}" "${compat[@]}" -encoding UTF-8 -d "$classes" neural-core/smoke/PairedRescueReplay.java
+java -cp "$classes" PairedRescueReplay "$checkpoint/policy.tsv" "$paired/features.tsv" "$paired/predictions.tsv"

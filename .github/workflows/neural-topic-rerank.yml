@@ -6,6 +6,7 @@ on:
       - 'knowledge/omni-product.jsonl'
       - 'scripts/*topic_rerank*'
       - 'scripts/*refusal_rescue*'
+      - 'scripts/*paired_rescue*'
       - '.github/workflows/neural-topic-rerank.yml'
   workflow_dispatch:
 permissions:
