@@ -1,0 +1,41 @@
+{
+  "production_eligible": false,
+  "independent_human_labels": false,
+  "physical_device_tested": false,
+  "selected_head_is_fitted": false,
+  "top1_not_below_frozen_v4": true,
+  "every_language_top1_not_below_frozen_v4": true,
+  "accepted_wrong_not_above_retained": true,
+  "observed_wrong_not_above_retained": false,
+  "default_policy": "Retain frozen v1 guard; explicit query-memory candidate only. TRAIN exemplar text is a ranking hint, never returned evidence.",
+  "source_sha256": {
+    "knowledge/omni-product.jsonl": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+    "neural-core/fixtures/product-support/queries.tsv": "04c16ff3a83d8ca7227b4e3e3cad5ce9e6e2b0d6fe7e8338be68b71543d66899",
+    "neural-core/fixtures/support-data-v4/queries.tsv": "8e0c7cb5ad9efdc7012b9452b1df968d5860692b4ea1951834a2457af9e13601",
+    "neural-core/fixtures/query-memory-v5/fresh.tsv": "e2df9262c4704bcb573231cacdb5b1b0e640a40323947da9e8f329135e03b292",
+    "neural-core/fixtures/query-memory-v5/protocol.json": "7be3b39bcb0a2a00d22938ff6fdd21511ae39812212ce7497eb94a431facbc88",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/SupportQueryMemory.java": "5a588a3cd17d18aa64213ecd034def3cd517e63e0575f6d92243cb9f85180257",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/HybridSupportRetriever.java": "1fb554340b90297f1022973f85d646563ef514793afbbbfef2a0a506c1165b67",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/TinyNeuralRuntime.java": "15150007800a4ad9f31c15a153f984159f374a8917db1aa8f1065006ce84d3df",
+    "neural-core/training/com/omnidev/workspace/domain/neural/QueryMemoryExperiment.java": "7e191e829deda6884d357c2aa5a023da09dac9968f323586f3e73a07361e5e14",
+    "neural-core/checkpoints/support-data-v4/TrainedExpandedSupport.java": "6458065f6fe5e25f6993990ca93ae2267d6562ec431180c3c791e5c16d7f1e09",
+    "neural-core/checkpoints/product-support-v1/TrainedProductSupport.java": "2094abf2540461476e4df737e9e408868a44ddc46618dbce87528e90476eba15",
+    "scripts/prepare_query_memory.py": "406dac58f230cc75a5e48a42314fd7ffb98978bf86107720c01da500e9a7f4ca",
+    "scripts/train_query_memory.sh": "4ec1ff004983e98aeff814da0e198c7468cd33ab7c7ca195b563df6cbbea1ea0",
+    "neural-core/smoke/QueryMemoryTrainingSmoke.java": "0e522e597bb1100acf2440fc18504d29757840bfbf136a932f8baefeaea303a6",
+    "neural-core/smoke/QueryMemoryCheckpointSmoke.java": "2204f1756b1f2c61a86ae9b984775ffb38a7cbf6bcf8bd8bd3b7aa9c6fc11376",
+    "neural-core/smoke/QueryMemoryAndroidSmoke.java": "28579f39b7e8f5be7ccd827eaf51a035476229c83160943312974c92c88fb413",
+    "neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/QueryMemoryProbeContract.java": "6aea3c2a81eb08af5a724b928332f3b61bff6380f8d7ad64dfac5afe1639be43",
+    "neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/QueryMemoryAndroidTest.java": "9008dbd08ab9d1ee72a45d95bacb44239a82068a6d231b3faa1e13254e7568fa",
+    "scripts/prepare_query_memory_android.sh": "963bcf62da40d582549e128260e66f8f6c0195d25dc5a7d67f1dd710d005336c",
+    "neural-core/smoke/QueryMemoryRuntimeAudit.java": "62c05e42ab4c1d047f9d10827dec7d3652c668e279df1293070d5e40dde3f62f",
+    "neural-core/smoke/QueryMemoryFootprintAgent.java": "199b81901ed01a1dbf5141580d745ac74337dac3e6f0432b96c417258e146990",
+    "neural-core/src/test/java/com/omnidev/workspace/domain/neural/SupportQueryMemoryTest.java": "cd6b44f1763361133e1a1e93a3307663c57bef0a54180ca86962cd2430c896e5",
+    "scripts/audit_query_memory_runtime.sh": "2119d74c805beaaa990571b8cc2657e5bca7845d892080523c55d330c230786b"
+  },
+  "export_sha256": {
+    "TrainedQueryMemory.java": "5e1cf4288a89415d8ab264405c2349a4a2e7098bf557a455cc3fe5a9c41c1b1e",
+    "exemplars.tsv": "9e77a50a342f458e4eb17e306a22c3c8f4e419bd317cbc491887ccb75d973026",
+    "expected.tsv": "0ddd98bc96e5873b389d690f45c4e333d2ab99b95634b0ff9cf36338900d5487"
+  }
+}

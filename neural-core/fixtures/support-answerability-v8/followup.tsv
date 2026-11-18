@@ -1,0 +1,49 @@
+id	group	split	language	topic	label	query
+answer8-followup-shizuku-prerequisites-1-en	answer8-followup-shizuku-prerequisites	followup	en	shizuku-prerequisites	1	Does the guide require both a running Shizuku service and this app grant?
+answer8-followup-shizuku-prerequisites-1-ar	answer8-followup-shizuku-prerequisites	followup	ar	shizuku-prerequisites	1	الدليل محتاج شيزوكو شغال ومعاه إذن التطبيق ده كمان؟
+answer8-followup-shizuku-prerequisites-1-mixed	answer8-followup-shizuku-prerequisites	followup	mixed	shizuku-prerequisites	1	هل الـguide محتاج running Shizuku service وapp grant مع بعض؟
+answer8-followup-shizuku-prerequisites-0-en	answer8-followup-shizuku-prerequisites	followup	en	shizuku-prerequisites	0	What is the exact live binder handle allocated to Shizuku on my phone?
+answer8-followup-shizuku-prerequisites-0-ar	answer8-followup-shizuku-prerequisites	followup	ar	shizuku-prerequisites	0	رقم مقبض البايندر الفعلي المخصص لشيزوكو على موبايلي كام بالظبط؟
+answer8-followup-shizuku-prerequisites-0-mixed	answer8-followup-shizuku-prerequisites	followup	mixed	shizuku-prerequisites	0	إيه exact live binder handle لشيزوكو على تلفوني؟
+answer8-followup-screen-assistant-1-en	answer8-followup-screen-assistant	followup	en	screen-assistant	1	Can assistant-role setup and overlay consent be separate from screen-action access?
+answer8-followup-screen-assistant-1-ar	answer8-followup-screen-assistant	followup	ar	screen-assistant	1	تجهيز دور المساعد وموافقة الظهور فوق التطبيقات منفصلين عن صلاحية أفعال الشاشة؟
+answer8-followup-screen-assistant-1-mixed	answer8-followup-screen-assistant	followup	mixed	screen-assistant	1	هل assistant-role setup وoverlay consent منفصلين عن screen-action access؟
+answer8-followup-screen-assistant-0-en	answer8-followup-screen-assistant	followup	en	screen-assistant	0	Which exact private calibration offsets are stored for the installed screen controller?
+answer8-followup-screen-assistant-0-ar	answer8-followup-screen-assistant	followup	ar	screen-assistant	0	أنهي قيم معايرة خاصة بالضبط متخزنة لمتحكم الشاشة المثبت؟
+answer8-followup-screen-assistant-0-mixed	answer8-followup-screen-assistant	followup	mixed	screen-assistant	0	إيه exact private calibration offsets للـinstalled screen controller؟
+answer8-followup-media-jobs-1-en	answer8-followup-media-jobs	followup	en	media-jobs	1	Do media requests keep a job card in the conversation that started them?
+answer8-followup-media-jobs-1-ar	answer8-followup-media-jobs	followup	ar	media-jobs	1	طلبات الوسائط بتحتفظ ببطاقة عملية في الشات اللي بدأها؟
+answer8-followup-media-jobs-1-mixed	answer8-followup-media-jobs	followup	mixed	media-jobs	1	هل media requests بتحتفظ بـjob card في originating conversation؟
+answer8-followup-media-jobs-0-en	answer8-followup-media-jobs	followup	en	media-jobs	0	What measured production queue percentile is my pending media request experiencing right now?
+answer8-followup-media-jobs-0-ar	answer8-followup-media-jobs	followup	ar	media-jobs	0	طلب الوسائط اللي مستني عندي واقع في أنهي مئين انتظار إنتاج مقاس دلوقتي؟
+answer8-followup-media-jobs-0-mixed	answer8-followup-media-jobs	followup	mixed	media-jobs	0	طلبي الحالي بيحقق أنهي measured production queue percentile دلوقتي؟
+answer8-followup-future-knowledge-training-1-en	answer8-followup-future-knowledge-training	followup	en	future-knowledge-training	1	Should translated product-support questions stay in one data group?
+answer8-followup-future-knowledge-training-1-ar	answer8-followup-future-knowledge-training	followup	ar	future-knowledge-training	1	ترجمات سؤال دعم المنتج المفروض تفضل في مجموعة بيانات واحدة؟
+answer8-followup-future-knowledge-training-1-mixed	answer8-followup-future-knowledge-training	followup	mixed	future-knowledge-training	1	هل translated product-support questions تفضل في نفس data group؟
+answer8-followup-future-knowledge-training-0-en	answer8-followup-future-knowledge-training	followup	en	future-knowledge-training	0	What precise count of licensed documents trained the installed tiny support checkpoint?
+answer8-followup-future-knowledge-training-0-ar	answer8-followup-future-knowledge-training	followup	ar	future-knowledge-training	0	العدد الدقيق للمستندات المرخصة اللي دربت موديل الدعم الصغير المثبت كام؟
+answer8-followup-future-knowledge-training-0-mixed	answer8-followup-future-knowledge-training	followup	mixed	future-knowledge-training	0	كام precise licensed document count درب installed tiny support checkpoint؟
+answer8-followup-little-omni-1-en	answer8-followup-little-omni	followup	en	little-omni	1	Can local companion habits be distinct from authorization for device actions?
+answer8-followup-little-omni-1-ar	answer8-followup-little-omni	followup	ar	little-omni	1	عادات الرفيق المحلي مختلفة عن منح صلاحية أفعال الجهاز؟
+answer8-followup-little-omni-1-mixed	answer8-followup-little-omni	followup	mixed	little-omni	1	هل local companion habits مختلفة عن device-action authorization؟
+answer8-followup-little-omni-0-en	answer8-followup-little-omni	followup	en	little-omni	0	What is the private personal login email used by the companion author?
+answer8-followup-little-omni-0-ar	answer8-followup-little-omni	followup	ar	little-omni	0	إيميل الدخول الشخصي الخاص اللي صاحب الرفيق بيستخدمه إيه؟
+answer8-followup-little-omni-0-mixed	answer8-followup-little-omni	followup	mixed	little-omni	0	إيه private personal login email بتاع companion author؟
+answer8-followup-github-access-1-en	answer8-followup-github-access	followup	en	github-access	1	Does a missing repository resource alone establish whether account authorization failed?
+answer8-followup-github-access-1-ar	answer8-followup-github-access	followup	ar	github-access	1	اختفاء مورد المستودع لوحده يثبت إن تفويض الحساب فشل؟
+answer8-followup-github-access-1-mixed	answer8-followup-github-access	followup	mixed	github-access	1	هل missing repository resource لوحده يثبت account authorization failure؟
+answer8-followup-github-access-0-en	answer8-followup-github-access	followup	en	github-access	0	What is the confidential personal numeric GitHub account identifier of the maintainer?
+answer8-followup-github-access-0-ar	answer8-followup-github-access	followup	ar	github-access	0	معرف حساب جيتهوب الرقمي الشخصي السري للقائم على المشروع كام؟
+answer8-followup-github-access-0-mixed	answer8-followup-github-access	followup	mixed	github-access	0	إيه confidential personal numeric GitHub account ID للـmaintainer؟
+answer8-followup-voice-wake-1-en	answer8-followup-voice-wake	followup	en	voice-wake	1	Can installed Vosk resources and Android TTS affect local voice behavior?
+answer8-followup-voice-wake-1-ar	answer8-followup-voice-wake	followup	ar	voice-wake	1	موارد فوسك المثبتة وتحويل النص للصوت في أندرويد ممكن يأثروا على الصوت المحلي؟
+answer8-followup-voice-wake-1-mixed	answer8-followup-voice-wake	followup	mixed	voice-wake	1	هل installed Vosk resources وAndroid TTS يأثروا على local voice behavior؟
+answer8-followup-voice-wake-0-en	answer8-followup-voice-wake	followup	en	voice-wake	0	What exact hyperparameter vector trained the bundled wake enrollment network?
+answer8-followup-voice-wake-0-ar	answer8-followup-voice-wake	followup	ar	voice-wake	0	متجه معاملات التدريب الفائق بالضبط لشبكة تسجيل النداء المرفقة إيه؟
+answer8-followup-voice-wake-0-mixed	answer8-followup-voice-wake	followup	mixed	voice-wake	0	إيه exact hyperparameter vector درب bundled wake enrollment network؟
+answer8-followup-telegram-owner-1-en	answer8-followup-telegram-owner	followup	en	telegram-owner	1	Must owner pairing use the private bot chat even when an outgoing destination is saved?
+answer8-followup-telegram-owner-1-ar	answer8-followup-telegram-owner	followup	ar	telegram-owner	1	ربط المالك لازم يتم في خاص البوت حتى لو وجهة إرسال محفوظة؟
+answer8-followup-telegram-owner-1-mixed	answer8-followup-telegram-owner	followup	mixed	telegram-owner	1	هل owner pairing لازم يتم في private bot chat حتى مع outgoing destination محفوظة؟
+answer8-followup-telegram-owner-0-en	answer8-followup-telegram-owner	followup	en	telegram-owner	0	What exact private Telegram account number belongs to the development team owner?
+answer8-followup-telegram-owner-0-ar	answer8-followup-telegram-owner	followup	ar	telegram-owner	0	رقم حساب تليجرام الخاص الدقيق لمالك فريق التطوير كام؟
+answer8-followup-telegram-owner-0-mixed	answer8-followup-telegram-owner	followup	mixed	telegram-owner	0	إيه exact private Telegram account number لمالك development team؟

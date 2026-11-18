@@ -1,0 +1,39 @@
+{
+  "production_eligible": false,
+  "independent_human_labels": false,
+  "physical_device_tested": false,
+  "top1_not_below_lexical": true,
+  "top1_not_below_matched_old_only": false,
+  "all_primary_at3_not_below_lexical": true,
+  "accepted_correct_not_below_retained": true,
+  "accepted_wrong_not_above_retained": false,
+  "every_language_top1_not_below_lexical": true,
+  "default_policy": "Keep frozen v1 guard; explicit v4 candidate only, no normal APK activation.",
+  "sha256": {
+    "knowledge/omni-product.jsonl": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+    "neural-core/fixtures/support-data-v4/queries.tsv": "8e0c7cb5ad9efdc7012b9452b1df968d5860692b4ea1951834a2457af9e13601",
+    "neural-core/fixtures/support-data-v4/protocol.json": "06140c091d0f2065730e8aef8fab66f76e9a59d326b7b082ae6b6db5339ee57a",
+    "neural-core/fixtures/product-support/queries.tsv": "04c16ff3a83d8ca7227b4e3e3cad5ce9e6e2b0d6fe7e8338be68b71543d66899",
+    "neural-core/fixtures/product-support-v2/fresh.tsv": "77a3e67adb2b69cd36c5ad0f7491d7d3218121c42f72db2900a03f67429cdede",
+    "neural-core/fixtures/hybrid-support-v3/fresh.tsv": "5985b4894a6d0541080e6dfab397635f6fcc4fb5f6b7a11141ecb9b3fd04377a",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/HybridSupportRetriever.java": "1fb554340b90297f1022973f85d646563ef514793afbbbfef2a0a506c1165b67",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/ProductSupportModel.java": "13febeba5ca3c92ce82f3a2891db2438c116518c8a26f4f11250ad52777844cc",
+    "neural-core/src/main/java/com/omnidev/workspace/domain/neural/TinyNeuralRuntime.java": "15150007800a4ad9f31c15a153f984159f374a8917db1aa8f1065006ce84d3df",
+    "neural-core/training/com/omnidev/workspace/domain/neural/HybridSupportExperiment.java": "ef136abb9f1ac09025b16c2634eed9574914d48fd0fcfeb55c89f025bc1d1c48",
+    "neural-core/training/com/omnidev/workspace/domain/neural/ExpandedSupportExperiment.java": "cbfb163f599c8017d586c2f2ac4930001924abb0340285f8175aa3cbdcfa4d8f",
+    "neural-core/checkpoints/product-support-v1/TrainedProductSupport.java": "2094abf2540461476e4df737e9e408868a44ddc46618dbce87528e90476eba15",
+    "neural-core/checkpoints/hybrid-support-v3/TrainedHybridSupport.java": "b967dae690fd35efe2029c26830bc8a2764c0c7878cea991476a051e96457bd6",
+    "scripts/prepare_support_data_v4.py": "6f93bd90cbf81eee6537299d9c7b091dd9e021baa7dab837d94e025be2ff33a2",
+    "scripts/train_expanded_support.sh": "b8ff2b3a8522f2c41fce7b54d786a075cec41018da6cc5d9016cb09083800934",
+    "neural-core/smoke/ExpandedSupportCheckpointSmoke.java": "0ad59239cd6960a569f3a7c4c5f547c1b0cc92b065e2d5ba9e5ab93ae93f5b52",
+    "neural-core/smoke/ExpandedSupportAndroidSmoke.java": "e6ca0102a3cfe923434d1b9e60985ab47023c97c2380c51cff37dbba6c564612",
+    "neural-core/smoke/ExpandedSupportTrainingSmoke.java": "55af7a887d0977e428dc928848c5863545f962c29db4de3c9bdd34452d5b7022",
+    "neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/ExpandedSupportProbeContract.java": "f45e1a7ec09b8322bc4745d17313d8a961f08eb92ee9919ad8d12533f0372b20",
+    "neural-android/src/androidTest/java/com/omnidev/workspace/neural/probe/ExpandedSupportAndroidTest.java": "d0dcca918996391453e5a36616067811a55620ed0bd926a1343173fa43b2b81a",
+    "scripts/prepare_expanded_android.sh": "0e4a9f2c1ff45c1a412c8ba2c7b0fbd5c09a418ca731765155118d4cb4da99be"
+  },
+  "export_sha256": {
+    "TrainedExpandedSupport.java": "6458065f6fe5e25f6993990ca93ae2267d6562ec431180c3c791e5c16d7f1e09",
+    "expected.tsv": "70bc942d99531aa29602d9c740e101bf0a0cfc292dba4cc7329383954ff35da8"
+  }
+}

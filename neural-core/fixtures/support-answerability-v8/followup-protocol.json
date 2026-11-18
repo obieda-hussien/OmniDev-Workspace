@@ -1,0 +1,14 @@
+{
+  "version": "8-preservation-followup",
+  "count": 48,
+  "groups": 8,
+  "followup_sha256": "3087ae2a6cac9d765ce254b557bb27033f825f86cc941a70c56a1102686483d4",
+  "initial_selected_source_sha256": "4420b0dd9bfcf1bcf45f7cff7d6da4001735326688d78874371d0bf33ff30316",
+  "initial_selection_sha256": "5201a0e6676a1d6994653531eade1b2b26d1222be19b15bbbe632e6837a51e1a",
+  "reason": "Original V8 policy chose threshold0 under its lower-threshold tie and made no pipeline improvement. Initial fresh72 is now observed regression. Freeze a distinct follow-up policy and48 authored questions before applying or scoring the alternative. No new weights/features/temperature/data fitting.",
+  "policy": "Keep the selected contrast head and temperature fixed. On the same POLICY75, preserve all proposal-correct rows, minimize accepted-wrong, then prefer the LARGEST threshold on the original0..1 by.025 grid. This is an alternate calibration tie policy, not tuning on old1488/fresh72. Never upgrade proposal refusal or rewrite sources. Compare the original threshold0 as negative control. Existing group roles and original training protocol remain frozen.",
+  "evaluation": "Followup48 is a targeted assistant-authored 8-topic paired challenge, not independent human labels, unbiased traffic, new documents/topics or semantic OOD. Old1488, initial fresh72 and original contrasts are observed regressions. Preserve all labels and record all veto losses; no guaranteed accuracy or production promotion.",
+  "production_eligible": false,
+  "independent_human_labels": false,
+  "physical_device_tested": false
+}

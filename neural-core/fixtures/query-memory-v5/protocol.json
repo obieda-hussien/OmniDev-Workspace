@@ -1,0 +1,14 @@
+{
+  "version": 5,
+  "fresh_count": 138,
+  "fresh_sha256": "e2df9262c4704bcb573231cacdb5b1b0e640a40323947da9e8f329135e03b292",
+  "source": "knowledge/omni-product.jsonl",
+  "source_sha256": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+  "authoring": "Assistant-authored multilingual FAQ scenarios; not independent human labels or user traffic.",
+  "training": "Original TRAIN114 plus v4 TRAIN297 only. Index only supported original/v4 TRAIN exemplars (351). Exclude the complete scenario group including translations when building training features. Four projected pairwise logistic fits for 3 nonnegative simplex weights, rates .05/.15 x seeds42/97, max80epochs/patience10, batch16, at most8 negatives/query, gradient cap5 and L2 .01 toward uniform.",
+  "representation": "Fixed v4 field score plus max per-topic TRAIN-exemplar word unigram/bigram TF-IDF cosine and character3/4 TF-IDF cosine. No generated query expansion, embeddings or original document rewriting. Exact original references only.",
+  "selection": "v4 DEV99 selects with per-language top1 floors against frozen v4. Include frozen-base, word-only, character-only, uniform controls. DEV top1 then MRR then parameters. v4 CAL99 thresholds score/margin/coverage by correct minus3wrong. Export before new fresh evaluation. All old1101 queries are observed regression only.",
+  "production_eligible": false,
+  "independent_human_labels": false,
+  "physical_device_tested": false
+}

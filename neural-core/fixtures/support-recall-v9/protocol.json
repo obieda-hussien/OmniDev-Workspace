@@ -1,0 +1,16 @@
+{
+  "version": 9,
+  "count": 90,
+  "groups": 15,
+  "fresh_sha256": "a2744f55a1e211cfb8673c83e4b5fb2adff9d1e02903519a5bd0cddad7f50333",
+  "source": "knowledge/omni-product.jsonl",
+  "source_sha256": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+  "frozen_v8_sha256": "4420b0dd9bfcf1bcf45f7cff7d6da4001735326688d78874371d0bf33ff30316",
+  "contrast_sha256": "c64137d74abe8aab8bda2ebf715f19ead7fb17d2f18c48d211856abe7118d300",
+  "training": "Keep the v8 representation, proposer and TRAIN507 pairs unchanged. Eight actual sparse binary AdamW fits: positive loss weight1/4 x L2 .0001/.001 x seeds42/97. Same batch32/rate.01/clip5/decay1e-4/max100/patience12. Select deployed FP32 snapshots/configurations by macro-language DEV135 BCE with positive cost4 normalized by total per-language cost. Preserve best weight1 and weight4 arms under the same DEV selection. Do not fit from any new90, observed regression or calibration rows.",
+  "calibration": "Unweighted NLL temperature on TEMP66 using .5/.75/1/1.5/2/3. Original policy-only75 comparator: minimize wrong preserving its accepted-correct, largest cutoff on0..1 by.025. New guarded rule uses all original TRAIN411, DEV99, CAL99 plus contrast174 =783 rows as a non-independent recall guard. Preserve every full-proposer accepted-correct row in this guard; minimize wrong on POLICY75 then largest cutoff on the same grid. TRAIN guard predictions can see their own TRAIN exemplars and fitting; this is an engineering preservation check, not unbiased generalization or a conformal/risk-control guarantee. No threshold choice from old1782 or new90 labels. Select head by DEV only; export source and policy before fresh evaluation.",
+  "evaluation": "Prior1782 labels unchanged and observed. Fresh90 are15 assistant-authored positive/negative FAQ pairs x3 languages, same known topics, not independent human labels, real traffic or semantic OOD. All correct-loss IDs, rejected errors and remaining errors must be reported; default v1 stays exact and production remains false even if selected tests improve. Do not choose an arm by fresh outcomes.",
+  "production_eligible": false,
+  "independent_human_labels": false,
+  "physical_device_tested": false
+}
