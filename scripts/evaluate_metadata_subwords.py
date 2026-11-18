@@ -32,6 +32,10 @@ def subwords(text):
 def evaluate(path, field, export_dir):
     with (ROOT / path).open(encoding="utf-8") as stream:
         rows = list(csv.DictReader(stream, delimiter="\t"))
+    with (ROOT / "metadata-subword-probes.tsv").open(encoding="utf-8") as stream:
+        for probe in csv.DictReader(stream, delimiter="\t"):
+            if probe["task"] == Path(path).parent.name:
+                rows.append({"split": "challenge", "label": probe["expected"], field: probe["text"]})
     labels = np.array([row["label"] for row in rows])
     texts = np.array([row[field] for row in rows])
     train = np.array([i for i, row in enumerate(rows) if row["split"] == "train"])
@@ -65,7 +69,9 @@ def evaluate(path, field, export_dir):
         for split in sorted({rows[i]["split"] for i in held}):
             mask = [rows[i]["split"] == split for i in held]
             print(split, np.sum(guesses[mask] == labels[held][mask]), "/", sum(mask))
-        print("observed holdout macro F1", round(f1_score(labels[held], guesses, average="macro"), 3))
+        original = [rows[i]["split"] != "challenge" for i in held]
+        print("original holdout macro F1",
+              round(f1_score(labels[held][original], guesses[original], average="macro"), 3))
 
 
 if __name__ == "__main__":
