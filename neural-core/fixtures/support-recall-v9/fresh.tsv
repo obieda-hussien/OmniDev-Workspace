@@ -1,0 +1,91 @@
+id	group	split	language	topic	label	query
+recall9-fresh-history-titles-1-en	recall9-fresh-history-titles	fresh	en	history-titles	1	After I rename a chat myself, whose title choice takes priority?
+recall9-fresh-history-titles-1-ar	recall9-fresh-history-titles	fresh	ar	history-titles	1	لما أسمي المحادثة بنفسي مين اختياره للاسم يبقى المعتمد؟
+recall9-fresh-history-titles-1-mixed	recall9-fresh-history-titles	fresh	mixed	history-titles	1	بعد manual rename للشات أنهي title choice ليه priority؟
+recall9-fresh-history-titles-0-en	recall9-fresh-history-titles	fresh	en	history-titles	0	What is the undocumented exact neural vocabulary used for conversation naming?
+recall9-fresh-history-titles-0-ar	recall9-fresh-history-titles	fresh	ar	history-titles	0	قاموس الشبكة العصبية غير الموثق لتسمية المحادثة فيه كام مدخل بالضبط؟
+recall9-fresh-history-titles-0-mixed	recall9-fresh-history-titles	fresh	mixed	history-titles	0	كام exact undocumented neural vocabulary entries لتسمية الشات؟
+recall9-fresh-history-topics-1-en	recall9-fresh-history-topics	fresh	en	history-topics	1	Can I return a conversation category from my manual choice to automatic?
+recall9-fresh-history-topics-1-ar	recall9-fresh-history-topics	fresh	ar	history-topics	1	أقدر أرجع تصنيف محادثة من اختياري اليدوي للتلقائي تاني؟
+recall9-fresh-history-topics-1-mixed	recall9-fresh-history-topics	fresh	mixed	history-topics	1	ينفع conversation category ترجع من manual choice لـAutomatic تاني؟
+recall9-fresh-history-topics-0-en	recall9-fresh-history-topics	fresh	en	history-topics	0	Which private topic label did another user assign to their chat this morning?
+recall9-fresh-history-topics-0-ar	recall9-fresh-history-topics	fresh	ar	history-topics	0	مستخدم تاني حط أنهي تصنيف خاص على محادثته الصبح؟
+recall9-fresh-history-topics-0-mixed	recall9-fresh-history-topics	fresh	mixed	history-topics	0	إيه private topic label اللي another user حطه على شاته النهارده؟
+recall9-fresh-history-sources-1-en	recall9-fresh-history-sources	fresh	en	history-sources	1	If an App chat mentions Discord, does that make Discord its original entry channel?
+recall9-fresh-history-sources-1-ar	recall9-fresh-history-sources	fresh	ar	history-sources	1	لو شات من التطبيق اتكلم عن ديسكورد هل ده يغير قناة دخوله الأصلية؟
+recall9-fresh-history-sources-1-mixed	recall9-fresh-history-sources	fresh	mixed	history-sources	1	لو App chat ذكر Discord هل original entry channel تتغير؟
+recall9-fresh-history-sources-0-en	recall9-fresh-history-sources	fresh	en	history-sources	0	How many live conversations entered through Discord across all users today?
+recall9-fresh-history-sources-0-ar	recall9-fresh-history-sources	fresh	ar	history-sources	0	دخل كام شات حي من ديسكورد لكل المستخدمين النهارده؟
+recall9-fresh-history-sources-0-mixed	recall9-fresh-history-sources	fresh	mixed	history-sources	0	كام live conversations جت من Discord لكل users النهارده؟
+recall9-fresh-history-legacy-1-en	recall9-fresh-history-legacy	fresh	en	history-legacy	1	Does removing an old conversation also remove its derived browsing metadata?
+recall9-fresh-history-legacy-1-ar	recall9-fresh-history-legacy	fresh	ar	history-legacy	1	حذف محادثة قديمة بيشيل معاها بيانات التصفح المشتقة منها؟
+recall9-fresh-history-legacy-1-mixed	recall9-fresh-history-legacy	fresh	mixed	history-legacy	1	هل removing old conversation بيحذف derived browsing metadata كمان؟
+recall9-fresh-history-legacy-0-en	recall9-fresh-history-legacy	fresh	en	history-legacy	0	What are the exact words of an erased conversation that has no surviving backup?
+recall9-fresh-history-legacy-0-ar	recall9-fresh-history-legacy	fresh	ar	history-legacy	0	إيه الكلمات الدقيقة لمحادثة ممسوحة ومفيش منها أي نسخة احتياطية باقية؟
+recall9-fresh-history-legacy-0-mixed	recall9-fresh-history-legacy	fresh	mixed	history-legacy	0	هات exact words لشات erased ومفيش surviving backup ليه؟
+recall9-fresh-choose-mode-1-en	recall9-fresh-choose-mode	fresh	en	choose-mode	1	Is a simple explanatory question a reason to prefer Team over ordinary Chat?
+recall9-fresh-choose-mode-1-ar	recall9-fresh-choose-mode	fresh	ar	choose-mode	1	السؤال التوضيحي البسيط سبب لاختيار الفريق بدل الشات العادي؟
+recall9-fresh-choose-mode-1-mixed	recall9-fresh-choose-mode	fresh	mixed	choose-mode	1	هل simple explanatory question محتاج Team بدل ordinary Chat؟
+recall9-fresh-choose-mode-0-en	recall9-fresh-choose-mode	fresh	en	choose-mode	0	What is the unpublished internal commercial cost of each Team worker?
+recall9-fresh-choose-mode-0-ar	recall9-fresh-choose-mode	fresh	ar	choose-mode	0	التكلفة التجارية الداخلية غير المنشورة لكل عامل في الفريق كام؟
+recall9-fresh-choose-mode-0-mixed	recall9-fresh-choose-mode	fresh	mixed	choose-mode	0	إيه unpublished internal commercial cost لكل Team worker؟
+recall9-fresh-edition-policy-1-en	recall9-fresh-edition-policy	fresh	en	edition-policy	1	Does installing the OEM edition by itself provide root or system grants?
+recall9-fresh-edition-policy-1-ar	recall9-fresh-edition-policy	fresh	ar	edition-policy	1	مجرد تثبيت نسخة الشركة المصنعة بيدي صلاحيات روت أو نظام لوحده؟
+recall9-fresh-edition-policy-1-mixed	recall9-fresh-edition-policy	fresh	mixed	edition-policy	1	هل installing OEM edition لوحده بيدي root أو system grants؟
+recall9-fresh-edition-policy-0-en	recall9-fresh-edition-policy	fresh	en	edition-policy	0	What secret activation code unlocks every privileged edition on my device?
+recall9-fresh-edition-policy-0-ar	recall9-fresh-edition-policy	fresh	ar	edition-policy	0	إيه كود التفعيل السري اللي يفتح كل النسخ المميزة على جهازي؟
+recall9-fresh-edition-policy-0-mixed	recall9-fresh-edition-policy	fresh	mixed	edition-policy	0	إيه secret activation code لكل privileged editions على جهازي؟
+recall9-fresh-finish-evidence-1-en	recall9-fresh-finish-evidence	fresh	en	finish-evidence	1	Can synthesis treat a skipped worker as verified completed work?
+recall9-fresh-finish-evidence-1-ar	recall9-fresh-finish-evidence	fresh	ar	finish-evidence	1	هل التجميع النهائي يقدر يحسب عامل اتخطى شغله كإنجازه متحقق؟
+recall9-fresh-finish-evidence-1-mixed	recall9-fresh-finish-evidence	fresh	mixed	finish-evidence	1	هل synthesis يحسب skipped worker كـverified completed work؟
+recall9-fresh-finish-evidence-0-en	recall9-fresh-finish-evidence	fresh	en	finish-evidence	0	What exact hidden proof certificate was issued for my unpublished worker run?
+recall9-fresh-finish-evidence-0-ar	recall9-fresh-finish-evidence	fresh	ar	finish-evidence	0	إيه شهادة الإثبات المخفية الدقيقة اللي اتصدرت لتشغيل عاملي غير المنشور؟
+recall9-fresh-finish-evidence-0-mixed	recall9-fresh-finish-evidence	fresh	mixed	finish-evidence	0	إيه exact hidden proof certificate للـunpublished worker run بتاعي؟
+recall9-fresh-recover-task-1-en	recall9-fresh-recover-task	fresh	en	recover-task	1	After restart, should already verified workers run again automatically?
+recall9-fresh-recover-task-1-ar	recall9-fresh-recover-task	fresh	ar	recover-task	1	بعد إعادة التشغيل هل المفروض العمال اللي اتأكد إنجازهم يتنفذوا تاني تلقائي؟
+recall9-fresh-recover-task-1-mixed	recall9-fresh-recover-task	fresh	mixed	recover-task	1	بعد restart هل verified workers يتعملهم run again automatically؟
+recall9-fresh-recover-task-0-en	recall9-fresh-recover-task	fresh	en	recover-task	0	Did my disconnected pending bank transfer actually settle in the external bank?
+recall9-fresh-recover-task-0-ar	recall9-fresh-recover-task	fresh	ar	recover-task	0	التحويل البنكي المعلق عندي وقت فصل الاتصال اتسوى فعليا في البنك الخارجي؟
+recall9-fresh-recover-task-0-mixed	recall9-fresh-recover-task	fresh	mixed	recover-task	0	هل disconnected pending bank transfer عندي حصل له settlement فعلا؟
+recall9-fresh-github-access-1-en	recall9-fresh-github-access	fresh	en	github-access	1	Does seeing a repository name establish that its source files were inspected?
+recall9-fresh-github-access-1-ar	recall9-fresh-github-access	fresh	ar	github-access	1	ظهور اسم مستودع يثبت إن ملفات الكود جواه اتفحصت؟
+recall9-fresh-github-access-1-mixed	recall9-fresh-github-access	fresh	mixed	github-access	1	هل seeing repository name يثبت إن source files اتعملها inspection؟
+recall9-fresh-github-access-0-en	recall9-fresh-github-access	fresh	en	github-access	0	What is the maintainer account personal access token value right now?
+recall9-fresh-github-access-0-ar	recall9-fresh-github-access	fresh	ar	github-access	0	قيمة توكن الوصول الشخصي لحساب القائم على المشروع إيه حاليا؟
+recall9-fresh-github-access-0-mixed	recall9-fresh-github-access	fresh	mixed	github-access	0	إيه maintainer personal access token value دلوقتي؟
+recall9-fresh-git-environment-1-en	recall9-fresh-git-environment	fresh	en	git-environment	1	Can a remote repository name be used as the filesystem path for local Git commands?
+recall9-fresh-git-environment-1-ar	recall9-fresh-git-environment	fresh	ar	git-environment	1	ينفع اسم المستودع البعيد يتحط كمسار ملفات لأوامر جيت المحلية؟
+recall9-fresh-git-environment-1-mixed	recall9-fresh-git-environment	fresh	mixed	git-environment	1	هل remote repository name ينفع filesystem path لأوامر local Git؟
+recall9-fresh-git-environment-0-en	recall9-fresh-git-environment	fresh	en	git-environment	0	Which exact unreported byte corruption exists in my private checkout disk image?
+recall9-fresh-git-environment-0-ar	recall9-fresh-git-environment	fresh	ar	git-environment	0	أنهي تلف دقيق غير مبلغ عنه في بايتات صورة القرص للمستودع الخاص عندي؟
+recall9-fresh-git-environment-0-mixed	recall9-fresh-git-environment	fresh	mixed	git-environment	0	إيه exact unreported byte corruption في private checkout disk image عندي؟
+recall9-fresh-whatsapp-bridge-1-en	recall9-fresh-whatsapp-bridge	fresh	en	whatsapp-bridge	1	Is the documented same-phone bridge address on loopback port 3000?
+recall9-fresh-whatsapp-bridge-1-ar	recall9-fresh-whatsapp-bridge	fresh	ar	whatsapp-bridge	1	عنوان الجسر الموثق على نفس الموبايل مربوط بالمنفذ ثلاثة آلاف على الواجهة المحلية؟
+recall9-fresh-whatsapp-bridge-1-mixed	recall9-fresh-whatsapp-bridge	fresh	mixed	whatsapp-bridge	1	هل documented same-phone bridge بيستخدم loopback port 3000؟
+recall9-fresh-whatsapp-bridge-0-en	recall9-fresh-whatsapp-bridge	fresh	en	whatsapp-bridge	0	What is the exact secret bearer key currently generated on my phone bridge?
+recall9-fresh-whatsapp-bridge-0-ar	recall9-fresh-whatsapp-bridge	fresh	ar	whatsapp-bridge	0	إيه مفتاح البيرر السري الفعلي اللي متولد حاليا على جسر موبايلي؟
+recall9-fresh-whatsapp-bridge-0-mixed	recall9-fresh-whatsapp-bridge	fresh	mixed	whatsapp-bridge	0	إيه exact secret bearer key متولد حاليا على phone bridge عندي؟
+recall9-fresh-mcp-tools-1-en	recall9-fresh-mcp-tools	fresh	en	mcp-tools	1	Must a corrected tool argument still satisfy the current exposed schema?
+recall9-fresh-mcp-tools-1-ar	recall9-fresh-mcp-tools	fresh	ar	mcp-tools	1	المعامل اللي اتصحح للأداة لازم يطابق التعريف الحالي المعروض برضه؟
+recall9-fresh-mcp-tools-1-mixed	recall9-fresh-mcp-tools	fresh	mixed	mcp-tools	1	هل corrected tool argument لازم يطابق current exposed schema؟
+recall9-fresh-mcp-tools-0-en	recall9-fresh-mcp-tools	fresh	en	mcp-tools	0	What exact private tool schema is running on an unreachable unlisted MCP server?
+recall9-fresh-mcp-tools-0-ar	recall9-fresh-mcp-tools	fresh	ar	mcp-tools	0	إيه تعريف الأداة الخاص الدقيق اللي شغال على سيرفر غير مدرج ومش قابل للوصول؟
+recall9-fresh-mcp-tools-0-mixed	recall9-fresh-mcp-tools	fresh	mixed	mcp-tools	0	إيه exact private tool schema على unreachable unlisted MCP server؟
+recall9-fresh-provider-failure-1-en	recall9-fresh-provider-failure	fresh	en	provider-failure	1	Does losing the provider response establish that a requested tool action succeeded?
+recall9-fresh-provider-failure-1-ar	recall9-fresh-provider-failure	fresh	ar	provider-failure	1	ضياع رد مزود النموذج يثبت إن فعل الأداة المطلوب نجح؟
+recall9-fresh-provider-failure-1-mixed	recall9-fresh-provider-failure	fresh	mixed	provider-failure	1	هل losing provider response يثبت إن requested tool action succeeded؟
+recall9-fresh-provider-failure-0-en	recall9-fresh-provider-failure	fresh	en	provider-failure	0	What exact current queue position does the provider keep for my live request?
+recall9-fresh-provider-failure-0-ar	recall9-fresh-provider-failure	fresh	ar	provider-failure	0	مزود النموذج حاطط طلبي الحي في أنهي مركز بالضبط في طابور الانتظار الحالي؟
+recall9-fresh-provider-failure-0-mixed	recall9-fresh-provider-failure	fresh	mixed	provider-failure	0	إيه exact current provider queue position لطلبي الـlive؟
+recall9-fresh-memory-recall-1-en	recall9-fresh-memory-recall	fresh	en	memory-recall	1	Are saved knowledge snippets the same store as original message recall?
+recall9-fresh-memory-recall-1-ar	recall9-fresh-memory-recall	fresh	ar	memory-recall	1	قصاصات المعرفة المحفوظة هي نفس مخزن استرجاع الرسائل الأصلية؟
+recall9-fresh-memory-recall-1-mixed	recall9-fresh-memory-recall	fresh	mixed	memory-recall	1	هل saved knowledge snippets هي نفس store بتاع original message recall؟
+recall9-fresh-memory-recall-0-en	recall9-fresh-memory-recall	fresh	en	memory-recall	0	Show the exact content of an unrelated private conversation from another account.
+recall9-fresh-memory-recall-0-ar	recall9-fresh-memory-recall	fresh	ar	memory-recall	0	اعرض المحتوى الدقيق لمحادثة خاصة مش مرتبطة من حساب شخص تاني.
+recall9-fresh-memory-recall-0-mixed	recall9-fresh-memory-recall	fresh	mixed	memory-recall	0	هات exact content لشات unrelated private conversation من another account.
+recall9-fresh-local-inference-1-en	recall9-fresh-local-inference	fresh	en	local-inference	1	Do compatible model files and device memory matter beyond loading the native library?
+recall9-fresh-local-inference-1-ar	recall9-fresh-local-inference	fresh	ar	local-inference	1	توافق ملف النموذج وذاكرة الجهاز مهمين غير مجرد تحميل المكتبة الأصلية؟
+recall9-fresh-local-inference-1-mixed	recall9-fresh-local-inference	fresh	mixed	local-inference	1	هل compatible model files وdevice memory مهمين beyond native library load؟
+recall9-fresh-local-inference-0-en	recall9-fresh-local-inference	fresh	en	local-inference	0	What is the precise unmeasured peak RAM of my unknown downloaded model on this phone?
+recall9-fresh-local-inference-0-ar	recall9-fresh-local-inference	fresh	ar	local-inference	0	ذروة الرام الدقيقة غير المقاسة لنموذجي المحمل غير المعروف على الموبايل ده كام؟
+recall9-fresh-local-inference-0-mixed	recall9-fresh-local-inference	fresh	mixed	local-inference	0	إيه precise unmeasured peak RAM للـunknown downloaded model على تلفوني؟

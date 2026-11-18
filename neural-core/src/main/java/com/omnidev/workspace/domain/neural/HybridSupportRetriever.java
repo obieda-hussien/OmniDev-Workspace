@@ -203,6 +203,14 @@ public final class HybridSupportRetriever {
     return legacy.fingerprint();
   }
 
+  String rankingFingerprint() {
+    return new CheckpointFingerprint(VERSION)
+        .text(corpusFingerprint())
+        .text(mode.name())
+        .text(network == null ? "no-network" : network.checkpointFingerprint())
+        .finish();
+  }
+
   public int parameterCount() {
     return network == null ? 0 : network.parameterCount();
   }

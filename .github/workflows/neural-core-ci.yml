@@ -2,7 +2,7 @@ name: Omni Neural Core (experimental)
 
 on:
   pull_request:
-    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2', 'feat/neural-hybrid-support']
+    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2', 'feat/neural-hybrid-support', 'feat/neural-support-data-v4', 'feat/neural-query-memory', 'feat/neural-selective-support', 'feat/neural-subword-support', 'feat/neural-answerability-support', 'feat/neural-recall-aware-support', 'feat/neural-paired-rescue']
     paths:
       - 'neural-core/**'
       - 'neural-android/**'
@@ -30,6 +30,43 @@ on:
       - 'scripts/train_ranked_support.sh'
       - 'scripts/train_hybrid_support.sh'
       - 'scripts/train_expanded_support.sh'
+      - 'scripts/train_query_memory.sh'
+      - 'scripts/train_support_reliability.sh'
+      - 'scripts/train_subword_support.sh'
+      - 'scripts/prepare_subword_support.py'
+      - 'scripts/test_subword_support.py'
+      - 'scripts/finalize_subword_support.py'
+      - 'scripts/prepare_subword_support_android.sh'
+      - 'docs/SUBWORD_SUPPORT.md'
+      - 'scripts/train_answerability_support.sh'
+      - 'scripts/prepare_answerability_support.py'
+      - 'scripts/test_answerability_support.py'
+      - 'scripts/prepare_answerability_support_android.sh'
+      - 'scripts/finalize_answerability_support.py'
+      - 'docs/ANSWERABILITY_SUPPORT.md'
+      - 'scripts/train_recall_support.sh'
+      - 'scripts/prepare_recall_support.py'
+      - 'scripts/test_recall_support.py'
+      - 'scripts/prepare_recall_support_android.sh'
+      - 'scripts/finalize_recall_support.py'
+      - 'docs/RECALL_AWARE_SUPPORT.md'
+      - 'scripts/train_contrastive_support.sh'
+      - 'scripts/prepare_contrastive_support.py'
+      - 'scripts/test_contrastive_support.py'
+      - 'scripts/prepare_contrastive_support_android.sh'
+      - 'scripts/finalize_contrastive_support.py'
+      - 'docs/CONTRASTIVE_SUPPORT.md'
+      - 'scripts/prepare_support_reliability.py'
+      - 'scripts/test_support_reliability.py'
+      - 'scripts/finalize_support_reliability.py'
+      - 'scripts/prepare_support_reliability_android.sh'
+      - 'docs/SUPPORT_RELIABILITY.md'
+      - 'scripts/audit_query_memory_runtime.sh'
+      - 'scripts/prepare_query_memory.py'
+      - 'scripts/test_query_memory.py'
+      - 'scripts/finalize_query_memory.py'
+      - 'scripts/prepare_query_memory_android.sh'
+      - 'docs/QUERY_MEMORY_SUPPORT.md'
       - 'scripts/prepare_support_data_v4.py'
       - 'scripts/test_support_data_v4.py'
       - 'scripts/finalize_expanded_support.py'
@@ -93,6 +130,43 @@ on:
       - 'scripts/train_ranked_support.sh'
       - 'scripts/train_hybrid_support.sh'
       - 'scripts/train_expanded_support.sh'
+      - 'scripts/train_query_memory.sh'
+      - 'scripts/train_support_reliability.sh'
+      - 'scripts/train_subword_support.sh'
+      - 'scripts/prepare_subword_support.py'
+      - 'scripts/test_subword_support.py'
+      - 'scripts/finalize_subword_support.py'
+      - 'scripts/prepare_subword_support_android.sh'
+      - 'docs/SUBWORD_SUPPORT.md'
+      - 'scripts/train_answerability_support.sh'
+      - 'scripts/prepare_answerability_support.py'
+      - 'scripts/test_answerability_support.py'
+      - 'scripts/prepare_answerability_support_android.sh'
+      - 'scripts/finalize_answerability_support.py'
+      - 'docs/ANSWERABILITY_SUPPORT.md'
+      - 'scripts/train_recall_support.sh'
+      - 'scripts/prepare_recall_support.py'
+      - 'scripts/test_recall_support.py'
+      - 'scripts/prepare_recall_support_android.sh'
+      - 'scripts/finalize_recall_support.py'
+      - 'docs/RECALL_AWARE_SUPPORT.md'
+      - 'scripts/train_contrastive_support.sh'
+      - 'scripts/prepare_contrastive_support.py'
+      - 'scripts/test_contrastive_support.py'
+      - 'scripts/prepare_contrastive_support_android.sh'
+      - 'scripts/finalize_contrastive_support.py'
+      - 'docs/CONTRASTIVE_SUPPORT.md'
+      - 'scripts/prepare_support_reliability.py'
+      - 'scripts/test_support_reliability.py'
+      - 'scripts/finalize_support_reliability.py'
+      - 'scripts/prepare_support_reliability_android.sh'
+      - 'docs/SUPPORT_RELIABILITY.md'
+      - 'scripts/audit_query_memory_runtime.sh'
+      - 'scripts/prepare_query_memory.py'
+      - 'scripts/test_query_memory.py'
+      - 'scripts/finalize_query_memory.py'
+      - 'scripts/prepare_query_memory_android.sh'
+      - 'docs/QUERY_MEMORY_SUPPORT.md'
       - 'scripts/prepare_support_data_v4.py'
       - 'scripts/test_support_data_v4.py'
       - 'scripts/finalize_expanded_support.py'
@@ -499,5 +573,167 @@ jobs:
         with:
           name: expanded-support-${{ github.run_id }}
           path: build/support-data-v4/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  query-memory-training:
+    name: Train-only query memory + scenario exclusion parity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify train-only memory, gradients, four fits and compiled sources
+        run: bash scripts/train_query_memory.sh
+      - name: Upload all candidate and retention results including failed gates
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: query-memory-${{ github.run_id }}
+          path: build/query-memory-v5/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  query-memory-runtime:
+    name: Compact memory raw parity + host footprint audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compare the pinned runtime and compact index without refitting
+        run: bash scripts/audit_query_memory_runtime.sh
+      - name: Upload host measurements without timing thresholds
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: query-memory-runtime-${{ github.run_id }}
+          path: build/query-memory-runtime-audit/**/*.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  support-reliability-training:
+    name: Learned correctness selector + disjoint calibration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify numerical gradients, eight fits, calibration boundaries and compiled predictions
+        run: bash scripts/train_support_reliability.sh
+      - name: Upload all selector results including failed promotion gates
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: support-reliability-${{ github.run_id }}
+          path: build/support-reliability-v6/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  subword-support-training:
+    name: Tolerant token coverage + matched augmentation training
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify inherited groups, gradients, sixteen fits and compiled matched arms
+        run: bash scripts/train_subword_support.sh
+      - name: Upload stress gains and all failed regression gates
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: subword-support-${{ github.run_id }}
+          path: build/subword-support-v7/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  answerability-support-training:
+    name: Paired answerability fits + reserved preservation follow-up
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify gradients, eight fits, frozen follow-up and all compiled policies
+        run: bash scripts/train_answerability_support.sh
+      - name: Upload all outcomes including no-veto and lost correct answers
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: answerability-support-${{ github.run_id }}
+          path: build/answerability-support-v8/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  recall-support-training:
+    name: Recall-weighted fits + broad preservation guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify weighted gradients, eight fits, guard isolation and compiled controls
+        run: bash scripts/train_recall_support.sh
+      - name: Upload all losses, controls and authored challenge outcomes
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: recall-support-${{ github.run_id }}
+          path: build/recall-support-v9/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  contrastive-support-training:
+    name: Balanced pairwise training + linear/nonlinear matched arms
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify pairwise backpropagation, eight fits, all exported arms and policies
+        run: bash scripts/train_contrastive_support.sh
+      - name: Upload pair classification gains and all acceptance limitations
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: contrastive-support-${{ github.run_id }}
+          path: build/contrastive-support-v10/
           if-no-files-found: ignore
           retention-days: 30

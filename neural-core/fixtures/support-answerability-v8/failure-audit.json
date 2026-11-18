@@ -1,0 +1,90 @@
+{
+  "frozen_labels_unchanged": true,
+  "independent_human_review": false,
+  "cases": [
+    {
+      "id": "unknown-1-en",
+      "frozen_label": "-",
+      "selected_topic": "whatsapp-bridge",
+      "query": "What is the developer's private phone number?",
+      "diagnosis": "unanswerable_request"
+    },
+    {
+      "id": "unknown-10-en",
+      "frozen_label": "-",
+      "selected_topic": "local-model-size",
+      "query": "What is the measured title generation latency on my physical phone?",
+      "diagnosis": "unanswerable_request"
+    },
+    {
+      "id": "unknown-6-mixed",
+      "frozen_label": "-",
+      "selected_topic": "model-routing",
+      "query": "هات production server IP دلوقتي",
+      "diagnosis": "unanswerable_request"
+    },
+    {
+      "id": "future-knowledge-training-2",
+      "frozen_label": "future-knowledge-training",
+      "selected_topic": "memory-recall",
+      "query": "تصدير معرفة المنتج معناه إن التدريب حصل؟",
+      "diagnosis": "plausible_alternate_reference"
+    },
+    {
+      "id": "github-access-fresh-mixed",
+      "frozen_label": "github-access",
+      "selected_topic": "learned-routines",
+      "query": "Repo control محتاج linkage غير model access إيه؟",
+      "diagnosis": "wrong_topic"
+    },
+    {
+      "id": "data4-discord-connected-4-ar",
+      "frozen_label": "discord-connected",
+      "selected_topic": "edition-policy",
+      "query": "إيه الفحوص قبل إعداد مستقبل التطبيق المتصل؟",
+      "diagnosis": "plausible_alternate_reference"
+    },
+    {
+      "id": "data4-unknown-18-en",
+      "frozen_label": "-",
+      "selected_topic": "profile-reference",
+      "query": "How many pixels are in a telescope reference image?",
+      "diagnosis": "unanswerable_request"
+    },
+    {
+      "id": "reliability6-34-en",
+      "frozen_label": "-",
+      "selected_topic": "whatsapp-bridge",
+      "query": "Which precise encryption cipher suite protects the WhatsApp companion pairing files?",
+      "diagnosis": "unanswerable_request"
+    },
+    {
+      "id": "reliability6-34-ar",
+      "frozen_label": "-",
+      "selected_topic": "whatsapp-bridge",
+      "query": "أنهي مجموعة خوارزميات تشفير بالظبط بتحمي ملفات ربط جسر واتساب؟",
+      "diagnosis": "unanswerable_request"
+    },
+    {
+      "id": "reliability6-34-mixed",
+      "frozen_label": "-",
+      "selected_topic": "whatsapp-bridge",
+      "query": "ملفات WhatsApp pairing بتستخدم أنهي cipher suite بالاسم؟",
+      "diagnosis": "unanswerable_request"
+    },
+    {
+      "id": "reliability6-38-mixed",
+      "frozen_label": "-",
+      "selected_topic": "local-inference",
+      "query": "الـdownloaded local conversational model بيستخدم tokenizer vocabulary size كام؟",
+      "diagnosis": "unanswerable_request"
+    },
+    {
+      "id": "reliability6-40-mixed",
+      "frozen_label": "-",
+      "selected_topic": "discord-connected",
+      "query": "عايز Discord send latency p99 عبر OmniLink على Android 11 بالرقم؟",
+      "diagnosis": "unanswerable_request"
+    }
+  ]
+}

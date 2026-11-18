@@ -1,0 +1,130 @@
+id	group	language	primary	secondary	query
+reliability6-0-en	reliability6-0	en	history-titles	-	After only saying good evening, can a later debugging request supply my chat name?
+reliability6-0-ar	reliability6-0	ar	history-titles	-	لو بدأت بمساء الخير وبعدين سألت عن عطل هل اسم المحادثة بيتاخد من الطلب؟
+reliability6-0-mixed	reliability6-0	mixed	history-titles	-	قلت hello وبعدها debugging request؛ اسم الشات هيتحدد من انهي رسالة؟
+reliability6-1-en	reliability6-1	en	history-topics	-	Can I correct an automatic Development label without rewriting my messages?
+reliability6-1-ar	reliability6-1	ar	history-topics	-	ينفع أعدل تصنيف تطوير الغلط من غير تغيير رسايلي؟
+reliability6-1-mixed	reliability6-1	mixed	history-topics	-	الـtopic اتسجل Development بالغلط؛ أعدله منين من غير مسح الشات؟
+reliability6-2-en	reliability6-2	en	history-sources	-	I discussed a Telegram bot from the app composer; which filter describes where that conversation began?
+reliability6-2-ar	reliability6-2	ar	history-sources	-	كتبت من داخل التطبيق عن بوت تليجرام انهي فلتر يوضح مكان بداية المحادثة؟
+reliability6-2-mixed	reliability6-2	mixed	history-sources	-	كتبت عن Telegram من جوه App؛ مين يحدد قناة البداية ومين يحدد الخدمة المذكورة؟
+reliability6-3-en	reliability6-3	en	history-legacy	-	When old conversations get labels, are my pins and chosen names still retained?
+reliability6-3-ar	reliability6-3	ar	history-legacy	-	لما المحادثات القديمة يتضافلها تصنيفات هل التثبيت والأسماء اللي اخترتها بتفضل؟
+reliability6-3-mixed	reliability6-3	mixed	history-legacy	-	إضافة metadata للشات القديم هتحتفظ بالـpins والاسم اللي كتبته؟
+reliability6-4-en	reliability6-4	en	configure-provider	-	My private compatible endpoint is saved; where do I set its URL and pick a text model?
+reliability6-4-ar	reliability6-4	ar	configure-provider	-	سجلت خادم متوافق خاص بيا أكتب عنوانه وأختار موديل النصوص منين؟
+reliability6-4-mixed	reliability6-4	mixed	configure-provider	-	عندي compatible endpoint خاص؛ أظبط base URL وأختار text model فين؟
+reliability6-5-en	reliability6-5	en	choose-mode	-	Would a short explanation benefit from several workers, or should I stay in ordinary chat?
+reliability6-5-ar	reliability6-5	ar	choose-mode	-	لو عايز شرح قصير هل أحتاج عمال كتير ولا أكمل دردشة عادية؟
+reliability6-5-mixed	reliability6-5	mixed	choose-mode	-	عشان explanation بسيطة أختار Chat ولا أشغل Team كامل؟
+reliability6-6-en	reliability6-6	en	edition-policy	-	If I install the Admin edition, which actual Android grants are still needed?
+reliability6-6-ar	reliability6-6	ar	edition-policy	-	لو نزلت نسخة أدمن هل لسه لازم أمنح أذونات أندرويد الفعلية؟
+reliability6-6-mixed	reliability6-6	mixed	edition-policy	-	تثبيت Admin معناه Android permissions اتمنحت ولا لسه لازم أوافق عليها؟
+reliability6-7-en	reliability6-7	en	finish-evidence	-	The worker reports success after listing a repository; why is the requested edit still unverified?
+reliability6-7-ar	reliability6-7	ar	finish-evidence	-	العامل قال نجحت بعد عرض مستودع بس ليه التعديل المطلوب لسه مش متحقق؟
+reliability6-7-mixed	reliability6-7	mixed	finish-evidence	-	الـworker عمل repo listing وقال done؛ ليه ده مش إثبات إن edit حصل؟
+reliability6-8-en	reliability6-8	en	recover-task	-	A write started before the process disappeared; what must be checked before another attempt?
+reliability6-8-ar	reliability6-8	ar	recover-task	-	عملية كتابة بدأت والتطبيق اختفى لازم أراجع إيه قبل المحاولة التانية؟
+reliability6-8-mixed	reliability6-8	mixed	recover-task	-	الـwrite بدأت قبل process death؛ أعمل reconciliation لإيه قبل retry؟
+reliability6-9-en	reliability6-9	en	github-access	-	The model account works but project writes are denied; which separate GitHub connection should I inspect?
+reliability6-9-ar	reliability6-9	ar	github-access	-	حساب الموديل شغال لكن الكتابة في المشروع مرفوضة أراجع اتصال جيتهوب المنفصل إزاي؟
+reliability6-9-mixed	reliability6-9	mixed	github-access	-	Models شغال لكن repo write مرفوض؛ أراجع GitHub Agent Access ولا نفس المفتاح؟
+reliability6-10-en	reliability6-10	en	git-environment	-	A repository title was entered as a shell directory; why does local Git still need a checkout?
+reliability6-10-ar	reliability6-10	ar	git-environment	-	كتبت اسم المستودع كأنه مجلد للشيل ليه أوامر جيت محتاجة نسخة محلية فعلية؟
+reliability6-10-mixed	reliability6-10	mixed	git-environment	-	حطيت repo name بدل working directory؛ ليه local Git محتاج checkout فعلي؟
+reliability6-11-en	reliability6-11	en	shizuku-prerequisites	-	Termux executes commands, yet the privileged bridge is unavailable; what separate readiness should I check?
+reliability6-11-ar	reliability6-11	ar	shizuku-prerequisites	-	تيرمكس بينفذ أوامر بس الجسر المميز مش جاهز أراجع إيه بشكل منفصل؟
+reliability6-11-mixed	reliability6-11	mixed	shizuku-prerequisites	-	Termux شغال بس privileged backend مش ready؛ حالة Shizuku وإذن التطبيق فين؟
+reliability6-12-en	reliability6-12	en	telegram-owner	-	Does setting an outgoing Telegram destination also authorize that person to control the agent?
+reliability6-12-ar	reliability6-12	ar	telegram-owner	-	لو حددت وجهة إرسال لتليجرام هل صاحبها كده يقدر يتحكم في الوكيل؟
+reliability6-12-mixed	reliability6-12	mixed	telegram-owner	-	إضافة outgoing Chat ID في Telegram بتسمح incoming agent commands تلقائي؟
+reliability6-13-en	reliability6-13	en	whatsapp-bridge	-	Should the local WhatsApp companion bind publicly or only to the phone loopback address?
+reliability6-13-ar	reliability6-13	ar	whatsapp-bridge	-	جسر واتساب اللي على نفس التلفون يتفتح للعامة ولا يفضل على عنوان الجهاز الداخلي؟
+reliability6-13-mixed	reliability6-13	mixed	whatsapp-bridge	-	الـWhatsApp bridge المفروض يسمع على public address ولا loopback على نفس الموبايل؟
+reliability6-14-en	reliability6-14	en	discord-connected	-	Why does tagging a conversation as Connected apps not connect or authorize a Discord account?
+reliability6-14-ar	reliability6-14	ar	discord-connected	-	ليه تسمية المحادثة تطبيقات متصلة ما بتوصلش ولا بتفوض حساب ديسكورد؟
+reliability6-14-mixed	reliability6-14	mixed	discord-connected	-	فلتر Connected apps ظاهر؛ ليه Discord account لسه محتاج setup وconsent؟
+reliability6-15-en	reliability6-15	en	mcp-tools	-	A corrected tool name still fails; should its arguments be rechecked against the live schema?
+reliability6-15-ar	reliability6-15	ar	mcp-tools	-	صححت اسم الأداة ولسه بتفشل هل أراجع المدخلات على تعريفها الحالي؟
+reliability6-15-mixed	reliability6-15	mixed	mcp-tools	-	بعد تصحيح tool name هل لازم أراجع arguments على current MCP schema؟
+reliability6-16-en	reliability6-16	en	provider-failure	-	Hostname lookup fails repeatedly; should I keep requesting the same provider or restore connectivity first?
+reliability6-16-ar	reliability6-16	ar	provider-failure	-	اسم خادم المزود مش بيتحل كل مرة أكرر نفس الطلب ولا أصلح الاتصال الأول؟
+reliability6-16-mixed	reliability6-16	mixed	provider-failure	-	الـDNS lookup بيفشل؛ أكرر provider request ولا أتأكد من readiness الأول؟
+reliability6-17-en	reliability6-17	en	model-routing	-	Does the presence of an experimental intent checkpoint mean it is already routing ordinary chats?
+reliability6-17-ar	reliability6-17	ar	model-routing	-	وجود أوزان تجريبية لتحديد النية معناه إنها بتوجه المحادثات العادية فعلًا؟
+reliability6-17-mixed	reliability6-17	mixed	model-routing	-	وجود intent checkpoint تجريبي معناه ordinary chat routing شغال بيه دلوقتي؟
+reliability6-18-en	reliability6-18	en	local-model-size	-	Do automatic chat labels themselves download a large language model or keep a service alive?
+reliability6-18-ar	reliability6-18	ar	local-model-size	-	تصنيف الشات التلقائي نفسه بينزل موديل لغة كبير أو مشغل خدمة طول الوقت؟
+reliability6-18-mixed	reliability6-18	mixed	local-model-size	-	الـchat labels المحلية بتحتاج large model download أو permanent service؟
+reliability6-19-en	reliability6-19	en	future-knowledge-training	-	Can training examples be exported from reviewed support documentation without ingesting my conversations?
+reliability6-19-ar	reliability6-19	ar	future-knowledge-training	-	ينفع أمثلة التدريب تتصدر من دليل الدعم المراجع من غير إدخال محادثاتي؟
+reliability6-19-mixed	reliability6-19	mixed	future-knowledge-training	-	إزاي product support export يفضل documentation-only من غير private chats؟
+reliability6-20-en	reliability6-20	en	support-diagnostics	-	Before suggesting a fix, which installed build, model and redacted error details should support establish?
+reliability6-20-ar	reliability6-20	ar	support-diagnostics	-	قبل اقتراح إصلاح الدعم محتاج يعرف إيه عن النسخة والموديل والخطأ بعد إخفاء الأسرار؟
+reliability6-20-mixed	reliability6-20	mixed	support-diagnostics	-	قبل fix اقتراحه للدعم أجهز edition وAndroid وprovider وredacted error إزاي؟
+reliability6-21-en	reliability6-21	en	voice-wake	-	After force-stopping Omni, does the wake listener need an explicit start and installed voice resources?
+reliability6-21-ar	reliability6-21	ar	voice-wake	-	بعد إيقاف أومني بالقوة هل مستمع النداء محتاج تشغيل صريح وملفات صوت مثبتة؟
+reliability6-21-mixed	reliability6-21	mixed	voice-wake	-	بعد force-stop هل wake listener لازم يتشغل تاني ومعاه Vosk وvoice assets؟
+reliability6-22-en	reliability6-22	en	screen-assistant	-	The assistant panel appears, but another app cannot be tapped; which action permissions differ from opening it?
+reliability6-22-ar	reliability6-22	ar	screen-assistant	-	لوحة المساعد بتظهر بس مش بيدوس في التطبيق التاني إيه أذونات الأفعال المختلفة عن فتح اللوحة؟
+reliability6-22-mixed	reliability6-22	mixed	screen-assistant	-	الـassistant panel بتفتح بس tap على app تاني مش شغال؛ أراجع overlay وAccessibility إزاي؟
+reliability6-23-en	reliability6-23	en	learned-routines	-	May an approved local recipe continue through a step whose previous write outcome is unknown?
+reliability6-23-ar	reliability6-23	ar	learned-routines	-	هل وصفة محلية موافق عليها تكمل خطوة كتابة نتيجتها السابقة مش معروفة؟
+reliability6-23-mixed	reliability6-23	mixed	learned-routines	-	الـapproved routine تتصرف إزاي لو previous mutation outcome لسه unresolved؟
+reliability6-24-en	reliability6-24	en	media-jobs	-	The provider operation already exists after an interruption; where should I check it before submitting again?
+reliability6-24-ar	reliability6-24	ar	media-jobs	-	عملية إنشاء الوسائط اتعملت عند المزود وبعدها انقطع أراجعها إزاي قبل إعادة الطلب؟
+reliability6-24-mixed	reliability6-24	mixed	media-jobs	-	فيه media operation موجودة بعد interruption؛ أستخدم Check existing job قبل create جديد؟
+reliability6-25-en	reliability6-25	en	profile-reference	-	A reference photo is saved; what must the selected model support before generation can use it?
+reliability6-25-ar	reliability6-25	ar	profile-reference	-	صورة مرجعية محفوظة الموديل المختار لازم يدعم إيه قبل ما التوليد يستخدمها؟
+reliability6-25-mixed	reliability6-25	mixed	profile-reference	-	حفظت reference photo؛ هل لازم enable reference use وموديل يدعم image input؟
+reliability6-26-en	reliability6-26	en	little-omni	-	Is the animated companion in Settings the same component as the remote text model?
+reliability6-26-ar	reliability6-26	ar	little-omni	-	هل الرفيق المتحرك اللي في الإعدادات هو نفسه موديل النصوص البعيد؟
+reliability6-26-mixed	reliability6-26	mixed	little-omni	-	الـanimated Little Omni في Settings هو نفسه cloud text model ولا مكون مختلف؟
+reliability6-27-en	reliability6-27	en	memory-recall	-	When retrieving an old message, how are its original conversation references different from saved knowledge facts?
+reliability6-27-ar	reliability6-27	ar	memory-recall	-	لما أرجع رسالة قديمة مصادر المحادثة الأصلية بتختلف إزاي عن حقائق المعرفة المحفوظة؟
+reliability6-27-mixed	reliability6-27	mixed	memory-recall	-	الـchat recall بيرجع original message sources؛ إيه الفرق عن saved knowledge snippets؟
+reliability6-28-en	reliability6-28	en	local-inference	-	The native library loads, but no model output was observed; what compatibility evidence is still missing?
+reliability6-28-ar	reliability6-28	ar	local-inference	-	المكتبة الأصلية اتحملت بس مفيش ناتج موديل ظاهر لسه محتاج دليل توافق إيه؟
+reliability6-28-mixed	reliability6-28	mixed	local-inference	-	الـnative library loaded بس inference output مش موجود؛ إيه إثبات model compatibility المطلوب؟
+reliability6-29-en	reliability6-29	en	github-access,git-environment	-	Repository authorization and the shell checkout both look wrong; which separate account and directory checks apply?
+reliability6-29-ar	reliability6-29	ar	github-access,git-environment	-	تفويض المستودع ومسار الشيل باين فيهم مشكلة أراجع الحساب والمجلد كل واحد إزاي؟
+reliability6-29-mixed	reliability6-29	mixed	github-access,git-environment	-	عندي مشكلة repo authorization وكمان checkout؛ أراجع Agent Access والـworking directory إزاي؟
+reliability6-30-en	reliability6-30	en	recover-task,finish-evidence	-	A recovered worker says done without a verified receipt; how do continuation and completion checks differ?
+reliability6-30-ar	reliability6-30	ar	recover-task,finish-evidence	-	عامل رجع بعد انقطاع وبيقول خلصت من غير إيصال متحقق إيه الفرق بين فحص الاستئناف والإكمال؟
+reliability6-30-mixed	reliability6-30	mixed	recover-task,finish-evidence	-	بعد recovery الـworker قال done من غير verified receipt؛ نراجع continuation وfinish evidence إزاي؟
+reliability6-31-en	reliability6-31	en	telegram-owner,edition-policy	-	Pairing my bot owner succeeded in Lite; does that replace the edition prerequisites for agent commands?
+reliability6-31-ar	reliability6-31	ar	telegram-owner,edition-policy	-	ربط مالك البوت نجح في لايت هل ده يلغي شروط النسخة لتشغيل أوامر الوكيل؟
+reliability6-31-mixed	reliability6-31	mixed	telegram-owner,edition-policy	-	عملت Telegram owner pairing في Lite؛ هل ده يكفي ولا edition policy لسه مطلوبة؟
+reliability6-32-en	reliability6-32	en	history-sources,discord-connected	-	A Discord tag appears on an app-origin chat; how do stored source identity and real account connection differ?
+reliability6-32-ar	reliability6-32	ar	history-sources,discord-connected	-	وسم ديسكورد ظهر لشات بدأ من التطبيق إيه الفرق بين قناة المصدر المحفوظة وربط الحساب فعلًا؟
+reliability6-32-mixed	reliability6-32	mixed	history-sources,discord-connected	-	الشات App-origin وفيه Discord tag؛ فرق Sources عن actual Discord connection إيه؟
+reliability6-33-en	reliability6-33	en	-	-	What is the exact paid subscription price of Omni Admin next month?
+reliability6-33-ar	reliability6-33	ar	-	-	اشتراك أومني أدمن المدفوع الشهر الجاي سعره كام بالظبط؟
+reliability6-33-mixed	reliability6-33	mixed	-	-	سعر Omni Admin subscription الشهر الجاي كام جنيه بالظبط؟
+reliability6-34-en	reliability6-34	en	-	-	Which precise encryption cipher suite protects the WhatsApp companion pairing files?
+reliability6-34-ar	reliability6-34	ar	-	-	أنهي مجموعة خوارزميات تشفير بالظبط بتحمي ملفات ربط جسر واتساب؟
+reliability6-34-mixed	reliability6-34	mixed	-	-	ملفات WhatsApp pairing بتستخدم أنهي cipher suite بالاسم؟
+reliability6-35-en	reliability6-35	en	-	-	What is the certified maximum number of concurrent Team workers on this phone?
+reliability6-35-ar	reliability6-35	ar	-	-	أقصى عدد معتمد من عمال الفريق يشتغلوا مع بعض على الموبايل ده كام بالظبط؟
+reliability6-35-mixed	reliability6-35	mixed	-	-	الـcertified maximum concurrent Team workers على تلفوني كام رقم؟
+reliability6-36-en	reliability6-36	en	-	-	Which cloud region physically stores the configured provider account prompts?
+reliability6-36-ar	reliability6-36	ar	-	-	أنهي منطقة سحابية بتتخزن فيها مطالبات حساب المزود المتظبط فعليًا؟
+reliability6-36-mixed	reliability6-36	mixed	-	-	الـconfigured provider بيخزن prompts بتاعتي في أنهي cloud region تحديدًا؟
+reliability6-37-en	reliability6-37	en	-	-	What is the exact measured battery drain per hour for the Hi Omni listener on an Infinix X689?
+reliability6-37-ar	reliability6-37	ar	-	-	استماع هاي أومني بيستهلك كام في المية بطارية كل ساعة بقياس فعلي على إنفينيكس ده؟
+reliability6-37-mixed	reliability6-37	mixed	-	-	عايز measured battery drain لكل ساعة Hi Omni على Infinix X689 بالرقم؟
+reliability6-38-en	reliability6-38	en	-	-	Which tokenizer vocabulary size is used by the optional downloaded conversational model?
+reliability6-38-ar	reliability6-38	ar	-	-	قاموس التوكنات في موديل المحادثة الاختياري اللي بيتنزل حجمه كام بالظبط؟
+reliability6-38-mixed	reliability6-38	mixed	-	-	الـdownloaded local conversational model بيستخدم tokenizer vocabulary size كام؟
+reliability6-39-en	reliability6-39	en	-	-	What is the published numerical retention period for deleted history metadata backups?
+reliability6-39-ar	reliability6-39	ar	-	-	المدة المنشورة للاحتفاظ بنسخ بيانات تصنيف الشات المحذوفة كام يوم بالظبط؟
+reliability6-39-mixed	reliability6-39	mixed	-	-	الـdeleted history metadata backups ليها published retention كام يوم؟
+reliability6-40-en	reliability6-40	en	-	-	What is the exact latency percentile of Discord sending over OmniLink on Android eleven?
+reliability6-40-ar	reliability6-40	ar	-	-	زمن إرسال ديسكورد عبر أومني لينك على أندرويد حداشر عند المئين المطلوب كام بالظبط؟
+reliability6-40-mixed	reliability6-40	mixed	-	-	عايز Discord send latency p99 عبر OmniLink على Android 11 بالرقم؟
+reliability6-41-en	reliability6-41	en	-	-	Which named acoustic architecture and parameter count implements the bundled wake recognizer?
+reliability6-41-ar	reliability6-41	ar	-	-	اسم البنية الصوتية وعدد باراميترات مكتشف النداء المرفق إيه بالتحديد؟
+reliability6-41-mixed	reliability6-41	mixed	-	-	الـbundled wake recognizer اسمه acoustic architecture إيه وعدد parameters كام؟
+reliability6-42-en	reliability6-42	en	-	-	What is the exact licensed training-corpus size behind the chosen cloud model?
+reliability6-42-ar	reliability6-42	ar	-	-	بيانات تدريب الموديل السحابي المختار المرخصة حجمها كام بالضبط؟
+reliability6-42-mixed	reliability6-42	mixed	-	-	الـchosen cloud model عنده licensed training corpus حجمه كام بالرقم؟

@@ -1,0 +1,121 @@
+id	group	language	primary	secondary	query
+subword7-0-en	subword7-0	en	history-titles	-	Can a substantve request replace the generic name left by a greeting?
+subword7-0-ar	subword7-0	ar	history-titles	-	المحادثات اللي بدأت بتحية وبعدها طلب واضح بتتسمى من الطلب ولا التحية؟
+subword7-0-mixed	subword7-0	mixed	history-titles	-	الـchat اتفتحت بتحية وبعدها substantve request؛ اسمها بيتحدّث منين؟
+subword7-1-en	subword7-1	en	history-topics	-	Where do I recategorise a conversaton whose automatic topic is wrong?
+subword7-1-ar	subword7-1	ar	history-topics	-	المحادثة بتتصنف غلط وعايز أصحح تصنيفها من صف السجل أعملها إزاي؟
+subword7-1-mixed	subword7-1	mixed	history-topics	-	عايز recategorise لمحادثة topic بتاعها غلط من history row؛ أعمل إيه؟
+subword7-2-en	subword7-2	en	history-sources	-	Does mentoning a messaging service change the channel that originally created a chat?
+subword7-2-ar	subword7-2	ar	history-sources	-	لما رسايلي تذكر خدمة مراسلة هل قناة بداية المحادثة بتتغير بسبب الكلام عنها؟
+subword7-2-mixed	subword7-2	mixed	history-sources	-	مجرد mentoning WhatsApp في كلامي يغير original source للشات؟
+subword7-3-en	subword7-3	en	history-legacy	-	Will lazily annotating archived conversatons erase a pinned custom title?
+subword7-3-ar	subword7-3	ar	history-legacy	-	لما المحادثات المؤرشفة بيتضافلها وصف بالتدريج الاسم المخصص والتثبيت ممكن يضيعوا؟
+subword7-3-mixed	subword7-3	mixed	history-legacy	-	تحديث metadata للمحادثات المؤرشفة هيأثر على custom title والـpin؟
+subword7-4-en	subword7-4	en	configure-provider	-	Where should a compatble server address be set before selecting its text model?
+subword7-4-ar	subword7-4	ar	configure-provider	-	لو الخادم بتاعي متوافق إزاي أضبط عنوانه وبعدين أختار الموديل اللي هستخدمه؟
+subword7-4-mixed	subword7-4	mixed	configure-provider	-	عندي compatble server وعايز أظبط عنوانه وبعده text model؛ أدخل فين؟
+subword7-5-en	subword7-5	en	choose-mode	-	Is multiworker executon useful when all I need is a brief explanation?
+subword7-5-ar	subword7-5	ar	choose-mode	-	لو كل المطلوب شرح بسيط أحتاج تشغيل عمال فريق ولا دردشة عادية كفاية؟
+subword7-5-mixed	subword7-5	mixed	choose-mode	-	المطلوب explanation صغيرة؛ أستخدم multiworker executon ولا Chat؟
+subword7-6-en	subword7-6	en	edition-policy	-	Does an Admin instalation substitute for the platform permission grants?
+subword7-6-ar	subword7-6	ar	edition-policy	-	تثبيت إصدار أدمن بيديني الأذونات الفعلية ولا لسه لازم أوافق عليها من النظام؟
+subword7-6-mixed	subword7-6	mixed	edition-policy	-	الـAdmin instalation بتغني عن Android grants ولا الأذونات لسه منفصلة؟
+subword7-7-en	subword7-7	en	finish-evidence	-	A generic successful reply contains no proof of the requested change; is completition justified?
+subword7-7-ar	subword7-7	ar	finish-evidence	-	رد الأداة بيقول نجاح بشكل عام من غير إثبات التغيير المطلوب نعتبر المهمة خلصت؟
+subword7-7-mixed	subword7-7	mixed	finish-evidence	-	tool reply قال success من غير evidence للتغيير؛ ينفع completition claim؟
+subword7-8-en	subword7-8	en	recover-task	-	How should an interrupted mutaton be reconciled when its outcome is uncertain?
+subword7-8-ar	subword7-8	ar	recover-task	-	إزاي أراجع أثر عملية تعديل اتقطعت ومش معروف نتيجتها قبل ما أحاول تاني؟
+subword7-8-mixed	subword7-8	mixed	recover-task	-	فيه mutaton اتقطعت ومصيرها مجهول؛ نعمل reconciliation قبل retry إزاي؟
+subword7-9-en	subword7-9	en	github-access	-	Copilot authenticaton succeeded but repository writes are unavailable; which integration differs?
+subword7-9-ar	subword7-9	ar	github-access	-	تسجيل كوبيلوت نجح بس تعديل المستودعات مش متاح أراجع الربط المنفصل بتاع إيه؟
+subword7-9-mixed	subword7-9	mixed	github-access	-	Copilot authenticaton نجح لكن repository writes مش شغالة؛ أراجع أنهي account integration؟
+subword7-10-en	subword7-10	en	git-environment	-	Can local Git inspect a repo when the workng directory is outside every checkout?
+subword7-10-ar	subword7-10	ar	git-environment	-	أوامر جيت المحلية هتفحص المستودع إزاي لو مجلد الشغل مش جوا نسخة مستنسخة؟
+subword7-10-mixed	subword7-10	mixed	git-environment	-	الـworkng directory بره أي checkout؛ إزاي local Git يعرف المشروع؟
+subword7-11-en	subword7-11	en	shizuku-prerequisites	-	A terminal responds while privileged executon cannot reach its binder; what readiness differs?
+subword7-11-ar	subword7-11	ar	shizuku-prerequisites	-	الأوامر العادية بترد لكن تنفيذ الصلاحيات مش واصل للخدمة أراجع جاهزيتها إزاي؟
+subword7-11-mixed	subword7-11	mixed	shizuku-prerequisites	-	Termux بيرد بس privileged executon مش واصل للـbinder؛ أنهي readiness أراجعها؟
+subword7-12-en	subword7-12	en	telegram-owner	-	Is an outgoing destnation sufficient to authorize an incoming Telegram controller?
+subword7-12-ar	subword7-12	ar	telegram-owner	-	رقم وجهة الإرسال لتليجرام كفاية عشان صاحب الرقم يبعت أوامر تحكم للوكيل؟
+subword7-12-mixed	subword7-12	mixed	telegram-owner	-	الـoutgoing destnation في Telegram بتعمل authorization للتحكم الوارد لوحدها؟
+subword7-13-en	subword7-13	en	whatsapp-bridge	-	For the same-phone Watsapp bridge, where do I configure its local address and bearer key?
+subword7-13-ar	subword7-13	ar	whatsapp-bridge	-	الجسر اللي بيشغل واتساب من نفس الموبايل أظبط عنوانه المحلي ومفتاحه فين؟
+subword7-13-mixed	subword7-13	mixed	whatsapp-bridge	-	الـWatsapp bridge على نفس التلفون؛ أضبط loopback address والـbearer key فين؟
+subword7-14-en	subword7-14	en	discord-connected	-	Does a history service tag establish a conection to my Discord account?
+subword7-14-ar	subword7-14	ar	discord-connected	-	وسم الخدمة المحفوظ في السجل بيعمل ربط لحساب ديسكورد ولا الربط خطوة مختلفة؟
+subword7-14-mixed	subword7-14	mixed	discord-connected	-	وسم Discord في history معناه actual conection اتعملت للحساب؟
+subword7-15-en	subword7-15	en	mcp-tools	-	Why must corrected argumnts still match the currently exposed tool contract?
+subword7-15-ar	subword7-15	ar	mcp-tools	-	بعد ما أصلح اسم الأداة ليه لازم مدخلاتها تتراجع على التعريف الحالي المسموح؟
+subword7-15-mixed	subword7-15	mixed	mcp-tools	-	صححت tool name؛ ليه الـargumnts لازم تتطابق مع current exposed schema؟
+subword7-16-en	subword7-16	en	provider-failure	-	Can repeated hostname resoluton failures be fixed by endlessly resending model requests?
+subword7-16-ar	subword7-16	ar	provider-failure	-	فشل الوصول لاسم خادم المزود كل مرة يتحل بتكرار الطلبات بلا نهاية ولا أصلح الشبكة؟
+subword7-16-mixed	subword7-16	mixed	provider-failure	-	الـhostname resoluton بيفشل باستمرار؛ resending للـprovider يصلحه؟
+subword7-17-en	subword7-17	en	model-routing	-	Do expermental tiny checkpoints already decide which real tools ordinary chat executes?
+subword7-17-ar	subword7-17	ar	model-routing	-	الأوزان الصغيرة التجريبية موجودة هل ده معناه إنها بقت تختار أدوات الدردشة الفعلية؟
+subword7-17-mixed	subword7-17	mixed	model-routing	-	الـexpermental tiny checkpoints موجودة؛ هل ordinary chat بقت بتنفذ tools بقرارها؟
+subword7-18-en	subword7-18	en	local-model-size	-	Does local converstion labeling itself require a large weight download on a four-gigabyte phone?
+subword7-18-ar	subword7-18	ar	local-model-size	-	تسمية وتصنيف المحادثات محليًا محتاجين تنزيل أوزان ضخمة على موبايل أربعة رام؟
+subword7-18-mixed	subword7-18	mixed	local-model-size	-	الـlocal converstion labeling محتاج large weights على جهاز أربعة رام؟
+subword7-19-en	subword7-19	en	future-knowledge-training	-	Which reviewed documntation can supply support training without private chat ingestion?
+subword7-19-ar	subword7-19	ar	future-knowledge-training	-	أجيب أمثلة تعليم دعم المنتج من أنهي وثائق مراجعة من غير ما أدخل شات خاص؟
+subword7-19-mixed	subword7-19	mixed	future-knowledge-training	-	أنهي reviewed documntation نستخدمها لتدريب الدعم من غير private conversations؟
+subword7-20-en	subword7-20	en	support-diagnostics	-	Which redacted enviroment details should I collect before diagnosing an Omni failure?
+subword7-20-ar	subword7-20	ar	support-diagnostics	-	قبل تشخيص عطل أومني أجمع إيه عن بيئة التشغيل والخطأ بعد إخفاء البيانات الحساسة؟
+subword7-20-mixed	subword7-20	mixed	support-diagnostics	-	قبل diagnosis لعطل Omni أجهز إيه من redacted enviroment details؟
+subword7-21-en	subword7-21	en	voice-wake	-	What grants and installed recogniton assets are needed before starting the wake listener?
+subword7-21-ar	subword7-21	ar	voice-wake	-	مستمع النداء قبل تشغيله محتاج إيه من أذونات وملفات تعرّف صوت مثبتة؟
+subword7-21-mixed	subword7-21	mixed	voice-wake	-	قبل start للـwake listener إيه grants والـrecogniton assets اللي لازم أثبتها؟
+subword7-22-en	subword7-22	en	screen-assistant	-	Why can an assistant overlay appear without authorizaton to control another app?
+subword7-22-ar	subword7-22	ar	screen-assistant	-	إزاي المساعد يظهر فوق التطبيقات وفي نفس الوقت مش عنده إذن يدوس جوا تطبيق تاني؟
+subword7-22-mixed	subword7-22	mixed	screen-assistant	-	الـassistant overlay ظاهرة لكن مفيش authorizaton للتحكم في app تاني؛ ليه؟
+subword7-23-en	subword7-23	en	learned-routines	-	What happens if a learned receipe reaches an unsupported or uncertain action?
+subword7-23-ar	subword7-23	ar	learned-routines	-	لو الروتين المتعلم وصل لتصرف غير مدعوم أو مش مضمون المفروض يعمل إيه؟
+subword7-23-mixed	subword7-23	mixed	learned-routines	-	الـlearned receipe وصلت لـunsupported action أو نتيجة مش مؤكدة؛ تكمل إزاي؟
+subword7-24-en	subword7-24	en	media-jobs	-	Before recreating an interrupted generaton request, how can the existing operation be inspected?
+subword7-24-ar	subword7-24	ar	media-jobs	-	طلب إنشاء وسائط اتقطع إزاي أراجع عمليته الموجودة بدل ما أعمل طلب جديد مكرر؟
+subword7-24-mixed	subword7-24	mixed	media-jobs	-	قبل create مكرر لطلب generaton اتقطع؛ أراجع existing operation منين؟
+subword7-25-en	subword7-25	en	profile-reference	-	Does saving a refernce picture ensure that every selected provider will receive it?
+subword7-25-ar	subword7-25	ar	profile-reference	-	لو حفظت صورة مرجعية هل كده كل مزود اختاره بيستقبلها ويستخدمها تلقائي؟
+subword7-25-mixed	subword7-25	mixed	profile-reference	-	حفظ refernce picture معناه كل provider بيتبعتله image input تلقائي؟
+subword7-26-en	subword7-26	en	little-omni	-	Is the animated compannion an authority for approving device actions?
+subword7-26-ar	subword7-26	ar	little-omni	-	الرفيق المتحرك اللي بيظهر في الإعدادات يقدر يمنح صلاحيات لتنفيذ أفعال على الجهاز؟
+subword7-26-mixed	subword7-26	mixed	little-omni	-	الـanimated compannion يقدر يدي approval لأفعال الجهاز من نفسه؟
+subword7-27-en	subword7-27	en	memory-recall	-	Can retrieved conversaton messages be distinguished from separately saved knowledge snippets?
+subword7-27-ar	subword7-27	ar	memory-recall	-	الرسائل اللي اتجابت من محادثة قديمة أميزها إزاي عن مقاطع المعرفة المتخزنة بشكل منفصل؟
+subword7-27-mixed	subword7-27	mixed	memory-recall	-	الـretrieved conversaton messages تختلف إزاي عن saved knowledge snippets؟
+subword7-28-en	subword7-28	en	local-inference	-	Is a native library load enough to prove compatiblity and real local model output?
+subword7-28-ar	subword7-28	ar	local-inference	-	تحميل المكتبة الأصلية لوحده يثبت إن الموديل متوافق وطلع ناتج محلي فعلي؟
+subword7-28-mixed	subword7-28	mixed	local-inference	-	الـnative load لوحده دليل compatiblity وactual inference output؟
+subword7-29-en	subword7-29	en	github-access,git-environment	-	Repo authorizaton and the local checkot both fail; what two independent checks apply?
+subword7-29-ar	subword7-29	ar	github-access,git-environment	-	ربط المستودع والنسخة المحلية الاتنين فيهم مشكلة أراجع صلاحية الحساب ومجلد العمل إزاي؟
+subword7-29-mixed	subword7-29	mixed	github-access,git-environment	-	الـrepo authorizaton والـcheckot فاشلين؛ أراجع account access والـdirectory إزاي؟
+subword7-30-en	subword7-30	en	voice-wake,screen-assistant	-	The listener and screen overlay both stopped working; which microphone and screen-action grants are separate?
+subword7-30-ar	subword7-30	ar	voice-wake,screen-assistant	-	مستمع النداء والتحكم من اللوحة مش شغالين إيه الفرق بين إذن الميكروفون وأذونات أفعال الشاشة؟
+subword7-30-mixed	subword7-30	mixed	voice-wake,screen-assistant	-	الـwake listener والـscreen overlay معطلين؛ أفصل microphone grants عن Accessibility إزاي؟
+subword7-31-en	subword7-31	en	recover-task,finish-evidence	-	After resuming a worker, can an unverified success mesage satisfy its completion requirements?
+subword7-31-ar	subword7-31	ar	recover-task,finish-evidence	-	بعد استئناف العامل رسالة نجاح مش متحققة تكفي عشان نعتبر متطلبات الإكمال اتحققت؟
+subword7-31-mixed	subword7-31	mixed	recover-task,finish-evidence	-	بعد resume للـworker ينفع success mesage من غير verified evidence تقفل المهمة؟
+subword7-32-en	subword7-32	en	-	-	What exact commercial licencing fee applies to the OmniLink protocol?
+subword7-32-ar	subword7-32	ar	-	-	رسوم الترخيص التجاري لبروتوكول أومني لينك كام بالتحديد؟
+subword7-32-mixed	subword7-32	mixed	-	-	الـcommercial licencing fee لبروتوكول OmniLink كام بالرقم؟
+subword7-33-en	subword7-33	en	-	-	Which numerical accuracy score does the bundled Arabic wake recogniton model guarantee?
+subword7-33-ar	subword7-33	ar	-	-	نسبة الدقة الرقمية اللي موديل النداء العربي المرفق بيضمنها كام؟
+subword7-33-mixed	subword7-33	mixed	-	-	الـArabic wake recogniton ليه guaranteed accuracy كام في المية؟
+subword7-34-en	subword7-34	en	-	-	What is the official memory bandwidth requirment of the optional local model?
+subword7-34-ar	subword7-34	ar	-	-	الحد الرسمي المطلوب لعرض نطاق الذاكرة بتاع الموديل المحلي الاختياري كام؟
+subword7-34-mixed	subword7-34	mixed	-	-	الـlocal model عنده official memory bandwidth requirment كام؟
+subword7-35-en	subword7-35	en	-	-	Which exact database page size is used for encrypted converstion backups?
+subword7-35-ar	subword7-35	ar	-	-	حجم صفحة قاعدة البيانات المستخدم لنسخ المحادثات المشفرة كام بالظبط؟
+subword7-35-mixed	subword7-35	mixed	-	-	الـencrypted converstion backups بتستخدم database page size كام؟
+subword7-36-en	subword7-36	en	-	-	What is the provider account password reset endpoint and its exact authenticaton protocol?
+subword7-36-ar	subword7-36	ar	-	-	عنوان استعادة كلمة مرور حساب المزود وبروتوكول توثيقه بالتحديد إيه؟
+subword7-36-mixed	subword7-36	mixed	-	-	عايز password reset endpoint للمزود وبروتوكول authenticaton بتاعه بالظبط؟
+subword7-37-en	subword7-37	en	-	-	Which exact source-language compiler version built the installed Watsapp companion binary?
+subword7-37-ar	subword7-37	ar	-	-	إصدار مترجم لغة المصدر اللي بنى ملف رفيق واتساب المثبت كام بالتحديد؟
+subword7-37-mixed	subword7-37	mixed	-	-	الـinstalled Watsapp companion binary اتبنى بـcompiler version كام؟
+subword7-38-en	subword7-38	en	-	-	What is the exact worst-case cloud generaton queue time under the paid plan?
+subword7-38-ar	subword7-38	ar	-	-	أقصى وقت انتظار مضمون لطابور التوليد السحابي في الاشتراك المدفوع كام بالظبط؟
+subword7-38-mixed	subword7-38	mixed	-	-	الـpaid plan فيه worst-case generaton queue time كام ثانية بالضبط؟
+subword7-39-en	subword7-39	en	-	-	What exact physical CPU core handles each concurrent Team assignmnt on my phone?
+subword7-39-ar	subword7-39	ar	-	-	أنهي نواة فعلية في المعالج بتنفذ كل مهمة فريق متزامنة على موبايلي بالتحديد؟
+subword7-39-mixed	subword7-39	mixed	-	-	كل Team assignmnt متزامن بيشتغل على أنهي physical CPU core في تلفوني؟

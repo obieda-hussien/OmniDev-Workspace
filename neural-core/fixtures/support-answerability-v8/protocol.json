@@ -1,0 +1,18 @@
+{
+  "version": 8,
+  "source": "knowledge/omni-product.jsonl",
+  "source_sha256": "1c996d1a564a423319f61d9c468fe0ce82a794e7c658b17b06f75208d723cb09",
+  "contrast_sha256": "c64137d74abe8aab8bda2ebf715f19ead7fb17d2f18c48d211856abe7118d300",
+  "fresh_sha256": "fc17e8f0f637e0663254ae4be582c26bfaef2e94f408c6e8dea520a9aae5935c",
+  "contrast_count": 174,
+  "fresh_count": 72,
+  "authoring": "Explicitly assistant-authored answerable/unanswerable FAQ pairs, not independent human review, real traffic, unseen documents or semantic OOD. Positive and negative translations of a scenario stay grouped. Exact old1488/canonical/new duplicates rejected. Numeric questions can be supported when the FAQ gives the number. No source-code/private-chat ingestion.",
+  "data": "29 contrast pairs x2 labels x3 languages. SHA256(topic) order:16 TRAIN groups96,6 DEV groups36,3 temperature groups18,4 policy groups24. Fresh12 separate pairs72,36 positives/36 negatives. Same topics/near scenarios can remain semantically related. Original TRAIN411 uses whole group-excluded frozen ranking to choose a document and target first-topic correctness. Contrast rows pair against their named original FAQ topic. Contrast data never populates proposal/exemplar indexes.",
+  "representation": "Frozen v7 proposal; 1024 fixed signed FNV lexical pair features, four256 blocks: query words/bigrams, query char3/4 grams, query words present/missing in reference body, query words present/missing in reference title. Log1p then block-L2 /2. At most512 query UTF16 units,256 query words,64 units/word,128 corpus documents. A linear1025-parameter head only vetoes a v7 acceptance, never changes ranks/references or upgrades refusal. Unscored baseline refusals explicitly marked.",
+  "training": "Matched original-only TRAIN411 and contrast TRAIN507 arms, L2 .0001/.001 x seeds42/97 =8 actual linear binary AdamW fits. Batch32,rate.01,gradient cap5,decay1e-4,max100epochs/patience12. Select deployed FP32 weights by macro-language NLL on original DEV99 plus contrast DEV36. Tie smaller source arm then seed. Preserve original-only comparison. No fitted vocabulary or model-topic identity feature.",
+  "calibration": "Original group-hashed CAL48/CAL51 plus contrast temperature18/policy24 =>TEMP66/POLICY75. Temperature grid .5/.75/1/1.5/2/3 on TEMP66 NLL. Threshold0..1 by.025 on POLICY75: forbid losing any previously accepted-correct v7 row; minimize accepted-wrong then lower threshold. Threshold0/no-veto always competes. Export before reading fresh72 scores. No correction or retuning using fresh scores.",
+  "evaluation": "Old1488 are observed regression only. Preserve all old labels despite two plausible alternate-reference ambiguities noted in the failure audit. Report selected and matched-arm veto acceptance, lost correct/new wrong IDs, old v7 stress retention, fresh paired and pipeline performance, numeric/source/default parity, timing. No-new-wrong relative to frozen v7 follows only from veto identity, not a population accuracy guarantee.",
+  "production_eligible": false,
+  "independent_human_labels": false,
+  "physical_device_tested": false
+}

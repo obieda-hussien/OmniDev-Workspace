@@ -1,0 +1,36 @@
+q15-history-count-en	local-model-size	What upper bound does the local history engine put on short inputs from me?	SUPPORTED	local-model-size:en	The current history engine uses bounded local rules and at most six short user inputs.	six
+q15-history-count-ar	local-model-size	إيه الحد الأعلى لعدد رسايلي القصيرة اللي بياخدها محرك السجل؟	SUPPORTED	local-model-size:en	The current history engine uses bounded local rules and at most six short user inputs.	six
+q15-history-count-mixed	local-model-size	الـ history engine بياخد بحد أقصى كام input قصير مني؟	SUPPORTED	local-model-size:en	The current history engine uses bounded local rules and at most six short user inputs.	six
+q15-history-symbols-en	local-model-size	What upper bound does the local history engine put on letters inside one input from me?	ABSTAIN	-	-	-
+q15-history-symbols-ar	local-model-size	إيه الحد الأعلى لعدد الحروف جوه الرسالة الواحدة اللي بياخدها محرك السجل؟	ABSTAIN	-	-	-
+q15-history-symbols-mixed	local-model-size	الـ history engine بياخد بحد أقصى كام letter جوه كل input؟	ABSTAIN	-	-	-
+q15-history-window-en	local-model-size	How many minutes of my recent messages fit in the local history window?	ABSTAIN	-	-	-
+q15-history-window-ar	local-model-size	نافذة السجل المحلي بتشمل كام دقيقة من رسايلي الأخيرة؟	ABSTAIN	-	-	-
+q15-history-window-mixed	local-model-size	الـ history window بتشمل كام minute من الرسايل الأخيرة؟	ABSTAIN	-	-	-
+q15-history-size-en	local-model-size	How many bytes may each saved input occupy before the history engine trims it?	ABSTAIN	-	-	-
+q15-history-size-ar	local-model-size	كل رسالة محفوظة مسموح لها بكام بايت قبل ما محرك السجل يقصها؟	ABSTAIN	-	-	-
+q15-history-size-mixed	local-model-size	كل user input مسموح له بكام byte قبل ما history يقصه؟	ABSTAIN	-	-	-
+q15-bridge-listen-en	whatsapp-bridge	Give me the listening port used by the WhatsApp companion on this handset.	SUPPORTED	whatsapp-bridge:en	The bridge binds to 127.0.0.1:3000.	3000
+q15-bridge-listen-ar	whatsapp-bridge	عايز رقم البورت اللي بيسمع عليه جسر واتساب على الموبايل ده.	SUPPORTED	whatsapp-bridge:en	The bridge binds to 127.0.0.1:3000.	3000
+q15-bridge-listen-mixed	whatsapp-bridge	عايز listening port بتاع WhatsApp companion على موبايلي ده.	SUPPORTED	whatsapp-bridge:en	The bridge binds to 127.0.0.1:3000.	3000
+q15-bridge-remote-en	whatsapp-bridge	Give me the public-facing port number of the hosted WhatsApp relay.	ABSTAIN	-	-	-
+q15-bridge-remote-ar	whatsapp-bridge	عايز رقم البورت العام لسيرفر ترحيل واتساب المستضاف بره الجهاز.	ABSTAIN	-	-	-
+q15-bridge-remote-mixed	whatsapp-bridge	عايز public port بتاع hosted WhatsApp relay بره الموبايل.	PASS	-	-	-
+q15-bridge-other-device-en	whatsapp-bridge	Which port should a second handset use for a separately hosted WhatsApp relay?	ABSTAIN	-	-	-
+q15-bridge-other-device-ar	whatsapp-bridge	تليفون تاني يتصل على بورت كام لخادم واتساب المنفصل؟	ABSTAIN	-	-	-
+q15-bridge-other-device-mixed	whatsapp-bridge	تليفون تاني يستخدم أنهي port مع separate WhatsApp relay؟	PASS	-	-	-
+q15-bridge-setup-en	whatsapp-bridge	Which three setup values go in Workspace for my paired local bridge?	PASS	-	-	-
+q15-bridge-setup-ar	whatsapp-bridge	بعد ربط الجسر المحلي إيه التلات بيانات اللي أدخلهم في ورك سبيس؟	PASS	-	-	-
+q15-bridge-setup-mixed	whatsapp-bridge	بعد pairing للجسر إيه التلات settings اللي أدخلهم في Workspace؟	PASS	-	-	-
+q15-pair-expiry-en	telegram-owner	How many seconds does the Telegram owner pairing code remain usable?	ABSTAIN	-	-	-
+q15-pair-expiry-ar	telegram-owner	كود اقتران مالك تيليجرام يفضل صالح كام ثانية؟	ABSTAIN	-	-	-
+q15-pair-expiry-mixed	telegram-owner	كود Telegram owner pairing يفضل شغال كام second؟	ABSTAIN	-	-	-
+q15-pair-scope-en	telegram-owner	Where should I enter the temporary owner pairing code for the Telegram integration?	PASS	-	-	-
+q15-pair-scope-ar	telegram-owner	أدخل كود ربط مالك تيليجرام المؤقت فين عشان الربط يتم؟	PASS	-	-	-
+q15-pair-scope-mixed	telegram-owner	أكتب temporary owner code فين عشان Telegram pairing يتم؟	PASS	-	-	-
+q15-inference-time-en	local-inference	What exact millisecond latency does native inference guarantee on a phone?	ABSTAIN	-	-	-
+q15-inference-time-ar	local-inference	الاستدلال الأصلي على الموبايل بيضمن زمن كام مللي ثانية بالظبط؟	ABSTAIN	-	-	-
+q15-inference-time-mixed	local-inference	الـ native inference بيضمن latency كام ms على الهاتف؟	ABSTAIN	-	-	-
+q15-inference-setup-en	local-inference	If I only have the native library, which other requirements should I check?	PASS	-	-	-
+q15-inference-setup-ar	local-inference	معايا المكتبة الأصلية بس إيه متطلبات التشغيل التانية اللي أراجعها؟	PASS	-	-	-
+q15-inference-setup-mixed	local-inference	لو معايا native library بس أراجع أنهي requirements عشان أشغل النموذج؟	PASS	-	-	-

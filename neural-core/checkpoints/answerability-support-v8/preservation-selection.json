@@ -1,0 +1,1 @@
+{"protocol":"8-preservation-followup","threshold":0.425,"original_fingerprint":"96c19e6db92cf8d83d6af77f5e84a285ddeb6dee1db2d3370278241260774404","policy":{"queries":75,"accepted_correct":32,"accepted_wrong":1,"proposal_correct":32,"proposal_wrong":1,"lost_proposal_correct":0,"new_wrong":0,"unsupported":21,"unsupported_refused":20},"production_eligible":false}
