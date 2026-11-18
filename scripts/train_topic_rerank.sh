@@ -34,3 +34,9 @@ python3 scripts/audit_paired_rescue.py "$paired/features.tsv" "$paired/rotation.
 for artifact in policy.tsv report.json rotation.json; do cmp "$checkpoint/$artifact" "$paired/$artifact"; done
 "${compiler[@]}" "${compat[@]}" -encoding UTF-8 -d "$classes" neural-core/smoke/PairedRescueReplay.java
 java -cp "$classes" PairedRescueReplay "$checkpoint/policy.tsv" "$paired/features.tsv" "$paired/predictions.tsv"
+python3 -m unittest discover -s scripts -p 'test_lexical_rescue.py'
+lexical=build/lexical-rescue-v14
+mkdir -p "$lexical"
+java -Xmx768m -cp "$classes" com.omnidev.workspace.domain.neural.TopicRerankFeatures "$lexical/features.tsv" --lexical
+python3 scripts/fit_lexical_rescue.py "$lexical/features.tsv" "$lexical"
+for artifact in report.json weights.json; do cmp "neural-core/checkpoints/lexical-rescue-v14/$artifact" "$lexical/$artifact"; done

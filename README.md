@@ -95,6 +95,8 @@ Read [persistent tasks](docs/PERSISTENT_TASK_STATE.md), [recovery](docs/AGENT_EX
 
 ## Product support knowledge and future training
 
+The [v14 lexical follow-up](docs/PAIRED_RESCUE.md#lexical-filtering-follow-up-v14) fits two filters on 450 matched examples across 19 topics. Both filters produce the same result on 36 new questions and still confuse a character limit with a message count.
+
 The [v13 topic-held-out experiment](docs/PAIRED_RESCUE.md) fits two small selectors on paired English, Egyptian Arabic and code-switched examples. The selected arm gains no answers on six held-out topics. An 18-fold retrospective audit recovers six correct answers and adds four errors.
 
 The [v12 refusal recovery experiment](docs/REFUSAL_RESCUE.md) compares retrieval-only, pair-score and six-coefficient learned acceptance on first-stage refusals. The selected rule adds 80 correct and 15 wrong historical answers, and one correct answer on 36 reserved authored questions. Automatic rescue remains experimental.

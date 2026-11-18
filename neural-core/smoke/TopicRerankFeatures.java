@@ -41,7 +41,8 @@ public final class TopicRerankFeatures {
   }
 
   public static void main(String[] args) throws Exception {
-    boolean paired = args.length == 2 && args[1].equals("--paired");
+    boolean lexical = args.length == 2 && args[1].equals("--lexical");
+    boolean paired = lexical || (args.length == 2 && args[1].equals("--paired"));
     boolean rescue = paired || (args.length == 2 && args[1].equals("--rescue"));
     List<ProductSupportModel.Article> docs =
         ProductSupportExperiment.loadArticles(Paths.get("build/product-support/documents.tsv"));
@@ -100,6 +101,8 @@ public final class TopicRerankFeatures {
               true);
         }
       }
+      if (lexical)
+        fixture(out, model, topics, seen, "lexical-rescue-v14", 12, "lex14-", "fresh14", true);
       if (out.checkError()) throw new IOException("Feature output failed");
     }
   }

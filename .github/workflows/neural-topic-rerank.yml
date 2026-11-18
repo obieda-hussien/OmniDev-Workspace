@@ -7,6 +7,7 @@ on:
       - 'scripts/*topic_rerank*'
       - 'scripts/*refusal_rescue*'
       - 'scripts/*paired_rescue*'
+      - 'scripts/*lexical_rescue*'
       - '.github/workflows/neural-topic-rerank.yml'
   workflow_dispatch:
 permissions:
