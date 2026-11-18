@@ -143,3 +143,9 @@ boundary	other	بصلي على دي	الراوتر احتمال من ضمن اح
 boundary	other	ممكن توضح؟	الموبايل فيه بطارية وبيشتغل على شبكة لاسلكية، محتاج تفاصيل عن طلبك
 boundary	gradle	ايه اللي حاصل؟	Gradle cannot resolve the Kotlin plugin during the build
 boundary	room	شوفلي ده	Migration of the Room database schema needs an updated SQLite column definition
+train	battery	شوفلي ده	الموبايل بيسخن وهو في الشاحن وبيخسر شحن بسبب خدمة شغالة في الخلفية
+train	battery	مش فاهم	في تقرير Android استهلاك الطاقة زاد بعد تثبيت التطبيقات اللي بتشتغل تلقائي
+train	battery	Any suggestions?	The overnight battery loss is caused by idle apps running background jobs
+train	network	فهمني ده	ضعف إشارة شبكة اللاسلكي بيعمل انقطاع متكرر في الاتصال بالراوتر
+train	network	شوفلي ده	غير قناة الوايرلس في الراوتر لو فيه تشويش وإشارة الشبكة غير مستقرة
+train	network	What went wrong?	Wireless interference interrupts the WiFi link whenever the signal is low

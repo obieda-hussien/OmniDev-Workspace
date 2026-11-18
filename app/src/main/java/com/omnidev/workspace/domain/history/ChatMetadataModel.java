@@ -6,9 +6,10 @@ import java.util.regex.Pattern;
 
 /** Bounded local extractive baseline. It neither trains on chats nor authorizes tools. */
 public final class ChatMetadataModel {
-  public static final int VERSION = 5,
+  public static final int VERSION = 6,
       MAX_TEXTS = 6,
       MAX_TEXT_CHARS = 1500,
+      MAX_REPLY_CHARS = 6000,
       MAX_TITLE_CODEPOINTS = 64;
 
   public enum Topic {
@@ -90,6 +91,7 @@ public final class ChatMetadataModel {
     StringBuilder body = new StringBuilder();
     String chosen = "";
     boolean arabic = false;
+    List<String> turns = new ArrayList<>(MAX_TEXTS);
     int count = 0;
     if (texts != null)
       for (String raw : texts) {
@@ -98,14 +100,18 @@ public final class ChatMetadataModel {
         String text = clipChars(raw, MAX_TEXT_CHARS);
         arabic |= hasArabic(text);
         String safe = clean(text);
-        body.append(' ')
-            .append(
-                URL.matcher(SECRET.matcher(FENCES.matcher(text).replaceAll(" ")).replaceAll(" "))
-                    .replaceAll(" "));
+        String evidence = URL.matcher(SECRET.matcher(FENCES.matcher(text).replaceAll(" ")).replaceAll(" "))
+            .replaceAll(" ");
+        String normalizedTurn = normalize(evidence);
+        turns.add(normalizedTurn);
+        if (!normalizedTurn.isEmpty()) {
+          if (body.length() > 0) body.append(' ');
+          body.append(normalizedTurn);
+        }
         if (chosen.isEmpty() && !safe.isEmpty() && !GREETING.matcher(safe).matches())
           chosen = title(safe);
       }
-    String normalized = normalize(body.toString());
+    String normalized = body.toString();
     Set<String> words = new HashSet<>(Arrays.asList(normalized.split("\\s+")));
     Set<Service> services = EnumSet.noneOf(Service.class);
     for (Service service : Service.values()) {
@@ -173,7 +179,38 @@ public final class ChatMetadataModel {
       else if (!services.isEmpty()) topic = Topic.CONNECTED_APPS;
     }
     if (chosen.isEmpty()) chosen = arabic ? "محادثة جديدة" : "New conversation";
+    Topic inferred = learnedTopic(turns);
+    if (inferred != Topic.GENERAL) topic = inferred;
     return new Result(chosen, topic, services);
+  }
+
+  private static Topic learnedTopic(List<String> turns) {
+    int[] votes = new int[HistoryTopicWeights.LABELS.length];
+    for (int i = 0; i < turns.size(); i++) {
+      String turn = turns.get(i);
+      if (turn.isEmpty() || GREETING.matcher(turn).matches() || GENERIC_OPENING.matcher(turn).matches()) continue;
+      int[] scores = HistoryTopicWeights.scores(new HashSet<>(Arrays.asList(turn.split(" +"))));
+      int winner = strongest(scores, 700);
+      if (winner < 0 || "general".equals(HistoryTopicWeights.LABELS[winner])) continue;
+      int recentWeight = i >= turns.size() - 2 ? 2 : 1;
+      votes[winner] += recentWeight * Math.min(1800, margin(scores, winner));
+    }
+    int winner = strongest(votes, 700);
+    return winner < 0 ? Topic.GENERAL : Topic.fromId(HistoryTopicWeights.LABELS[winner]);
+  }
+
+  private static int margin(int[] scores, int winner) {
+    int second = Integer.MIN_VALUE;
+    for (int i = 0; i < scores.length; i++) {
+      if (i != winner) second = Math.max(second, scores[i]);
+    }
+    return scores[winner] - second;
+  }
+
+  private static int strongest(int[] scores, int minimumMargin) {
+    int winner = 0;
+    for (int i = 1; i < scores.length; i++) if (scores[i] > scores[winner]) winner = i;
+    return margin(scores, winner) >= minimumMargin ? winner : -1;
   }
 
   // Only replace underspecified opening requests. Descriptive user titles retain their detail.
@@ -192,14 +229,11 @@ public final class ChatMetadataModel {
     if (user == null || reply == null || reply.trim().isEmpty()) return fallback;
     String request = clean(clipChars(user, MAX_TEXT_CHARS));
     if (!GENERIC_OPENING.matcher(normalize(request)).matches()) return fallback;
-    String answer = clean(clipChars(reply, MAX_TEXT_CHARS));
+    String answer = clean(clipChars(reply, MAX_REPLY_CHARS));
     Set<String> terms = new HashSet<>(Arrays.asList(normalize(answer).split("\\s+")));
     int[] scores = OpeningTitleWeights.scores(terms);
-    int best = 0;
-    for (int i = 1; i < scores.length; i++) if (scores[i] > scores[best]) best = i;
-    for (int i = 0; i < scores.length; i++) {
-      if (i != best && scores[best] - scores[i] < 550) return fallback;
-    }
+    int best = strongest(scores, 550);
+    if (best < 0) return fallback;
     boolean ar = hasArabic(request);
     switch (OpeningTitleWeights.LABELS[best]) {
       case "gradle": return ar ? "بناء التطبيق باستخدام Gradle" : "Android build with Gradle";

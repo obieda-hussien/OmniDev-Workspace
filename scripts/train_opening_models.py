@@ -84,6 +84,9 @@ public final class %s {
 titles = read(fixtures / "opening-titles/pairs.tsv")
 fit([(r["reply"], r["label"]) for r in titles if r["split"] == "train"],
     history, "OpeningTitleWeights", "com.omnidev.workspace.domain.history")
+topics = read(fixtures / "history-topics/requests.tsv")
+fit([(r["text"], r["label"]) for r in topics if r["split"] == "train"],
+    history, "HistoryTopicWeights", "com.omnidev.workspace.domain.history")
 routes = read(fixtures / "context-inspection/examples.tsv") + read(fixtures / "context-inspection/contrast-training.tsv")
 data = [(r["text"], "technical" if r["label"] == "1" else "other") for r in routes if r["split"] == "train"]
 data.extend((r["text"], "technical" if r["label"] in {"build","device","repository"} else "other")

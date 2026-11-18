@@ -34,7 +34,7 @@ interface ChatSessionDao {
     suspend fun latestHistoryInputs(id: Long): List<HistoryMetadataInput>
 
     @Query("SELECT CASE WHEN role = 'ASSISTANT' AND instr(metadataJson, '\"titleReplyComplete\":true') > 0 " +
-        "THEN substr(content, 1, 1500) ELSE NULL END FROM chat_messages WHERE sessionId = :id " +
+        "THEN substr(content, 1, " + ChatMetadataModel.MAX_REPLY_CHARS + ") ELSE NULL END FROM chat_messages WHERE sessionId = :id " +
         "AND id > :firstUser AND role IN ('USER','ASSISTANT') ORDER BY id LIMIT 1")
     suspend fun openingReply(id: Long, firstUser: Long): String?
 

@@ -19,7 +19,36 @@ public final class OpeningTitleEvaluation {
             if (!cells[1].equals("other") && actual.equals("other")) counts[2]++;
             if (!cells[1].equals(actual) && !actual.equals("other")) counts[3]++;
         }
+        if (args.length > 1) evaluateTopics(args[1]);
+        String padding = String.join("", Collections.nCopies(68, "The supporting details are listed below. "));
+        require("Room database migration", ChatMetadataModel.openingTitle("Can you take a look?",
+                padding + "SQLite schema verification in Room fails after upgrading the database version", "Fallback"));
+        require("Fallback", ChatMetadataModel.openingTitle("Can you take a look?",
+                "```\n" + padding + "SQLite Room database schema migration", "Fallback"));
+        require("Keep original", ChatMetadataModel.openingTitle("Review the rent agreement",
+                padding + "SQLite schema verification in Room fails after upgrading the database version", "Keep original"));
+        String dominant = ChatMetadataModel.analyze(Arrays.asList("Fix the Kotlin coroutine cancellation in the repository",
+                "اربط نوشن مع التطبيقات المتصلة للمزامنة", "Connect linked accounts and sync files between apps"), "app", "").topic;
+        require("connected_apps", dominant);
         totals.forEach((split, c) -> System.out.printf("%s: correct=%d/%d missed=%d wrong_title=%d%n", split, c[1], c[0], c[2], c[3]));
+    }
+
+    private static void evaluateTopics(String path) throws Exception {
+        int correct = 0;
+        int count = 0;
+        for (String row : Files.readAllLines(Paths.get(path))) {
+            String[] cells = row.split("\t", -1);
+            if (!cells[0].equals("test")) continue;
+            String actual = ChatMetadataModel.analyze(Collections.singletonList(cells[2]), "app", "").topic;
+            if (cells[1].equals(actual)) correct++;
+            else System.out.println("Topic mismatch " + cells[1] + " => " + actual + " : " + cells[2]);
+            count++;
+        }
+        System.out.printf("Topics: correct=%d/%d%n", correct, count);
+    }
+
+    private static void require(String expected, String actual) {
+        if (!expected.equals(actual)) throw new AssertionError("Expected " + expected + ", got " + actual);
     }
 
     private static String category(String title) {
