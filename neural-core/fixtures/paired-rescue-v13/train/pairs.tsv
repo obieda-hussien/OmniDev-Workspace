@@ -1,0 +1,17 @@
+topic	label	en	ar	mixed
+history-titles	1	Whose words supply the title after I open with a greeting?	اسم المحادثة بيتاخد من كلام مين لو أنا لسه ما كتبتش غير سلام؟	chat title بيتاخد من كلام مين لو أنا لسه ما كتبتش غير سلام؟
+history-titles	0	Which numbered word supplies the title after a greeting and ten words?	اسم المحادثة بيتاخد من أنهي كلمة بالترتيب لو أنا كتبت سلام وبعده عشر كلمات؟	chat title بيتاخد من أنهي كلمة بالترتيب لو أنا كتبت سلام وبعده عشر كلمات؟
+history-topics	1	Where do I restore automatic category selection after picking the wrong topic?	أرجع التصنيف تلقائي منين بعد ما اخترت قسم غلط؟	أرجع category تلقائي منين بعد ما اخترت قسم غلط؟
+history-topics	0	Where do I restore yesterday's category from a category change log?	أرجع التصنيف اللي اخترته إمبارح من أنهي سجل لتغييرات الأقسام؟	أرجع category اللي اخترته إمبارح من أنهي سجل لتغييرات الأقسام؟
+history-sources	1	Which filter finds GitHub mentions inside app conversations?	لو كتبت عن جيت هب من جوه التطبيق أدور باسم التطبيق المذكور فين؟	لو كتبت عن GitHub من جوه التطبيق أدور باسم التطبيق المذكور فين؟
+history-sources	0	Which filter exports monthly counts of GitHub mentions inside app conversations?	لو كتبت عن جيت هب من جوه التطبيق أصدّر إحصائية عدد مرات ذكره إزاي؟	لو كتبت عن GitHub من جوه التطبيق أصدّر إحصائية عدد مرات ذكره إزاي؟
+choose-mode	1	Which mode fits an explanation without execution?	لو عايز شرح من غير تنفيذ أفتح أنهي وضع؟	لو عايز شرح من غير تنفيذ أفتح أنهي mode؟
+choose-mode	0	Which mode guarantees an explanation without execution within two seconds?	لو عايز شرح من غير تنفيذ أنهي وضع بيضمن الرد في ثانيتين؟	لو عايز شرح من غير تنفيذ أنهي mode بيضمن الرد في ثانيتين؟
+voice-wake	1	Which voice settings and assets does wake listening need?	عشان النداء يشتغل محتاج أنزّل موارد الصوت منين في الإعدادات؟	عشان wake word يشتغل محتاج أنزّل موارد الصوت منين في الإعدادات؟
+voice-wake	0	Exactly how many megabytes of wake assets does each dialect need?	عشان النداء يشتغل أنزّل كام ميجا بالظبط لموارد كل لهجة؟	عشان wake word يشتغل أنزّل كام ميجا بالظبط لموارد كل لهجة؟
+local-inference	1	Does loading the runtime library also give me the model file?	وجود مكتبة التشغيل لوحدها يكفي ولا محتاج ملف النموذج كمان؟	وجود runtime library التشغيل لوحدها يكفي ولا محتاج ملف النموذج كمان؟
+local-inference	0	Exactly how many seconds will the runtime library take to open my model file?	ملف النموذج بياخد كام ثانية بالظبط عشان المكتبة تفتحه على جهازي؟	ملف النموذج بياخد كام ثانية بالظبط عشان runtime تفتحه على جهازي؟
+provider-failure	1	What should I inspect before resuming after provider name resolution fails?	اسم خادم المزود مش بيتحل أراجع إيه قبل استكمال المهمة؟	اسم خادم provider مش بيتحل أراجع إيه قبل استكمال المهمة؟
+provider-failure	0	Exactly how many seconds until the provider name resolution outage ends?	اسم خادم المزود مش بيتحل أستنى كام ثانية بالظبط قبل ما العطل يخلص؟	اسم خادم provider مش بيتحل أستنى كام ثانية بالظبط قبل ما العطل يخلص؟
+memory-recall	1	How can I trace a recalled message to the original conversation?	لما الاسترجاع يطلع رسالة قديمة أعرف المحادثة الأصلية إزاي؟	لما recall يطلع رسالة قديمة أعرف المحادثة الأصلية إزاي؟
+memory-recall	0	How can I trace the precise time each reader opened a recalled message?	لما الاسترجاع يطلع رسالة قديمة أعرف مين قراها وفي أنهي ساعة إزاي؟	لما recall يطلع رسالة قديمة أعرف مين قراها وفي أنهي ساعة إزاي؟

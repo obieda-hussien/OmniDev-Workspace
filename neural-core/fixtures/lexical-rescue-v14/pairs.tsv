@@ -1,0 +1,13 @@
+topic	label	en	ar	mixed
+whatsapp-bridge	1	Which port number should the companion listen on at the local address?	رقم المنفذ المحلي للجسر المرافق لواتساب كام؟	الـ local port بتاع WhatsApp bridge المفروض يبقى كام؟
+whatsapp-bridge	0	Which port number should the second companion use for parallel accounts?	رقم المنفذ للجسر التاني بتاع حسابات واتساب المتوازية كام؟	الـ local port بتاع تاني WhatsApp bridge للحسابات المتوازية كام؟
+local-model-size	1	How many short messages can the local history engine use at most?	محرك السجل المحلي بياخد بالكتير كام رسالة قصيرة من المستخدم؟	الـ local history engine بيستخدم كام user message قصيرة بالكتير؟
+local-model-size	0	How many characters can each short message contribute to the history engine at most?	محرك السجل المحلي بياخد بالكتير كام حرف من كل رسالة قصيرة؟	الـ local history engine بياخد كام character من كل user message بالكتير؟
+edition-policy	1	Which access checks still apply after installing the Admin edition?	بعد تثبيت نسخة الإدارة إيه الأذونات اللي لسه محتاج أراجعها؟	بعد تثبيت Admin edition أنهي permissions لسه مطلوبة؟
+edition-policy	0	Which access checks can I schedule from an Admin edition permission calendar?	بعد تثبيت نسخة الإدارة أجدول فحص الأذونات من أنهي تقويم داخل التطبيق؟	بعد تثبيت Admin edition أجدول permissions check من أنهي calendar؟
+mcp-tools	1	After finding an MCP schema, what must be checked before running a corrected call?	بعد اكتشاف وصف الأداة أراجع إيه قبل تنفيذ الاستدعاء المصحح؟	بعد اكتشاف MCP schema أراجع إيه قبل تنفيذ الـ corrected call؟
+mcp-tools	0	After finding an MCP schema, how can I translate it automatically into every installed dialect?	بعد اكتشاف وصف الأداة أترجمه تلقائي لكل اللهجات المثبتة منين؟	بعد اكتشاف MCP schema أترجمه تلقائي لكل installed dialect منين؟
+support-diagnostics	1	What device and edition information belongs in a redacted support report?	أكتب إيه عن الجهاز والنسخة في بلاغ الدعم بعد إخفاء البيانات؟	أكتب إيه عن الجهاز والـ edition في redacted support report؟
+support-diagnostics	0	Which redacted support report format guarantees a response from a human tonight?	أنهي صيغة لبلاغ الدعم بعد إخفاء البيانات بتضمن رد موظف الليلة؟	أنهي redacted report format بيضمن رد من human support الليلة؟
+screen-assistant	1	If the assistant panel already opens, what extra access does its floating return bubble need?	لو لوحة المساعد بتفتح إيه الإذن التاني اللي محتاجاه فقاعة الرجوع العايمة؟	لو assistant panel بتفتح أنهي permission محتاجاه فقاعة الرجوع؟
+screen-assistant	0	If the assistant panel already opens, how can its floating bubble record every screen in a daily video?	لو لوحة المساعد بتفتح أخلي فقاعة الرجوع تسجل كل الشاشات في فيديو يومي إزاي؟	لو assistant panel بتفتح أخلي الفقاعة تعمل daily video لكل الشاشات إزاي؟

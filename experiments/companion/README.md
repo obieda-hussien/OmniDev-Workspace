@@ -1,0 +1,5 @@
+# Context-dependent companion feedback
+
+Train the actual Kotlin exploitation and gradient-sketch exploration networks with 512 explicit synthetic feedback events in each of eight runs. The two simulated profiles have opposite REST/PEEK preferences in four typing/working states. Actions are sampled uniformly and each label flips with probability 0.1. Evaluate at 0, 32, 128 and 512 updates on independently sampled positions and personality settings within the same four states. Random seeds are paired across profiles. This evaluates fitting a known feedback rule, not new situations, independent users or the complete UI action policy.
+
+Compare the unmodified neural score, a context-specific empirical reward averaged with four neural pseudo-observations, and a counts-only control using the same four neutral pseudo-observations. The optional adapter uses sixteen integer counters. Counters are experimental and ephemeral. The CI artifact contains eight personal-memory-format neural checkpoints with synthetic replay histories and accuracy.csv. Each neural checkpoint is reloaded for exact score parity. No checkpoint is installed as a user default.

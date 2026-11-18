@@ -2,7 +2,7 @@ name: Omni Neural Core (experimental)
 
 on:
   pull_request:
-    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2', 'feat/neural-hybrid-support', 'feat/neural-support-data-v4', 'feat/neural-query-memory', 'feat/neural-selective-support', 'feat/neural-subword-support', 'feat/neural-answerability-support', 'feat/neural-recall-aware-support']
+    branches: [main, 'feat/chat-history-metadata', 'feat/neural-product-retrieval', 'feat/neural-support-ranking-v2', 'feat/neural-hybrid-support', 'feat/neural-support-data-v4', 'feat/neural-query-memory', 'feat/neural-selective-support', 'feat/neural-subword-support', 'feat/neural-answerability-support', 'feat/neural-recall-aware-support', 'feat/neural-paired-rescue']
     paths:
       - 'neural-core/**'
       - 'neural-android/**'

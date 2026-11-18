@@ -1,0 +1,389 @@
+{
+  "coverage": 0,
+  "probability": 0,
+  "margin": "infinity",
+  "production_eligible": false,
+  "train_grid": [
+    {
+      "coverage": 0,
+      "probability": 0,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0,
+      "probability": 0.25,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0,
+      "probability": 0.5,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0,
+      "probability": 1,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0,
+      "probability": 2,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0.25,
+      "probability": 0,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0.25,
+      "probability": 0.25,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0.25,
+      "probability": 0.5,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0.25,
+      "probability": 1,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0.25,
+      "probability": 2,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0.5,
+      "probability": 0,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0.5,
+      "probability": 0.25,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0.5,
+      "probability": 0.5,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0.5,
+      "probability": 1,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 0.5,
+      "probability": 2,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 1,
+      "probability": 0,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 1,
+      "probability": 0.25,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 1,
+      "probability": 0.5,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 1,
+      "probability": 1,
+      "correct": 387,
+      "lost": 0
+    },
+    {
+      "coverage": 1,
+      "probability": 2,
+      "correct": 387,
+      "lost": 0
+    }
+  ],
+  "cohorts": {
+    "train": {
+      "selected": {
+        "count": 507,
+        "accepted": 393,
+        "baseline_correct": 387,
+        "correct": 387,
+        "wrong": 6,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 387,
+        "refused_supported": 12,
+        "accepted_unsupported": 6,
+        "refused_correct_first": 8,
+        "refused_correct_top3": 10,
+        "supported_proposer_refusals": 12,
+        "supported_vetoes": 0
+      },
+      "unrestricted": {
+        "count": 507,
+        "accepted": 393,
+        "baseline_correct": 387,
+        "correct": 387,
+        "wrong": 6,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 387,
+        "refused_supported": 12,
+        "accepted_unsupported": 6,
+        "refused_correct_first": 8,
+        "refused_correct_top3": 10,
+        "supported_proposer_refusals": 12,
+        "supported_vetoes": 0
+      },
+      "changes": []
+    },
+    "development": {
+      "selected": {
+        "count": 135,
+        "accepted": 65,
+        "baseline_correct": 61,
+        "correct": 61,
+        "wrong": 4,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 61,
+        "refused_supported": 44,
+        "accepted_unsupported": 4,
+        "refused_correct_first": 26,
+        "refused_correct_top3": 41,
+        "supported_proposer_refusals": 44,
+        "supported_vetoes": 0
+      },
+      "unrestricted": {
+        "count": 135,
+        "accepted": 65,
+        "baseline_correct": 61,
+        "correct": 61,
+        "wrong": 4,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 61,
+        "refused_supported": 44,
+        "accepted_unsupported": 4,
+        "refused_correct_first": 26,
+        "refused_correct_top3": 41,
+        "supported_proposer_refusals": 44,
+        "supported_vetoes": 0
+      },
+      "changes": []
+    },
+    "previous": {
+      "selected": {
+        "count": 1968,
+        "accepted": 935,
+        "baseline_correct": 900,
+        "correct": 900,
+        "wrong": 35,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 907,
+        "refused_supported": 523,
+        "accepted_unsupported": 27,
+        "refused_correct_first": 377,
+        "refused_correct_top3": 483,
+        "supported_proposer_refusals": 523,
+        "supported_vetoes": 0
+      },
+      "unrestricted": {
+        "count": 1968,
+        "accepted": 935,
+        "baseline_correct": 900,
+        "correct": 900,
+        "wrong": 35,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 907,
+        "refused_supported": 523,
+        "accepted_unsupported": 27,
+        "refused_correct_first": 377,
+        "refused_correct_top3": 483,
+        "supported_proposer_refusals": 523,
+        "supported_vetoes": 0
+      },
+      "changes": []
+    },
+    "reserved": {
+      "selected": {
+        "count": 48,
+        "accepted": 6,
+        "baseline_correct": 6,
+        "correct": 6,
+        "wrong": 0,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 6,
+        "refused_supported": 18,
+        "accepted_unsupported": 0,
+        "refused_correct_first": 14,
+        "refused_correct_top3": 15,
+        "supported_proposer_refusals": 18,
+        "supported_vetoes": 0
+      },
+      "unrestricted": {
+        "count": 48,
+        "accepted": 6,
+        "baseline_correct": 6,
+        "correct": 6,
+        "wrong": 0,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 6,
+        "refused_supported": 18,
+        "accepted_unsupported": 0,
+        "refused_correct_first": 14,
+        "refused_correct_top3": 15,
+        "supported_proposer_refusals": 18,
+        "supported_vetoes": 0
+      },
+      "changes": []
+    },
+    "reserved_en": {
+      "selected": {
+        "count": 16,
+        "accepted": 2,
+        "baseline_correct": 2,
+        "correct": 2,
+        "wrong": 0,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 2,
+        "refused_supported": 6,
+        "accepted_unsupported": 0,
+        "refused_correct_first": 5,
+        "refused_correct_top3": 5,
+        "supported_proposer_refusals": 6,
+        "supported_vetoes": 0
+      },
+      "unrestricted": {
+        "count": 16,
+        "accepted": 2,
+        "baseline_correct": 2,
+        "correct": 2,
+        "wrong": 0,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 2,
+        "refused_supported": 6,
+        "accepted_unsupported": 0,
+        "refused_correct_first": 5,
+        "refused_correct_top3": 5,
+        "supported_proposer_refusals": 6,
+        "supported_vetoes": 0
+      },
+      "changes": []
+    },
+    "reserved_ar": {
+      "selected": {
+        "count": 16,
+        "accepted": 1,
+        "baseline_correct": 1,
+        "correct": 1,
+        "wrong": 0,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 1,
+        "refused_supported": 7,
+        "accepted_unsupported": 0,
+        "refused_correct_first": 6,
+        "refused_correct_top3": 7,
+        "supported_proposer_refusals": 7,
+        "supported_vetoes": 0
+      },
+      "unrestricted": {
+        "count": 16,
+        "accepted": 1,
+        "baseline_correct": 1,
+        "correct": 1,
+        "wrong": 0,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 1,
+        "refused_supported": 7,
+        "accepted_unsupported": 0,
+        "refused_correct_first": 6,
+        "refused_correct_top3": 7,
+        "supported_proposer_refusals": 7,
+        "supported_vetoes": 0
+      },
+      "changes": []
+    },
+    "reserved_mixed": {
+      "selected": {
+        "count": 16,
+        "accepted": 3,
+        "baseline_correct": 3,
+        "correct": 3,
+        "wrong": 0,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 3,
+        "refused_supported": 5,
+        "accepted_unsupported": 0,
+        "refused_correct_first": 3,
+        "refused_correct_top3": 3,
+        "supported_proposer_refusals": 5,
+        "supported_vetoes": 0
+      },
+      "unrestricted": {
+        "count": 16,
+        "accepted": 3,
+        "baseline_correct": 3,
+        "correct": 3,
+        "wrong": 0,
+        "switched": 0,
+        "gained": 0,
+        "lost": 0,
+        "oracle_correct": 3,
+        "refused_supported": 5,
+        "accepted_unsupported": 0,
+        "refused_correct_first": 3,
+        "refused_correct_top3": 3,
+        "supported_proposer_refusals": 5,
+        "supported_vetoes": 0
+      },
+      "changes": []
+    }
+  }
+}
