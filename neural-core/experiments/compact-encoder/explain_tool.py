@@ -1,7 +1,9 @@
 """Identify a tool for an informational explanation."""
 import argparse
+import csv
 import json
 import re
+from pathlib import Path
 
 import numpy as np
 
@@ -12,7 +14,7 @@ CARDS = HERE / "tool-explanations.json"
 CHECKPOINT = HERE / "tool-explanations.npz"
 
 
-def fit(cards, encoder):
+def fit(cards, encoder, checkpoint=CHECKPOINT):
     from sklearn.linear_model import LogisticRegression
 
     samples = []
@@ -24,16 +26,16 @@ def fit(cards, encoder):
     classifier = LogisticRegression(C=8, max_iter=500, random_state=17).fit(x, [name for _, name in samples])
     scale = (np.max(np.abs(classifier.coef_), axis=1) / 127).astype(np.float32)
     weights = np.rint(classifier.coef_ / scale[:, None]).astype(np.int8)
-    np.savez_compressed(CHECKPOINT, labels=classifier.classes_, weights=weights, scale=scale,
+    np.savez_compressed(checkpoint, labels=classifier.classes_, weights=weights, scale=scale,
                         bias=classifier.intercept_.astype(np.float32))
     print(f"Fitted {len(samples)} informational examples")
 
 
 class ToolExplainer:
-    def __init__(self, cards, encoder):
+    def __init__(self, cards, encoder, checkpoint=CHECKPOINT):
         self.cards = cards
         self.encoder = encoder
-        with np.load(CHECKPOINT, allow_pickle=False) as weights:
+        with np.load(checkpoint, allow_pickle=False) as weights:
             self.labels = weights["labels"].tolist()
             self.weights = weights["weights"]
             self.scale = weights["scale"]
@@ -55,17 +57,45 @@ class ToolExplainer:
                  "summary_en": self.cards[name]["summary_en"]} for name in names]
 
 
+def evaluate(explainer, fixture):
+    with fixture.open(encoding="utf-8") as stream:
+        cases = list(csv.DictReader(stream, delimiter="\t"))
+    correct = wrong_tool = false_abstain = 0
+    for language in sorted({case["language"] for case in cases}):
+        group = [case for case in cases if case["language"] == language]
+        hits = 0
+        for case in group:
+            results = explainer.explain(case["text"])
+            guess = results[0]["tool"] if results else "UNKNOWN"
+            if guess == case["expected"]:
+                hits += 1
+            elif guess == "UNKNOWN":
+                false_abstain += 1
+            else:
+                wrong_tool += 1
+        correct += hits
+        print(f"{language}: {hits}/{len(group)}")
+    print(f"Total: {correct}/{len(cases)}, wrong tool: {wrong_tool}, false abstain: {false_abstain}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fit", action="store_true")
     parser.add_argument("--query", help="Tool name or plain-language question about its purpose")
+    parser.add_argument("--evaluate", type=Path, help="Evaluate on a TSV fixture")
+    parser.add_argument("--checkpoint", type=Path, default=CHECKPOINT, help="Path to INT8 weights")
     args = parser.parse_args()
     cards = json.loads(CARDS.read_text(encoding="utf-8"))
     encoder = Model(HERE / "weights.npz")
     if args.fit:
-        fit(cards, encoder)
+        fit(cards, encoder, args.checkpoint)
+    if args.query is None and args.evaluate is None:
+        return
+    explainer = ToolExplainer(cards, encoder, args.checkpoint)
+    if args.evaluate:
+        evaluate(explainer, args.evaluate)
     if args.query is not None:
-        result = ToolExplainer(cards, encoder).explain(args.query)
+        result = explainer.explain(args.query)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
