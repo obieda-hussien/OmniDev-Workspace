@@ -1,0 +1,17 @@
+key	examples
+git_manager/status	what edits are still uncommitted|فيه ملفات متعدلة ما دخلتش في commit؟|check for untracked files|اعرض وضع شجرة العمل عندي
+git_manager/diff	inspect differences line by line|عايز أشوف التغييرات جوه الملف|display the added and removed lines|طلعلي patch للتعديل المحلي
+git_manager/log	who made the last commit|رجّع آخر خمس كوميتات|show authors of recent commits|عايز التسلسل الزمني للكوميتات
+task_manager/list	list unfinished to-dos|إيه اللي لسه عليا في قايمة الشغل؟|show the items I still have to finish|اقرا قائمة مهامي الحالية
+task_manager/create	make a reminder entry in my todo list|زوّد بند جديد في قايمة المهام|record buy bread as a task|اكتب في المهام إني أراجع التقرير
+task_manager/complete	set task 46 to done|اعمل علامة صح على تاسك ٧|check off a finished todo|سجّل إني خلصت المهمة
+clipboard/read	retrieve the last copied phrase|إيه اللي أنا عامله كوبي دلوقتي؟|paste the current clipboard here|اقرالي آخر نص من الكليب بورد
+clipboard/write	put these words where I can paste them later|خلي النص ده جاهز للصق|copy my reference number|انسخ الرقم ده عشان ألصقه
+web_search	find a link online for office hours|هاتلي مواقع فيها أسعار الكتب|look up official information on the internet|فتش عالنت على الموضوع ده
+web_search_deep	compare findings across published research|راجع كذا ورقة وقارن الأدلة|study this in depth with citations|هاتلي مراجعة موسعة مدعومة بالمصادر
+fetch_page	get the text from this link|اقرا محتوى المقال من عنوانه|extract the contents of the URL I gave you|افتح الصفحة من الرابط المحدد
+list_chat_sessions	show saved chat titles by date|هات أسماء المحادثات اللي عندي|list conversations whose titles contain Android|وريني سجل جلسات الدردشة
+search_messages	locate an older message where I mentioned bicycles|دور على الكلام ده جوه شاتاتي|find earlier mentions of gradle in messages|فتش عن العبارة دي في الرسائل المحفوظة
+read_chat_session	show the discussion in session 63|لخص اللي حصل جوه جلسة رقم ١١|recap one entire saved chat by its ID|اقرأ رسايل المحادثة دي بالترتيب
+read_chat_message	get the cited message by session and message number|هات الرسالة دي لوحدها من الشات|quote the single referenced message|اقرأ نص الرسالة المشار ليها في المرجع
+NO_TOOL	what is the difference between git status and diff|يعني إيه نسخ للحافظة من غير تنفيذ|teach me how a todo list works|اشرح مفهوم سجل المحادثات|only explain the command to read a page|tell me what completing a task means
