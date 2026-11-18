@@ -8,6 +8,7 @@ on:
       - 'scripts/*refusal_rescue*'
       - 'scripts/*paired_rescue*'
       - 'scripts/*lexical_rescue*'
+      - 'scripts/evaluate_quantity_evidence.py'
       - '.github/workflows/neural-topic-rerank.yml'
   workflow_dispatch:
 permissions:

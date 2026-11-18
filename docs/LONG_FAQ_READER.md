@@ -1,0 +1,9 @@
+# Long local FAQ messages
+
+The experimental Java reader accepts up to 8,192 UTF-16 code units and routes one question of up to 512 units through the frozen v10 support checkpoint and v15 quantity veto. It returns a reviewed FAQ answer or an extracted English numeric witness with its source ID. CLARIFY and NO_MATCH are separate caller-visible outcomes. No additional learned weights, backend or chat-history scan is required.
+
+A question may follow an explicit question or correction marker. For long messages without a marker, the reader also recognizes a final punctuated interrogative clause. Multiple question marks, competing explicit markers, certain conditional prefixes and oversized inputs trigger clarification. These rules cannot resolve arbitrary references, implicit qualifications or multiple intentions. Ambiguous messages can still be segmented incorrectly. The reader is not activated in the application.
+
+The host replay adds a repeated 2,430-unit bilingual preamble to 58 canonical FAQ questions. Explicitly marked questions reproduced the short answer and source in all 58 cases. These questions already appear in the index. In a harder retrospective replay on 36 unmarked v15 variants, it returned two correct references, no wrong references and withheld 34. Fifteen of those 36 have supported answers. The benchmark measures host read calls with preconstructed strings and a loaded model. It does not measure Android startup, memory or phone latency.
+
+A next experiment should reserve naturally written long messages with scope changes and pronouns, annotate which clauses constrain the answer, and compare this one-clause baseline with bounded selection of two evidence-bearing clauses. Break out supported refusals and context-changing errors before considering app integration.
