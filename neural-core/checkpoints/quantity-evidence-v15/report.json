@@ -1,0 +1,168 @@
+{
+  "cohorts": {
+    "historical": {
+      "rows": 2196,
+      "correct_before": 1036,
+      "wrong_before": 67,
+      "correct_after": 1036,
+      "wrong_after": 57,
+      "lost": [],
+      "prevented": [
+        "rescue12-history-legacy-0-ar",
+        "paired13-provider-failure-0-ar",
+        "paired13-provider-failure-0-mixed",
+        "paired13-telegram-owner-0-en",
+        "paired13-profile-reference-0-en",
+        "paired13-media-jobs-0-en",
+        "lex14-whatsapp-bridge-0-mixed",
+        "lex14-local-model-size-0-en",
+        "lex14-local-model-size-0-ar",
+        "lex14-local-model-size-0-mixed"
+      ]
+    },
+    "historical_en": {
+      "rows": 732,
+      "correct_before": 370,
+      "wrong_before": 30,
+      "correct_after": 370,
+      "wrong_after": 26,
+      "lost": [],
+      "prevented": [
+        "paired13-telegram-owner-0-en",
+        "paired13-profile-reference-0-en",
+        "paired13-media-jobs-0-en",
+        "lex14-local-model-size-0-en"
+      ]
+    },
+    "historical_ar": {
+      "rows": 732,
+      "correct_before": 288,
+      "wrong_before": 15,
+      "correct_after": 288,
+      "wrong_after": 12,
+      "lost": [],
+      "prevented": [
+        "rescue12-history-legacy-0-ar",
+        "paired13-provider-failure-0-ar",
+        "lex14-local-model-size-0-ar"
+      ]
+    },
+    "historical_mixed": {
+      "rows": 732,
+      "correct_before": 378,
+      "wrong_before": 22,
+      "correct_after": 378,
+      "wrong_after": 19,
+      "lost": [],
+      "prevented": [
+        "paired13-provider-failure-0-mixed",
+        "lex14-whatsapp-bridge-0-mixed",
+        "lex14-local-model-size-0-mixed"
+      ]
+    },
+    "v14_observed": {
+      "rows": 36,
+      "correct_before": 11,
+      "wrong_before": 7,
+      "correct_after": 11,
+      "wrong_after": 3,
+      "lost": [],
+      "prevented": [
+        "lex14-whatsapp-bridge-0-mixed",
+        "lex14-local-model-size-0-en",
+        "lex14-local-model-size-0-ar",
+        "lex14-local-model-size-0-mixed"
+      ]
+    },
+    "fresh": {
+      "rows": 36,
+      "correct_before": 7,
+      "wrong_before": 4,
+      "correct_after": 7,
+      "wrong_after": 0,
+      "lost": [],
+      "prevented": [
+        "q15-history-symbols-en",
+        "q15-pair-expiry-en",
+        "q15-pair-expiry-mixed",
+        "q15-inference-time-mixed"
+      ]
+    },
+    "fresh_en": {
+      "rows": 12,
+      "correct_before": 2,
+      "wrong_before": 2,
+      "correct_after": 2,
+      "wrong_after": 0,
+      "lost": [],
+      "prevented": [
+        "q15-history-symbols-en",
+        "q15-pair-expiry-en"
+      ]
+    },
+    "fresh_ar": {
+      "rows": 12,
+      "correct_before": 2,
+      "wrong_before": 0,
+      "correct_after": 2,
+      "wrong_after": 0,
+      "lost": [],
+      "prevented": []
+    },
+    "fresh_mixed": {
+      "rows": 12,
+      "correct_before": 3,
+      "wrong_before": 2,
+      "correct_after": 3,
+      "wrong_after": 0,
+      "lost": [],
+      "prevented": [
+        "q15-pair-expiry-mixed",
+        "q15-inference-time-mixed"
+      ]
+    }
+  },
+  "named_reference": {
+    "supported": {
+      "SUPPORTED": 6,
+      "PASS": 9
+    },
+    "unsupported": {
+      "ABSTAIN": 19,
+      "PASS": 2
+    }
+  },
+  "witnesses": {
+    "q15-history-count-en": {
+      "source": "local-model-size:en",
+      "sentence": "The current history engine uses bounded local rules and at most six short user inputs.",
+      "value": "six"
+    },
+    "q15-history-count-ar": {
+      "source": "local-model-size:en",
+      "sentence": "The current history engine uses bounded local rules and at most six short user inputs.",
+      "value": "six"
+    },
+    "q15-history-count-mixed": {
+      "source": "local-model-size:en",
+      "sentence": "The current history engine uses bounded local rules and at most six short user inputs.",
+      "value": "six"
+    },
+    "q15-bridge-listen-en": {
+      "source": "whatsapp-bridge:en",
+      "sentence": "The bridge binds to 127.0.0.1:3000.",
+      "value": "3000"
+    },
+    "q15-bridge-listen-ar": {
+      "source": "whatsapp-bridge:en",
+      "sentence": "The bridge binds to 127.0.0.1:3000.",
+      "value": "3000"
+    },
+    "q15-bridge-listen-mixed": {
+      "source": "whatsapp-bridge:en",
+      "sentence": "The bridge binds to 127.0.0.1:3000.",
+      "value": "3000"
+    }
+  },
+  "production_eligible": false
+}

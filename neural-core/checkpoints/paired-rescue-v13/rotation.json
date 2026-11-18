@@ -1,0 +1,507 @@
+{
+  "retrospective": true,
+  "topics": 18,
+  "total": {
+    "n": 108,
+    "baseline_correct": 23,
+    "baseline_wrong": 6,
+    "gained": 6,
+    "added_wrong": 4,
+    "added_unsupported": 3
+  },
+  "folds": [
+    {
+      "held": "choose-mode",
+      "dev": [
+        "configure-provider",
+        "history-sources",
+        "little-omni",
+        "profile-reference"
+      ],
+      "selected": "all_hits",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 0,
+        "baseline_wrong": 0,
+        "eligible": 6,
+        "eligible_correct": 1,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 0,
+        "final_wrong": 0
+      },
+      "pairs": {
+        "complete": 0,
+        "total": 3
+      }
+    },
+    {
+      "held": "configure-provider",
+      "dev": [
+        "finish-evidence",
+        "history-titles",
+        "local-inference",
+        "provider-failure"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 3,
+        "baseline_wrong": 0,
+        "eligible": 3,
+        "eligible_correct": 0,
+        "gained": 0,
+        "added_wrong": 1,
+        "added_unsupported": 1,
+        "added_wrong_ids": [
+          "paired13-configure-provider-0-ar"
+        ],
+        "final_correct": 3,
+        "final_wrong": 1
+      },
+      "pairs": {
+        "complete": 2,
+        "total": 3
+      }
+    },
+    {
+      "held": "finish-evidence",
+      "dev": [
+        "git-environment",
+        "history-topics",
+        "media-jobs",
+        "recover-task"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 0,
+        "baseline_wrong": 0,
+        "eligible": 6,
+        "eligible_correct": 3,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 0,
+        "final_wrong": 0
+      },
+      "pairs": {
+        "complete": 0,
+        "total": 3
+      }
+    },
+    {
+      "held": "git-environment",
+      "dev": [
+        "github-access",
+        "learned-routines",
+        "memory-recall",
+        "telegram-owner"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 3,
+        "baseline_wrong": 1,
+        "eligible": 2,
+        "eligible_correct": 0,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 3,
+        "final_wrong": 1
+      },
+      "pairs": {
+        "complete": 2,
+        "total": 3
+      }
+    },
+    {
+      "held": "github-access",
+      "dev": [
+        "history-sources",
+        "little-omni",
+        "profile-reference",
+        "voice-wake"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 3,
+        "baseline_wrong": 0,
+        "eligible": 3,
+        "eligible_correct": 0,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 3,
+        "final_wrong": 0
+      },
+      "pairs": {
+        "complete": 3,
+        "total": 3
+      }
+    },
+    {
+      "held": "history-sources",
+      "dev": [
+        "choose-mode",
+        "history-titles",
+        "local-inference",
+        "provider-failure"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 1,
+        "baseline_wrong": 0,
+        "eligible": 5,
+        "eligible_correct": 2,
+        "gained": 2,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 3,
+        "final_wrong": 0
+      },
+      "pairs": {
+        "complete": 3,
+        "total": 3
+      }
+    },
+    {
+      "held": "history-titles",
+      "dev": [
+        "configure-provider",
+        "history-topics",
+        "media-jobs",
+        "recover-task"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 0,
+        "baseline_wrong": 0,
+        "eligible": 6,
+        "eligible_correct": 3,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 0,
+        "final_wrong": 0
+      },
+      "pairs": {
+        "complete": 0,
+        "total": 3
+      }
+    },
+    {
+      "held": "history-topics",
+      "dev": [
+        "finish-evidence",
+        "learned-routines",
+        "memory-recall",
+        "telegram-owner"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 3,
+        "baseline_wrong": 0,
+        "eligible": 3,
+        "eligible_correct": 0,
+        "gained": 0,
+        "added_wrong": 1,
+        "added_unsupported": 1,
+        "added_wrong_ids": [
+          "paired13-history-topics-0-en"
+        ],
+        "final_correct": 3,
+        "final_wrong": 1
+      },
+      "pairs": {
+        "complete": 2,
+        "total": 3
+      }
+    },
+    {
+      "held": "learned-routines",
+      "dev": [
+        "git-environment",
+        "little-omni",
+        "profile-reference",
+        "voice-wake"
+      ],
+      "selected": "all_hits",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 1,
+        "baseline_wrong": 0,
+        "eligible": 5,
+        "eligible_correct": 2,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 1,
+        "final_wrong": 0
+      },
+      "pairs": {
+        "complete": 1,
+        "total": 3
+      }
+    },
+    {
+      "held": "little-omni",
+      "dev": [
+        "choose-mode",
+        "github-access",
+        "local-inference",
+        "provider-failure"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 0,
+        "baseline_wrong": 0,
+        "eligible": 6,
+        "eligible_correct": 3,
+        "gained": 1,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 1,
+        "final_wrong": 0
+      },
+      "pairs": {
+        "complete": 1,
+        "total": 3
+      }
+    },
+    {
+      "held": "local-inference",
+      "dev": [
+        "configure-provider",
+        "history-sources",
+        "media-jobs",
+        "recover-task"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 1,
+        "baseline_wrong": 0,
+        "eligible": 5,
+        "eligible_correct": 2,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 1,
+        "final_wrong": 0
+      },
+      "pairs": {
+        "complete": 1,
+        "total": 3
+      }
+    },
+    {
+      "held": "media-jobs",
+      "dev": [
+        "finish-evidence",
+        "history-titles",
+        "memory-recall",
+        "telegram-owner"
+      ],
+      "selected": "all_hits",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 1,
+        "baseline_wrong": 1,
+        "eligible": 4,
+        "eligible_correct": 1,
+        "gained": 1,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 2,
+        "final_wrong": 1
+      },
+      "pairs": {
+        "complete": 1,
+        "total": 3
+      }
+    },
+    {
+      "held": "memory-recall",
+      "dev": [
+        "git-environment",
+        "history-topics",
+        "profile-reference",
+        "voice-wake"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 0,
+        "baseline_wrong": 0,
+        "eligible": 6,
+        "eligible_correct": 2,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 0,
+        "final_wrong": 0
+      },
+      "pairs": {
+        "complete": 0,
+        "total": 3
+      }
+    },
+    {
+      "held": "profile-reference",
+      "dev": [
+        "choose-mode",
+        "github-access",
+        "learned-routines",
+        "provider-failure"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 1,
+        "baseline_wrong": 1,
+        "eligible": 4,
+        "eligible_correct": 2,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 1,
+        "final_wrong": 1
+      },
+      "pairs": {
+        "complete": 0,
+        "total": 3
+      }
+    },
+    {
+      "held": "provider-failure",
+      "dev": [
+        "configure-provider",
+        "history-sources",
+        "little-omni",
+        "recover-task"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 3,
+        "baseline_wrong": 2,
+        "eligible": 1,
+        "eligible_correct": 0,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 3,
+        "final_wrong": 2
+      },
+      "pairs": {
+        "complete": 1,
+        "total": 3
+      }
+    },
+    {
+      "held": "recover-task",
+      "dev": [
+        "finish-evidence",
+        "history-titles",
+        "local-inference",
+        "telegram-owner"
+      ],
+      "selected": "all_hits",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 0,
+        "baseline_wrong": 0,
+        "eligible": 6,
+        "eligible_correct": 2,
+        "gained": 2,
+        "added_wrong": 2,
+        "added_unsupported": 1,
+        "added_wrong_ids": [
+          "paired13-recover-task-1-mixed",
+          "paired13-recover-task-0-ar"
+        ],
+        "final_correct": 2,
+        "final_wrong": 2
+      },
+      "pairs": {
+        "complete": 1,
+        "total": 3
+      }
+    },
+    {
+      "held": "telegram-owner",
+      "dev": [
+        "git-environment",
+        "history-topics",
+        "media-jobs",
+        "voice-wake"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 1,
+        "baseline_wrong": 1,
+        "eligible": 4,
+        "eligible_correct": 0,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 1,
+        "final_wrong": 1
+      },
+      "pairs": {
+        "complete": 0,
+        "total": 3
+      }
+    },
+    {
+      "held": "voice-wake",
+      "dev": [
+        "choose-mode",
+        "github-access",
+        "learned-routines",
+        "memory-recall"
+      ],
+      "selected": "refused",
+      "metrics": {
+        "n": 6,
+        "baseline_correct": 2,
+        "baseline_wrong": 0,
+        "eligible": 4,
+        "eligible_correct": 1,
+        "gained": 0,
+        "added_wrong": 0,
+        "added_unsupported": 0,
+        "added_wrong_ids": [],
+        "final_correct": 2,
+        "final_wrong": 0
+      },
+      "pairs": {
+        "complete": 2,
+        "total": 3
+      }
+    }
+  ]
+}
