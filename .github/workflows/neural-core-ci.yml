@@ -94,6 +94,7 @@ on:
       - 'scripts/test_trust_data.py'
       - 'scripts/prepare_prototype_challenges.py'
       - 'scripts/test_prototype_data.py'
+      - '.github/scripts/gradle-with-retry.sh'
       - '.github/scripts/run-neural-android-tests.sh'
       - '.github/scripts/neural-emulator-cleanup.sh'
       - 'scripts/test_neural_emulator_cleanup.py'
@@ -194,6 +195,7 @@ on:
       - 'scripts/test_trust_data.py'
       - 'scripts/prepare_prototype_challenges.py'
       - 'scripts/test_prototype_data.py'
+      - '.github/scripts/gradle-with-retry.sh'
       - '.github/scripts/run-neural-android-tests.sh'
       - '.github/scripts/neural-emulator-cleanup.sh'
       - 'scripts/test_neural_emulator_cleanup.py'
@@ -229,7 +231,7 @@ jobs:
       - name: Verify isolated module with JUnit
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon --max-workers 1 :neural-core:test --stacktrace
+          bash .github/scripts/gradle-with-retry.sh --project-dir neural-core --no-daemon --max-workers 1 test --stacktrace
       - name: Train numerical fixtures and verify portable checkpoints
         run: bash scripts/test_neural_training.sh
       - name: Verify Android fixture generation and host contract
