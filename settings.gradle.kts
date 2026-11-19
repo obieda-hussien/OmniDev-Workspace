@@ -1,3 +1,4 @@
+// Both hosts are official Maven Central endpoints. CI may switch after a repository failure.
 pluginManagement {
     buildscript {
         repositories {
@@ -7,7 +8,11 @@ pluginManagement {
                 content { includeModule("com.android.tools", "r8") }
             }
             google()
-            mavenCentral()
+            mavenCentral {
+                if (System.getenv("OMNI_MAVEN_CENTRAL_FALLBACK") == "1") {
+                    url = uri("https://repo1.maven.org/maven2/")
+                }
+            }
         }
         dependencies {
             // Kotlin 2.4 metadata requires R8 9.1.29; AGP 8.10 bundles an older R8.
@@ -24,7 +29,11 @@ pluginManagement {
                 includeGroupByRegex("androidx.*")
             }
         }
-        mavenCentral()
+        mavenCentral {
+            if (System.getenv("OMNI_MAVEN_CENTRAL_FALLBACK") == "1") {
+                url = uri("https://repo1.maven.org/maven2/")
+            }
+        }
         gradlePluginPortal()
     }
 }
@@ -32,7 +41,11 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
-        mavenCentral()
+        mavenCentral {
+            if (System.getenv("OMNI_MAVEN_CENTRAL_FALLBACK") == "1") {
+                url = uri("https://repo1.maven.org/maven2/")
+            }
+        }
         // CI stages OmniLink here once with retry/backoff to avoid transient JitPack 429/timeouts.
         maven { url = uri(rootDir.resolve("ci-m2")) }
         maven { url = uri("https://jitpack.io") }

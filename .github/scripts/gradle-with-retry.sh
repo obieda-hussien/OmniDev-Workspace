@@ -6,9 +6,11 @@ trap 'rm -f "$log"' EXIT
 max_attempts=4
 refresh=()
 dependency_failure_seen=false
+central_failure_seen=false
+central_fallback="${OMNI_MAVEN_CENTRAL_FALLBACK:-0}"
 for ((attempt = 1; attempt <= max_attempts; attempt++)); do
   status=0
-  bash "${OMNI_GRADLE_EXECUTABLE:-./gradlew}" "${refresh[@]}" "$@" 2>&1 | tee "$log" || status=$?
+  OMNI_MAVEN_CENTRAL_FALLBACK="$central_fallback" bash "${OMNI_GRADLE_EXECUTABLE:-./gradlew}" "${refresh[@]}" "$@" 2>&1 | tee "$log" || status=$?
   if [[ "$status" == 0 ]]; then exit 0; fi
 
   retryable=false
@@ -35,11 +37,16 @@ for ((attempt = 1; attempt <= max_attempts; attempt++)); do
     exit "$status"
   fi
   dependency_failure_seen=true
+  if [[ "$central_fallback" != 1 ]] && grep -Fq "https://repo.maven.apache.org/maven2/" "$log"; then
+    central_failure_seen=true
+  fi
   refresh=()
   retry_mode="reusing the dependency cache"
-  if [[ "$attempt" == 2 && "$missing_artifact" == true ]]; then
-    # Refresh only after a regular retry also reports a missing artifact.
-    # If the refresh fails, the final attempt can reuse valid cached metadata again.
+  if [[ "$attempt" == 2 && "$central_failure_seen" == true && "$central_fallback" != 1 ]]; then
+    # A different official Central URL has separate Gradle repository metadata.
+    central_fallback=1
+    retry_mode="switching to Maven Central at repo1.maven.org"
+  elif [[ "$missing_artifact" == true && ( "$attempt" == 2 || ( "$attempt" == 3 && "$central_failure_seen" == true ) ) ]]; then
     refresh=(--refresh-dependencies)
     retry_mode="refreshing dependency metadata once"
   fi
