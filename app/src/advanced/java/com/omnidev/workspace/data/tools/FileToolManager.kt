@@ -106,8 +106,7 @@ class FileToolManager(
         addAll(listOf(
             ToolDefinition(
                 name = "read_file_lines",
-                description = "Read specific lines from a file. Use this instead of reading entire files to save tokens. " +
-                    "Returns the content between startLine and endLine (1-indexed, inclusive).",
+                description = "Read a known project file from startLine through endLine (1-based, inclusive).",
                 parameters = listOf(
                     ToolParameter("filePath", "string", "Absolute path to the file to read.", required = true),
                     ToolParameter("startLine", "integer", "First line to read (1-indexed).", required = true),
@@ -116,8 +115,7 @@ class FileToolManager(
             ),
             ToolDefinition(
                 name = "search_codebase",
-                description = "Search for a regex pattern across all files in a directory tree. " +
-                    "Returns matching file paths and line-level snippets with line numbers.",
+                description = "Find text in a project directory using a Java regex. Returns paths, line numbers and matching snippets.",
                 parameters = listOf(
                     ToolParameter("directory", "string", "Absolute directory path to search in.", required = true),
                     ToolParameter("regexPattern", "string", "Java-compatible regex pattern to match.", required = true)
@@ -125,8 +123,7 @@ class FileToolManager(
             ),
             ToolDefinition(
                 name = "patch_file_content",
-                description = "Modify a file by replacing a specific snippet with new content. " +
-                    "The searchSnippet must match exactly one location in the file.",
+                description = "Replace one exact, unique snippet in a project file. Read the current text before patching.",
                 parameters = listOf(
                     ToolParameter("filePath", "string", "Absolute path to the file to modify.", required = true),
                     ToolParameter("searchSnippet", "string", "Exact text to find in the file.", required = true),
