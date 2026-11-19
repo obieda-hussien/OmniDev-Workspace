@@ -19,6 +19,8 @@ public final class OpeningTitleEvaluation {
             if (!cells[1].equals("other") && actual.equals("other")) counts[2]++;
             if (!cells[1].equals(actual) && !actual.equals("other")) counts[3]++;
         }
+        require("توزيع شفتات المخزن", ChatMetadataModel.openingTitle("ممكن تساعدني في توزيع شفتات المخزن الأسبوع الجاي؟",
+                "توزيع شفتات المخزن يبدأ بمعرفة مواعيد كل موظف.", "Fallback"));
         if (args.length > 1) evaluateTopics(args[1]);
         String padding = String.join("", Collections.nCopies(68, "The supporting details are listed below. "));
         require("Room database migration", ChatMetadataModel.openingTitle("Can you take a look?",
@@ -62,6 +64,8 @@ public final class OpeningTitleEvaluation {
     }
 
     private static String category(String title) {
+        if (title.contains("discovery") || title.contains("اكتشاف أدوات")) return "tool_discovery";
+        if (title.contains("title generation") || title.contains("عناوين المحادثات")) return "chat_titles";
         if (title.contains("Gradle")) return "gradle";
         if (title.contains("Git")) return "git";
         if (title.contains("Bluetooth") || title.contains("البلوتوث")) return "bluetooth";

@@ -27,6 +27,13 @@ class RunToolCatalogTest {
         assertTrue(run.search("failed returned error class tool_error false persistent", 6, lexicalOnly = true).isEmpty())
     }
 
+    @Test fun `workspace search puts project tools ahead of unrelated search domains`() {
+        val tools = listOf(ToolDefinition("search_knowledge", "Search workspace memory for file operations"),
+            ToolDefinition("search_messages", "Search chat history"), ToolDefinition("search_codebase", "Find source matches"))
+        val catalog = RunToolCatalog(tools, "file operations or workspace search")
+        assertEquals("search_codebase", catalog.search("file operations or workspace search", 1).single().name)
+        assertFalse(catalog.discover("").isError)
+    }
     @Test fun `initial schema set is small and includes discovery`() {
         val run = RunToolCatalog(registry, "registered_119")
         assertTrue(run.definitions().size <= 25)

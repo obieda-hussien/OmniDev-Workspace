@@ -37,10 +37,11 @@ class AutomaticToolRouter(private val catalog: RunToolCatalog) {
         val operation = root?.get("omni_operation") as? JsonObject
             ?: return rejected("Return one JSON object containing omni_operation with intent and arguments.")
         val intent = operation["intent"] as? JsonPrimitive
-        if (root.keys != setOf("omni_operation") || operation.keys != setOf("intent", "arguments") ||
+        val omittedDiscoveryArgs = intent?.content == RunToolCatalog.DISCOVER.name && operation.keys == setOf("intent")
+        if (root.keys != setOf("omni_operation") || (!omittedDiscoveryArgs && operation.keys != setOf("intent", "arguments")) ||
             intent?.isString != true || intent.content.isBlank() || intent.content.length > 800)
             return rejected("Operation needs only a concrete nonempty intent (up to 800 characters) and arguments object.")
-        val decoded = ToolArgumentCodec.decode(operation["arguments"])
+        val decoded = if (omittedDiscoveryArgs) ToolArgumentCodec.Decoded(emptyMap()) else ToolArgumentCodec.decode(operation["arguments"])
         decoded.error?.let { return rejected(it) }
         // Discovery is a runtime control, intentionally absent from the ordinary capability index.
         // Exact exposed controls must not be sent through semantic matching.

@@ -6,6 +6,11 @@ import kotlinx.serialization.json.*
 object ToolArgumentCodec {
     data class Decoded(val arguments: Map<String, String>, val error: String? = null)
 
+    /** Some compatible providers omit the payload for zero-argument discovery. */
+    fun decodeProviderCall(name: String, raw: String?): Decoded =
+        if (name == "discover_tools" && raw.isNullOrBlank()) Decoded(emptyMap())
+        else decode(raw.orEmpty())
+
     fun decode(raw: String): Decoded = try {
         decode(Json.parseToJsonElement(raw))
     } catch (_: Exception) {
