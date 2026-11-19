@@ -126,5 +126,9 @@
   "app/src/main/java/com/omnidev/workspace/domain/engine/ExecutionEnvironmentContext.kt": {
     "sha256": "04f4f1e61e6757f07bb82275618a7885244e1baafdf62aa0b63177df1ec5f799",
     "purpose": "Functional GitHub repository input matching; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/LocalSpecialistAdvice.kt": {
+    "sha256": "0226f0928e4e636040e4dd497798ffa88f075bd067b9aa6b92bb889675141737",
+    "purpose": "Recognize multilingual tool explanation questions in user input before reference lookup."
   }
 }
