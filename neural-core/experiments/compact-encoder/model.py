@@ -1,10 +1,9 @@
-"""Train and evaluate a shared low-rank INT8 text encoder. Python 3 + NumPy."""
+"""Train and evaluate the shared INT8 text encoder for separate specialist models."""
 import argparse
 import collections
 import csv
 import hashlib
 import re
-import time
 import unicodedata
 import zlib
 from pathlib import Path
@@ -12,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
+ENCODER_CHECKPOINT = HERE / "encoder.npz"
 FIXTURES = HERE.parents[1] / "fixtures"
 SLOTS = 4096
 RANK = 16
@@ -56,10 +56,6 @@ def corpus():
     for task, path in [("history", "history-topics/requests.tsv"), ("intent", "text-intents.tsv")]:
         for r in rows(path):
             data.append((task, r["split"], r["text"], "", r["label"]))
-    for r in rows("metadata-subword-probes.tsv"):
-        title = r["task"] == "opening-titles"
-        data.append(("title" if title else "history", "challenge", "" if title else r["text"],
-                     r["text"] if title else "", r["expected"]))
     return data
 
 
@@ -72,14 +68,13 @@ def train(data, path):
     examples = [r for r in data if r[1] == "train"]
     labels = sorted({task + "/" + label for task, _, _, _, label in examples})
     x = np.zeros((len(examples), SLOTS))
-    for i, (task, _, user, reply, label) in enumerate(examples):
+    for i, (_, _, user, reply, _) in enumerate(examples):
         idx, v = features(user, reply)
         x[i, idx] = v
     # Fit each supervised task on its own labels, then factor their weights jointly.
     # Other tasks supply no negative labels for this task.
     from sklearn.linear_model import LogisticRegression
     coefficients = np.zeros((SLOTS, len(labels)))
-    bias = np.zeros(len(labels))
     for task in TASKS:
         indices = [i for i, row in enumerate(examples) if row[0] == task]
         expected = [examples[i][-1] for i in indices]
@@ -87,34 +82,24 @@ def train(data, path):
         for i, label in enumerate(classifier.classes_):
             j = labels.index(task + "/" + label)
             coefficients[:, j] = classifier.coef_[i]
-            bias[j] = classifier.intercept_[i]
-    u, s, vt = np.linalg.svd(coefficients, full_matrices=False)
+    u, s, _ = np.linalg.svd(coefficients, full_matrices=False)
     encoder, enc_scale = quantize(u[:, :RANK] * np.sqrt(s[:RANK]))
-    head, head_scale = quantize(np.sqrt(s[:RANK, None]) * vt[:RANK])
-    np.savez_compressed(path, encoder=encoder, enc_scale=enc_scale, head=head,
-                        head_scale=head_scale, bias=bias.astype(np.float32), labels=np.array(labels))
+    np.savez_compressed(path, encoder=encoder, enc_scale=enc_scale)
 
 
-class Model:
-    def __init__(self, path):
+class TextEncoder:
+    def __init__(self, path=ENCODER_CHECKPOINT):
         with np.load(path, allow_pickle=False) as z:
             self.table = z["encoder"]
             self.scale = z["enc_scale"]
-            self.head = z["head"] * z["head_scale"]
-            self.bias = z["bias"]
-            self.labels = z["labels"].tolist()
+        self.dimensions = self.table.shape[1]
 
     def encode(self, user, reply=""):
         ids, values = features(user, reply)
         return (values @ self.table[ids]) * self.scale
 
-    def rank(self, task, user, reply=""):
-        scores = self.encode(user, reply) @ self.head + self.bias
-        return sorted(((name.split("/")[1], float(s)) for name, s in zip(self.labels, scores)
-                       if name.startswith(task + "/")), key=lambda item: (-item[1], item[0]))
 
-
-def retrieval(model, split):
+def retrieval(encoder, split):
     # Each English capability card is indexed once; all 15 queries are evaluation only.
     with (HERE / "retrieval.tsv").open(encoding="utf8") as f:
         records = list(csv.DictReader(f, delimiter="\t"))
@@ -127,7 +112,7 @@ def retrieval(model, split):
         result[ix] = v
         return result
 
-    for name, embed in [("lexical", lexical), ("shared INT8", model.encode)]:
+    for name, embed in [("lexical", lexical), ("shared INT8", encoder.encode)]:
         vectors = np.array([embed(r["text"]) for r in cards])
         vectors /= np.maximum(1e-12, np.linalg.norm(vectors, axis=1, keepdims=True))
         correct = top3 = 0
@@ -143,43 +128,14 @@ def retrieval(model, split):
               "MRR", round(rank_sum / len(queries), 3))
 
 
-def evaluate(model, data):
-    outcomes = collections.defaultdict(list)
-    for task, split, user, reply, truth in data:
-        if split == "train":
-            continue
-        ranked = model.rank(task, user, reply)
-        margin = ranked[0][1] - ranked[1][1]
-        outcomes[task, split].append((ranked[0][0] == truth, margin))
-    for (task, split), group in sorted(outcomes.items()):
-        print(task, split, sum(ok for ok, _ in group), "/", len(group))
-    cal = outcomes["intent", "calibration"]
-    # Choose maximum coverage among thresholds with zero observed calibration errors.
-    thresholds = sorted({0., *(m for _, m in cal), float("inf")})
-    threshold = next(t for t in thresholds if all(ok for ok, m in cal if m >= t))
-    held = outcomes["intent", "holdout"]
-    accepted = [ok for ok, m in held if m >= threshold]
-    print("intent holdout after abstention", sum(accepted), "correct of", len(accepted),
-          "accepted from", len(held), "threshold", threshold)
-    texts = [(r[2], r[3]) for r in data if r[1] != "train"]
-    ms = []
-    for user, reply in texts * 5:
-        start = time.perf_counter_ns()
-        model.rank("intent", user, reply)
-        ms.append((time.perf_counter_ns() - start) / 1e6)
-    print("host warm milliseconds p50/p95", np.percentile(ms, [50, 95]).round(3))
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fit", action="store_true")
-    parser.add_argument("--checkpoint", type=Path, default=HERE / "weights.npz")
+    parser.add_argument("--checkpoint", type=Path, default=ENCODER_CHECKPOINT)
     args = parser.parse_args()
-    data = corpus()
     if args.fit:
-        train(data, args.checkpoint)
-    model = Model(args.checkpoint)
-    evaluate(model, data)
-    retrieval(model, "query")
-    retrieval(model, "fresh")
+        train(corpus(), args.checkpoint)
+    encoder = TextEncoder(args.checkpoint)
+    retrieval(encoder, "query")
+    retrieval(encoder, "fresh")
     print(args.checkpoint.stat().st_size, "bytes", hashlib.sha256(args.checkpoint.read_bytes()).hexdigest())

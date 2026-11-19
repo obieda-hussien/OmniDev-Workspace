@@ -1,0 +1,13 @@
+expected	text
+NO_TOOL	اشرحلي git status من غير ما تبص على ملفاتي
+git_manager/status	بص على ملفاتي وقولي حالة git status في المشروع
+NO_TOOL	what does the clipboard write operation do
+clipboard/write	copy the following text into the system clipboard
+NO_TOOL	عرّفني معنى web search من غير ما تدور
+web_search	دور على الويب على دليل شاشات سامسونج
+NO_TOOL	How do to-do lists work? Please just explain.
+task_manager/list	Show the pending entries on my to-do list.
+DEFER	احسبلي حاصل ضرب مية في تمانية
+DEFER	Turn the screen brightness down.
+DEFER	اضبط منبه الساعة تمانية
+DEFER	Translate tomorrow's menu into Spanish.

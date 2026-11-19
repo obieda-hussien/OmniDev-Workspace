@@ -1,0 +1,41 @@
+language	expected	text
+ar	android_security_research	مين بيجمع كذا نوع من فحص أمان تطبيقات أندرويد في مراجعة واحدة؟
+ar	android_security_research	تعريف الأداة المسؤولة عن مراجعة أمان برنامج أندرويد بالكامل إيه؟
+ar	enhanced_attack_surface	إيه اللي بيوضح قد إيه مكونات تطبيق أندرويد مرئية من الخارج؟
+ar	enhanced_attack_surface	ممكن أعرف وظيفة كارت المكونات اللي برمجيات تانية تقدر تشوفها؟
+ar	security_analyzer	اسم الأداة اللي بتقول مخاطر صلاحيات تطبيق معين وإعدادات اتصاله إيه؟
+ar	security_analyzer	عايز أعرف دور الأداة اللي بتراجع إذونات برنامج موجود على الجهاز ومخاطرها
+ar	install_tool	يعني إيه مدير تجهيز الأدوات المساعدة اللي بيحتفظ بالنسخ في الكاش؟
+ar	install_tool	مين مسؤول عن حالة الأدوات المضافة وحفظها بشكل محلي بعد التثبيت؟
+ar	UNKNOWN	أشوف مساحة التخزين الفاضية منين؟
+ar	UNKNOWN	إيه وظيفة استخراج النصوص من الصور؟
+en	android_security_research	What is the tool for consolidating several parts of an Android app security review?
+en	android_security_research	What does Omni call its overall multi-phase Android assessment?
+en	enhanced_attack_surface	Which entry lists the parts of an Android app that are visible to other apps?
+en	enhanced_attack_surface	Which descriptor focuses on the externally visible Android component inventory?
+en	security_analyzer	Which entry describes a risk overview of sensitive permissions for an installed app?
+en	security_analyzer	What summarizes both network configuration and permission risk for an installed app?
+en	install_tool	Which item is responsible for getting helper utilities installed and showing their cache status?
+en	install_tool	What is the catalog item for tracking installed helper tools and their cached files?
+en	UNKNOWN	What part of Omni can add a new page to Notion?
+en	UNKNOWN	What is the tool for reading a phone notification?
+fr	android_security_research	Quel outil effectue un examen de sécurité Android en plusieurs étapes ?
+fr	android_security_research	Quelle fiche correspond à un audit complet de la sécurité d’une application Android ?
+fr	enhanced_attack_surface	Quel élément recense les parties d’une application Android visibles depuis l’extérieur ?
+fr	enhanced_attack_surface	Quelle fiche parle de la visibilité externe des composants Android ?
+fr	security_analyzer	Quel outil indique les risques réseau et d’autorisations pour un paquet installé ?
+fr	security_analyzer	À quoi correspond la fiche qui décrit les risques des permissions d’une application installée ?
+fr	install_tool	Quel élément installe les outils auxiliaires et indique leur état local ?
+fr	install_tool	Quelle fiche concerne l’installation d’utilitaires et les versions conservées en cache ?
+fr	UNKNOWN	À quoi sert le presse-papiers ?
+fr	UNKNOWN	Comment interpréter le niveau de charge du téléphone ?
+es	android_security_research	¿Qué entrada agrupa las fases de una revisión general de seguridad para Android?
+es	android_security_research	¿Cuál es la herramienta de auditoría completa de una aplicación Android?
+es	enhanced_attack_surface	¿Qué ficha describe las partes de una app que son visibles para otras aplicaciones?
+es	enhanced_attack_surface	¿Dónde se explica la exposición externa de componentes Android?
+es	security_analyzer	¿Qué herramienta resume los riesgos de permisos de un paquete instalado y sus ajustes de red?
+es	security_analyzer	¿Cuál es la ficha sobre los riesgos de red y permisos en una app ya instalada?
+es	install_tool	¿Qué herramienta gestiona las utilidades que se instalan y se guardan en la caché?
+es	install_tool	¿Qué ficha informa del estado del instalador de utilidades auxiliares?
+es	UNKNOWN	¿Para qué sirve la lista de conversaciones guardadas?
+es	UNKNOWN	¿Qué significa la sincronización automática de fotos?

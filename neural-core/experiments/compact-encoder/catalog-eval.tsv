@@ -1,0 +1,53 @@
+language	expected	text
+en	append_to_file	Add another paragraph at the bottom of notes.txt and keep what's already there.
+en	clear_file	Empty report.txt without removing the file itself.
+en	patch_file_content	Replace this exact code snippet with the new version.
+en	read_file_lines	Show me only lines 80 to 110 from that source file.
+en	diff_files	Compare these two directories, including files missing from either side.
+en	create_notion_page	Add a page to my project database in Notion.
+en	get_device_info	Show the phone's current battery and storage information.
+en	read_chat_message	Retrieve the exact text of message 9 in conversation 14.
+en	build_top_solutions	Show which known remedies have the highest build success rate.
+en	rollback_list_recent	Show me the recent recovery snapshots with their reasons.
+en	scrape_multiple	Read the text of each of these five web pages in parallel.
+en	replace_lines	Put this replacement content in place of lines 9 through 12.
+en	media_control	Skip to the next track that's playing on my phone.
+en	tool_monitoring	Which of our tools has the slowest execution times?
+en	search_contacts	Find Sara's phone number in my address book.
+en	repo_file_symbols	List the classes and functions defined in this specific source file.
+en	read_db_schema	Show the CREATE TABLE statements from my test Android app's local SQLite database.
+en	symlink_manager	Determine where an existing symbolic link points.
+ar	analyze_logcat	اللعبة قفلت فجأة هات سجل أندرويد وقت الكراش
+ar	archive_tool	عايز أضغط الفولدر ده في ملف zip
+ar	create_file	اعمل فايل جديد وحط فيه النص ده
+ar	fetch_page	افتح اللينك اللي بعته واقرأ المقال
+ar	find_files	هات مسارات كل الصور اللي اسمها بيبدأ بـ IMG
+ar	get_current_location	فين موقعي الحالي من الـ GPS؟
+ar	insert_lines	ضيف السطر ده قبل السطر رقم ٢٨
+ar	list_chat_sessions	وريني أسماء الشاتات اللي محفوظة
+ar	memory_snapshot	شوف التطبيق ده واخد كام ميجا رام
+ar	remember_fact	افتكر إني بشرب القهوة سادة
+ar	rollback_apply_one	رجّع حالة الملف من لقطة الاستعادة رقم ٧
+ar	search_knowledge	دور في ذكريات Omni عن إعدادات الموبايل
+ar	semantic_ui	اعرض شجرة عناصر الواجهة والأسماء بتاعتها
+ar	system_power	اعملي إعادة تشغيل للموبايل
+ar	update_memory	عدّل المعلومة المحفوظة في الذاكرة رقم ٥
+ar	web_search_deep	قارن الأبحاث العلمية وطلعلي المراجع
+ar	widget_generator_tool	حط ويدجت للوقت عالشاشة الرئيسية
+ar	read_notifications	هات آخر الإشعارات اللي وصلت للتليفون
+fresh-ar	brain_recall_lessons	وريني إيه اللي اتعلمناه من أخطاء تشغيل الوكيل قبل كده
+fresh-ar	clipboard	هات اللي كنت ناسخه آخر مرة من حافظة النسخ
+fresh-ar	create_notion_page	سجّل ملخص الاجتماع في صفحة جديدة في نوشن
+fresh-ar	get_device_info	محتاج أعرف نسبة الشحن والمساحة الفاضية وحالة الشبكة
+fresh-ar	repo_search_symbols	في اسم كلاس مش فاكره كامل دور عليه في فهرس الرموز
+fresh-ar	media_control	دخلني على الأغنية اللي بعدها
+fresh-ar	sync_service	وريني المزامنة في الخلفية شغالة ولا واقفة
+fresh-ar	append_to_file	حط الملاحظة تحت آخر سطر وسيب باقي الملف زي ما هو
+fresh-en	delete_lines	Remove lines 12 through 19 and keep the rest of the file.
+fresh-en	file_info	Find the checksum and file type for this path.
+fresh-en	repo_stats	How many files and symbols are indexed in my project?
+fresh-en	search_messages	Find a previous message containing the word backpack.
+fresh-en	system_launcher_tool	Open the app drawer on my phone.
+fresh-en	vector_similar	Given an existing memory ID, find the closest related entries.
+fresh-en	execution_diagnostics	Diagnose whether Omni's Termux and Shizuku backends are functional.
+fresh-en	task_manager	What items remain on my personal task list?

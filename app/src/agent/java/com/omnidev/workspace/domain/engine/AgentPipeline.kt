@@ -518,7 +518,8 @@ When improving: keep every other sentence, the structure, the language and the l
                 taskSignals, model.maxOutputTokens,
                 remainingAtStart?.coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE)
             )
-            val plan = IterationPlan.compute(systemPrompt + "\n" + ExecutionEnvironmentContext.guidance(routingContext, lastToolObservation), runtimeBackends, toolDefs,
+            val plan = IterationPlan.compute(systemPrompt + "\n" + ExecutionEnvironmentContext.guidance(routingContext, lastToolObservation) +
+                (if (runtimeBackends.reportOnly || permittedDefinitions.isEmpty()) "" else runCatalog.advisoryContext()), runtimeBackends, toolDefs,
                 evidenceLedger.fin.exposed(toolDefs, runtimeBackends.reportOnly), nativeTools, model,
                 desiredOutputBudget, config.contextWindowBuffer, evidenceLedger.fin.inputReserveTokens())
             if (plan.inputBudget <= 0) {

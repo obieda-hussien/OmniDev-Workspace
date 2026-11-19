@@ -1,0 +1,25 @@
+language	expected	text
+fr	clipboard	Qu'est-ce que j'ai mis dans le presse-papiers en dernier ?
+fr	read_file_lines	Donne-moi seulement les lignes 28 à 36 du fichier.
+fr	web_search_deep	Fais une synthèse documentée à partir de différentes études.
+es	task_manager	¿Qué tareas me quedan por hacer en mi lista?
+es	fetch_page	Extrae el texto del artículo que está en esta URL.
+es	get_device_info	Dime cuánta batería y memoria libre tiene el móvil.
+de	git_manager	Welche Dateien sind im lokalen Git-Arbeitsbaum geändert?
+de	search_messages	Finde ältere Chatnachrichten, die Bluetooth erwähnen.
+de	web_search	Such online nach Webseiten über Ersatzteile.
+pt	clipboard	Qual foi a última coisa que copiei para a área de transferência?
+pt	read_chat_session	Resume para mim a conversa salva com identificador 57.
+pt	read_file_lines	Mostre as linhas 70 a 98 desse arquivo apenas.
+tr	get_device_info	Telefonumda ne kadar boş depolama alanı ve pil kaldı?
+tr	task_manager	Tamamlamadığım görevleri listeler misin?
+tr	web_search_deep	Bu konuda yayımlanmış bilimsel makalelerin kanıtlarını karşılaştır.
+ja	fetch_page	送ったリンクを開いて記事の本文を読んで。
+ja	clipboard	クリップボードには今何が入っている？
+ja	search_messages	前のチャットのメッセージから電池という単語を探して。
+zh	get_device_info	手机还剩多少电量和存储空间？
+zh	git_manager	查看 Git 工作区里有哪些尚未提交的本地修改。
+zh	read_chat_session	概括邮件之外的第57号会话保存的聊天内容。
+hi	clipboard	क्लिपबोर्ड पर अभी क्या कॉपी है?
+hi	web_search	ऑनलाइन इस मुद्दे से जुड़े पेज खोजकर दिखाओ।
+hi	read_file_lines	उस फ़ाइल की 32 से 45 तक की पंक्तियाँ ही दिखाओ।

@@ -1,0 +1,21 @@
+expected	text
+git_manager/status	اعمل فحص لحالة الشغل المحلي وقولي هل فيه untracked
+git_manager/diff	Show me the changed lines, including what got removed.
+git_manager/log	عايز أعرف مين صاحب الكوميت اللي قبل الأخير
+task_manager/list	اقرالي الـ tasks المفتوحة عندي
+task_manager/create	Put finishing the slides on my personal todo list.
+task_manager/complete	اعتبر تاسك رقم ١٥ اتعملت وخلاص
+clipboard/read	ممكن تجيب اللي موجود دلوقتي في الكليبورد؟
+clipboard/write	Please place XYZ on the clipboard for pasting later.
+web_search	هات مواقع بتبيع قطع غيار عجل أونلاين
+web_search_deep	Compare multiple studies on language learning and cite them.
+fetch_page	اقرأ عنوان الويب اللي بعتهولك واستخرج منه النص
+list_chat_sessions	اعرض عناوين جلسات الشات المسجلة حسب التاريخ
+search_messages	Find the specific older chat text where we talked about headphones.
+read_chat_session	Give me a summary of conversation number 501.
+read_chat_message	من السيشن ٤ هات نص المسج ٢ بس
+NO_TOOL	ممكن تشرح يعني إيه ملف untracked؟ شرح بس
+DEFER	اضبط صوت الرنين على النص
+DEFER	Start a timer for my tea.
+DEFER	ارسم قطة لابسة كاب
+DEFER	Book me a train ticket to Cairo.

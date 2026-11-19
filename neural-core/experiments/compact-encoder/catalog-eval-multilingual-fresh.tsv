@@ -1,0 +1,17 @@
+language	expected	text
+fr	task_manager	Qu'est-ce qu'il me reste à faire d'après ma liste de tâches ?
+fr	fetch_page	Peux-tu récupérer le texte de l'article dont je viens de donner l'adresse ?
+es	read_chat_session	Dame un resumen de lo hablado en el chat guardado con el identificador 312.
+es	search_messages	¿En qué mensaje antiguo mencioné la palabra auriculares?
+de	get_device_info	Wie viel Speicherplatz ist auf meinem Smartphone verfügbar und wie voll ist der Akku?
+de	clipboard	Was habe ich zuletzt in die Zwischenablage kopiert?
+pt	git_manager	Quais mudanças no meu repositório local ainda estão sem commit?
+pt	web_search_deep	Compare o que dizem pesquisas independentes sobre esse assunto.
+tr	read_file_lines	Dosyanın yalnızca 18 ile 31 arasındaki satırlarını göster.
+tr	web_search	İnternette bisiklet parçaları fiyatlarını gösteren sayfalar bul.
+ja	task_manager	自分のタスクリストに残っている未完了の作業を教えて。
+ja	get_device_info	スマホの空き容量と電池の残りを確認して。
+zh	clipboard	我刚才复制到剪贴板里的是什么？
+zh	web_search_deep	请比较几篇科学论文对这个问题提供的证据。
+hi	fetch_page	दिए गए लिंक को खोलकर लेख का मुख्य पाठ दिखाओ।
+hi	get_device_info	मेरे मोबाइल की बैटरी कितनी बची है और कितनी जगह खाली है?
