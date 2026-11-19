@@ -54,22 +54,32 @@ exit 17
         self.assertNotIn("--refresh-dependencies", args)
         self.assertEqual(["0"] * 4, endpoints)
 
-    def test_maven_central_missing_artifact_switches_endpoint_before_refresh(self):
+    def test_maven_central_missing_artifact_uses_independent_mirror_before_refresh(self):
         missing = ("Could not find api-13.1.5.aar (dev.rikka.shizuku:api:13.1.5).\n"
                    "    https://repo.maven.apache.org/maven2/dev/rikka/shizuku/api/13.1.5/api-13.1.5.aar")
         code, count, args, endpoints = self.run_case(missing, 3)
         self.assertEqual((0, 3), (code, count))
-        self.assertEqual(["0", "0", "1"], endpoints)
+        self.assertEqual(["0", "0", "2"], endpoints)
         self.assertNotIn("--refresh-dependencies", args)
 
-    def test_persistent_artifact_miss_at_alternate_refreshes_only_that_endpoint(self):
+    def test_persistent_maven_lookup_tries_both_fallbacks_before_refresh(self):
         missing = ("Could not find junit:junit:4.13.2.\n"
                    "    https://repo.maven.apache.org/maven2/junit/junit/4.13.2/junit-4.13.2.pom")
         code, count, args, endpoints = self.run_case(missing, 4)
         self.assertEqual((0, 4), (code, count))
-        self.assertEqual(["0", "0", "1", "1"], endpoints)
-        self.assertEqual(1, args.count("--refresh-dependencies"))
-        self.assertTrue(args.splitlines()[-1].startswith("--refresh-dependencies"))
+        self.assertEqual(["0", "0", "2", "1"], endpoints)
+        self.assertNotIn("--refresh-dependencies", args)
+
+    def test_cold_ksp_bootstrap_uses_fallback_without_prior_artifact_failure(self):
+        missing = (
+            "Plugin [id: 'com.google.devtools.ksp', version: '2.3.13', apply: false] was not found\n"
+            "Plugin Repositories (could not resolve plugin artifact "
+            "'com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.3.13')"
+        )
+        code, count, args, endpoints = self.run_case(missing)
+        self.assertEqual((0, 2), (code, count))
+        self.assertEqual(["0", "2"], endpoints)
+        self.assertNotIn("--refresh-dependencies", args)
 
     def test_compiler_failure_is_not_retried(self):
         self.assertEqual((17, 1), self.run_case("e: Unresolved reference: broken")[0:2])
