@@ -82,20 +82,12 @@ class SwarmOrchestrator(
 
         private const val ORCHESTRATOR_SYSTEM_PROMPT = """
 You are Omni Team Orchestrator. Turn the user's objective into the SMALLEST useful execution DAG.
-Rules:
-- Return 1-6 atomic tasks only; no filler Planner/Executor/Reviewer roles. A simple objective is ONE task.
-- Workers are stateless: they see ONLY their task description plus dependency output. Every description must be self-contained and contain, in this order:
-  GOAL (one sentence, in the user's language) | INPUTS (exact absolute paths, repo names, URLs, tool names the user mentioned with @tool:) | STEPS (concrete actions and which tools to use) | OUTPUT (exact format the next task or the final answer needs: file list, summary table, diff) | FINISH EVIDENCE (what real tool output proves it is done).
-- Honor explicit user instructions literally: if the user names tools, paths or a procedure, put them in INPUTS/STEPS unchanged. Do not replace the request with a "fetch info" or "analyze needs" task.
-- Never create a task whose only product is a plan, a greeting or a tool-call envelope. Every task must end with verified observations.
-- Add a dependency only when its output is required by the later task; reading tasks that follow a listing task depend on it.
-- parallelSafe=true only for read-only/research work. Shared-state mutation (write, commit, install, delete) must be false.
-- needsConnectedTools=true only when MCP/cloud tools are actually required.
-- Add a verifier task only when independent verification materially changes confidence (e.g. after code edits: build/test/diff).
-- Do not create tasks merely to discover the supplied current time/date.
-- acceptance: 1-3 checkable done-when items per task that a tool result can prove (a file exists, a test passes, a value was read). Omit for pure reasoning/explanation. toolFree=true only when the complete task can be done from the user's supplied context or dependency outputs without external/current/repository/device/network/build operations; it may have no dependencies. toolFree tasks must have empty acceptance and needsConnectedTools=false. Set toolFree=false for research, inspection, verification, code, file, build, device, or any task requiring fresh evidence. Every non-toolFree worker must run real tools; the coordinator re-checks evidence.
+Use one task for a simple request. Split into at most six tasks when separate outputs are useful.
+Give each worker its deliverable, relevant inputs and user constraints in a short description. Preserve named tools, paths and requested procedures. Use dependencies only when a worker needs another worker's output.
+Mark parallelSafe only for independent read-only work. Set needsConnectedTools when the task requires MCP or cloud tools.
+For external work, specify 1-3 observable acceptance items. For reasoning entirely from supplied inputs, set toolFree=true, acceptance=[] and needsConnectedTools=false.
 Return ONLY a JSON array, no prose and no markdown fence:
-[{"id":"short-kebab-id","description":"GOAL ... | INPUTS ... | STEPS ... | OUTPUT ... | FINISH EVIDENCE ...","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false,"acceptance":["checkable done-when item"],"toolFree":false}]
+[{"id":"short-kebab-id","description":"Read the named project file and report its version","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false,"acceptance":["checkable done-when item"],"toolFree":false}]
 """
 
         private const val SYNTHESIS_PROMPT = """
@@ -786,16 +778,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         appendLine("Execute only this task. Batch safe reads, stop when finish evidence is sufficient, and do not redo team planning.")
         if (task.toolFree) {
             appendLine("This task is explicitly tool-free: use only the supplied objective and dependency context. Do not call tools or claim fresh external verification.")
-        } else {
-            appendLine("Use the tool-call channel for every action; never put a tool-call JSON envelope in your reply. Do not greet or role-play.")
         }
-        if (userFacing) appendLine("You are the only worker: your final reply is shown directly to the user. Write it in the user's language (Egyptian Arabic if the user writes Arabic; keep paths and code in English) as valid Markdown: one result sentence, then evidence, then risks/next step.")
-        else appendLine("Your reply is read by the synthesizer, not the user.")
-        appendLine("Empty output / '(no output)' / NO_MATCHES is inconclusive: retry once with a wider scope (deeper max_depth, parent dir, alternate tool) before reporting. Report only files, paths and results you actually received from tools; write 'NOT VERIFIED' for anything else.")
-        appendLine("discover_tools query is optional; pass a concrete query when useful, or omit it to search this task objective. OPERATION_UNRESOLVED means no action ran; clarify instead of treating it as an argument error.")
-        if (!userFacing) appendLine("Reply format: RESULT (1-2 lines) / EVIDENCE (paths, commands, key output) / BLOCKERS (exact errors) / NOT VERIFIED.")
-        appendLine("Pivot once when a backend is clearly blocked; do not probe it repeatedly. Never claim verification without concrete evidence.")
-        appendLine("Return concise evidence useful to the parent: changes, paths, tests, errors, decisions, sources, and remaining risk.")
+        if (userFacing) appendLine("Your answer goes directly to the user. Give the result in their language and disclose any blocker.")
+        else appendLine("Give the coordinator your result, supporting observations and unresolved blockers.")
         if (godModeEnabled) appendLine("God Mode flag does not guarantee privilege; trust actual tool outcomes.")
         if (teamFindings.isNotBlank()) {
             appendLine("\n## Prior worker reports (leads only, not independently verified; do not repeat unless verification is needed)")

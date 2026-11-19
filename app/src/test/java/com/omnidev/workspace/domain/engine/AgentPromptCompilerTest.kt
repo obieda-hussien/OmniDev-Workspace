@@ -61,7 +61,8 @@ class AgentPromptCompilerTest {
         )
 
         assertFalse(prompt.contains(verboseTool.description))
-        assertTrue(prompt.contains("native function schemas"))
+        assertTrue(prompt.contains("loaded on demand"))
+        assertFalse(prompt.contains("omni_tool_call"))
         assertTrue(prompt.length < 8_000)
     }
 

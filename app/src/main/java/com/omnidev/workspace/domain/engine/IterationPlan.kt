@@ -16,7 +16,6 @@ class IterationPlan(
         fun compute(
             baseSystemPrompt: String,
             runtimeBackends: RuntimeBackendLedger,
-            toolDefs: List<ToolDefinition>,
             exposed: List<ToolDefinition>,
             nativeTools: Boolean,
             model: AIModel,
@@ -26,8 +25,8 @@ class IterationPlan(
         ): IterationPlan {
             val prompt = baseSystemPrompt + "\n" + runtimeBackends.guidance() +
                 (if (runtimeBackends.reportOnly) "\nTool execution has ended for this run. Answer now from existing evidence; disclose incomplete work and required recovery. No tool calls." else "") +
-                (if (toolDefs.isEmpty()) "" else if (nativeTools) "\nUse native function calls with the advertised schemas. Do not write omni_operation or omni_tool_call JSON in prose; text envelopes are a fallback only when native calling is unavailable." else "\n" + AutomaticToolRouter.CONTRACT) +
-                (if (nativeTools || toolDefs.isEmpty()) "" else "\n" + ToolTextProtocol.schemas(exposed))
+                (if (exposed.isEmpty() || runtimeBackends.reportOnly) "" else if (nativeTools) "\nCall tools through the native function interface using the advertised schemas." else "\n" + TextToolCallAdapter.CONTRACT + "\n" + AutomaticToolRouter.CONTRACT) +
+                (if (nativeTools || exposed.isEmpty() || runtimeBackends.reportOnly) "" else "\n" + ToolTextProtocol.schemas(exposed))
             // Tool definitions are already compacted to the exact set sent to the provider.
             val schemaEstimate = if (nativeTools) (exposed.sumOf { it.toString().length } / 3).coerceAtLeast(0) else 0
             val budget = model.contextWindow - desiredOutputBudget - contextWindowBuffer -

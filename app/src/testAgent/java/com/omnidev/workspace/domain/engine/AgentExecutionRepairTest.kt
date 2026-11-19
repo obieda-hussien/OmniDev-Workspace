@@ -27,7 +27,7 @@ class AgentExecutionRepairTest {
         }
         val p = AgentPipeline(manager, completionProvider = { r ->
             assertTrue(r.systemPrompt.orEmpty().contains("not a verified checkout"))
-            assertTrue(r.systemPrompt.orEmpty().contains("Use native function calls"))
+            assertTrue(r.systemPrompt.orEmpty().contains("Call tools through the native function interface"))
             when (++turns) {
                 1 -> {
                     assertTrue(r.tools.orEmpty().any { it.name == "github_manager" })

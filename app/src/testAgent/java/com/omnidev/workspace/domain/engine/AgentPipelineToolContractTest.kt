@@ -45,7 +45,10 @@ class AgentPipelineToolContractTest {
         var round = 0
         val pipeline = AgentPipeline(tools, completionProvider = { request ->
             when (++round) {
-                1 -> CompletionResponse("", listOf(ToolCall("bad", "imaginary", emptyMap())))
+                1 -> {
+                    assertFalse(request.systemPrompt.orEmpty().contains(TextToolCallAdapter.CONTRACT))
+                    CompletionResponse("", listOf(ToolCall("bad", "imaginary", emptyMap())))
+                }
                 2 -> {
                     assertTrue(request.messages.last().content.contains("automatically retrieved"))
                     CompletionResponse("", listOf(ToolCall("read", "read_file", mapOf("path" to "a.kt"))))
@@ -173,6 +176,7 @@ class AgentPipelineToolContractTest {
         try {
             val pipeline = AgentPipeline(tools, completionProvider = { request ->
                 assertNull(request.tools)
+                assertTrue(request.systemPrompt.orEmpty().contains(TextToolCallAdapter.CONTRACT))
                 assertTrue(request.systemPrompt.orEmpty().contains("CURRENT LOADED TOOLS"))
                 assertTrue(request.messages.all { it.toolCalls.isEmpty() && it.toolResults.isEmpty() && it.role != MessageRole.TOOL })
                 if (++round == 1) CompletionResponse("""{"omni_tool_call":{"name":"read_file","arguments":{"path":"a.kt"}}}""")

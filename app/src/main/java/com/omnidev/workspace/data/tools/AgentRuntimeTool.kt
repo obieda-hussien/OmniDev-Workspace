@@ -197,7 +197,7 @@ object AgentRuntimeTool {
         ToolDefinition(
             name = "agent_runtime",
             description = """
-Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
+Run local shell commands, scripts, jobs and development tools with the available Android or Termux backend. For local Git actions, use the checked-out repository path.
 
 ━━ ENVIRONMENT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • env_check        — Full runtime survey (Python, Node, Git, Termux, backend).
