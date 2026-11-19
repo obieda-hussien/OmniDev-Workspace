@@ -153,3 +153,29 @@ train	battery	ممكن تبص؟	التشخيص إن الشحن بينقص وال
 train	battery	What's the issue?	Idle battery loss is caused by apps waking the phone overnight
 train	network	فسر ده	الشبكة اللاسلكية بتفصل كل شوية مع ضعف إشارة الراوتر
 train	room	شوف المشكلة	تحديث جدول في Room غيّر مخطط قاعدة البيانات وبيحتاج ترحيل الأعمدة
+train	tool_discovery	اختيار الأداة	discover_tools loads tool schemas for workspace search
+train	tool_discovery	بحث الملفات	اكتشاف الأدوات بيرتب أدوات البحث في ملفات المشروع
+train	tool_discovery	استدعاء الأداة	وسائط discover_tools اختيارية لتحديد أداة البحث المناسبة
+train	tool_discovery	Tool selection	Tool discovery ranks file search tools before memory tools
+train	tool_discovery	Missing arguments	Validate discover_tools arguments against the tool schema
+train	tool_discovery	الأداة غلط	ترشيح الأدوات بيعتمد على تطابق الأداة مع هدف البحث
+train	chat_titles	Title selection	Generate chat titles from the opening message and reply
+train	chat_titles	عناوين المحادثات	عنوان الدردشة بيتحدد من هدف المحادثة والرد الأول
+train	chat_titles	تسمية الشات	نموذج العناوين بيلخص المحادثة بدل نسخ أول رسالة
+train	chat_titles	History labels	The conversation title summarizes the topic in chat history
+train	chat_titles	اسم المحادثة	اختيار عنوان مناسب للشات من الرسالة والرد
+train	chat_titles	Chat naming	The chat title model names conversations using both turns
+paired	tool_discovery	ليه discover_tools بيرجع أدوات الذاكرة وأنا بدور في ملفات المشروع؟	البحث داخل المشروع محتاج ترشيح أداة الملفات في مرحلة اكتشاف الأدوات.
+paired	chat_titles	My chat title is just my first message copied again	We can improve conversation titles by summarizing the opening exchange.
+paired	room	فشل ترحيل قاعدة بيانات Room بعد ما ضفت عمود	عدم تطابق مخطط Room و SQLite بعد migration هو سبب الخطأ.
+paired	battery	Why does the phone battery drain so fast overnight?	Background apps keep the phone awake and cause idle battery drain.
+paired	other	اكتب عقد إيجار لشقة	هنا سجل بناء Gradle وفشل Kotlin compiler.
+train	chat_titles	Conversation labels	Titles in the sidebar should summarize each conversation in a few words
+train	chat_titles	First turn	A useful conversation heading reflects the opening exchange between both speakers
+train	chat_titles	اسم الجلسة	عنوان المحادثة في السجل لازم يوصف موضوع الكلام باختصار
+train	other	ازاي اكتب قصة	اختار عنوان القصة بعد كتابة أول فصل من الرواية
+train	other	Book headings	A chapter heading introduces the next section of the book
+paired_holdout	chat_titles	ليه عنوان الدردشة دايمًا طويل؟	نموذج تسمية المحادثة يختار عنوان قصير من كلامك والرد الأول.
+paired_holdout	git	My Git branch refuses to merge into main	The two Git branches have conflicting commits to resolve before merging.
+paired_holdout	other	هل أقدر أغيّر ميعاد حجز القطر؟	فيه مقاعد فاضية في رحلة المساء.
+paired_holdout	other	This is about notification of a rent increase, can you explain?	The rental agreement specifies the notice period for the landlord.

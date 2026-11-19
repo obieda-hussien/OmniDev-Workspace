@@ -38,7 +38,7 @@
   "files": {
     "neural-core/fixtures/contract-intents/corpus.tsv": "68d487ed99348588c64d7f6c86eea9460e41c7de468482e550e8d90dc99a5f2e",
     "neural-core/fixtures/contract-intents/protocol.json": "2d51a7cfb4463d5d2abc8864e932c33b3a256f59c449ddf822bea494682f2e2a",
-    "app/src/main/java/com/omnidev/workspace/data/tools/AgentRuntimeTool.kt": "c01c0cbc226bae4955f8a28bc7860b2a1d48aa595c3ed560b48411c6fb79eb2f",
+    "app/src/main/java/com/omnidev/workspace/data/tools/AgentRuntimeTool.kt": "b20e0bb9d07babc1665eedfd04851aca764c4e0b5b449d223d027a9d7bb7b369",
     "app/src/main/java/com/omnidev/workspace/data/tools/GitHubManagerTool.kt": "80e57c9374272051b29131fe058714da0128a9b6739aac05b36777b5576eb8ef",
     "app/src/main/java/com/omnidev/workspace/data/tools/BuildDoctorTools.kt": "980b76892cffcc28ec7435bd1e061e7349aae903579364007be9afc8c7049355",
     "app/src/main/java/com/omnidev/workspace/data/tools/AdvancedSystemTools.kt": "12bee3475ec6501626953a23647b997aa6fc45be997a5984fd68153de806705f",

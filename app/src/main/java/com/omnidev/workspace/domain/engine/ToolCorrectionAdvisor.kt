@@ -32,7 +32,9 @@ internal class ToolCorrectionAdvisor(definitions: List<ToolDefinition>) {
         val definition = matches?.singleOrNull()
         if (definition == null) return ToolCorrectionReport(null, listOf(ToolContractIssue(ToolContractIssueKind.UNKNOWN_TOOL,
             suggestion = if (matches == null) ToolTypoAdvisor.suggest(call.name, contracts.filterValues { it.size == 1 }.keys) else null)))
-        if (call.argumentError != null) return ToolCorrectionReport(definition.name, listOf(ToolContractIssue(ToolContractIssueKind.MALFORMED_ARGUMENTS)))
+        if (call.argumentError != null) return ToolCorrectionReport(definition.name, listOf(ToolContractIssue(
+            ToolContractIssueKind.MALFORMED_ARGUMENTS, expected = if (definition.name == "discover_tools") "{} or {\"query\":\"operation\"}" else "JSON object matching the current schema"
+        )))
         val parameters = definition.parameters.associateBy { it.name }
         val issues = ArrayList<ToolContractIssue>()
         fun add(issue: ToolContractIssue) { if (issues.size < 13) issues += issue }

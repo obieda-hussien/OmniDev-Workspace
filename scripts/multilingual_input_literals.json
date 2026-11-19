@@ -92,7 +92,7 @@
     "purpose": "Functional Arabic input matching for Launcher execution intent and negation; never display prose."
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/RunToolCatalog.kt": {
-    "sha256": "264d3a2072eb22e53a317a1d944213f7f9e194d6c78bf660acbb7193f67a36af",
+    "sha256": "3d0602f89850280be08eb31170b15527f832f3742f97224f60bf9db605797fb2",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/SensitiveObservationRedactor.kt": {

@@ -195,7 +195,7 @@ private data class OpenAiToolCall(
 @Serializable
 private data class OpenAiToolCallFunction(
     val name: String,
-    val arguments: String
+    val arguments: String = ""
 )
 
 // ─── OpenAI SSE streaming DTOs ────────────────────────────────────────────────
@@ -508,7 +508,7 @@ class CompletionService(
         val toolCalls = parsed.content
             .filter { it.type == "tool_use" }
             .mapIndexed { idx, block ->
-                val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decode(block.input)
+                val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decode(block.input ?: if (block.name == "discover_tools") JsonObject(emptyMap()) else null)
                 ToolCall(
                     id = block.id ?: "tool_$idx",
                     name = block.name ?: "",
@@ -617,7 +617,7 @@ class CompletionService(
         val choice = parsed.choices.firstOrNull()
 
         val toolCalls = choice?.message?.toolCalls?.map { tc ->
-            val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decode(tc.function.arguments)
+            val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decodeProviderCall(tc.function.name, tc.function.arguments)
             ToolCall(
                 id = tc.id,
                 name = tc.function.name,
@@ -785,11 +785,13 @@ class CompletionService(
         val tcExtra = mutableMapOf<Int, JsonObject>()
 
         conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                val l = line!!
-                if (!l.startsWith("data: ")) continue
-                val data = l.removePrefix("data: ").trim()
+            while (true) {
+                // Usage can follow the terminal choice. A disconnect here cannot truncate that choice.
+                val l = try { reader.readLine() } catch (error: IOException) {
+                    if (finished) break else throw error
+                } ?: break
+                if (!l.startsWith("data:")) continue
+                val data = l.substring(5).trim()
                 if (data == "[DONE]") { finished = true; break }
                 try {
                     if (json.parseToJsonElement(data).jsonObject["error"] != null) throw IOException("Provider reported a streaming error.")
@@ -829,7 +831,7 @@ class CompletionService(
         if (!finished) throw IOException("Provider stream ended before a finish event.")
 
         val toolCalls = tcIds.keys.sorted().map { idx ->
-            val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decode(tcArgs[idx]?.toString().orEmpty())
+            val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decodeProviderCall(tcNames[idx].orEmpty(), tcArgs[idx]?.toString())
             ToolCall(
                 id        = tcIds[idx]   ?: "tool_$idx",
                 name      = tcNames[idx]?.toString() ?: "",
@@ -923,8 +925,8 @@ class CompletionService(
             var line: String?
             while (reader.readLine().also { line = it } != null) {
                 val l = line!!
-                if (!l.startsWith("data: ")) continue
-                val data = l.removePrefix("data: ").trim()
+                if (!l.startsWith("data:")) continue
+                val data = l.substring(5).trim()
                 try {
                     val event = json.decodeFromString(AnthropicStreamEvent.serializer(), data)
                     if (event.type == "message_start" && event.message?.usage != null) {
@@ -934,7 +936,10 @@ class CompletionService(
                         inputTokens += event.usage.inputTokens
                         outputTokens += event.usage.outputTokens
                     }
-                    if (event.type == "message_stop") finished = true
+                    if (event.type == "message_stop") {
+                        finished = true
+                        break
+                    }
                     if (event.type == "error") throw IOException("Provider reported an error during streaming.")
                     when (event.type) {
                         "content_block_start" -> {

@@ -23,8 +23,9 @@ object TextToolCallAdapter {
         val envelope = root["omni_tool_call"] as? JsonObject ?: return malformed()
         val name = envelope["name"] as? JsonPrimitive ?: return malformed()
         if (!name.isString) return malformed()
-        val decoded = ToolArgumentCodec.decode(envelope["arguments"])
-        val error = if (envelope.keys != setOf("name", "arguments")) "Only name and arguments are allowed in the envelope." else decoded.error
+        val omittedDiscoveryArgs = name.content == "discover_tools" && envelope.keys == setOf("name")
+        val decoded = if (omittedDiscoveryArgs) ToolArgumentCodec.Decoded(emptyMap()) else ToolArgumentCodec.decode(envelope["arguments"])
+        val error = if (!omittedDiscoveryArgs && envelope.keys != setOf("name", "arguments")) "Only name and arguments are allowed in the envelope." else decoded.error
         return response.copy(content = "", toolCalls = listOf(ToolCall(
             "text_${UUID.randomUUID()}", name.content, decoded.arguments, argumentError = error, textProtocol = true
         )))

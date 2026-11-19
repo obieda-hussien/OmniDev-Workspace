@@ -20,6 +20,16 @@ class AutomaticToolRouterTest {
         assertEquals("discover_tools", c.name); assertTrue(c.arguments.isEmpty()); assertNull(c.argumentError)
         assertNull(ToolCallPreflight(listOf(RunToolCatalog.DISCOVER)).check(c))
     }
+    @Test fun `both text protocols support omission only for discovery`() {
+        val router = AutomaticToolRouter(RunToolCatalog(tools, "workspace"))
+        for (name in listOf("discover_tools", "file_lookup")) {
+            val named = TextToolCallAdapter.adapt(CompletionResponse("""{"omni_tool_call":{"name":"$name"}}"""))
+            val operation = router.adapt(CompletionResponse("""{"omni_operation":{"intent":"$name"}}"""), emptySet())
+            for (response in listOf(named, operation))
+                assertEquals(name == "discover_tools", response.toolCalls.single().argumentError == null)
+        }
+    }
+
     @Test fun `exact exposed finish control reaches P0 and unexposed control cannot be invented`() {
         val router = AutomaticToolRouter(RunToolCatalog(tools, "messages"))
         val r = proposal("finish_task", """{"status":"blocked","summary":"No runtime"}""")

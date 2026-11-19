@@ -1287,10 +1287,7 @@ When improving: keep every other sentence, the structure, the language and the l
                 }
                 val managedRequest = request.copy(retryManagedByCaller = true)
                 val streamRequest = managedRequest.copy(
-                    onReasoning = {
-                        emitted = true
-                        request.onReasoning?.invoke(it)
-                    }
+                    onReasoning = request.onReasoning
                 )
                 val response = if (config.maxIterationTimeMs != null) {
                     withTimeout(config.maxIterationTimeMs) {
@@ -1314,8 +1311,9 @@ When improving: keep every other sentence, the structure, the language and the l
                 throw cancelled
             } catch (error: Exception) {
                 recordAnalytics(request, null, callStarted, true)
-                if (emitted) {
-                    onFatalError("Response interrupted after partial output: ${error.message}")
+                if (emitted || error is com.omnidev.workspace.data.network.PartialCompletionException) {
+                    onFatalError(if (error is com.omnidev.workspace.data.network.PartialCompletionException)
+                        error.message.orEmpty() else "Response interrupted after partial output: ${error.message}")
                     return null
                 }
                 if (error is com.omnidev.workspace.data.network.AutoRoutingExhaustedException) {

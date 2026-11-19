@@ -162,13 +162,8 @@ class RunToolCatalog(
             "Matching registered schemas exceed this model's tool-surface budget. Use a model with a larger context or a narrower exact tool query. No action executed.",
             true, classification = "TOOL_SCHEMA_BUDGET")
         return ToolExecutionResult(buildString {
-            appendLine("Loaded for the NEXT model request; call only after reading its native schema:")
-            visible.forEach { tool ->
-                appendLine("${tool.name}: ${tool.description.take(500)}")
-                tool.parameters.forEach { p ->
-                    appendLine("  ${p.name}: ${p.type}${if (p.required) " required" else if (p.requiredForActions.isNotEmpty()) " required for ${p.requiredForActions.joinToString()}" else " optional"}${if (p.allowedValues.isEmpty()) "" else " enum=${p.allowedValues.joinToString()}"} — ${p.description.take(180)}")
-                }
-            }
+            appendLine("Loaded for the NEXT model request. Use its advertised parameter schema:")
+            visible.forEach { tool -> appendLine("${tool.name}: ${tool.description.trim().lineSequence().first().take(140)}") }
             if (visible.size < matches.size) appendLine("Other matches deferred by the schema budget; query an exact tool name to prioritize it.")
         })
     }
@@ -177,6 +172,7 @@ class RunToolCatalog(
         focusedDomains: Set<IntentClassifier.ToolDomain> = emptySet()): List<ToolDefinition> {
         val queryTerms = words(query)
         if (queryTerms.isEmpty() || limit <= 0) return emptyList()
+        val workspaceSearch = queryTerms.any { it in WORKSPACE_TERMS } && queryTerms.any { it in SEARCH_TERMS }
         val domains = IntentClassifier.getRelevantDomains(query) + additionalDomains
         if (!lexicalOnly && query != lastRankingQuery) {
             lastRanking = LocalSpecialistAdvice.rank(query, catalog)
@@ -198,7 +194,7 @@ class RunToolCatalog(
             val learnedRank = if (lexicalOnly) -1 else lastRanking.indexOf(tool.name)
             val learned = if (learnedRank < 0) 0.0 else 3.0 / (learnedRank + 1)
             tool to (if (lexicalOnly && lexical <= 0 && exact <= 0) 0.0
-                else normalizedLexical + exact + domain + specialization + history + learned)
+                else (if (workspaceSearch && tool.name in PROJECT_LOOKUP) 16.0 else 0.0) + normalizedLexical + exact + domain + specialization + history + learned)
         }
         return scores.filter { it.second > 0 }.sortedWith(
             compareByDescending<Pair<ToolDefinition, Double>> { it.second }.thenBy { it.first.name }
@@ -215,6 +211,9 @@ class RunToolCatalog(
         private const val SEARCH_SIZE = 6
         private const val DIGEST_SIZE = 40
         private val WORD = Regex("[\\p{L}\\p{N}_.-]+")
+        private val WORKSPACE_TERMS = setOf("workspace", "project", "codebase", "repository", "المشروع", "مشروع")
+        private val SEARCH_TERMS = setOf("search", "find", "locate", "list", "بحث", "ابحث", "دور", "اعرض")
+        private val PROJECT_LOOKUP = setOf("search_codebase", "list_files", "repo_search_symbols", "repo_find_context")
         private val STOP = setOf("the", "and", "for", "with", "tool", "tools", "use", "عايز", "اعمل", "من", "في", "علي", "failed", "returned", "error", "tool_error", "success", "retryable", "persistent", "class", "false", "true", "omni-outcome")
         val DISCOVER = ToolDefinition("discover_tools",
             "Load tool schemas when the current tools do not cover an operation. Search by operation or exact name, then call the matching tool. Discovery does not execute it or grant access.",

@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 /** Bounded local extractive baseline. It neither trains on chats nor authorizes tools. */
 public final class ChatMetadataModel {
-  public static final int VERSION = 7,
+  public static final int VERSION = 8,
       MAX_TEXTS = 12,
       MAX_TEXT_CHARS = 3072,
       MAX_REPLY_CHARS = 24000,
@@ -217,7 +217,7 @@ public final class ChatMetadataModel {
     return margin(scores, winner) >= minimumMargin ? winner : -1;
   }
 
-  // Only replace underspecified opening requests. Descriptive user titles retain their detail.
+  // Generic openings can use reply evidence alone.
   private static final Pattern GENERIC_OPENING = Pattern.compile(
       "(?:حل المشكله دي|شوف(?:لي)? (?:ده|دي|المشكله دي)|ممكن تبص علي دي|بص هنا|ايه (?:الحل|اللي حاصل)|"
       + "وضحلي السبب|ده حصل ليه|مش شغال|تساعدني|ساعدني(?: في الموضوع)?|رتبلي ده|محتاج اظبط الدنيا|"
@@ -235,7 +235,7 @@ public final class ChatMetadataModel {
   public static String openingTitle(String user, String reply, String fallback) {
     if (user == null || reply == null || reply.trim().isEmpty()) return fallback;
     String request = clean(clipChars(user, MAX_TEXT_CHARS));
-    if (!GENERIC_OPENING.matcher(normalize(request)).matches()) return fallback;
+    boolean generic = GENERIC_OPENING.matcher(normalize(request)).matches();
     String evidence = FENCES.matcher(clipChars(reply, MAX_REPLY_CHARS)).replaceAll(" ");
     java.util.regex.Matcher conclusion = CONCLUSION.matcher(evidence);
     int conclusionStart = -1;
@@ -245,9 +245,19 @@ public final class ChatMetadataModel {
     Set<String> terms = new HashSet<>(Arrays.asList(normalize(answer).split("\\s+")));
     int[] scores = OpeningTitleWeights.scores(terms);
     int best = strongest(scores, 550);
+    if (!generic) {
+      Set<String> requestTerms = new HashSet<>(Arrays.asList(normalize(request).split(" +")));
+      int[] requestScores = OpeningTitleWeights.scores(requestTerms);
+      int requestLabel = strongest(requestScores, 1);
+      if (best < 0 || requestLabel != best || margin(requestScores, best) + margin(scores, best) < 1100
+          || "other".equals(OpeningTitleWeights.LABELS[best]))
+        return sharedPhrase(request, terms, fallback);
+    }
     if (best < 0) return fallback;
     boolean ar = hasArabic(request);
     switch (OpeningTitleWeights.LABELS[best]) {
+      case "chat_titles": return ar ? "اختيار عناوين المحادثات" : "Chat title generation";
+      case "tool_discovery": return ar ? "اكتشاف أدوات البحث واختيارها" : "Workspace tool discovery";
       case "gradle": return ar ? "بناء التطبيق باستخدام Gradle" : "Android build with Gradle";
       case "git": return ar ? "فروع Git ودمج التغييرات" : "Git branches and merges";
       case "bluetooth": return ar ? "اتصال سماعة البلوتوث" : "Bluetooth headset connection";
@@ -260,6 +270,34 @@ public final class ChatMetadataModel {
       case "network": return ar ? "مشاكل اتصال الواي فاي" : "Wi-Fi connection issues";
       default: return fallback;
     }
+  }
+
+  private static final Set<String> TITLE_FILLER = new HashSet<>(Arrays.asList(
+      ("the a an this that it my your me how can could you i need want please help with to for of in on is and "
+      + "انا انت هو هي ده دي ان من في علي عايز عايزك ممكن ازاي لو سمحت عشان عندي اللي مع و عن").split(" ")));
+
+  // For an open-domain request, keep a short topic phrase supported by both turns.
+  private static String sharedPhrase(String request, Set<String> answer, String fallback) {
+    String[] words = request.split("[\\s،,؟?!:;]+");
+    if (words.length < 6) return fallback;
+    int bestStart = 0, bestLength = 0, length = 0;
+    for (int i = 0; i < words.length; i++) {
+      String token = normalize(words[i]);
+      if (token.length() > 1 && !TITLE_FILLER.contains(token) && answer.contains(token)) {
+        length++;
+        if (length > bestLength) {
+          bestStart = i - length + 1;
+          bestLength = length;
+        }
+      } else length = 0;
+    }
+    if (bestLength < 2 || bestLength == words.length) return fallback;
+    StringBuilder phrase = new StringBuilder();
+    for (int i = bestStart; i < bestStart + Math.min(bestLength, 6); i++) {
+      if (phrase.length() > 0) phrase.append(' ');
+      phrase.append(words[i]);
+    }
+    return title(phrase.toString());
   }
 
   public static boolean hasService(String tags, String id) {
