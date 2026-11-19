@@ -6,17 +6,26 @@ trap 'rm -f "$log"' EXIT
 max_attempts=4
 refresh=()
 dependency_failure_seen=false
+central_failure_seen=false
+central_fallback="${OMNI_MAVEN_CENTRAL_FALLBACK:-0}"
 for ((attempt = 1; attempt <= max_attempts; attempt++)); do
   status=0
-  bash "${OMNI_GRADLE_EXECUTABLE:-./gradlew}" "${refresh[@]}" "$@" 2>&1 | tee "$log" || status=$?
+  OMNI_MAVEN_CENTRAL_FALLBACK="$central_fallback" bash "${OMNI_GRADLE_EXECUTABLE:-./gradlew}" "${refresh[@]}" "$@" 2>&1 | tee "$log" || status=$?
   if [[ "$status" == 0 ]]; then exit 0; fi
 
   retryable=false
   missing_artifact=false
+  ksp_bootstrap=false
+  if grep -Fq "Plugin [id: 'com.google.devtools.ksp', version:" "$log" &&
+     grep -Fq "Plugin Repositories (could not resolve plugin artifact" "$log"; then
+    ksp_bootstrap=true
+  fi
   if grep -Eq 'Could not find ([^[:space:]]+\.(jar|aar)([[:space:].]|$)|[^[:space:]:]+:[^[:space:]:]+:[^[:space:]]+\.)' "$log"; then
     missing_artifact=true
     retryable=true
   elif grep -Eq 'Could not (GET|HEAD) |Read timed out|Connection reset|Received status code (429|50[0234])' "$log"; then
+    retryable=true
+  elif [[ "$ksp_bootstrap" == true ]]; then
     retryable=true
   elif [[ "$dependency_failure_seen" == true ]] && grep -Fq "Plugin Repositories (could not resolve plugin artifact" "$log"; then
     # A plugin already resolved earlier in the invocation can be temporarily unavailable.
@@ -35,13 +44,21 @@ for ((attempt = 1; attempt <= max_attempts; attempt++)); do
     exit "$status"
   fi
   dependency_failure_seen=true
+  if [[ "$ksp_bootstrap" == true ]] || grep -Eq 'https://(repo\.maven\.apache\.org|repo1\.maven\.org|maven-central\.storage-download\.googleapis\.com)/maven2/' "$log"; then
+    central_failure_seen=true
+  fi
   refresh=()
   retry_mode="reusing the dependency cache"
-  if [[ "$attempt" == 2 && "$missing_artifact" == true ]]; then
-    # Refresh only after a regular retry also reports a missing artifact.
-    # If the refresh fails, the final attempt can reuse valid cached metadata again.
+  if [[ "$central_failure_seen" == true && "$central_fallback" == 0 &&
+        ( "$attempt" -ge 2 || "$ksp_bootstrap" == true ) ]]; then
+    central_fallback=2
+    retry_mode="switching to the Google Cloud Maven Central mirror"
+  elif [[ "$central_failure_seen" == true && "$central_fallback" == 2 ]]; then
+    central_fallback=1
+    retry_mode="switching to Maven Central at repo1.maven.org"
+  elif [[ "$missing_artifact" == true && ( "$attempt" == 2 || ( "$attempt" == 3 && "$central_failure_seen" == true ) ) ]]; then
     refresh=(--refresh-dependencies)
-    retry_mode="refreshing dependency metadata once"
+    retry_mode="refreshing dependency metadata"
   fi
   echo "::warning::Gradle dependency lookup failed; $retry_mode (attempt $((attempt + 1))/$max_attempts)."
   sleep "${OMNI_GRADLE_RETRY_DELAY_SECONDS:-$((attempt * 5))}"

@@ -15,6 +15,7 @@ count=$(cat "$CASE_DIR/count" 2>/dev/null || echo 0)
 count=$((count + 1))
 echo "$count" > "$CASE_DIR/count"
 printf '%s\\n' "$*" >> "$CASE_DIR/args"
+printf '%s\\n' "$OMNI_MAVEN_CENTRAL_FALLBACK" >> "$CASE_DIR/central"
 if ((count >= SUCCESS_AT)); then exit 0; fi
 if ((count == 2)) && [[ -n "$SECOND_FAILURE_TEXT" ]]; then
   echo "$SECOND_FAILURE_TEXT"
@@ -25,18 +26,20 @@ exit 17
 ''')
             env = dict(os.environ, CASE_DIR=str(root), SUCCESS_AT=str(succeeds_at),
                        FAILURE_TEXT=failure, SECOND_FAILURE_TEXT=second_failure or "", OMNI_GRADLE_EXECUTABLE=str(fake),
-                       OMNI_GRADLE_RETRY_DELAY_SECONDS="0")
+                       OMNI_GRADLE_RETRY_DELAY_SECONDS="0", OMNI_MAVEN_CENTRAL_FALLBACK="0")
             result = subprocess.run(["bash", str(Path(__file__).with_name("gradle-with-retry.sh")),
                                      ":app:assembleLiteDebug"], env=env, capture_output=True, text=True)
-            return result.returncode, int((root / "count").read_text()), (root / "args").read_text()
+            return (result.returncode, int((root / "count").read_text()),
+                    (root / "args").read_text(), (root / "central").read_text().splitlines())
 
     def test_first_missing_runtime_jar_retry_keeps_cache(self):
-        code, count, args = self.run_case("Could not find kotlin-parcelize-runtime-1.9.22.jar")
+        code, count, args, endpoints = self.run_case("Could not find kotlin-parcelize-runtime-1.9.22.jar")
         self.assertEqual((0, 2), (code, count))
         self.assertEqual([":app:assembleLiteDebug"] * 2, args.splitlines())
+        self.assertEqual(["0", "0"], endpoints)
 
     def test_repeated_missing_module_refreshes_once_then_falls_back(self):
-        code, count, args = self.run_case("Could not find junit:junit:4.13.2.", 4)
+        code, count, args, endpoints = self.run_case("Could not find junit:junit:4.13.2.", 4)
         self.assertEqual((0, 4), (code, count))
         self.assertEqual([
             ":app:assembleLiteDebug",
@@ -46,8 +49,36 @@ exit 17
         ], args.splitlines())
 
     def test_transport_failure_retries_without_metadata_refresh(self):
-        code, count, args = self.run_case("Could not GET https://repo.maven.apache.org/file", 4)
+        code, count, args, endpoints = self.run_case("Could not GET https://repo.maven.apache.org/file", 4)
         self.assertEqual((0, 4), (code, count))
+        self.assertNotIn("--refresh-dependencies", args)
+        self.assertEqual(["0"] * 4, endpoints)
+
+    def test_maven_central_missing_artifact_uses_independent_mirror_before_refresh(self):
+        missing = ("Could not find api-13.1.5.aar (dev.rikka.shizuku:api:13.1.5).\n"
+                   "    https://repo.maven.apache.org/maven2/dev/rikka/shizuku/api/13.1.5/api-13.1.5.aar")
+        code, count, args, endpoints = self.run_case(missing, 3)
+        self.assertEqual((0, 3), (code, count))
+        self.assertEqual(["0", "0", "2"], endpoints)
+        self.assertNotIn("--refresh-dependencies", args)
+
+    def test_persistent_maven_lookup_tries_both_fallbacks_before_refresh(self):
+        missing = ("Could not find junit:junit:4.13.2.\n"
+                   "    https://repo.maven.apache.org/maven2/junit/junit/4.13.2/junit-4.13.2.pom")
+        code, count, args, endpoints = self.run_case(missing, 4)
+        self.assertEqual((0, 4), (code, count))
+        self.assertEqual(["0", "0", "2", "1"], endpoints)
+        self.assertNotIn("--refresh-dependencies", args)
+
+    def test_cold_ksp_bootstrap_uses_fallback_without_prior_artifact_failure(self):
+        missing = (
+            "Plugin [id: 'com.google.devtools.ksp', version: '2.3.13', apply: false] was not found\n"
+            "Plugin Repositories (could not resolve plugin artifact "
+            "'com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.3.13')"
+        )
+        code, count, args, endpoints = self.run_case(missing)
+        self.assertEqual((0, 2), (code, count))
+        self.assertEqual(["0", "2"], endpoints)
         self.assertNotIn("--refresh-dependencies", args)
 
     def test_compiler_failure_is_not_retried(self):
@@ -81,7 +112,7 @@ exit 17
             "Plugin Repositories (could not resolve plugin artifact 'misspelled.plugin:plugin:1')")[0:2])
 
     def test_final_failure_is_republished_as_annotation_without_changing_status(self):
-        code, count, _ = self.run_case(
+        code, count, _, _ = self.run_case(
             "e: file:///home/runner/work/r/r/app/src/test/java/A.kt:37:46 Argument type mismatch\n"
             "FooTest > bar FAILED")
         self.assertEqual((17, 1), (code, count))  # not retryable, original exit status preserved
