@@ -30,13 +30,25 @@ exit 17
                                      ":app:assembleLiteDebug"], env=env, capture_output=True, text=True)
             return result.returncode, int((root / "count").read_text()), (root / "args").read_text()
 
-    def test_missing_runtime_jar_is_refreshed(self):
+    def test_first_missing_runtime_jar_retry_keeps_cache(self):
         code, count, args = self.run_case("Could not find kotlin-parcelize-runtime-1.9.22.jar")
         self.assertEqual((0, 2), (code, count))
-        self.assertIn("--refresh-dependencies :app:assembleLiteDebug", args)
+        self.assertEqual([":app:assembleLiteDebug"] * 2, args.splitlines())
 
-    def test_transport_failure_is_retried(self):
-        self.assertEqual((0, 2), self.run_case("Could not GET https://repo.maven.apache.org/file")[0:2])
+    def test_repeated_missing_module_refreshes_once_then_falls_back(self):
+        code, count, args = self.run_case("Could not find junit:junit:4.13.2.", 4)
+        self.assertEqual((0, 4), (code, count))
+        self.assertEqual([
+            ":app:assembleLiteDebug",
+            ":app:assembleLiteDebug",
+            "--refresh-dependencies :app:assembleLiteDebug",
+            ":app:assembleLiteDebug",
+        ], args.splitlines())
+
+    def test_transport_failure_retries_without_metadata_refresh(self):
+        code, count, args = self.run_case("Could not GET https://repo.maven.apache.org/file", 4)
+        self.assertEqual((0, 4), (code, count))
+        self.assertNotIn("--refresh-dependencies", args)
 
     def test_compiler_failure_is_not_retried(self):
         self.assertEqual((17, 1), self.run_case("e: Unresolved reference: broken")[0:2])
@@ -44,13 +56,25 @@ exit 17
     def test_ui_test_failure_is_not_retried(self):
         self.assertEqual((17, 1), self.run_case("There were failing tests")[0:2])
 
-    def test_persistent_dependency_failure_returns_original_status(self):
-        self.assertEqual((17, 3), self.run_case("Could not find gson-2.8.9.jar", 99)[0:2])
+    def test_dependency_error_does_not_hide_a_compiler_or_lint_failure(self):
+        for source_error in ("e: Unresolved reference: broken", "Lint found 2 errors and 1 warning."):
+            with self.subTest(source_error=source_error):
+                log = "Could not find junit:junit:4.13.2.\n" + source_error
+                self.assertEqual((17, 1), self.run_case(log)[0:2])
 
-    def test_refresh_plugin_miss_after_artifact_failure_uses_last_attempt(self):
+    def test_resolution_without_missing_artifact_or_transport_error_fails_immediately(self):
+        result = self.run_case("Could not resolve all files for configuration ':app:debugRuntimeClasspath'.\n"
+                               "No matching variant of dependency was found.")
+        self.assertEqual((17, 1), result[0:2])
+
+    def test_persistent_dependency_failure_returns_original_status(self):
+        self.assertEqual((17, 4), self.run_case("Could not find gson-2.8.9.jar", 99)[0:2])
+
+    def test_plugin_miss_after_artifact_failure_remains_retryable(self):
         result = self.run_case("Could not find gson-2.8.9.jar", 3,
-            "Plugin Repositories (could not resolve plugin artifact 'com.google.devtools.ksp:plugin:2.3.10')")
+            "Plugin Repositories (could not resolve plugin artifact 'com.google.devtools.ksp:plugin:2.3.13')")
         self.assertEqual((0, 3), result[0:2])
+        self.assertNotIn("--refresh-dependencies", result[2])
 
     def test_initial_plugin_configuration_error_is_not_retried(self):
         self.assertEqual((17, 1), self.run_case(
