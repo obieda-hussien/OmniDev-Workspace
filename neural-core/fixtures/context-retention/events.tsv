@@ -1,0 +1,73 @@
+split	label	text
+train	keep	ERROR git: repository checkout missing workspace path
+train	keep	ERROR build: Gradle compilation failed at Kotlin source
+train	keep	ERROR read_file: permission denied for /project/config.json
+train	keep	RESULT tests: PASSED 38 tests on main
+train	keep	RESULT build: APK generated at app/build/output.apk
+train	keep	RESULT github_manager: merge confirmed commit SHA
+train	keep	RESULT read_file: Found config in /workspace/settings.toml
+train	keep	USER: Keep the API unchanged and do not modify release configuration
+train	keep	USER: Decision use existing checkout and preserve file permissions
+train	keep	USER: اكتب التقرير بالمصري ومتعدلش ملفات المشروع
+train	keep	USER: خلي الحد الأقصى ٤ ميجا ومتستخدمش الإنترنت
+train	keep	USER: قررنا نأجل الإصدار لحد نجاح الاختبارات
+train	keep	RESULT build: الاختبارات نجحت والنسخة جاهزة
+train	keep	RESULT workspace: الملف اتوجد في المسار /tmp/prefs.json
+train	keep	ERROR run: الاتصال انقطع وفشل التنفيذ
+train	keep	ERROR android: التطبيق وقع عند فتح الشاشة
+train	keep	RESULT deployment: Released version 2.4.1 to staging
+train	keep	RESULT recovery: checkpoint restored and verified
+train	keep	USER: Change the due date to Friday and keep the original format
+train	keep	USER: استخدم الفرع الجديد وسيب إعدادات الإصدار زي ما هي
+train	drop	ASSISTANT: Thanks! I can check that for you
+train	drop	ASSISTANT: I will take a look and get back to you
+train	drop	ASSISTANT: Maybe this is the cause but I have not checked
+train	drop	ASSISTANT: تمام يا صاحبي أنا هبص على الموضوع
+train	drop	ASSISTANT: حاضر ممكن أساعدك دلوقتي
+train	drop	ASSISTANT: صباح الخير نورت
+train	drop	USER: أهلا عامل ايه
+train	drop	USER: شكرا جدا
+train	drop	USER: thanks that sounds great
+train	drop	USER: good morning hello
+train	drop	CALL search: Querying workspace
+train	drop	CALL build: Started checking
+train	drop	CALL history: Listing recent status
+train	drop	TOOL: Still waiting for a response
+train	drop	RESULT read: loading, please wait for the next update
+train	drop	RESULT task: queued and not started
+train	drop	RESULT build: compilation scheduled but pending
+train	drop	ASSISTANT: استنى شوية وهشوف الأخبار
+train	drop	ASSISTANT: I am ready to help whenever you need
+train	drop	CALL list: بدأ الفحص ولم تظهر نتائج
+test	keep	RESULT verification: checksum matched and installed artifact confirmed
+test	keep	ERROR provider: timeout interrupted the first fetch
+test	keep	USER: لازم الملف يفضل بنفس الترتيب ومتغيرش اسم العمود
+test	keep	USER: Only update documentation and preserve project settings
+test	keep	RESULT unit_tests: 25 cases passed in the verified run
+test	keep	ERROR compile: فشل البناء بسبب اعتماد مفقود
+test	drop	ASSISTANT: Happy to help, shall we start?
+test	drop	ASSISTANT: حاضر يا فندم وجاري المراجعة
+test	drop	USER: hello and thanks
+test	drop	CALL build: Starting check now
+test	drop	RESULT worker: still pending, waiting on a response
+test	drop	ASSISTANT: It could be unrelated, just an initial guess
+train	keep	USER: Correction use the second dataset the first one is outdated
+train	keep	USER: متعتمدش على الملف القديم النسخة الجديدة موجودة في مجلد يونيو
+train	keep	USER: لازم التعديلات تتراجع قبل الدمج
+train	keep	RESULT migration: database opened after upgrade with all rows intact
+train	keep	RESULT sync: copied 120 records and verified destination count
+train	keep	RESULT inspection: discovered supported Android API minimum 30
+train	keep	RESULT git: push accepted on feature branch
+train	keep	ERROR test: expected 42 records but found 40
+train	keep	ERROR upload: permission missing and no files were changed
+train	keep	ERROR migration: الجدول ناقص ونسخة القاعدة القديمة مازالت موجودة
+train	drop	USER: لا تمام تسلم
+train	drop	USER: شكرا كده زي الفل
+train	drop	ASSISTANT: هتابع وهقولك في أقرب وقت
+train	drop	ASSISTANT: Great question, let me think for a moment
+train	drop	ASSISTANT: I intend to verify every file soon
+train	drop	CALL inspect: Need to locate the relevant configuration
+train	drop	CALL test: Planning to run integration tests
+train	drop	RESULT source: Fetch queued; no output yet
+train	drop	RESULT tests: Run requested but completion not observed
+train	drop	TOOL: جارى تحميل الصفحة يرجى الانتظار

@@ -191,3 +191,60 @@ train	chat_titles	History labels look identical	Use a distinctive conversation t
 train	chat_titles	Chat names copy my greeting	A session title should describe the conversation topic after the greeting
 train	other	اسم الفيلم كان ايه	عنوان الفيلم ظاهر في تتر النهاية
 train	other	Where is the title of the article	An article heading introduces its subject to readers
+train	chat_titles	المحادثة واخدة اسم ملوش علاقة	تسمية الدردشة تختار موضوع المحادثة من محتوى أول تبادل
+train	chat_titles	ليه ملخص الحوار مش ظاهر في العنوان	اسم المحادثة يتكون من عبارة قصيرة تصف موضوعها
+train	chat_titles	عايز أسامي للدردشات حسب الكلام	عنوان الدردشة يتحدد من السؤال والجواب وموضوع المحادثة
+train	chat_titles	في مشكلة في عناوين سجل الشات	توليد عناوين المحادثات يخزن عنوان مميز لكل جلسة
+train	chat_titles	My history entry copies the first line	Chat title generation should pick a concise topic from the opening exchange
+train	chat_titles	Can chats get descriptive names automatically?	An automatic conversation title identifies the topic and avoids a greeting
+train	chat_titles	The session title is missing on reopening	The title is persisted with the conversation in chat history
+train	chat_titles	Use both turns to title the chat	Conversation title generation combines the request and grounded answer
+train	git	ليه البرانش مش بيتدمج	فروع Git فيها تعديل متعارض في نفس الملف اختار حل التعارض قبل الدمج
+train	git	الـcommit بتاعي مش ظاهر في main	راجع فرع Git والريموت قبل دمج الكوميت في main
+train	git	Which branch contains my change?	Git log and branch show the commit and its merge ancestry
+train	gradle	ليه البيلد بيقف على الجهاز	Gradle وقف أثناء تجميع Kotlin راجع تقرير بناء أندرويد
+train	gradle	جريدل مش شايف البلاجن	راجع إصدار Gradle وتوافق Android Gradle Plugin
+train	gradle	Build fails before compilation	Resolve the Gradle plugin and Android build dependencies first
+train	room	ليه قاعدة البيانات مش بتفتح بعد الأبديت	ترحيل Room يحتاج تحديث إصدار schema والتحقق من جدول SQLite
+train	room	بيانات Room القديمة المفروض تفضل	اختبر migration في Room على نسخة قديمة من قاعدة البيانات
+train	room	Upgrade crashes on opening the database	Validate the Room migration against the SQLite schema
+train	compose	حالة الشاشة بتضيع عند الرجوع	احفظ حالة واجهة Compose في ViewModel وراقب state
+train	compose	الـواجهة مش بتتحدث مع التعديل	Compose يقرأ StateFlow ويعيد تركيب العناصر عند تغير الحالة
+train	compose	State resets after rotation	Hoist Jetpack Compose UI state and persist it across recreation
+train	tool_discovery	الوكيل بياخد أداة تانية خالص	اختيار الأداة يعتمد على اكتشاف قدرات المشروع وتحديد الأوامر المتاحة
+train	tool_discovery	فين أداة البحث في الملفات	اكتشاف أدوات الـWorkspace يوضح أدوات فحص المسارات والبحث
+train	tool_discovery	Worker cannot find the workspace search tool	Inspect the workspace tool catalog and choose a matching capability
+train	network	الواي فاي بيقطع كل شوية	اتصال الواي فاي ينقطع بسبب ضعف الإشارة أو إعدادات الشبكة
+train	network	الجهاز متصل بس النت فاصل	افحص إعدادات Wi-Fi و DNS والراوتر
+train	network	Internet drops on this router	Inspect Wi-Fi signal strength and router connection stability
+train	apk	التثبيت بيقول الحزمة مش صالحة	راجع توقيع APK وتوافق الحزمة مع إصدار أندرويد
+train	apk	مش عارف أوقع التطبيق	وقّع ملف APK بمفتاح الإصدار قبل التثبيت
+train	apk	Release package will not install	Verify APK signing and the installed package certificate
+train	battery	الموبايل بيفضى بالليل من غير استخدام	استهلاك البطارية في الخلفية يبان في سجل Android للطاقة
+train	battery	أنهي تطبيق بيسحب الشحن	راجع نسب استهلاك البطارية لكل تطبيق بعد فصل الشاحن
+train	battery	Phone loses charge while idle	Check Android battery drain and background wake time
+train	bluetooth	السماعة مابتتقارنش	احذف اقتران سماعة البلوتوث وأعد توصيلها
+train	bluetooth	الصوت بيقطع في السماعة اللاسلكي	افحص اتصال سماعة البلوتوث وجودة الإشارة
+train	bluetooth	My headset only connects intermittently	Reset the Bluetooth headset pairing and reconnect
+train	notifications	واتساب ساكت والرسائل بتوصل	افحص قناة إشعارات واتساب ووضع عدم الإزعاج
+train	notifications	ليه إشعار الرسالة اختفى	راجع إذن إشعارات واتساب وقناة المحادثة
+train	notifications	WhatsApp messages arrive silently	Enable the WhatsApp notification channel for messages
+train	study	عليّا مواد كتير ومش مرتب الوقت	اعمل جدول مذاكرة فيه مراجعة موزعة بين المواد
+train	study	عايز خطة للامتحانات	وزع المذاكرة على الأيام وحدد وقت للمراجعة والأسئلة
+train	study	How do I spread revision across exams?	Create a study and revision schedule around exam dates
+train	other	عنوان المعهد فين	العنوان البريدي للمبنى بجوار المحطة
+train	other	ايه عنوان الكتاب	عنوان الكتاب مذكور على الغلاف
+train	other	Movie title on the poster	The film name appears above the credits
+train	other	GitHub in a travel itinerary	The train arrives in the afternoon
+train	other	عايز عنوان البريد عشان التوصيل	اكتب الشارع ورقم العقار والحي
+train	other	Can you summarize my lease?	The rent agreement specifies renewal and notice terms
+fresh_bilingual	chat_titles	My chats have repetitive titles	Automatic conversation titles distinguish topics in the history list
+fresh_bilingual	chat_titles	اسم الجلسة مش معبر عن موضوع الدردشة	توليد عنوان المحادثة يستخرج موضوع الحوار من السؤال والجواب
+fresh_bilingual	other	عنوان المطعم فين؟	عنوان المكان بالشارع موضح بجوار اللوكيشن
+fresh_bilingual	other	Summarize the next chapter	The book chapter covers the history of printing
+fresh_topic	git	مش قادر أعمل merge للفرعين	The Git merge encountered conflicting updates on both branches.
+fresh_topic	room	SQLite migration failed when I added a column	Room migration should preserve the existing schema and populate the column.
+fresh_topic	other	فين عنوان محطة القطر اللي جنب المعهد؟	المحطة في نهاية الشارع مقابل المعهد.
+fresh_topic	chat_titles	Why are older conversations showing duplicate headings?	The conversation title generator chooses text for the chat history list.
+fresh_topic	other	I'm picking a title for my poem	A poem title can echo the central image of the verse.
+fresh_topic	chat_titles	عناوين المحادثات بقت زي بعض في الهيستوري	اسم كل دردشة يعبر عن موضوع المحادثة اللي موجودة في سجل الشات.
