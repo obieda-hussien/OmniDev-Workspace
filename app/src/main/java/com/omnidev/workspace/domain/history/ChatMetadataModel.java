@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 /** Bounded local extractive baseline. It neither trains on chats nor authorizes tools. */
 public final class ChatMetadataModel {
-  public static final int VERSION = 10,
+  public static final int VERSION = 11,
       MAX_TEXTS = 12,
       MAX_TEXT_CHARS = 3072,
       MAX_REPLY_CHARS = 24000,
@@ -236,6 +236,12 @@ public final class ChatMetadataModel {
   private static final Pattern CONCLUSION = Pattern.compile(
       "(?imu)^\\h*(?:conclusion|root cause|diagnosis|الخلاصة|الخلاصه|التشخيص|السبب الرئيسي)\\h*[:：]\\h*");
 
+  // normalize() emits space-separated tokens. These boundaries work on both Android ICU and the JVM.
+  private static final Pattern CHAT_TITLE_SUBJECT = Pattern.compile(
+      "(?:^| )(?:chats?|conversations?|sessions?|(?:ال)?(?:شات|دردشه|دردشات|محادثه|محادثات|جلسه|جلسات))(?: |$)");
+  private static final Pattern CHAT_TITLE_NOUN = Pattern.compile(
+      "(?:^| )(?:titles?|headings?|(?:ال)?(?:عنوان|عناوين|تسميه))(?: |$)");
+
   public static String openingTitle(String user, String reply, String fallback) {
     if (user != null && fallback != null && fallback.startsWith("ملف README لمشروع ")) return fallback;
     if (user == null || reply == null || reply.trim().isEmpty()) return fallback;
@@ -250,6 +256,11 @@ public final class ChatMetadataModel {
     Set<String> terms = new HashSet<>(Arrays.asList(normalize(answer).split("\\s+")));
     int[] scores = OpeningTitleWeights.scores(terms);
     int best = strongest(scores, 550);
+    if (best >= 0 && "chat_titles".equals(OpeningTitleWeights.LABELS[best])) {
+      String normalizedRequest = normalize(request);
+      if (CHAT_TITLE_SUBJECT.matcher(normalizedRequest).find() && CHAT_TITLE_NOUN.matcher(normalizedRequest).find())
+        return hasArabic(request) ? "اختيار عناوين المحادثات" : "Chat title generation";
+    }
     if (!generic) {
       Set<String> requestTerms = new HashSet<>(Arrays.asList(normalize(request).split(" +")));
       int[] requestScores = OpeningTitleWeights.scores(requestTerms);

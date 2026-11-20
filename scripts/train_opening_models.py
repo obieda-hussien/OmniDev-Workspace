@@ -66,6 +66,14 @@ public final class %s {
 """ % (package, name, name, literal([json.dumps(t, ensure_ascii=False) for t in terms]),
        ",\n      ".join("{"+literal(list(map(str, row)))+"}" for row in weights),
        ", ".join(map(str, bias)), ", ".join(json.dumps(v) for v in model.classes_))
+    if name == "OpeningTitleWeights":
+        # A large static initializer can exceed the JVM's 64 KiB method limit.
+        rows = [literal(list(map(str, row))) for row in weights]
+        initial = ",\n      ".join("{" + row + "}" for row in rows)
+        source = source.replace(initial, ", ".join(f"row{i}()" for i in range(len(rows))))
+        methods = "\n".join(f"  private static int[] row{i}() {{ return new int[] {{{row}}}; }}"
+                            for i, row in enumerate(rows))
+        source = source.replace("  private static final int[] BIAS", methods + "\n  private static final int[] BIAS")
     if contrast_words:
         indices = vector.vocabulary_
         anchors = sorted(w for w in contrast_words if w in indices and weights[0, indices[w]] < -250)
@@ -84,6 +92,9 @@ public final class %s {
 titles = read(fixtures / "opening-titles/pairs.tsv")
 fit([(r["reply"], r["label"]) for r in titles if r["split"] == "train"],
     history, "OpeningTitleWeights", "com.omnidev.workspace.domain.history")
+events = read(fixtures / "context-retention/events.tsv")
+fit([(r["text"], r["label"]) for r in events if r["split"] == "train"],
+    history, "ContextRetentionWeights", "com.omnidev.workspace.domain.history")
 topics = read(fixtures / "history-topics/requests.tsv")
 fit([(r["text"], r["label"]) for r in topics if r["split"] == "train"],
     history, "HistoryTopicWeights", "com.omnidev.workspace.domain.history")

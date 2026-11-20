@@ -11,6 +11,7 @@ import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.repository.ChatRepository
+import com.omnidev.workspace.domain.history.ChatMetadataModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -20,6 +21,19 @@ import org.junit.Test
 
 class ChatHistoryMetadataRoomTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
+
+    @Test fun openingTitleSupportsArabicAndEnglishOnAndroid() {
+        assertEquals("اختيار عناوين المحادثات", ChatMetadataModel.openingTitle(
+            "عناوين المحادثات بقت زي بعض في الهيستوري",
+            "اسم كل دردشة يعبر عن موضوع المحادثة اللي موجودة في سجل الشات.",
+            "Fallback"
+        ))
+        assertEquals("Chat title generation", ChatMetadataModel.openingTitle(
+            "Why are older conversations showing duplicate headings?",
+            "The conversation title generator chooses text for the chat history list.",
+            "Fallback"
+        ))
+    }
 
     @Test fun automaticTitlesLabelsAndManualChoicesSurviveRestart() = runBlocking {
         val name = "history-metadata-reopen.db"
