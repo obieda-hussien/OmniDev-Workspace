@@ -1740,7 +1740,7 @@ class ChatViewModel(
 
         try {
             orchestrator.execute(
-                userMessage = input,
+                userMessage = com.omnidev.workspace.domain.engine.ExecutionEnvironmentContext.effectiveObjective(input, runHistory),
                 mentionFocus = turnMentionFocus(input),
                 orchestratorModelId = orchestratorModelId,
                 workerModelId = workerModelId,

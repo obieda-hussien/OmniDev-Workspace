@@ -83,7 +83,7 @@ class RunEvidenceLedger(
         entries += Entry(
             seq = seq,
             tool = call.name,
-            target = describeArguments(call.name, call.arguments),
+            target = describeArguments(call.name, call.arguments) + githubPageReceipt(call, trimmed),
             outcome = outcome,
             evidence = trimmed.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().trim().take(140),
             callId = call.id,
@@ -234,6 +234,14 @@ class RunEvidenceLedger(
     }
 
     companion object {
+        private val nextPage = Regex("""\[Partial file; next start_line=(\d+)]$""")
+        private fun githubPageReceipt(call: ToolCall, output: String): String {
+            if (call.name != "github_manager" || !call.arguments["action"].orEmpty().trim().equals("read_file", true)) return ""
+            val start = call.arguments["start_line"]?.toIntOrNull() ?: 1
+            val next = nextPage.find(output)?.groupValues?.get(1) ?: if (output.endsWith("[End of file]")) "end" else return ""
+            return " page=$start:$next"
+        }
+
         internal fun describeArguments(toolName: String, arguments: Map<String, String>): String {
             // Keep only low-risk identifiers; raw commands, URLs and free-form queries can carry credentials.
             val normalizedRead = toolName == "github_manager" && arguments["action"]?.trim()?.lowercase() == "read_file"

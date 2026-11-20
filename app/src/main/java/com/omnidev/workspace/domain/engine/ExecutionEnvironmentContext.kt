@@ -13,6 +13,14 @@ object ExecutionEnvironmentContext {
     private val continuation = Regex("""(?i)(?:ابد[أءا]|ابدئ|يا?لا|كمل|كمّل|continue|go ahead|start)(?: يا?لا)?[.!؟ ]*""")
 
     fun effectiveObjective(current: String, history: List<com.omnidev.workspace.data.model.ChatMessage>): String {
+        val sourceFollowup = Regex("""(?i)^\s*(?:تعمق|اتعمق|dig deeper|go deeper)|(?:ملفات المشروع|مجلدات المشروع|the project files|the project structure)""")
+        if (sourceFollowup.containsMatchIn(current) && remoteRepository(current) == null && !localRequest.containsMatchIn(current)) {
+            for (turn in history.asReversed().filter { it.role == com.omnidev.workspace.data.model.MessageRole.USER }.take(5)) {
+                val repo = readmeRepository(turn.content) ?: remoteRepository(turn.content)
+                if (repo != null) return "$current\nSource inspection on GitHub: $repo"
+                if (!continuation.matches(turn.content.trim()) && !sourceFollowup.containsMatchIn(turn.content) && turn.content != current) break
+            }
+        }
         if (DeviceWorkflow.followup(current)) {
             val previous = history.asReversed().filter { it.role == com.omnidev.workspace.data.model.MessageRole.USER }
                 .takeWhile { DeviceWorkflow.followup(it.content) || DeviceWorkflow.youtubeSearch(it.content) }
@@ -24,6 +32,9 @@ object ExecutionEnvironmentContext {
             !continuation.matches(it.content.trim()) }?.content ?: return current
         return if (readmeRepository(prior) != null) prior else current
     }
+
+    fun followupRepository(goal: String): String? =
+        if (goal.contains("\nSource inspection on GitHub: ")) remoteRepository(goal) else null
 
     fun readmeRepository(objective: String): String? {
         if (!readRequest.containsMatchIn(objective)) return null

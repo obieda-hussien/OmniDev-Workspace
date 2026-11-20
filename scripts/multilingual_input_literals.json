@@ -124,7 +124,7 @@
     "sha256": "a1a22046efbdb44dd1c79cef74ee47a32685bf5a5f0996f3a5323b39ada6d76a"
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/ExecutionEnvironmentContext.kt": {
-    "sha256": "190f48a5e300b423a3f4a705b01c0214bbc77484049395a53fafb6ca8900267e",
+    "sha256": "618eb4b6255bf9f76325aa5a758a4159963dece10c460971e2ee7f50f8c1d723",
     "purpose": "Functional GitHub repository input matching; never display prose."
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/LocalSpecialistAdvice.kt": {
@@ -134,5 +134,9 @@
   "app/src/main/java/com/omnidev/workspace/domain/engine/DeviceWorkflow.kt": {
     "purpose": "Multilingual input matching for ordered device requests.",
     "sha256": "5201b23f30e7e2f676bcfc96b5be1f2d90fadcbe514f29467942a7045f5f2a3f"
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/completion/FinishGate.kt": {
+    "purpose": "Match multilingual inspection requests.",
+    "sha256": "ba8d935480446bcd10d606b674955702ebd1058014a45057f5a41c3cb23cf4da"
   }
 }

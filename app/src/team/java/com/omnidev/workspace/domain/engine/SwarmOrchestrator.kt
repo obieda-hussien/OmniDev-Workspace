@@ -414,6 +414,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     autoRouteRole = if (workerAuto) com.omnidev.workspace.data.model.ModelRole.SWARM_WORKER else null,
                     scopePath = scopePath,
                     enableDeepThinking = enableDeepThinking,
+                    preferredToolNames = if (task.toolFree) emptySet() else ExecutionEnvironmentContext.priorityNames(userMessage, null).toSet(),
                     workerPersona = task.requiredPersona.takeIf(String::isNotBlank),
                     userContext = profileContext,
                     toolAccessMode = toolAccessMode,
@@ -505,7 +506,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 requiresSerialReplan = task.parallelSafe && error.startsWith("READ_ONLY_WORKER:") &&
                     TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f,
                 toolEvidence = toolEvidence,
-                noRetry = reviewTerminal != null || observer.unsafeToRetry || TeamFailurePolicy.pauseWithoutWorkerRetry(error) ||
+                noRetry = reviewTerminal != null || observer.unsafeToRetry ||
+                    (if (error.startsWith("NO_VERIFIED_PROGRESS:")) !task.parallelSafe || observedToolResults.isNotEmpty()
+                    else TeamFailurePolicy.pauseWithoutWorkerRetry(error)) ||
                     // A read-only worker that never called a tool can safely take ONE alternate
                     // attempt: the next attempt still enforces the read-only tool gate and P0
                     // verification. For mutation workers, absence of observations is not
@@ -513,7 +516,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                     (error.startsWith("WORKER_NO_PROGRESS:") && observedToolResults.isEmpty() &&
                         (!task.parallelSafe || isRemoteRepositoryObjective(userMessage))) ||
                     (completionReport?.status == com.omnidev.workspace.domain.engine.completion.FinishStatus.INCOMPLETE &&
-                        !error.startsWith("WORKER_NO_PROGRESS:")),
+                        !error.startsWith("WORKER_NO_PROGRESS:") && !error.startsWith("NO_VERIFIED_PROGRESS:")),
                 receipt = receipt
             )
         }
@@ -766,6 +769,9 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         appendLine("## Assigned Team Task")
         appendLine(task.description)
         appendLine(ExecutionEnvironmentContext.guidance(originalObjective))
+        ExecutionEnvironmentContext.remoteRepository(originalObjective)?.let { repo ->
+            appendLine("For repository structure start with github_manager(action=list_contents, repo=$repo). Inspect named directories with path, and read representative files. Distinguish inspected content from directory names. For technical follow-ups read the relevant source before explaining it.")
+        }
         if (task.acceptance.isNotEmpty()) {
             appendLine("\n## Acceptance (finish_task must prove each with ledger ids: 'A1 => id1,id2')")
             task.acceptance.forEachIndexed { index, item -> appendLine("A${index + 1}. ${item.take(300)}") }

@@ -185,3 +185,9 @@ train	chat_titles	اسم السيزون ملخبط	تسمية السيزون ب�
 train	chat_titles	ممكن تغير اسم الحوار	عنوان الشات لازم يعبر عن مضمون المحادثة في كلمتين
 train	chat_titles	الشات متسمي غلط	تصحيح عناوين الدردشات في سجل المحادثات
 train	other	عايز عنوان المكان	عنوان المحل مكتوب على الإيصال جنب رقم التليفون
+train	chat_titles	اسم المحادثات عندي بيتكرر	تسمية الدردشة تعتمد على موضوع الحوار وتجاهل التحية
+train	chat_titles	ليه كل سيزون بنفس الاسم	عنوان الجلسة المفيد يحدد موضوع النقاش في سجل الدردشات
+train	chat_titles	History labels look identical	Use a distinctive conversation title for each chat in the history list
+train	chat_titles	Chat names copy my greeting	A session title should describe the conversation topic after the greeting
+train	other	اسم الفيلم كان ايه	عنوان الفيلم ظاهر في تتر النهاية
+train	other	Where is the title of the article	An article heading introduces its subject to readers

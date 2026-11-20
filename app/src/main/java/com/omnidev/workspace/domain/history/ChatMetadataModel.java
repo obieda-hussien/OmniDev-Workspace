@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 /** Bounded local extractive baseline. It neither trains on chats nor authorizes tools. */
 public final class ChatMetadataModel {
-  public static final int VERSION = 9,
+  public static final int VERSION = 10,
       MAX_TEXTS = 12,
       MAX_TEXT_CHARS = 3072,
       MAX_REPLY_CHARS = 24000,
@@ -352,6 +352,21 @@ public final class ChatMetadataModel {
     if (hasArabic(text) && Pattern.compile("(?i)\\breadme\\b").matcher(text).find()) {
       java.util.regex.Matcher project = Pattern.compile("(?iu)(?:مشروع|مستودع|ريبو) +([A-Za-z0-9_.-]+(?: +[A-Za-z0-9_.-]+){0,3})").matcher(text);
       if (project.find()) return title("ملف README لمشروع " + project.group(1).trim());
+    }
+    java.util.regex.Matcher request = Pattern.compile(
+        "(?iu)^(?:(?:please|can you|could you|help me|i want you to|ممكن|كنت عايزك|عايزك|من فضلك) +)*"
+        + "(explain|summarize|compare|اشرحلي|اشرح|لخصلي|لخص|قارن بين) +(.+)$").matcher(text);
+    if (request.matches()) {
+      String subject = request.group(2).replaceFirst("(?iu) +(?:in detail|for me|بالتفصيل|لو سمحت)[.!؟?]*$", "")
+          .replaceFirst("[.!؟?]+$", "").trim();
+      if (subject.length() > 3 && !GENERIC_OPENING.matcher(normalize(text)).matches()) {
+        String verb = request.group(1).toLowerCase(java.util.Locale.ROOT);
+        if (verb.equals("compare")) return title(subject + " comparison");
+        if (verb.startsWith("قارن")) return title("مقارنة " + subject);
+        if (verb.startsWith("اشرح")) return title("شرح " + subject);
+        if (verb.startsWith("لخص")) return title("ملخص " + subject);
+        return title(subject + (verb.equals("summarize") ? " summary" : " overview"));
+      }
     }
     return title(text);
   }
