@@ -38,6 +38,31 @@ class DeviceWorkflowTest {
         assertEquals(1, DeviceWorkflow.missing(follow, emptyList()).size)
     }
 
+    @Test fun notificationSearchAndAlarmRequireDistinctReceipts() {
+        val request = "عايزك تلخص الاشعارات و بعدين تبحث في جوجل عن احدث الافلام و بعدين ظبط منبه الساعه ٧ بليل"
+        assertEquals(3, DeviceWorkflow.orderedParts(request).size)
+        assertEquals(listOf("read_notifications", "web_search", "planner_tool"), ExecutionEnvironmentContext.priorityNames(request, null))
+        record("read_notifications", mapOf("operation" to "summary"))
+        record("web_scraper", emptyMap())
+        record("planner_tool", mapOf("action" to "show_alarms"))
+        assertEquals(3, DeviceWorkflow.missing(request, ledger.snapshot()).size)
+        record("read_notifications", mapOf("operation" to "read"))
+        record("web_search", mapOf("query" to "latest movies"))
+        record("planner_tool", mapOf("action" to "alarm"), true)
+        assertEquals(1, DeviceWorkflow.missing(request, ledger.snapshot()).size)
+        record("planner_tool", mapOf("action" to "alarm", "localTime" to "19:00"))
+        assertTrue(DeviceWorkflow.missing(request, ledger.snapshot()).isEmpty())
+    }
+
+    @Test fun webSearchRequiresAnExplicitDestination() {
+        assertTrue(DeviceWorkflow.needsWeb("Search on Google for movie releases"))
+        assertTrue(DeviceWorkflow.needsWeb("Search the web for movie releases"))
+        assertTrue(DeviceWorkflow.needsWeb("تبحث في جوجل عن احدث الافلام"))
+        assertFalse(DeviceWorkflow.needsWeb("Search YouTube for Google I/O talks"))
+        assertFalse(DeviceWorkflow.needsWeb("Search the codebase for Google API usages"))
+        assertFalse(DeviceWorkflow.needsWeb("ابحث في يوتيوب عن جوجل"))
+    }
+
     @Test fun missingIconIsNotAScreenshot() {
         val request = "جرب تاخد اسكرين شوت بعد كده مع الاداة دي"
         record("semantic_ui", mapOf("action" to "find_element"), true)

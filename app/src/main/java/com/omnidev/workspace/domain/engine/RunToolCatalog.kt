@@ -152,8 +152,10 @@ class RunToolCatalog(
         val effectiveQuery = query.take(2_000).ifBlank { focus?.query ?: currentObjective }
         if (effectiveQuery.isBlank()) return ToolExecutionResult("Use a concrete task or exact tool name as query.", true,
             classification = "INVALID_TOOL_ARGUMENTS")
-        val matches = search(effectiveQuery, SEARCH_SIZE,
-            focusedDomains = if (query.isBlank()) focus?.domains.orEmpty() else emptySet())
+        val preferred = if (query.isBlank()) ExecutionEnvironmentContext.priorityNames(effectiveQuery, null)
+            .mapNotNull { name -> catalog.firstOrNull { it.name == name } } else emptyList()
+        val matches = (preferred + search(effectiveQuery, SEARCH_SIZE,
+            focusedDomains = if (query.isBlank()) focus?.domains.orEmpty() else emptySet())).distinctBy { it.name }.take(SEARCH_SIZE)
         if (matches.isEmpty()) return ToolExecutionResult("No registered tool matched. Describe the needed operation differently; do not invent tool names.")
         load(matches)
         val visible = matches.filter { isLoaded(it.name) }
@@ -163,7 +165,7 @@ class RunToolCatalog(
             true, classification = "TOOL_SCHEMA_BUDGET")
         return ToolExecutionResult(buildString {
             appendLine("Loaded for the NEXT model request. Use its advertised parameter schema:")
-            visible.forEach { tool -> appendLine("${tool.name}: ${tool.description.trim().lineSequence().first().take(140)}") }
+            visible.forEach { tool -> appendLine("${tool.name}: ${signature(tool)} — ${tool.description.trim().lineSequence().first().take(140)}") }
             if (visible.size < matches.size) appendLine("Other matches deferred by the schema budget; query an exact tool name to prioritize it.")
         })
     }

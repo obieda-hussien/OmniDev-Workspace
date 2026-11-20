@@ -1,5 +1,6 @@
 package com.omnidev.workspace.domain.engine.completion
 
+import com.omnidev.workspace.domain.engine.DeviceWorkflow
 import com.omnidev.workspace.data.brain.EpisodeOutcome
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.CompletionResponse
@@ -106,21 +107,19 @@ class FinishRuntime private constructor(
     /** Runtime-owned Goal/Plan/Ledger/Next Action, appended fresh to every request and never stored in history. */
     fun stateMessages(iteration: Int): List<ChatMessage> =
         if (policy.enforce && (iteration > 1 || ledger.size() > 0 || planner?.active == true))
-            listOf(ChatMessage(MessageRole.USER, state.render() + "\n" + planner?.render().orEmpty())) else emptyList()
+            listOf(ChatMessage(MessageRole.USER, state.render() + "\n" + planner?.render().orEmpty() +
+                "\n" + com.omnidev.workspace.domain.engine.DeviceWorkflow.missing(state.goal, ledger.snapshot()).joinToString("\n"))) else emptyList()
 
     /** Stabilizes tool-call ids and decides an explicit finish_task call. */
     suspend fun afterModel(response: CompletionResponse): Step {
         planner?.refresh()
         if (response.toolCalls.isEmpty()) return Step(response)
         val stable = response.copy(toolCalls = ids.stabilize(response.toolCalls))
-        if (com.omnidev.workspace.domain.engine.DeviceWorkflow.notificationsFirst(state.goal) &&
-            ledger.snapshot().none { it.tool == "read_notifications" && it.outcome != RunEvidenceLedger.Outcome.SKIPPED } &&
-            stable.toolCalls.any { it.name == "app_manager_tool" && it.arguments["action"] == "launch_app" ||
-                it.name == "social_media_video" && it.arguments["action"] == "search_youtube" }) {
-            val feedback = "Nothing in this batch ran. The user requested notifications first. Call read_notifications separately, or report that it is unavailable."
+        val orderError = DeviceWorkflow.orderError(state.goal, ledger.snapshot(), stable.toolCalls)
+        if (orderError != null) {
             return Step(stable, listOf(ChatMessage(MessageRole.ASSISTANT, stable.content, toolCalls = stable.toolCalls),
-                ChatMessage(MessageRole.TOOL, feedback, toolResults = stable.toolCalls.map {
-                    com.omnidev.workspace.data.model.ToolCallResult(it.id, it.name, feedback, true)
+                ChatMessage(MessageRole.TOOL, orderError, toolResults = stable.toolCalls.map {
+                    com.omnidev.workspace.data.model.ToolCallResult(it.id, it.name, orderError, true)
                 })), rejected = true)
         }
         val control = stable.toolCalls.firstOrNull { it.name == TaskPlanningCoordinator.COMPLETE || it.name == TaskPlanningCoordinator.REPLAN }

@@ -6,7 +6,7 @@ import java.util.UUID
 
 /** Opt-in syntax in the agent contract, never regex extraction from prose or tool results. */
 object TextToolCallAdapter {
-    const val CONTRACT = "If native function calling is unavailable, output ONLY {\"omni_tool_call\":{\"name\":\"exact_name\",\"arguments\":{}}}. One call per response. Use only loaded tools; call discover_tools with arguments {\"query\":\"concrete operation\"} to load missing tools. Never embed this envelope in prose."
+    const val CONTRACT = "If native function calling is unavailable, output ONLY {\"omni_tool_call\":{\"name\":\"exact_name\",\"arguments\":{}}}. One call per response. Replace exact_name and supply required fields inside arguments. Never output a call transcript or a list of tool names as the answer. Use only loaded tools; call discover_tools with arguments {\"query\":\"concrete operation\"} to load missing tools. Never embed this envelope in prose."
 
     fun adapt(response: CompletionResponse): CompletionResponse {
         if (response.toolCalls.isNotEmpty()) return response

@@ -253,7 +253,11 @@ class RunEvidenceLedger(
                 ?: EvidenceKinds.commandTarget(toolName, arguments))?.let {
                 "path=${SensitiveObservationRedactor.redact(it.replace('\n', ' ')).take(120)}"
             }
-            val metadataKeys = if (toolName == "app_manager_tool") listOf("action", "packageName") else listOf("action", "repo", "name_pattern", "name")
+            val metadataKeys = when (toolName) {
+                "read_notifications" -> listOf("operation")
+                "app_manager_tool" -> listOf("action", "packageName")
+                else -> listOf("action", "repo", "name_pattern", "name")
+            }
             val metadata = metadataKeys.mapNotNull { key ->
                 val value = when {
                     normalizedRead && key == "action" -> "read_file"

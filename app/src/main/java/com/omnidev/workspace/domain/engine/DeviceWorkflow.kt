@@ -5,14 +5,14 @@ import com.omnidev.workspace.domain.engine.completion.EvidenceRef
 /** Independent receipts for commonly combined device requests. Inputs never grant tool access. */
 internal object DeviceWorkflow {
     private val sequence = Regex("""(?i)\s+(?:(?:and\s+)?then|وبعدين|و\s+بعدين|بعدين|وبعدها|ثم)\s+""")
-    private val action = Regex("""(?i)\b(open|search|read|summari[sz]e|find|launch|send|write|check)\b|افتح|تفتح|دور|تدور|ابحث|تلخص|لخص|اقرأ|شوف|ابعت|اكتب""")
+    private val action = Regex("""(?i)\b(open|search|read|summari[sz]e|find|launch|send|write|check|set|schedule)\b|افتح|تفتح|دور|تدور|تبحث|ظبط|اضبط|ضبط|ابحث|تلخص|لخص|اقرأ|شوف|ابعت|اكتب""")
     private val search = Regex("""(?i)\b(search|find|look for)\b|(?:تدور|دور|ابحث|تبحث)""")
     private val youtube = Regex("""(?i)youtube|يوتيوب""")
     private val launch = Regex("""(?i)(?:\b(?:open|launch)\s+(?:the\s+)?|(?:افتح|تفتح)\s+(?:ال)?)\s*(?:youtube|يوتيوب)""")
     private val notifications = Regex("""(?i)(?:summari[sz]e|read|لخص|اقرأ|اقرا)\s+(?:(?:my|the)\s+)?(?:notifications|[اإ]شعاراتي|ال[اإ]شعارات)""")
     private val actionFollowup = Regex("""(?i)(?:طب\s+)?(?:استخدمها|ابحثلي|دورلي|search now)(?:\s+يا?لا)?[.!؟ ]*""")
 
-    private val informational = Regex("""(?i)^\s*(?:how (?:do|can|to)|what is|explain how|ازاي|إزاي|كيف|اشرحلي ازاي|اشرح لي كيف|don't|do not|متفتحش|ماتفتحش|متبحثش)\s""")
+    private val informational = Regex("""(?i)^\s*(?:how (?:do|can|to|would|should)|what is|explain how|ازاي|إزاي|كيف|اشرحلي ازاي|اشرح لي كيف|don't|do not|متفتحش|ماتفتحش|متبحثش)\s""")
 
     fun orderedParts(goal: String): List<String> {
         if (informational.containsMatchIn(goal)) return emptyList()
@@ -29,10 +29,31 @@ internal object DeviceWorkflow {
     fun youtubeSearch(goal: String) = !informational.containsMatchIn(goal) && youtube.containsMatchIn(goal) && search.containsMatchIn(goal)
     private val screenshotRequest = Regex("""(?i)(?:take|capture|inspect|خد|تاخد|صور)\s+(?:a\s+)?(?:screenshot|screen shot|اسكرين شوت|سكرين شوت|لقطة شاشة)""")
     fun captureRequested(goal: String) = screenshotRequest.containsMatchIn(goal)
+    private val alarmRequest = Regex("""(?i)\b(?:set|schedule)\s+(?:(?:an?|the|my)\s+)?alarm\b|(?:ظبط|اضبط|ضبط)\s+(?:ال)?منبه""")
+    private val webRequest = Regex("""(?i)(?:\bsearch\s+(?:(?:on|in)\s+)?(?:the\s+)?(?:google|web|internet)\b|(?:ابحث|تبحث|دور)\s+(?:في|على|علي)\s+(?:جوجل|الويب|النت)(?=\s|\p{P}|$))""")
+    fun needsAlarm(goal: String) = !informational.containsMatchIn(goal) && alarmRequest.containsMatchIn(goal)
+    fun needsWeb(goal: String) = !informational.containsMatchIn(goal) && webRequest.containsMatchIn(goal)
     fun tracked(goal: String) = !informational.containsMatchIn(goal) &&
-        (youtubeSearch(goal) || notifications.containsMatchIn(goal) || captureRequested(goal))
+        (needsAlarm(goal) || needsWeb(goal) || youtubeSearch(goal) || notifications.containsMatchIn(goal) || captureRequested(goal))
     fun followup(goal: String) = actionFollowup.matches(goal.trim()) ||
         goal.trim().substringAfterLast('،').trim().let { actionFollowup.matches(it) }
+
+    fun orderError(goal: String, evidence: List<EvidenceRef>, calls: List<com.omnidev.workspace.data.model.ToolCall>): String? {
+        val parts = orderedParts(goal)
+        if (parts.isEmpty()) return null
+        val attempted = evidence.filter { it.outcome != RunEvidenceLedger.Outcome.SKIPPED }
+        val alarm = calls.any { it.name == "planner_tool" && it.arguments["action"] == "alarm" }
+        if (notificationsFirst(goal) && attempted.none { it.tool == "read_notifications" && it.target in setOf("", "operation=read") } &&
+            (alarm || calls.any { it.name in setOf("web_search", "web_search_deep", "web_scraper") ||
+                it.name == "app_manager_tool" && it.arguments["action"] == "launch_app" ||
+                it.name == "social_media_video" && it.arguments["action"] == "search_youtube" }))
+            return "Nothing in this batch ran. Read notification contents first with read_notifications operation=read, or report the blocker."
+        val webStep = parts.indexOfFirst(::needsWeb)
+        if (alarm && webStep >= 0 && parts.indexOfFirst(::needsAlarm) > webStep &&
+            attempted.none { it.tool in setOf("web_search", "web_search_deep") })
+            return "Nothing in this batch ran. Perform the requested web search before sending the alarm."
+        return null
+    }
 
     fun missing(goal: String, evidence: List<EvidenceRef>): List<String> {
         if (!tracked(goal)) return emptyList()
@@ -40,8 +61,12 @@ internal object DeviceWorkflow {
         return buildList {
             if (captureRequested(goal) && ok.none { it.tool == "screenshot_tool" || it.tool == "visual_inspector" })
                 add("Capture the requested screen with a permitted tool, or report the capture blocker.")
-            if (notifications.containsMatchIn(goal) && ok.none { it.tool == "read_notifications" })
+            if (notifications.containsMatchIn(goal) && ok.none { it.tool == "read_notifications" && it.target in setOf("", "operation=read") })
                 add("Read the requested notifications and summarize the returned alerts.")
+            if (needsWeb(goal) && ok.none { it.tool in setOf("web_search", "web_search_deep") })
+                add("Use web_search with the requested topic. Read relevant results and report the actual sources.")
+            if (needsAlarm(goal) && ok.none { it.tool == "planner_tool" && "action=alarm" in it.target.split(' ') })
+                add("Request the alarm with planner_tool action=alarm and localTime in HH:mm. Report the clock app's actual response.")
             if (launch.containsMatchIn(goal) && ok.none { it.tool == "app_manager_tool" &&
                     it.target.split(' ').containsAll(listOf("action=launch_app", "packageName=com.google.android.youtube")) })
                 add("Open the requested YouTube app.")

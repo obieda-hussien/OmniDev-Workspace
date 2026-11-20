@@ -11,6 +11,14 @@ internal class ModelActionProgressBudget(private val ceilingTokens: Int = 32_000
     init { require(ceilingTokens in 1_000..500_000) }
     private var spentSinceProgress = 0L
 
+    private var promptedForNextStep = false
+
+    fun needsStepPrompt(): Boolean {
+        if (promptedForNextStep || spentSinceProgress < ceilingTokens / 3) return false
+        promptedForNextStep = true
+        return true
+    }
+
     fun onModelResponse(usedTokens: Int, toolCalls: List<ToolCall>, content: String, toolsAvailable: Boolean): Boolean {
         spentSinceProgress = (spentSinceProgress + usedTokens.coerceAtLeast(0).toLong()).coerceAtMost(2_000_000L)
         // Do not interrupt a tool proposal or a substantive answer; P0 will review them.
@@ -21,6 +29,9 @@ internal class ModelActionProgressBudget(private val ceilingTokens: Int = 32_000
     fun onToolResults(calls: List<ToolCall>, results: List<ToolExecutionResult>) {
         if (calls.zip(results).any { (call, result) ->
                 !result.isError && call.name != RunToolCatalog.DISCOVER.name
-            }) spentSinceProgress = 0
+            }) {
+            spentSinceProgress = 0
+            promptedForNextStep = false
+        }
     }
 }

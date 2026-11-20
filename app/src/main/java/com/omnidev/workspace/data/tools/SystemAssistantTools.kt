@@ -133,7 +133,8 @@ object PlannerTool {
         context: Context,
         action: String,
         title: String,
-        timeMillis: Long
+        timeMillis: Long,
+        localTime: String? = null
     ): ToolExecutionResult {
         when (action.lowercase()) {
             "next_alarm" -> {
@@ -150,12 +151,17 @@ object PlannerTool {
                 ToolExecutionResult("Opened the clock app's alarms page. OmniDev cannot read or verify the clock app's alarm list.")
             }.getOrElse { ToolExecutionResult("Could not open an alarms app: ${it.message}", isError = true) }
             "alarm" -> {
-                alarmTimeError(timeMillis, System.currentTimeMillis())?.let {
-                    return ToolExecutionResult(it, isError = true)
+                val (hour, minute) = if (localTime != null) {
+                    if (timeMillis != 0L || !Regex("""(?:[01][0-9]|2[0-3]):[0-5][0-9]""").matches(localTime))
+                        return ToolExecutionResult("For a clock alarm send only localTime in 24-hour HH:mm format.", isError = true)
+                    localTime.substringBefore(':').toInt() to localTime.substringAfter(':').toInt()
+                } else {
+                    alarmTimeError(timeMillis, System.currentTimeMillis())?.let {
+                        return ToolExecutionResult("$it For a wall-clock request use localTime (HH:mm).", isError = true)
+                    }
+                    val cal = Calendar.getInstance().apply { this.timeInMillis = timeMillis }
+                    cal.get(Calendar.HOUR_OF_DAY) to cal.get(Calendar.MINUTE)
                 }
-                val cal = Calendar.getInstance().apply { this.timeInMillis = timeMillis }
-                val hour = cal.get(Calendar.HOUR_OF_DAY)
-                val minute = cal.get(Calendar.MINUTE)
 
                 val canSkipUi = ContextCompat.checkSelfPermission(context, android.Manifest.permission.SET_ALARM) == PackageManager.PERMISSION_GRANTED
 
@@ -213,6 +219,7 @@ object PlannerTool {
             parameters = listOf(
                 ToolParameter("action", "string", "alarm | next_alarm | show_alarms | calendar", required = true),
                 ToolParameter("title", "string", "Alarm label or calendar event title; unused when reading/opening alarms.", required = false),
+                ToolParameter("localTime", "string", "alarm only: preferred next local clock occurrence in 24-hour HH:mm, e.g. 19:00. Omit timeMillis.", required = false),
                 ToolParameter("timeMillis", "string", "Future epoch milliseconds; alarm must be within 24 hours; unused when reading/opening alarms.", required = false)
             )
         )

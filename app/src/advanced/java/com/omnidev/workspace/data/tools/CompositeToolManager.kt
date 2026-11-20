@@ -546,7 +546,8 @@ class CompositeToolManager(
                     context = ctx,
                     action = arguments["action"] ?: return missingArg("action"),
                     title = arguments["title"] ?: "",
-                    timeMillis = arguments["timeMillis"]?.toLongOrNull() ?: 0L
+                    timeMillis = arguments["timeMillis"]?.toLongOrNull() ?: 0L,
+                    localTime = arguments["localTime"]
                 )
             }
 
