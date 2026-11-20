@@ -55,6 +55,10 @@ class FinishGate(
     private fun evaluate(request: FinishRequest) = FinishVerifier.evaluate(context(), request)
 
     private fun decide(request: FinishRequest): GateResult {
+        if (request.status == FinishStatus.COMPLETED) {
+            val missing = com.omnidev.workspace.domain.engine.DeviceWorkflow.missing(state.goal, ledger.snapshot())
+            if (missing.isNotEmpty()) return reject(missing.joinToString(" "), request.claims)
+        }
         val repo = com.omnidev.workspace.domain.engine.ExecutionEnvironmentContext.readmeRepository(state.goal)
         if (repo != null && request.status == FinishStatus.COMPLETED && ledger.snapshot().none { ref ->
             val fields = ref.target.split(' ')

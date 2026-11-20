@@ -13,6 +13,12 @@ object ExecutionEnvironmentContext {
     private val continuation = Regex("""(?i)(?:ابد[أءا]|ابدئ|يا?لا|كمل|كمّل|continue|go ahead|start)(?: يا?لا)?[.!؟ ]*""")
 
     fun effectiveObjective(current: String, history: List<com.omnidev.workspace.data.model.ChatMessage>): String {
+        if (DeviceWorkflow.followup(current)) {
+            val previous = history.asReversed().filter { it.role == com.omnidev.workspace.data.model.MessageRole.USER }
+                .takeWhile { DeviceWorkflow.followup(it.content) || DeviceWorkflow.youtubeSearch(it.content) }
+                .firstOrNull { DeviceWorkflow.youtubeSearch(it.content) }?.content
+            if (previous != null) return DeviceWorkflow.searchContinuation(previous)
+        }
         if (!continuation.matches(current.trim())) return current
         val prior = history.lastOrNull { it.role == com.omnidev.workspace.data.model.MessageRole.USER &&
             !continuation.matches(it.content.trim()) }?.content ?: return current
@@ -52,12 +58,15 @@ object ExecutionEnvironmentContext {
     }
 
     fun priorityNames(objective: String, observation: String?): List<String> = when {
+        DeviceWorkflow.captureRequested(objective) -> listOf("visual_inspector", "semantic_ui", "screenshot_tool")
+        DeviceWorkflow.youtubeSearch(objective) -> listOfNotNull("read_notifications".takeIf { DeviceWorkflow.notificationsFirst(objective) }, "social_media_video", "app_manager_tool", "semantic_ui")
         readmeRepository(objective) != null || remoteRepository(objective) != null -> listOf("github_manager")
         missingGit(observation) -> listOf("git_manager", "agent_runtime")
         else -> emptyList()
     }
 
     fun guidance(objective: String, observation: String? = null): String = buildString {
+        if (DeviceWorkflow.youtubeSearch(objective)) append("Search using the requested terms with social_media_video(action=search_youtube, query=...). Recommend a returned title using known preferences, or state your assumption. If the user wants results on screen, inspect semantic_ui dump_tree for a localized search icon and verify the results screen. When an icon text lookup fails, inspect the current tree and its content descriptions before retrying. For requested visual inspection use visual_inspector if permitted; screenshot_tool only saves an image. If a step fails, return available results including the notification summary and specify the unfinished step. ")
         readmeRepository(objective)?.let { repo ->
             append("README source: use github_manager(action=read_file, repo=$repo, path=README.md). Read further lines if truncated. Explain the returned content in the user's language. Listing repositories or searching memory cannot verify the file. ")
         }

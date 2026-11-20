@@ -371,9 +371,7 @@ class TaskRunRecorder(
             val arguments = runCatching {
                 kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(inv.inputSanitized)
             }.getOrDefault(emptyMap())
-            val target = arguments["path"] ?: arguments["filePath"] ?: arguments["directory"]
-                ?: EvidenceKinds.explicitMutationTarget(inv.toolName, arguments) ?: EvidenceKinds.commandTarget(inv.toolName, arguments)
-            ResumeEntry(inv.callId, inv.toolName, target?.let { "path=$it" }.orEmpty(), outcome, evidence,
+            ResumeEntry(inv.callId, inv.toolName, RunEvidenceLedger.describeArguments(inv.toolName, arguments), outcome, evidence,
                 EvidenceKinds.classify(inv.toolName, arguments))
         }
     }

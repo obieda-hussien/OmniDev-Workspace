@@ -324,7 +324,7 @@ When improving: keep every other sentence, the structure, the language and the l
         val learnedTool = (toolManager as? CompositeToolManager)?.learnedRoutineTool
         // This path precedes provider selection, API key reads, memory retrieval and prompt compilation.
         val launcherReplayNeedsEvidence = LauncherExecutionLedger(routingContext).requiresAction
-        val localMatch = if (!launcherReplayNeedsEvidence && !mentionFocus.active && steering == null && workerPersona == null && runIdentity?.workerId == null && beforeToolExecution == null && toolCallEligibility == null && userAttachments.isEmpty() &&
+        val localMatch = if (!DeviceWorkflow.tracked(routingObjective) && DeviceWorkflow.orderedParts(routingObjective).isEmpty() && !launcherReplayNeedsEvidence && !mentionFocus.active && steering == null && workerPersona == null && runIdentity?.workerId == null && beforeToolExecution == null && toolCallEligibility == null && userAttachments.isEmpty() &&
             toolAccessMode != "DISABLED" && "learned_routine" !in disabledToolNames)
             learnedTool?.let { com.omnidev.workspace.data.routines.RoutineMatcher.match(userMessage, it.hub.store.list()) } else null
         if (localMatch != null) {
@@ -342,7 +342,7 @@ When improving: keep every other sentence, the structure, the language and the l
                 ChatMessage(MessageRole.USER, userMessage) + ChatMessage(MessageRole.ASSISTANT, result.output)))
             return@channelFlow
         }
-        val capture = if (workerPersona == null) learnedTool?.hub?.capture(SensitiveObservationRedactor.redact(userMessage)) else null
+        val capture = if (workerPersona == null && !DeviceWorkflow.tracked(routingObjective) && DeviceWorkflow.orderedParts(routingObjective).isEmpty()) learnedTool?.hub?.capture(SensitiveObservationRedactor.redact(userMessage)) else null
         val routineCandidates = learnedTool?.let {
             com.omnidev.workspace.data.routines.RoutineInvocationPolicy.candidates(userMessage, it.hub.store.list())
         }.orEmpty()
@@ -739,7 +739,7 @@ When improving: keep every other sentence, the structure, the language and the l
                     }
                 }
 
-                if (!runtimeBackends.hasBlocks()) capture?.finish()?.let { draft ->
+                if (!runtimeBackends.hasBlocks() && evidenceLedger.fin.report()?.verified == true) capture?.finish()?.let { draft ->
                     send(AgentEvent.PhaseChanged(AgentExecutionPhase.REPORT,
                         "Learned a draft: ${draft.name}. Review it in Agent Skills to enable local replay."))
                 }
