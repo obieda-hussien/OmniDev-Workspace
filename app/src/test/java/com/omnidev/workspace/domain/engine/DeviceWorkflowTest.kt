@@ -54,6 +54,15 @@ class DeviceWorkflowTest {
         assertTrue(DeviceWorkflow.missing(request, ledger.snapshot()).isEmpty())
     }
 
+    @Test fun webSearchRequiresAnExplicitDestination() {
+        assertTrue(DeviceWorkflow.needsWeb("Search on Google for movie releases"))
+        assertTrue(DeviceWorkflow.needsWeb("Search the web for movie releases"))
+        assertTrue(DeviceWorkflow.needsWeb("تبحث في جوجل عن احدث الافلام"))
+        assertFalse(DeviceWorkflow.needsWeb("Search YouTube for Google I/O talks"))
+        assertFalse(DeviceWorkflow.needsWeb("Search the codebase for Google API usages"))
+        assertFalse(DeviceWorkflow.needsWeb("ابحث في يوتيوب عن جوجل"))
+    }
+
     @Test fun missingIconIsNotAScreenshot() {
         val request = "جرب تاخد اسكرين شوت بعد كده مع الاداة دي"
         record("semantic_ui", mapOf("action" to "find_element"), true)

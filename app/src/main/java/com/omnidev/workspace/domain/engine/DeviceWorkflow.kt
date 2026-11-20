@@ -30,7 +30,7 @@ internal object DeviceWorkflow {
     private val screenshotRequest = Regex("""(?i)(?:take|capture|inspect|خد|تاخد|صور)\s+(?:a\s+)?(?:screenshot|screen shot|اسكرين شوت|سكرين شوت|لقطة شاشة)""")
     fun captureRequested(goal: String) = screenshotRequest.containsMatchIn(goal)
     private val alarmRequest = Regex("""(?i)\b(?:set|schedule)\s+(?:(?:an?|the|my)\s+)?alarm\b|(?:ظبط|اضبط|ضبط)\s+(?:ال)?منبه""")
-    private val webRequest = Regex("""(?i)(?:\bsearch\b|ابحث|تبحث|دور).*?(?:google\b|web\b|internet\b|جوجل|الويب|النت)""")
+    private val webRequest = Regex("""(?i)(?:\bsearch\s+(?:(?:on|in)\s+)?(?:the\s+)?(?:google|web|internet)\b|(?:ابحث|تبحث|دور)\s+(?:في|على|علي)\s+(?:جوجل|الويب|النت)(?=\s|\p{P}|$))""")
     fun needsAlarm(goal: String) = !informational.containsMatchIn(goal) && alarmRequest.containsMatchIn(goal)
     fun needsWeb(goal: String) = !informational.containsMatchIn(goal) && webRequest.containsMatchIn(goal)
     fun tracked(goal: String) = !informational.containsMatchIn(goal) &&

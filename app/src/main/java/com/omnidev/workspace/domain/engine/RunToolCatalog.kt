@@ -165,7 +165,7 @@ class RunToolCatalog(
             true, classification = "TOOL_SCHEMA_BUDGET")
         return ToolExecutionResult(buildString {
             appendLine("Loaded for the NEXT model request. Use its advertised parameter schema:")
-            visible.forEach { tool -> appendLine("${signature(tool)}: ${tool.description.trim().lineSequence().first().take(140)}") }
+            visible.forEach { tool -> appendLine("${tool.name}: ${signature(tool)} — ${tool.description.trim().lineSequence().first().take(140)}") }
             if (visible.size < matches.size) appendLine("Other matches deferred by the schema budget; query an exact tool name to prioritize it.")
         })
     }
