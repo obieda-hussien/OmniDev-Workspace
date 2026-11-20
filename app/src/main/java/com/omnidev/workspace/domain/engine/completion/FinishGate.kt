@@ -80,13 +80,18 @@ class FinishGate(
             }.mapNotNull {
                 val page = it.target.substringAfterLast(" page=", "")
                 page.substringBefore(':').toIntOrNull()?.let { start -> start to page.substringAfter(':') }
-            }.toMap()
-            var start = 1
-            while (pages[start] != "end") {
-                val next = pages[start]?.toIntOrNull()
-                if (next == null || next <= start) return reject("Read README.md in $repo from start_line=$start. Report partial coverage if unavailable.", request.claims)
-                start = next
+            }.sortedBy { it.first }
+            var nextUnread = 1
+            var reachedEnd = false
+            for ((start, end) in pages) {
+                if (start > nextUnread) break
+                if (end == "end") {
+                    reachedEnd = true
+                    break
+                }
+                nextUnread = maxOf(nextUnread, end.toIntOrNull() ?: continue)
             }
+            if (!reachedEnd) return reject("Read README.md in $repo from start_line=$nextUnread. Report partial coverage if unavailable.", request.claims)
         }
         val eval = evaluate(request)
         if (eval.accepted) {
