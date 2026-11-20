@@ -15,7 +15,7 @@ internal object WorkerRecoveryPlanner {
     fun shouldRetry(error: String?, redirected: Boolean, requiresSerialReplan: Boolean, attempt: Int = 1): Boolean {
         if (error == null || redirected || requiresSerialReplan) return false
         // One read-only alternative attempt, never unbounded full-task replay.
-        if (error.startsWith("WORKER_NO_PROGRESS:")) return attempt == 1
+        if (error.startsWith("WORKER_NO_PROGRESS:") || error.startsWith("NO_VERIFIED_PROGRESS:")) return attempt == 1
         // Running out of tokens is not fixed by trying again from scratch.
         return !error.contains("token budget", ignoreCase = true) && !error.contains("budget exhausted", ignoreCase = true)
     }

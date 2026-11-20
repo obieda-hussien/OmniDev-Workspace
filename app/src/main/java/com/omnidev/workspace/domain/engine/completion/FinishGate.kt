@@ -56,6 +56,12 @@ class FinishGate(
 
     private fun decide(request: FinishRequest): GateResult {
         if (request.status == FinishStatus.COMPLETED) {
+            val source = com.omnidev.workspace.domain.engine.ExecutionEnvironmentContext.followupRepository(state.goal)
+            if (source != null && ledger.snapshot().none { ref ->
+                val fields = ref.target.split(' ')
+                ref.tool == "github_manager" && ref.outcome == RunEvidenceLedger.Outcome.OK &&
+                    fields.any { it.equals("repo=$source", true) } && "action=read_file" in fields
+            }) return reject("Inspect relevant files in $source before explaining their implementation.", request.claims)
             val missing = com.omnidev.workspace.domain.engine.DeviceWorkflow.missing(state.goal, ledger.snapshot())
             if (missing.isNotEmpty()) return reject(missing.joinToString(" "), request.claims)
         }
@@ -65,6 +71,23 @@ class FinishGate(
             ref.tool == "github_manager" && ref.outcome == RunEvidenceLedger.Outcome.OK &&
                 "action=read_file" in fields && "path=README.md" in fields && fields.any { it.equals("repo=$repo", true) }
         }) return reject("Read README.md from $repo with github_manager read_file, or report the blocker.", request.claims)
+        if (repo != null && request.status == FinishStatus.COMPLETED &&
+            Regex("""(?i)in detail|detailed|entire|whole|بالتفصيل|بالكامل""").containsMatchIn(state.goal)) {
+            val pages = ledger.snapshot().asSequence().filter {
+                val fields = it.target.split(' ')
+                it.outcome == RunEvidenceLedger.Outcome.OK && it.tool == "github_manager" &&
+                    "action=read_file" in fields && "path=README.md" in fields && fields.any { field -> field.equals("repo=$repo", true) }
+            }.mapNotNull {
+                val page = it.target.substringAfterLast(" page=", "")
+                page.substringBefore(':').toIntOrNull()?.let { start -> start to page.substringAfter(':') }
+            }.toMap()
+            var start = 1
+            while (pages[start] != "end") {
+                val next = pages[start]?.toIntOrNull()
+                if (next == null || next <= start) return reject("Read README.md in $repo from start_line=$start. Report partial coverage if unavailable.", request.claims)
+                start = next
+            }
+        }
         val eval = evaluate(request)
         if (eval.accepted) {
             state.noteFinishAttempt(request.claims, null)

@@ -24,6 +24,8 @@ public final class OpeningTitleEvaluation {
         String docRequest = "كنت عايزك تشوفلي مشروع Omni dev workspace ده و تشرحلي ال README بالتفصيل";
         require("ملف README لمشروع Omni dev workspace", ChatMetadataModel.analyze(
                 Arrays.asList("اي الدنيا معاك", docRequest), "app", "").title);
+        require("Room migrations overview", ChatMetadataModel.analyze(Collections.singletonList("Could you explain Room migrations in detail?"), "app", "").title);
+        require("مقارنة نماذج التصنيف", ChatMetadataModel.analyze(Collections.singletonList("ممكن قارن بين نماذج التصنيف بالتفصيل"), "app", "").title);
         if (args.length > 1) evaluateTopics(args[1]);
         String padding = String.join("", Collections.nCopies(68, "The supporting details are listed below. "));
         require("Room database migration", ChatMetadataModel.openingTitle("Can you take a look?",

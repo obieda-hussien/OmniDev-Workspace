@@ -173,6 +173,7 @@ class FinishRuntime private constructor(
             val profile = ModelExecutionProfile.resolve(modelId, enableModelProfiles)
             val basePolicy = FinalizationPolicy.decide(signals, isWorker, toolsAvailable, identity)
             val policy = if (com.omnidev.workspace.domain.engine.ExecutionEnvironmentContext.readmeRepository(goal) != null ||
+                com.omnidev.workspace.domain.engine.ExecutionEnvironmentContext.followupRepository(goal) != null ||
                 com.omnidev.workspace.domain.engine.DeviceWorkflow.tracked(goal) || com.omnidev.workspace.domain.engine.DeviceWorkflow.orderedParts(goal).isNotEmpty())
                 basePolicy.copy(enforce = true, requireExecution = true) else basePolicy
             val ledger = RunEvidenceLedger(identity.runId, identity.workerId)
