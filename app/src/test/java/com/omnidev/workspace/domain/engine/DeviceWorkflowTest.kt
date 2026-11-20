@@ -63,6 +63,46 @@ class DeviceWorkflowTest {
         assertFalse(DeviceWorkflow.needsWeb("ابحث في يوتيوب عن جوجل"))
     }
 
+    @Test fun spotifyLaunchOrGenericPlayCannotVerifyTheRequestedTrack() {
+        val request = "افتح سبوتيفاي و شغل اغنية انا مش اناني لعمر دياب"
+        val track = SpotifyPlayback.requested(request)!!
+        val observation = "  1. com.spotify.music\n     Title: أنا مش أناني\n     Artist: عمرو دياب\n     Status: ▶️ Playing"
+        assertTrue(SpotifyPlayback.verified(track, observation))
+        assertFalse(SpotifyPlayback.verified(track, observation.replace("Playing", "Paused")))
+        assertFalse(SpotifyPlayback.verified(track, observation.replace("عمرو دياب", "Other artist")))
+        assertFalse(SpotifyPlayback.verified(track, observation.replace("com.spotify.music", "com.android.music")))
+        assertEquals(request, ExecutionEnvironmentContext.effectiveObjective(
+            "طب ما تتحكم انت في التلفون و شغلها", listOf(ChatMessage(MessageRole.USER, request))))
+        assertNotNull(DeviceWorkflow.orderError(request, emptyList(),
+            listOf(ToolCall("play", "media_control", mapOf("action" to "play")))))
+    }
+
+    @Test fun groundedContinuationUsesOrderedReceiptsAndDoesNotRepeatTheAlarm() {
+        val request = "عايزك تلخص الاشعارات و بعدين تبحث في جوجل عن احدث الافلام الاجنبيه و بعدين ظبط منبه الساعه ٧ بليل"
+        val catalog = RunToolCatalog(listOf("read_notifications", "web_search", "planner_tool").map {
+            com.omnidev.workspace.data.tools.ToolDefinition(it, it, emptyList())
+        }, request)
+        fun next() = GroundedContinuation.recover(com.omnidev.workspace.data.model.CompletionResponse(""),
+            request, ledger.snapshot(), catalog, ledger.size() + 1).toolCalls.singleOrNull()
+        assertEquals("read_notifications", next()?.name)
+        record("read_notifications", mapOf("operation" to "read"))
+        assertEquals("web_search", next()?.name)
+        assertTrue(next()?.arguments?.get("query")?.contains("الافلام") == true)
+        record("web_search", mapOf("query" to "movies"))
+        assertEquals(mapOf("action" to "alarm", "localTime" to "19:00"), next()?.arguments)
+        record("planner_tool", mapOf("action" to "alarm"), true)
+        assertNull(next())
+    }
+
+    @Test fun identityAndInventoryComeFromTheRuntime() {
+        val catalog = RunToolCatalog(listOf(com.omnidev.workspace.data.tools.ToolDefinition(
+            "read_file", "Read a file", emptyList())), "inventory")
+        assertTrue(OmniIdentityReply.reply("انت مين و بتعمل اي؟", null, catalog)!!.startsWith("أنا Omni"))
+        assertTrue(OmniIdentityReply.reply("اي الادوات اللي عندك كلها", null, catalog)!!.contains("read_file"))
+        assertFalse(OmniIdentityReply.reply("و عندك اي تاني غير دول", "اي الادوات اللي عندك كلها", catalog)!!
+            .contains("privileged_tool"))
+    }
+
     @Test fun missingIconIsNotAScreenshot() {
         val request = "جرب تاخد اسكرين شوت بعد كده مع الاداة دي"
         record("semantic_ui", mapOf("action" to "find_element"), true)

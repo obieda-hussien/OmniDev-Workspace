@@ -44,6 +44,9 @@ class RunEvidenceLedger(
     @Synchronized
     fun size(): Int = entries.size
 
+    internal var latestMediaObservation: String = ""
+        private set
+
     /**
      * Restores evidence persisted by an earlier part of the SAME task when a run is resumed. Only entries
      * the task store proved SUCCEEDED arrive as OK; failed, unknown and interrupted side effects arrive as
@@ -60,6 +63,9 @@ class RunEvidenceLedger(
     @Synchronized
     fun record(call: ToolCall, result: ToolCallResult, classification: String? = null) {
         val output = result.output
+        if (call.name == "media_control" && call.arguments["action"].equals("info", ignoreCase = true)) {
+            latestMediaObservation = if (result.isError) "" else output
+        }
         val trimmed = output.trim()
         val wasNotExecuted = result.isError && (
             classification == "TOOL_DEPENDENCY_MISSING" ||

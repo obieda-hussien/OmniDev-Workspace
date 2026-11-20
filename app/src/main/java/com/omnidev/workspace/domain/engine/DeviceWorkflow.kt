@@ -34,11 +34,14 @@ internal object DeviceWorkflow {
     fun needsAlarm(goal: String) = !informational.containsMatchIn(goal) && alarmRequest.containsMatchIn(goal)
     fun needsWeb(goal: String) = !informational.containsMatchIn(goal) && webRequest.containsMatchIn(goal)
     fun tracked(goal: String) = !informational.containsMatchIn(goal) &&
-        (needsAlarm(goal) || needsWeb(goal) || youtubeSearch(goal) || notifications.containsMatchIn(goal) || captureRequested(goal))
+        (SpotifyPlayback.requested(goal) != null || needsAlarm(goal) || needsWeb(goal) || youtubeSearch(goal) || notifications.containsMatchIn(goal) || captureRequested(goal))
     fun followup(goal: String) = actionFollowup.matches(goal.trim()) ||
         goal.trim().substringAfterLast('،').trim().let { actionFollowup.matches(it) }
 
     fun orderError(goal: String, evidence: List<EvidenceRef>, calls: List<com.omnidev.workspace.data.model.ToolCall>): String? {
+        if (SpotifyPlayback.requested(goal) != null && calls.any {
+                it.name == "media_control" && it.arguments["action"]?.lowercase() in setOf("play", "toggle", "next", "previous")
+            }) return "A generic media command cannot select the requested song. Use the Spotify search UI and verify with media_control info."
         val parts = orderedParts(goal)
         if (parts.isEmpty()) return null
         val attempted = evidence.filter { it.outcome != RunEvidenceLedger.Outcome.SKIPPED }
@@ -59,6 +62,8 @@ internal object DeviceWorkflow {
         if (!tracked(goal)) return emptyList()
         val ok = evidence.filter { it.outcome == RunEvidenceLedger.Outcome.OK }
         return buildList {
+            if (SpotifyPlayback.requested(goal) != null && ok.none { it.tool == "media_control" && "action=info" in it.target })
+                add("Search for the requested title and artist in Spotify with semantic_ui, then verify playback with media_control info.")
             if (captureRequested(goal) && ok.none { it.tool == "screenshot_tool" || it.tool == "visual_inspector" })
                 add("Capture the requested screen with a permitted tool, or report the capture blocker.")
             if (notifications.containsMatchIn(goal) && ok.none { it.tool == "read_notifications" && it.target in setOf("", "operation=read") })

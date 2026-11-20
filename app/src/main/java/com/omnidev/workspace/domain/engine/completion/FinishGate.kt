@@ -58,6 +58,9 @@ class FinishGate(
         if (request.status == FinishStatus.COMPLETED) {
             if (request.summary.trimStart().startsWith("Submitted calls:", ignoreCase = true))
                 return reject("Return the requested results in the user's language. A submitted-call transcript is not a result.", request.claims)
+            val track = com.omnidev.workspace.domain.engine.SpotifyPlayback.requested(state.goal)
+            if (track != null && !com.omnidev.workspace.domain.engine.SpotifyPlayback.verified(track, ledger.latestMediaObservation))
+                return reject("Search Spotify for the named track and artist. Verify the Spotify session is playing that track with media_control info, or report the blocker.", request.claims)
             val source = com.omnidev.workspace.domain.engine.ExecutionEnvironmentContext.followupRepository(state.goal)
             if (source != null && ledger.snapshot().none { ref ->
                 val fields = ref.target.split(' ')

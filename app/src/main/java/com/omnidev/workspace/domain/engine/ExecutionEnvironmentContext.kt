@@ -13,6 +13,13 @@ object ExecutionEnvironmentContext {
     private val continuation = Regex("""(?i)(?:ابد[أءا]|ابدئ|يا?لا|كمل|كمّل|continue|go ahead|start)(?: يا?لا)?[.!؟ ]*""")
 
     fun effectiveObjective(current: String, history: List<com.omnidev.workspace.data.model.ChatMessage>): String {
+        val playbackFollowup = Regex("""(?i)(?:شغلها|تشغلها|\bplay it\b|semantic_ui|screenshot_tool)""")
+        if (SpotifyPlayback.requested(current) == null && playbackFollowup.containsMatchIn(current)) {
+            val prior = history.asReversed().filter { it.role == com.omnidev.workspace.data.model.MessageRole.USER }
+                .takeWhile { playbackFollowup.containsMatchIn(it.content) || SpotifyPlayback.requested(it.content) != null }
+                .firstOrNull { SpotifyPlayback.requested(it.content) != null }
+            if (prior != null) return prior.content
+        }
         val sourceFollowup = Regex("""(?i)^\s*(?:تعمق|اتعمق|dig deeper|go deeper)|(?:ملفات المشروع|مجلدات المشروع|the project files|the project structure)""")
         if (sourceFollowup.containsMatchIn(current) && remoteRepository(current) == null && !localRequest.containsMatchIn(current)) {
             for (turn in history.asReversed().filter { it.role == com.omnidev.workspace.data.model.MessageRole.USER }.take(5)) {
@@ -69,6 +76,7 @@ object ExecutionEnvironmentContext {
     }
 
     fun priorityNames(objective: String, observation: String?): List<String> = when {
+        SpotifyPlayback.requested(objective) != null -> listOf("semantic_ui", "app_manager_tool", "media_control", "screenshot_tool")
         DeviceWorkflow.captureRequested(objective) -> listOf("visual_inspector", "semantic_ui", "screenshot_tool")
         DeviceWorkflow.youtubeSearch(objective) -> listOfNotNull("read_notifications".takeIf { DeviceWorkflow.notificationsFirst(objective) }, "social_media_video", "app_manager_tool", "semantic_ui")
         DeviceWorkflow.needsAlarm(objective) || DeviceWorkflow.needsWeb(objective) -> listOfNotNull(
@@ -81,6 +89,8 @@ object ExecutionEnvironmentContext {
     }
 
     fun guidance(objective: String, observation: String? = null): String = buildString {
+        if (SpotifyPlayback.requested(objective) != null) append("For a named Spotify track, open Spotify if needed, inspect semantic_ui dump_tree, select Search using its visible label or description, enter the requested title and artist, then select the matching track. Use screenshot only to resolve unclear UI. Check media_control info for the Spotify session's title, artist and Playing state. A generic Play resumes the current track. If app permissions, availability, or playback prevent this, report the verified blocker. ")
+
         if (DeviceWorkflow.needsWeb(objective)) append("Use web_search for discovery. Do not scrape a search engine interstitial. Cite relevant results and identify the actual provider if the user requested a particular engine. For latest results use the current device year, unless the user specified a date. ")
         if (DeviceWorkflow.youtubeSearch(objective)) append("Search using the requested terms with social_media_video(action=search_youtube, query=...). Recommend a returned title using known preferences, or state your assumption. If the user wants results on screen, inspect semantic_ui dump_tree for a localized search icon and verify the results screen. When an icon text lookup fails, inspect the current tree and its content descriptions before retrying. For requested visual inspection use visual_inspector if permitted; screenshot_tool only saves an image. If a step fails, return available results including the notification summary and specify the unfinished step. ")
         readmeRepository(objective)?.let { repo ->

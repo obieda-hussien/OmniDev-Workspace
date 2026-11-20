@@ -393,6 +393,15 @@ When improving: keep every other sentence, the structure, the language and the l
             preferredToolNames + (if (routineCandidates.isEmpty()) emptySet() else setOf("learned_routine")), toolQuality, additionalToolDomains, mentionFocus.tools,
             budget = ToolSurfaceBudget.forContext(model.contextWindow)
         )
+        if (workerPersona == null && runIdentity?.forceFinishProtocol != true && runIdentity?.resume == null &&
+            steeringRevision == null && !mentionFocus.active && userAttachments.isEmpty()) {
+            val previousUser = conversationHistory.lastOrNull { it.role == MessageRole.USER }?.content
+            OmniIdentityReply.reply(userMessage, previousUser, runCatalog)?.let { reply ->
+                send(AgentEvent.FinalAnswer(reply, 0, 0, conversationHistory +
+                    ChatMessage(MessageRole.USER, userMessage) + ChatMessage(MessageRole.ASSISTANT, reply)))
+                return@channelFlow
+            }
+        }
         var automaticRouter = AutomaticToolRouter(runCatalog)
         var toolDefs = if (permittedDefinitions.isEmpty()) emptyList() else runCatalog.definitions()
         brain?.registerTools(toolDefs)
@@ -541,7 +550,8 @@ When improving: keep every other sentence, the structure, the language and the l
             val prepared = prepareRequestContext(
                 messages = messages, plan = plan, modelId = modelId,
                 desiredOutputBudget = desiredOutputBudget,
-                enableThinking = enableDeepThinking && model.supportsThinking && !runtimeBackends.reportOnly,
+                enableThinking = enableDeepThinking && model.supportsThinking && !runtimeBackends.reportOnly &&
+                    !actionProgressBudget.focusedRecovery,
                 nativeTools = nativeTools, scopePath = scopePath, apiKey = resolvedApiKey,
                 autoRouteRole = autoRouteRole, spentTokens = totalTokensUsed,
                 iteration = iteration, evidenceLedger = evidenceLedger,
@@ -614,6 +624,14 @@ When improving: keep every other sentence, the structure, the language and the l
                 TextToolCallAdapter.adapt(nativeResponse), evidenceLedger.fin.callableNames(toolDefs, runtimeBackends.reportOnly)
             )
 
+            if (!runtimeBackends.reportOnly && workerPersona == null && revision == 0L &&
+                !mentionFocus.active && userAttachments.isEmpty()) {
+                response = GroundedContinuation.recover(response, routingObjective, evidenceLedger.snapshot(), runCatalog, iteration)
+            }
+
+            if (response.toolCalls.isEmpty() && response.content.trimStart().startsWith("Submitted calls:", ignoreCase = true))
+                response = response.copy(content = "")
+
             // Usage is never allowed to disappear merely because a provider omitted metadata.
             val responseUsage = TokenAccounting.usage(request, nativeResponse)
             totalTokensUsed += responseUsage.totalTokens
@@ -626,11 +644,15 @@ When improving: keep every other sentence, the structure, the language and the l
                 return@channelFlow
             }
 
-            if (response.toolCalls.isEmpty() && response.content.isBlank() && !runtimeBackends.reportOnly &&
-                DeviceWorkflow.tracked(routingObjective) && actionProgressBudget.needsStepPrompt()) {
-                val pending = DeviceWorkflow.missing(routingObjective, evidenceLedger.snapshot())
-                if (pending.isNotEmpty()) {
-                    messages += ChatMessage(MessageRole.USER, "Next unfinished step: " + pending.first() +
+            if (response.toolCalls.isEmpty() && !runtimeBackends.reportOnly &&
+                (response.content.isBlank() || UnfulfilledPromiseDetector.isUnfulfilled(response.content)) &&
+                actionProgressBudget.needsStepPrompt()) {
+                val pending = DeviceWorkflow.missing(routingContext, evidenceLedger.snapshot())
+                val nextStep = pending.firstOrNull() ?: ExecutionEnvironmentContext.readmeRepository(routingContext)?.let {
+                    "Read the requested README.md from $it, or continue from the last verified page."
+                }
+                if (nextStep != null) {
+                    messages += ChatMessage(MessageRole.USER, "Next unfinished step: " + nextStep +
                         " Use its loaded schema now, or finish with the specific blocker and available results.")
                     continue
                 }
