@@ -236,10 +236,11 @@ public final class ChatMetadataModel {
   private static final Pattern CONCLUSION = Pattern.compile(
       "(?imu)^\\h*(?:conclusion|root cause|diagnosis|الخلاصة|الخلاصه|التشخيص|السبب الرئيسي)\\h*[:：]\\h*");
 
+  // normalize() emits space-separated tokens. These boundaries work on both Android ICU and the JVM.
   private static final Pattern CHAT_TITLE_SUBJECT = Pattern.compile(
-      "(?U)\\b(?:chats?|conversations?|sessions?|(?:ال)?(?:شات|دردشه|دردشات|محادثه|محادثات|جلسه|جلسات))\\b");
+      "(?:^| )(?:chats?|conversations?|sessions?|(?:ال)?(?:شات|دردشه|دردشات|محادثه|محادثات|جلسه|جلسات))(?: |$)");
   private static final Pattern CHAT_TITLE_NOUN = Pattern.compile(
-      "(?U)\\b(?:titles?|headings?|(?:ال)?(?:عنوان|عناوين|تسميه))\\b");
+      "(?:^| )(?:titles?|headings?|(?:ال)?(?:عنوان|عناوين|تسميه))(?: |$)");
 
   public static String openingTitle(String user, String reply, String fallback) {
     if (user != null && fallback != null && fallback.startsWith("ملف README لمشروع ")) return fallback;
