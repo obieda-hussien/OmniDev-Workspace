@@ -40,6 +40,18 @@ class FinishProtocolTest {
         researchIntent, verificationIntent, parallelism, breadth, structuralComplexity, domainCount
     )
 
+    @Test fun `README completion uses the corrected repository and normalized read arguments`() {
+        val r = rig()
+        r.state.goal = "Ignore https://github.com/old/project; explain the README of https://github.com/new/project"
+        val args = mapOf("action" to " Read_File ", "path" to " /README.md/ ")
+        r.run("old", "github_manager", args + ("repo" to "old/project"), "Old README content")
+        assertTrue(r.gate.implicit("Here is the README explanation") is GateResult.Reject)
+        r.run("new", "github_manager", args + ("repo" to " New/Project "), "New README content")
+        val result = r.gate.implicit("Here is the README explanation") as GateResult.Publish
+        assertEquals(FinishStatus.COMPLETED, result.status)
+        assertTrue(result.report.verified)
+    }
+
     // 1. Model says it executed without any tool call.
     @Test fun `text claiming execution with no tool call is rejected then downgraded to incomplete`() {
         val r = rig()

@@ -236,7 +236,10 @@ class RunEvidenceLedger(
     companion object {
         internal fun describeArguments(toolName: String, arguments: Map<String, String>): String {
             // Keep only low-risk identifiers; raw commands, URLs and free-form queries can carry credentials.
-            val explicitPath = listOf("path", "filePath", "file_path", "filepath", "directory", "file", "filename", "output_path")
+            val normalizedRead = toolName == "github_manager" && arguments["action"]?.trim()?.lowercase() == "read_file"
+            val explicitPath = if (normalizedRead) {
+                com.omnidev.workspace.data.tools.GitHubRequestContract.contentPath(arguments["path"])
+            } else listOf("path", "filePath", "file_path", "filepath", "directory", "file", "filename", "output_path")
                 .firstNotNullOfOrNull { key -> arguments[key]?.takeIf(String::isNotBlank) }
             val path = (explicitPath ?: EvidenceKinds.explicitMutationTarget(toolName, arguments)
                 ?: EvidenceKinds.commandTarget(toolName, arguments))?.let {
@@ -244,7 +247,12 @@ class RunEvidenceLedger(
             }
             val metadataKeys = if (toolName == "app_manager_tool") listOf("action", "packageName") else listOf("action", "repo", "name_pattern", "name")
             val metadata = metadataKeys.mapNotNull { key ->
-                arguments[key]?.takeIf(String::isNotBlank)?.let {
+                val value = when {
+                    normalizedRead && key == "action" -> "read_file"
+                    normalizedRead && key == "repo" -> arguments[key]?.trim()
+                    else -> arguments[key]
+                }
+                value?.takeIf(String::isNotBlank)?.let {
                     "$key=${SensitiveObservationRedactor.redact(it.replace('\n', ' ')).take(80)}"
                 }
             }

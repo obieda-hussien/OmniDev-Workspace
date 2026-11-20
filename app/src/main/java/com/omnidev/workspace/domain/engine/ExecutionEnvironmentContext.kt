@@ -28,8 +28,8 @@ object ExecutionEnvironmentContext {
     fun readmeRepository(objective: String): String? {
         if (!readRequest.containsMatchIn(objective)) return null
         if (!rootReadme.containsMatchIn(objective) || localRequest.containsMatchIn(objective)) return null
-        val named = githubUrl.find(objective)?.groupValues?.get(1)
-            ?: repository.findAll(objective).map { it.groupValues[1] }.firstOrNull { productName.matches(it.substringAfter('/')) }
+        val named = remoteRepository(objective)
+            ?: repository.findAll(objective).map { it.groupValues[1] }.lastOrNull { productName.matches(it.substringAfter('/')) }
         if (named != null) return named.removeSuffix(".git")
         return if (productName.containsMatchIn(objective)) "obieda-hussien/OmniDev-Workspace" else null
     }
