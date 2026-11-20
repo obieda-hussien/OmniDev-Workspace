@@ -233,27 +233,36 @@ class RunEvidenceLedger(
         }
     }
 
-    private fun describeArguments(toolName: String, arguments: Map<String, String>): String {
-        // Keep only low-risk identifiers; raw commands, URLs and free-form queries can carry credentials.
-        val explicitPath = listOf("path", "filePath", "file_path", "filepath", "directory", "file", "filename", "output_path")
-            .firstNotNullOfOrNull { key -> arguments[key]?.takeIf(String::isNotBlank) }
-        val path = (explicitPath ?: EvidenceKinds.explicitMutationTarget(toolName, arguments)
-            ?: EvidenceKinds.commandTarget(toolName, arguments))?.let {
-            "path=${SensitiveObservationRedactor.redact(it.replace('\n', ' ')).take(120)}"
-        }
-        val metadata = listOf("action", "repo", "name_pattern", "name").mapNotNull { key ->
-            arguments[key]?.takeIf(String::isNotBlank)?.let {
-                "$key=${SensitiveObservationRedactor.redact(it.replace('\n', ' ')).take(80)}"
+    companion object {
+        internal fun describeArguments(toolName: String, arguments: Map<String, String>): String {
+            // Keep only low-risk identifiers; raw commands, URLs and free-form queries can carry credentials.
+            val normalizedRead = toolName == "github_manager" && arguments["action"]?.trim()?.lowercase() == "read_file"
+            val explicitPath = if (normalizedRead) {
+                com.omnidev.workspace.data.tools.GitHubRequestContract.contentPath(arguments["path"])
+            } else listOf("path", "filePath", "file_path", "filepath", "directory", "file", "filename", "output_path")
+                .firstNotNullOfOrNull { key -> arguments[key]?.takeIf(String::isNotBlank) }
+            val path = (explicitPath ?: EvidenceKinds.explicitMutationTarget(toolName, arguments)
+                ?: EvidenceKinds.commandTarget(toolName, arguments))?.let {
+                "path=${SensitiveObservationRedactor.redact(it.replace('\n', ' ')).take(120)}"
             }
+            val metadataKeys = if (toolName == "app_manager_tool") listOf("action", "packageName") else listOf("action", "repo", "name_pattern", "name")
+            val metadata = metadataKeys.mapNotNull { key ->
+                val value = when {
+                    normalizedRead && key == "action" -> "read_file"
+                    normalizedRead && key == "repo" -> arguments[key]?.trim()
+                    else -> arguments[key]
+                }
+                value?.takeIf(String::isNotBlank)?.let {
+                    "$key=${SensitiveObservationRedactor.redact(it.replace('\n', ' ')).take(80)}"
+                }
+            }
+            return (listOfNotNull(path) + metadata).take(4).joinToString(" ")
         }
-        return (listOfNotNull(path) + metadata).take(4).joinToString(" ")
-    }
 
-    private companion object {
-        const val MAX_CORPUS_CHARS = 400_000
-        const val MAX_OUTPUT_IN_CORPUS = 60_000
-        val FENCED_CODE = Regex("(?s)```.*?```")
-        val ABSOLUTE_PATH = Regex("(?<![\\w:/.])/(?:[\\w.@+-]+/)+[\\w.@+-]+")
-        val FILE_NAME = Regex("\\b[\\w-]+(?:\\.[\\w-]+)*\\.(?:kt|kts|java|xml|md|json|py|sh|yml|yaml|gradle|toml|properties|txt)\\b")
+        private const val MAX_CORPUS_CHARS = 400_000
+        private const val MAX_OUTPUT_IN_CORPUS = 60_000
+        private val FENCED_CODE = Regex("(?s)```.*?```")
+        private val ABSOLUTE_PATH = Regex("(?<![\\w:/.])/(?:[\\w.@+-]+/)+[\\w.@+-]+")
+        private val FILE_NAME = Regex("\\b[\\w-]+(?:\\.[\\w-]+)*\\.(?:kt|kts|java|xml|md|json|py|sh|yml|yaml|gradle|toml|properties|txt)\\b")
     }
 }

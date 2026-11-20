@@ -240,7 +240,7 @@ Available actions:
             return ToolExecutionResult("Provide 'text' to search.", isError = true)
         }
         val found = AccessibilityStateManager.findNodeByText(text)
-            ?: return ToolExecutionResult("❌ '$text' was not found in the current UI.", isError = true)
+            ?: return ToolExecutionResult("❌ '$text' was not found in the current UI. Use dump_tree to inspect current nodes and localized icon descriptions. For a requested screenshot, use visual_inspector if available.", isError = true)
 
         val bounds = Rect().also { found.getBoundsInScreen(it) }
         val className = found.className?.toString()?.substringAfterLast('.') ?: "View"

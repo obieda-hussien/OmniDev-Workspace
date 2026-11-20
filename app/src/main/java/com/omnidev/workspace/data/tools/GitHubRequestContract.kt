@@ -31,6 +31,8 @@ object GitHubRequestContract {
         return "/$relative"
     }
 
+    internal fun contentPath(path: String?) = path.orEmpty().trim().trim('/')
+
     fun read(action: String, repository: String, path: String?, ref: String?, page: Int, perPage: Int, owner: String?): Read {
         require(page in 1..10_000 && perPage in 1..100) { "page must be 1..10000 and per_page 1..100." }
         return when (action) {
@@ -43,7 +45,7 @@ object GitHubRequestContract {
                 Read("$root?per_page=$perPage&page=$page&sort=updated")
             }
             "list_contents", "read_file" -> {
-                val clean = path.orEmpty().trim().trim('/')
+                val clean = contentPath(path)
                 require(action != "read_file" || clean.isNotBlank()) { "read_file requires an exact file path." }
                 require(clean.split('/').none { it == "." || it == ".." } && clean.none { it.isISOControl() } && !clean.contains('\\')) { "Invalid repository file path." }
                 val encoded = clean.split('/').filter { it.isNotEmpty() }.joinToString("/") { encode(it) }

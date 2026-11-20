@@ -1,10 +1,20 @@
 package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.tools.ToolDefinition
+import com.omnidev.workspace.data.model.ChatMessage
+import com.omnidev.workspace.data.model.MessageRole
 import org.junit.Assert.*
 import org.junit.Test
 
 class ExecutionEnvironmentContextTest {
+    @Test fun `Egyptian README followup retains the requested repository`() {
+        val request = "كنت عايزك تشوفلي مشروع Omni dev workspace ده و تشرحلي ال README بالتفصيل"
+        val history = listOf(ChatMessage(MessageRole.USER, request))
+        assertEquals(request, ExecutionEnvironmentContext.effectiveObjective("ابدء يالا", history))
+        assertEquals("obieda-hussien/OmniDev-Workspace", ExecutionEnvironmentContext.readmeRepository(request))
+        assertNull(ExecutionEnvironmentContext.readmeRepository("Read local OmniDev-Workspace README"))
+    }
+
     @Test fun `remote identity preserves punctuation and latest user repository`() {
         assertEquals("owner/repo-", ExecutionEnvironmentContext.remoteRepository("Inspect https://github.com/owner/repo-/tree/main"))
         assertEquals("new/project", ExecutionEnvironmentContext.remoteRepository("Previous https://github.com/old/project\nInspect GitHub new/project"))

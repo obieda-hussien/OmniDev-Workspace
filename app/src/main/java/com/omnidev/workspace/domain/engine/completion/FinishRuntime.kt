@@ -113,6 +113,16 @@ class FinishRuntime private constructor(
         planner?.refresh()
         if (response.toolCalls.isEmpty()) return Step(response)
         val stable = response.copy(toolCalls = ids.stabilize(response.toolCalls))
+        if (com.omnidev.workspace.domain.engine.DeviceWorkflow.notificationsFirst(state.goal) &&
+            ledger.snapshot().none { it.tool == "read_notifications" && it.outcome != RunEvidenceLedger.Outcome.SKIPPED } &&
+            stable.toolCalls.any { it.name == "app_manager_tool" && it.arguments["action"] == "launch_app" ||
+                it.name == "social_media_video" && it.arguments["action"] == "search_youtube" }) {
+            val feedback = "Nothing in this batch ran. The user requested notifications first. Call read_notifications separately, or report that it is unavailable."
+            return Step(stable, listOf(ChatMessage(MessageRole.ASSISTANT, stable.content, toolCalls = stable.toolCalls),
+                ChatMessage(MessageRole.TOOL, feedback, toolResults = stable.toolCalls.map {
+                    com.omnidev.workspace.data.model.ToolCallResult(it.id, it.name, feedback, true)
+                })), rejected = true)
+        }
         val control = stable.toolCalls.firstOrNull { it.name == TaskPlanningCoordinator.COMPLETE || it.name == TaskPlanningCoordinator.REPLAN }
         if (control != null) {
             val feedback = if (stable.toolCalls.size != 1) "Planning control must be called alone. Nothing executed."
@@ -161,7 +171,10 @@ class FinishRuntime private constructor(
                 taskKind = FinalizationPolicy.resolveTaskKind(signals, requestedIdentity.taskKind)
             )
             val profile = ModelExecutionProfile.resolve(modelId, enableModelProfiles)
-            val policy = FinalizationPolicy.decide(signals, isWorker, toolsAvailable, identity)
+            val basePolicy = FinalizationPolicy.decide(signals, isWorker, toolsAvailable, identity)
+            val policy = if (com.omnidev.workspace.domain.engine.ExecutionEnvironmentContext.readmeRepository(goal) != null ||
+                com.omnidev.workspace.domain.engine.DeviceWorkflow.tracked(goal) || com.omnidev.workspace.domain.engine.DeviceWorkflow.orderedParts(goal).isNotEmpty())
+                basePolicy.copy(enforce = true, requireExecution = true) else basePolicy
             val ledger = RunEvidenceLedger(identity.runId, identity.workerId)
             val state = RunState(goal, ledger, identity.acceptance, policy.requireExecution)
             // Only runs bound by the finish protocol become persistent tasks; plain chat never touches the task store.

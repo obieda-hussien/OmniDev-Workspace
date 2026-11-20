@@ -446,14 +446,17 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
 
             val response = conn.inputStream.bufferedReader().readText()
             val items = JSONObject(response).optJSONArray("items")
-                ?: return ToolExecutionResult("No search results found.")
+                ?: return ToolExecutionResult("No search results found.", isError = true)
 
             val sb = StringBuilder("🔍 YouTube Search: \"$query\"\n\n")
+            var returned = 0
             val limit = minOf(items.length(), maxResults)
             for (i in 0 until limit) {
                 val item     = items.getJSONObject(i)
                 val title    = item.optString("title").takeIf { it.isNotBlank() } ?: continue
-                val videoUrl = "https://www.youtube.com${item.optString("url")}"
+                val path = item.optString("url").takeIf { it.startsWith("/watch?v=") } ?: continue
+                val videoUrl = "https://www.youtube.com$path"
+                returned++
                 val secs     = item.optLong("duration")
                 val duration = if (secs > 0) "%d:%02d".format(secs / 60, secs % 60) else null
                 val channel  = item.optString("uploaderName").takeIf { it.isNotBlank() }
@@ -466,6 +469,7 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
                 sb.appendLine("   URL     : $videoUrl")
                 sb.appendLine()
             }
+            if (returned == 0) return ToolExecutionResult("No search results found.", isError = true)
             ToolExecutionResult(sb.toString().trimEnd())
         }.getOrElse { e ->
             ToolExecutionResult(

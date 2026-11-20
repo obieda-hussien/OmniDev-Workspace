@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 /** Bounded local extractive baseline. It neither trains on chats nor authorizes tools. */
 public final class ChatMetadataModel {
-  public static final int VERSION = 8,
+  public static final int VERSION = 9,
       MAX_TEXTS = 12,
       MAX_TEXT_CHARS = 3072,
       MAX_REPLY_CHARS = 24000,
@@ -87,6 +87,10 @@ public final class ChatMetadataModel {
               + " evening|مرحبا|اهلا|أهلا|ازيك|شكرا|السلام عليكم|صباح الخير|مساء"
               + " الخير)(?:\\s+(?:omni|friend|there|اومني|يا صاحبي))?[!؟?،,.\\s]*$");
 
+  public static boolean isSocialCheckIn(String text) {
+    return normalize(text).matches("(?:ايه? الدنيا معاك|عامل ايه|اخبارك ايه|ازيك)(?: يا اومني)?");
+  }
+
   public static Result analyze(List<String> texts, String source, String packageName) {
     StringBuilder body = new StringBuilder();
     String chosen = "";
@@ -108,8 +112,8 @@ public final class ChatMetadataModel {
           if (body.length() > 0) body.append(' ');
           body.append(normalizedTurn);
         }
-        if (chosen.isEmpty() && !safe.isEmpty() && !GREETING.matcher(safe).matches())
-          chosen = title(safe);
+        if (chosen.isEmpty() && !safe.isEmpty() && !GREETING.matcher(safe).matches() && !isSocialCheckIn(safe))
+          chosen = descriptiveTitle(safe);
       }
     String normalized = body.toString();
     Set<String> words = new HashSet<>(Arrays.asList(normalized.split("\\s+")));
@@ -233,6 +237,7 @@ public final class ChatMetadataModel {
       "(?imu)^\\h*(?:conclusion|root cause|diagnosis|الخلاصة|الخلاصه|التشخيص|السبب الرئيسي)\\h*[:：]\\h*");
 
   public static String openingTitle(String user, String reply, String fallback) {
+    if (user != null && fallback != null && fallback.startsWith("ملف README لمشروع ")) return fallback;
     if (user == null || reply == null || reply.trim().isEmpty()) return fallback;
     String request = clean(clipChars(user, MAX_TEXT_CHARS));
     boolean generic = GENERIC_OPENING.matcher(normalize(request)).matches();
@@ -341,6 +346,14 @@ public final class ChatMetadataModel {
     n = URL.matcher(n).replaceAll(" ");
     n = IDENTIFIER.matcher(n).replaceAll("[private]");
     return n.replaceAll("[\\p{Cntrl}\\p{Cf}]+", " ").replaceAll("\\s+", " ").trim();
+  }
+
+  private static String descriptiveTitle(String text) {
+    if (hasArabic(text) && Pattern.compile("(?i)\\breadme\\b").matcher(text).find()) {
+      java.util.regex.Matcher project = Pattern.compile("(?iu)(?:مشروع|مستودع|ريبو) +([A-Za-z0-9_.-]+(?: +[A-Za-z0-9_.-]+){0,3})").matcher(text);
+      if (project.find()) return title("ملف README لمشروع " + project.group(1).trim());
+    }
+    return title(text);
   }
 
   private static String title(String text) {

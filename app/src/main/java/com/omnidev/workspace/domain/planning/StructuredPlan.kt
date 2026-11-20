@@ -82,6 +82,7 @@ object PlanningPrivacy {
 object PlanningTrigger {
     /** One atomic edit with read-back need not pay for another model call. */
     fun complex(objective: String, acceptance: List<String> = emptyList()): Boolean = acceptance.size >= 3 ||
+        com.omnidev.workspace.domain.engine.DeviceWorkflow.orderedParts(objective).isNotEmpty() ||
         objective.lineSequence().count { it.trimStart().let { line ->
             line.startsWith("- ") || line.startsWith("* ") || Regex("^[0-9]+[.)] ").containsMatchIn(line)
         } } >= 3 || (objective.length >= 280 &&
@@ -91,6 +92,6 @@ object PlanningTrigger {
         val explicit = objective.lineSequence().map(String::trim).filter {
             Regex("(?i)\\b(must|never|without|preserve|keep|only|do not|don't)\\b|بدون|ممنوع|لا تحذف").containsMatchIn(it)
         }.map(PlanningPrivacy::safe).toList()
-        return (acceptance.map(PlanningPrivacy::safe) + explicit).distinct()
+        return (acceptance.map(PlanningPrivacy::safe) + explicit + com.omnidev.workspace.domain.engine.DeviceWorkflow.orderedParts(objective).map(PlanningPrivacy::safe)).distinct()
     }
 }
