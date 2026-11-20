@@ -36,14 +36,15 @@ internal object SearchSemantics {
 
     fun isFreshnessIntent(query: String): Boolean = tokenize(query).any { it in freshnessTerms }
 
-    fun isResearchIntent(query: String): Boolean = tokenize(query).any { it in researchTerms } ||
+    private val fictionGenre = Regex("""(?i)\bscience[- ]fiction\b|(?:ال)?خيال\s+(?:ال)?علمي""")
+    fun isResearchIntent(query: String): Boolean = tokenize(query.replace(fictionGenre, " ")).any { it in researchTerms } ||
         query.contains("peer reviewed", true) || query.contains("state of the art", true) || query.contains("state-of-the-art", true)
 
     fun shouldSearchScholarly(query: String, mode: WebSearchMode): Boolean {
         if (isResearchIntent(query)) return true
         if (mode != WebSearchMode.DEEP || !isFreshnessIntent(query)) return false
         val technical = setOf("ai", "llm", "model", "algorithm", "medical", "science", "software", "ذكاء", "خوارزمية", "طبي")
-        return tokenize(query).any { it in technical }
+        return tokenize(query.replace(fictionGenre, " ")).any { it in technical }
     }
 
     fun canonicalizeUrl(raw: String): String = try {

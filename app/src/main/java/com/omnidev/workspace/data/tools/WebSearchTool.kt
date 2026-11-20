@@ -60,7 +60,7 @@ object WebSearchTool {
         val results = search(normalized, MAX_RESULTS, WebSearchMode.QUICK)
         if (results.isEmpty()) {
             return@withContext ToolExecutionResult(
-                "No results found for: \"$normalized\". Keyless providers may be temporarily throttling requests."
+                "No results found for: \"$normalized\". Keyless providers may be temporarily throttling requests.", isError = true
             )
         }
         ToolExecutionResult(formatResults(normalized, results))
@@ -79,7 +79,7 @@ object WebSearchTool {
         val sites = maxSites.coerceIn(1, MAX_DEEP_SITES)
         val discoveryCount = max(16, sites * 2).coerceAtMost(MAX_DEEP_RESULTS)
         val targets = search(normalized, discoveryCount, WebSearchMode.DEEP).take(sites)
-        if (targets.isEmpty()) return@withContext ToolExecutionResult("No deep-research sources found for: \"$normalized\".")
+        if (targets.isEmpty()) return@withContext ToolExecutionResult("No deep-research sources found for: \"$normalized\".", isError = true)
 
         data class Page(val hit: WebSearchHit, val text: String, val fetched: Boolean)
         val pages = coroutineScope {

@@ -81,6 +81,11 @@ class SearchRankingEngineTest {
         assertTrue(SearchSemantics.isResearchIntent("latest LLM research papers"))
         assertTrue(SearchSemantics.isResearchIntent("أحدث أبحاث الذكاء الاصطناعي"))
         assertFalse(SearchSemantics.isResearchIntent("weather in Cairo"))
+        for (query in listOf("أحدث أفلام خيال علمي وإثارة", "latest science fiction movies")) {
+            assertFalse(SearchSemantics.shouldSearchScholarly(query, WebSearchMode.QUICK))
+            assertFalse(SearchSemantics.shouldSearchScholarly(query, WebSearchMode.DEEP))
+        }
+        assertTrue(SearchSemantics.isResearchIntent("academic studies about science fiction"))
     }
 
     @Test

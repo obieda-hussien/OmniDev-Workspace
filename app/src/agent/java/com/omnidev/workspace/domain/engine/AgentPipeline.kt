@@ -626,6 +626,16 @@ When improving: keep every other sentence, the structure, the language and the l
                 return@channelFlow
             }
 
+            if (response.toolCalls.isEmpty() && response.content.isBlank() && !runtimeBackends.reportOnly &&
+                DeviceWorkflow.tracked(routingObjective) && actionProgressBudget.needsStepPrompt()) {
+                val pending = DeviceWorkflow.missing(routingObjective, evidenceLedger.snapshot())
+                if (pending.isNotEmpty()) {
+                    messages += ChatMessage(MessageRole.USER, "Next unfinished step: " + pending.first() +
+                        " Use its loaded schema now, or finish with the specific blocker and available results.")
+                    continue
+                }
+            }
+
             response.thinkingContent
                 ?.takeIf { streamingCompletionProvider == null }
                 ?.let { send(AgentEvent.ThinkingBlock(it)) }

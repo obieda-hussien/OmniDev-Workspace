@@ -60,7 +60,7 @@
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   },
   "app/src/main/java/com/omnidev/workspace/data/tools/SearchSemantics.kt": {
-    "sha256": "3200e9a7a814683ebb892d40375a7bcd3eb2523cc093849b445c9bbd94509dec",
+    "sha256": "0f45e3604bea172d4a9057ad51aa7727d6cc984fc8670b179870237f785fdb97",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   },
   "app/src/main/java/com/omnidev/workspace/data/tools/TaskManagerTool.kt": {
@@ -133,10 +133,14 @@
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/DeviceWorkflow.kt": {
     "purpose": "Multilingual input matching for ordered device requests.",
-    "sha256": "5201b23f30e7e2f676bcfc96b5be1f2d90fadcbe514f29467942a7045f5f2a3f"
+    "sha256": "7a05a37c0b67256df1a4b5b4496c28d58a0f27da9ae631d63b09906730936d5f"
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/completion/FinishGate.kt": {
     "purpose": "Match multilingual inspection requests.",
     "sha256": "ba8d935480446bcd10d606b674955702ebd1058014a45057f5a41c3cb23cf4da"
+  },
+  "app/src/main/java/com/omnidev/workspace/ui/chat/ChatViewModel.kt": {
+    "purpose": "Functional multilingual input matching.",
+    "sha256": "40f3192296fad1fb1afcd312e879017b0a65415f9ac2a525506f556041031155"
   }
 }

@@ -91,6 +91,11 @@ object WebScraperTool {
             if (normalizedMode !in setOf("full", "content", "metadata", "links")) {
                 return@withContext ToolExecutionResult("Invalid mode '$normalizedMode'. Use full, content, metadata, or links.", isError = true)
             }
+            val finalUri = java.net.URI(response.finalUrl)
+            if (normalizedMode in setOf("full", "content") && finalUri.host in setOf("google.com", "www.google.com") &&
+                finalUri.path == "/search" && page.wordCount < 25 && page.qualityScore < 0.3) {
+                return@withContext ToolExecutionResult("Google returned too little readable search content. Use web_search with the original query and verify relevant sources.", isError = true)
+            }
             val cap = (maxChars ?: MAX_OUTPUT_CHARS).coerceIn(1_000, 50_000)
             ToolExecutionResult(format(response, page, normalizedMode, cap))
         } catch (cancel: CancellationException) {

@@ -82,7 +82,7 @@ class CompositeToolManager(
             "media_generation" -> context?.let { MediaGenerationTool.execute(it, arguments, currentSessionId) } ?: ToolExecutionResult("Context unavailable", true)
             "omni_link" -> OmniLinkTool.execute(arguments["action"].orEmpty(), arguments, confirmationGate)
             "github_manager" -> GitHubManagerTool.execute(null, arguments["action"].orEmpty(), arguments["repo"].orEmpty(), arguments["title"].orEmpty(), arguments["body"].orEmpty(), arguments["head"], arguments["base"], arguments)
-            "planner_tool" -> context?.let { PlannerTool.execute(it, arguments["action"].orEmpty(), arguments["title"].orEmpty(), arguments["timeMillis"]?.toLongOrNull() ?: 0L) } ?: ToolExecutionResult("Context unavailable", true)
+            "planner_tool" -> context?.let { PlannerTool.execute(it, arguments["action"].orEmpty(), arguments["title"].orEmpty(), arguments["timeMillis"]?.toLongOrNull() ?: 0L, arguments["localTime"]) } ?: ToolExecutionResult("Context unavailable", true)
             "list_chat_sessions" -> MessageSearchTool.listSessions(arguments["query"], arguments["offset"]?.toIntOrNull(), arguments["limit"]?.toIntOrNull(), chatRepository, currentSessionId)
             "search_messages" -> MessageSearchTool.execute(arguments["query"].orEmpty(), arguments["limit"]?.toIntOrNull(), arguments["sessionId"], chatRepository, currentSessionId)
             "read_chat_session" -> MessageSearchTool.readSession(arguments["sessionId"], arguments["beforeId"], arguments["limit"]?.toIntOrNull(), chatRepository, currentSessionId)

@@ -24,6 +24,7 @@ TOOLS
 
 EVIDENCE
 - Use current observations and the [RUN LEDGER] for actions taken. [COMPACTED HISTORY] is a summary. A plan or previous claim does not establish completion.
+- For ordered tasks use the next outstanding step in RUN STATE. For current information search using the device date. A search-engine error page or off-topic result is insufficient. Report partial results and the precise blocker when necessary.
 - Verify edits by reading them back. Inspect exit status and errors. Empty search results describe only the scope searched. Widen it when needed to answer the question.
 - For past-chat questions, search original messages, resolve conflicts by source and date, and cite [session:ID message:ID]. Mark unsupported details unknown.
 

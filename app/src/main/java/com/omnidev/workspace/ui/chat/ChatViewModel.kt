@@ -944,6 +944,21 @@ class ChatViewModel(
             _uiState.update { it.copy(recoveryError = "A saved task is being prepared. Cancel that action before sending another request.") }
             return
         }
+        val state = _uiState.value
+        if (!state.isProcessing && state.activeMode == OmniMode.AGENT && state.pendingAttachments.isEmpty() &&
+            state.replyingTo == null && state.inputText.trim().lowercase() in setOf("continue", "resume", "كمل", "كمّل") &&
+            state.messages.lastOrNull()?.content?.startsWith("Execution checkpoint (auto-saved)") == true) {
+            val lastRequest = state.messages.lastOrNull { it.role == MessageRole.USER }
+            val task = state.recoveryTasks.singleOrNull { it.sessionId != null && it.sessionId == state.currentSessionId &&
+                (it.originalRequest == lastRequest?.userInput || it.originalRequest == lastRequest?.content) }
+            if (task != null) {
+                if (task.canResume) {
+                    _uiState.update { it.copy(inputText = "") }
+                    resumePersistentTask(task.taskId)
+                } else _uiState.update { it.copy(recoveryError = task.reasons.joinToString(" ").ifBlank { "Review this task before resuming." }) }
+                return
+            }
+        }
         if (_uiState.value.isProcessing) submitSteering(_uiState.value.inputText, _uiState.value.pendingAttachments)
         else startMessage()
     }

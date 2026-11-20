@@ -38,6 +38,22 @@ class DeviceWorkflowTest {
         assertEquals(1, DeviceWorkflow.missing(follow, emptyList()).size)
     }
 
+    @Test fun notificationSearchAndAlarmRequireDistinctReceipts() {
+        val request = "عايزك تلخص الاشعارات و بعدين تبحث في جوجل عن احدث الافلام و بعدين ظبط منبه الساعه ٧ بليل"
+        assertEquals(3, DeviceWorkflow.orderedParts(request).size)
+        assertEquals(listOf("read_notifications", "web_search", "planner_tool"), ExecutionEnvironmentContext.priorityNames(request, null))
+        record("read_notifications", mapOf("operation" to "summary"))
+        record("web_scraper", emptyMap())
+        record("planner_tool", mapOf("action" to "show_alarms"))
+        assertEquals(3, DeviceWorkflow.missing(request, ledger.snapshot()).size)
+        record("read_notifications", mapOf("operation" to "read"))
+        record("web_search", mapOf("query" to "latest movies"))
+        record("planner_tool", mapOf("action" to "alarm"), true)
+        assertEquals(1, DeviceWorkflow.missing(request, ledger.snapshot()).size)
+        record("planner_tool", mapOf("action" to "alarm", "localTime" to "19:00"))
+        assertTrue(DeviceWorkflow.missing(request, ledger.snapshot()).isEmpty())
+    }
+
     @Test fun missingIconIsNotAScreenshot() {
         val request = "جرب تاخد اسكرين شوت بعد كده مع الاداة دي"
         record("semantic_ui", mapOf("action" to "find_element"), true)

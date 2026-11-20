@@ -71,12 +71,17 @@ object ExecutionEnvironmentContext {
     fun priorityNames(objective: String, observation: String?): List<String> = when {
         DeviceWorkflow.captureRequested(objective) -> listOf("visual_inspector", "semantic_ui", "screenshot_tool")
         DeviceWorkflow.youtubeSearch(objective) -> listOfNotNull("read_notifications".takeIf { DeviceWorkflow.notificationsFirst(objective) }, "social_media_video", "app_manager_tool", "semantic_ui")
+        DeviceWorkflow.needsAlarm(objective) || DeviceWorkflow.needsWeb(objective) -> listOfNotNull(
+            "read_notifications".takeIf { DeviceWorkflow.notificationsFirst(objective) },
+            "web_search".takeIf { DeviceWorkflow.needsWeb(objective) },
+            "planner_tool".takeIf { DeviceWorkflow.needsAlarm(objective) })
         readmeRepository(objective) != null || remoteRepository(objective) != null -> listOf("github_manager")
         missingGit(observation) -> listOf("git_manager", "agent_runtime")
         else -> emptyList()
     }
 
     fun guidance(objective: String, observation: String? = null): String = buildString {
+        if (DeviceWorkflow.needsWeb(objective)) append("Use web_search for discovery. Do not scrape a search engine interstitial. Cite relevant results and identify the actual provider if the user requested a particular engine. For latest results use the current device year, unless the user specified a date. ")
         if (DeviceWorkflow.youtubeSearch(objective)) append("Search using the requested terms with social_media_video(action=search_youtube, query=...). Recommend a returned title using known preferences, or state your assumption. If the user wants results on screen, inspect semantic_ui dump_tree for a localized search icon and verify the results screen. When an icon text lookup fails, inspect the current tree and its content descriptions before retrying. For requested visual inspection use visual_inspector if permitted; screenshot_tool only saves an image. If a step fails, return available results including the notification summary and specify the unfinished step. ")
         readmeRepository(objective)?.let { repo ->
             append("README source: use github_manager(action=read_file, repo=$repo, path=README.md). Read further lines if truncated. Explain the returned content in the user's language. Listing repositories or searching memory cannot verify the file. ")

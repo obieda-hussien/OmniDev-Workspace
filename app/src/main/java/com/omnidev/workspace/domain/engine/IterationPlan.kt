@@ -23,9 +23,10 @@ class IterationPlan(
             contextWindowBuffer: Int,
             inputReserveTokens: Int
         ): IterationPlan {
-            val prompt = baseSystemPrompt + "\n" + runtimeBackends.guidance() +
+            val clock = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z (z)", java.util.Locale.US).format(java.util.Date())
+            val prompt = baseSystemPrompt + "\nDevice local date/time: $clock" + "\n" + runtimeBackends.guidance() +
                 (if (runtimeBackends.reportOnly) "\nTool execution has ended for this run. Answer now from existing evidence; disclose incomplete work and required recovery. No tool calls." else "") +
-                (if (exposed.isEmpty() || runtimeBackends.reportOnly) "" else if (nativeTools) "\nCall tools through the native function interface using the advertised schemas." else "\n" + TextToolCallAdapter.CONTRACT + "\n" + AutomaticToolRouter.CONTRACT) +
+                (if (exposed.isEmpty() || runtimeBackends.reportOnly) "" else if (nativeTools) "\nCall tools through the native function interface using the advertised schemas." else "\n" + TextToolCallAdapter.CONTRACT) +
                 (if (nativeTools || exposed.isEmpty() || runtimeBackends.reportOnly) "" else "\n" + ToolTextProtocol.schemas(exposed))
             // Tool definitions are already compacted to the exact set sent to the provider.
             val schemaEstimate = if (nativeTools) (exposed.sumOf { it.toString().length } / 3).coerceAtLeast(0) else 0
