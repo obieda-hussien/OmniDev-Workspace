@@ -21,6 +21,9 @@ public final class OpeningTitleEvaluation {
         }
         require("توزيع شفتات المخزن", ChatMetadataModel.openingTitle("ممكن تساعدني في توزيع شفتات المخزن الأسبوع الجاي؟",
                 "توزيع شفتات المخزن يبدأ بمعرفة مواعيد كل موظف.", "Fallback"));
+        String docRequest = "كنت عايزك تشوفلي مشروع Omni dev workspace ده و تشرحلي ال README بالتفصيل";
+        require("ملف README لمشروع Omni dev workspace", ChatMetadataModel.analyze(
+                Arrays.asList("اي الدنيا معاك", docRequest), "app", "").title);
         if (args.length > 1) evaluateTopics(args[1]);
         String padding = String.join("", Collections.nCopies(68, "The supporting details are listed below. "));
         require("Room database migration", ChatMetadataModel.openingTitle("Can you take a look?",

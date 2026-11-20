@@ -55,6 +55,12 @@ class FinishGate(
     private fun evaluate(request: FinishRequest) = FinishVerifier.evaluate(context(), request)
 
     private fun decide(request: FinishRequest): GateResult {
+        val repo = com.omnidev.workspace.domain.engine.ExecutionEnvironmentContext.readmeRepository(state.goal)
+        if (repo != null && request.status == FinishStatus.COMPLETED && ledger.snapshot().none { ref ->
+            val fields = ref.target.split(' ')
+            ref.tool == "github_manager" && ref.outcome == RunEvidenceLedger.Outcome.OK &&
+                "action=read_file" in fields && "path=README.md" in fields && fields.any { it.equals("repo=$repo", true) }
+        }) return reject("Read README.md from $repo with github_manager read_file, or report the blocker.", request.claims)
         val eval = evaluate(request)
         if (eval.accepted) {
             state.noteFinishAttempt(request.claims, null)

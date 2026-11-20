@@ -161,7 +161,9 @@ class FinishRuntime private constructor(
                 taskKind = FinalizationPolicy.resolveTaskKind(signals, requestedIdentity.taskKind)
             )
             val profile = ModelExecutionProfile.resolve(modelId, enableModelProfiles)
-            val policy = FinalizationPolicy.decide(signals, isWorker, toolsAvailable, identity)
+            val basePolicy = FinalizationPolicy.decide(signals, isWorker, toolsAvailable, identity)
+            val policy = if (com.omnidev.workspace.domain.engine.ExecutionEnvironmentContext.readmeRepository(goal) != null)
+                basePolicy.copy(enforce = true, requireExecution = true) else basePolicy
             val ledger = RunEvidenceLedger(identity.runId, identity.workerId)
             val state = RunState(goal, ledger, identity.acceptance, policy.requireExecution)
             // Only runs bound by the finish protocol become persistent tasks; plain chat never touches the task store.

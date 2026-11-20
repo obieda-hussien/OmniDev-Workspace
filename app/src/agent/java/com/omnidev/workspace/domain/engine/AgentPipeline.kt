@@ -286,6 +286,14 @@ When improving: keep every other sentence, the structure, the language and the l
         }
 
         send(AgentEvent.Started)
+        if (runIdentity?.forceFinishProtocol != true && runIdentity?.resume == null && workerPersona == null &&
+            userAttachments.isEmpty() && !mentionFocus.active &&
+            com.omnidev.workspace.domain.history.ChatMetadataModel.isSocialCheckIn(userMessage)) {
+            val reply = "تمام، معاك."
+            send(AgentEvent.FinalAnswer(reply, 0, 0, conversationHistory +
+                ChatMessage(MessageRole.USER, userMessage) + ChatMessage(MessageRole.ASSISTANT, reply)))
+            return@channelFlow
+        }
         phase(AgentExecutionPhase.ANALYZE, "Reviewing objective, context and constraints")
         brain?.onTaskStart(userMessage)
         try {
@@ -299,7 +307,7 @@ When improving: keep every other sentence, the structure, the language and the l
         // Team worker prompts contain the original broad objective after the assigned atomic task.
         // Route capabilities from the assigned slice only, otherwise every worker gets the whole
         // project's tool domains and pays for irrelevant schemas.
-        val routingObjective = extractRoutingObjective(userMessage)
+        val routingObjective = ExecutionEnvironmentContext.effectiveObjective(extractRoutingObjective(userMessage), conversationHistory)
         val recentUserIntent = conversationHistory
             .asReversed()
             .asSequence()

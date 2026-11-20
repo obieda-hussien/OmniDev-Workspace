@@ -179,3 +179,9 @@ paired_holdout	chat_titles	ليه عنوان الدردشة دايمًا طوي�
 paired_holdout	git	My Git branch refuses to merge into main	The two Git branches have conflicting commits to resolve before merging.
 paired_holdout	other	هل أقدر أغيّر ميعاد حجز القطر؟	فيه مقاعد فاضية في رحلة المساء.
 paired_holdout	other	This is about notification of a rent increase, can you explain?	The rental agreement specifies the notice period for the landlord.
+train	chat_titles	ليه اسم الشات كده	اسم الشات بيتاخد من ملخص الحوار بدل أول سطر
+train	chat_titles	العنوان طالع وحش	طول عنوان الدردشة بيتحدد بعد اختيار موضوع الكلام
+train	chat_titles	اسم السيزون ملخبط	تسمية السيزون بتعتمد على مضمون السؤال وأول إجابة
+train	chat_titles	ممكن تغير اسم الحوار	عنوان الشات لازم يعبر عن مضمون المحادثة في كلمتين
+train	chat_titles	الشات متسمي غلط	تصحيح عناوين الدردشات في سجل المحادثات
+train	other	عايز عنوان المكان	عنوان المحل مكتوب على الإيصال جنب رقم التليفون
