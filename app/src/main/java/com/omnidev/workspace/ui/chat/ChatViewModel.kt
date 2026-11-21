@@ -731,6 +731,10 @@ class ChatViewModel(
         }
     }
 
+    /** Export arbitrary historical sessions without switching the active conversation. */
+    suspend fun loadSessionExport(sessionId: Long): SessionTranscriptSnapshot? =
+        chatRepository?.loadSessionExport(sessionId)
+
     fun togglePinSession(sessionId: Long) {
         viewModelScope.launch { chatRepository?.togglePin(sessionId) }
     }
