@@ -678,7 +678,7 @@ When improving: keep every other sentence, the structure, the language and the l
                     send(AgentEvent.Error("RUNTIME_BACKEND_BLOCKED: " + runtimeBackends.reportSummary() + "\n" + response.content))
                     return@channelFlow
                 }
-                if (permittedDefinitions.isNotEmpty() && !runtimeBackends.hasBlocks() &&
+                if (permittedDefinitions.isNotEmpty() && !runtimeBackends.hasBlocks() && !evidenceLedger.fin.keepsText() &&
                     (unresolvedToolFailure != null || automaticRouter.unavailableToolReply(response.content))) {
                     val feedback = automaticRouter.recovery(routingContext, unresolvedToolFailure ?: response.content)
                     if (feedback != null) {
@@ -693,7 +693,7 @@ When improving: keep every other sentence, the structure, the language and the l
                     }
                 }
                 val failure = unresolvedToolFailure
-                if (failure != null) {
+                if (failure != null && !evidenceLedger.fin.keepsText()) {
                     val step = PipelineRecovery.step(recoveryGovernor, AgentRecoveryGovernor.Kind.UNRESOLVED_FAILURE, failure, response.content)
                     if (step.recovered) {
                         messages += step.messages
@@ -884,13 +884,6 @@ When improving: keep every other sentence, the structure, the language and the l
             val routineVideoImages = observedBatch.routineVideoImages
             lastToolObservation = observedBatch.lastObservation ?: lastToolObservation
 
-            androidCommandStopEvent(response.toolCalls, modelSafeResults) { reason ->
-                brain?.onTaskEnd(EpisodeOutcome.BLOCKED, reason)
-            }?.let { stop ->
-                send(stop)
-                return@channelFlow
-            }
-
             PipelineRecovery.noteProgress(response.toolCalls, modelSafeResults, recoveryGovernor, automaticRouter)
             actionProgressBudget.onToolResults(response.toolCalls, modelSafeResults)
 
@@ -901,13 +894,13 @@ When improving: keep every other sentence, the structure, the language and the l
                 continue
             }
 
-            toolBatchStop(modelSafeResults, githubFailures)?.let { stop ->
+            toolBatchStop(modelSafeResults)?.let { stop ->
                 brain?.onTaskEnd(EpisodeOutcome.BLOCKED, stop.first)
                 send(AgentEvent.Error(stop.second))
                 return@channelFlow
             }
 
-            var recoveryGuidance: String? = null
+            var recoveryGuidance: String? = ToolFailurePivot.guidance(response.toolCalls, modelSafeResults, githubFailures.repeatedFailure())
             if (invalidBatches >= 3) {
                 val step = PipelineRecovery.step(recoveryGovernor, AgentRecoveryGovernor.Kind.INVALID_BATCHES, digest = runCatalog.exactToolDigest())
                 if (!step.recovered) {
@@ -916,7 +909,7 @@ When improving: keep every other sentence, the structure, the language and the l
                     return@channelFlow
                 }
                 invalidBatches = 0
-                recoveryGuidance = step.guidance
+                recoveryGuidance = listOfNotNull(recoveryGuidance, step.guidance).joinToString("\n\n")
             }
 
             val stagnation = stagnationDetector.observe(response.toolCalls, modelSafeResults)
@@ -925,7 +918,7 @@ When improving: keep every other sentence, the structure, the language and the l
                 // Finish with a useful blocker report instead of replacing the answer with an
                 // auto-saved error checkpoint. Other infrastructure failures keep their guards.
                 runtimeBackends.requestReport()
-            } else if (stagnation.shouldAbort && stagnation.kind != AgentStagnationDetector.Kind.INFRASTRUCTURE_BLOCK &&
+            } else if (stagnation.shouldAbort &&
                 PipelineRecovery.stagnationGuidance(recoveryGovernor, stagnation.reasons)?.also { guidance ->
                     recoveryGuidance = listOfNotNull(recoveryGuidance, guidance).joinToString("\n\n")
                     stagnationDetector = AgentStagnationDetector(windowSize = 8, minIterationsBeforeAbort = 3, abortThreshold = 0.76f)
@@ -1013,19 +1006,10 @@ When improving: keep every other sentence, the structure, the language and the l
         return ObservedToolBatch(toolResults, modelSafeResults, routineVideoImages, lastObservation)
     }
 
-    /**
-     * Terminal tool-batch conditions (GitHub block, read-only worker scope, pending Android user
-     * action). Returns (episode reason, user-visible error) or null to keep going. Extracted from
-     * [execute] to stay clear of the JVM 64 KB method limit.
+    /** Only explicit human intervention and worker-scope boundaries stop this batch globally.
+     * Ordinary command, resource and backend errors are routed back to the model for recovery.
      */
-    private fun toolBatchStop(results: List<ToolExecutionResult>, githubFailures: GitHubFailureLedger): Pair<String, String>? {
-        val githubBlocked = results.firstOrNull {
-            it.classification in setOf("GITHUB_AUTH_REQUIRED", "GITHUB_PERMISSION_DENIED", "GITHUB_RATE_LIMITED")
-        }
-        if (githubBlocked != null || githubFailures.repeatedFailure()) {
-            return "GitHub resource read blocked" to (githubBlocked?.output
-                ?: ("Repeated GitHub resource failure; stopping speculative retries. " + githubFailures.unresolved().orEmpty().take(1600)))
-        }
+    private fun toolBatchStop(results: List<ToolExecutionResult>): Pair<String, String>? {
         val workerScopeDenied = results.firstOrNull {
             it.classification == "TOOL_POLICY_DENIED" && it.output.startsWith("READ_ONLY_WORKER:")
         }
@@ -1033,27 +1017,6 @@ When improving: keep every other sentence, the structure, the language and the l
         val pendingUserAction = results.firstOrNull { it.classification == "USER_ACTION_REQUIRED" } ?: return null
         return ("user action required: " + pendingUserAction.output.take(320)) to
             pendingUserAction.output.ifBlank { "USER_ACTION_REQUIRED: Android is waiting for user approval." }
-    }
-
-    /**
-     * Kept outside [execute] on purpose: the coroutine state machine of that method is close to
-     * the JVM 64 KB method limit, so new branches must live in small helpers.
-     */
-    private fun androidCommandStopEvent(
-        calls: List<ToolCall>,
-        results: List<ToolExecutionResult>,
-        onBlocked: (String) -> Unit
-    ): AgentEvent.Error? {
-        val (call, result) = calls.zip(results).firstOrNull { (c, r) ->
-            AndroidCommandFailurePolicy.shouldStop(c.name, r)
-        } ?: return null
-        onBlocked("Android shell command not found: ${call.arguments["command"].orEmpty().take(120)}")
-        return AgentEvent.Error(
-            "COMMAND_NOT_FOUND: Android shell could not resolve this command. This is not a Shizuku connection failure. " +
-                "Do not retry the same binary, switch to Root/rish, or spend another planning cycle. " +
-                "Use one verified Android service/command equivalent if known; otherwise report that the device does not expose it.\n" +
-                result.output.take(1_600)
-        )
     }
 
     private suspend fun executeToolBatch(
