@@ -1389,7 +1389,8 @@ class ChatViewModel(
             maxTokens = model.maxOutputTokens,
             enableThinking = settingsRepository.observeDeepThinking().first() && model.supportsThinking,
             apiKey = apiKeyRepository?.getApiKey(model.provider),
-            autoRouteRole = if (autoChat) ModelRole.CHAT else null
+            autoRouteRole = if (autoChat) ModelRole.CHAT else null,
+            autoRoutePinScope = if (autoChat) com.omnidev.workspace.data.network.AutoModelPinScope.forSession(sessionId, ModelRole.CHAT) else null
         ) }
 
         try {
