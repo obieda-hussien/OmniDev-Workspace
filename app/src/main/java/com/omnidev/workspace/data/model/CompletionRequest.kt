@@ -134,7 +134,10 @@ data class CompletionResponse(
     val finishReason: String? = null,
     val tokensUsed: TokenUsage? = null,
     /** Model that actually served this response when Auto routing chose it; null otherwise. */
-    val routedModelId: String? = null
+    val routedModelId: String? = null,
+    /** Commit affinity before a runtime-generated tool dispatch, even if the model returned plain text. */
+    @kotlinx.serialization.Transient
+    val beforeAutoToolDispatch: (suspend () -> Unit)? = null
 ) {
     init {
         thinkingContent = null
