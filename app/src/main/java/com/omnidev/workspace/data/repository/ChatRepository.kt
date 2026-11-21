@@ -8,6 +8,8 @@ import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.ui.chat.AgentConsoleEntry
 import com.omnidev.workspace.ui.chat.AgentConsoleSerializer
+import com.omnidev.workspace.ui.chat.SessionTranscriptSnapshot
+import com.omnidev.workspace.ui.chat.SessionTranscriptTurn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.currentCoroutineContext
@@ -260,6 +262,30 @@ class ChatRepository(
      */
     suspend fun loadMessages(sessionId: Long): Pair<List<ChatMessage>, Map<Long, List<AgentConsoleEntry>>> =
         decodeMessages(messageDao.getBySession(sessionId))
+
+    /**
+     * Read the entire saved archive for one session directly from Room. Never export the
+     * UI's virtualized/streaming list or use timestamp-keyed console maps (timestamps can tie).
+     */
+    suspend fun loadSessionExport(sessionId: Long): SessionTranscriptSnapshot? =
+        withContext(Dispatchers.IO) {
+            val session = sessionDao.getById(sessionId) ?: return@withContext null
+            val rows = messageDao.getBySession(sessionId).sortedWith(compareBy({ it.timestamp }, { it.id }))
+            val turns = rows.map { row ->
+                currentCoroutineContext().ensureActive()
+                val console = if (row.consoleEntriesJson.isBlank()) emptyList()
+                    else AgentConsoleSerializer.deserialize(row.consoleEntriesJson)
+                SessionTranscriptTurn(
+                    role = runCatching { MessageRole.valueOf(row.role) }.getOrDefault(MessageRole.SYSTEM),
+                    content = row.content,
+                    timestamp = row.timestamp,
+                    attachmentNames = decodeMessage(row).attachments.map { it.fileName },
+                    consoleEntries = console,
+                    consoleUnavailable = row.consoleEntriesJson.isNotBlank() && console.isEmpty()
+                )
+            }
+            SessionTranscriptSnapshot(session.title, session.createdAt, turns)
+        }
 
     /** Reuse the rows Room already emitted; never query the whole transcript twice. */
     internal suspend fun decodeMessages(entities: List<ChatMessageEntity>): Pair<List<ChatMessage>, Map<Long, List<AgentConsoleEntry>>> =
