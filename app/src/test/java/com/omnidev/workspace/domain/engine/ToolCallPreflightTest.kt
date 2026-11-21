@@ -70,6 +70,18 @@ class ToolCallPreflightTest {
         assertTrue(guard.checkBatch(listOf(call(read), call(read))).all { it != null })
         assertTrue(guard.checkBatch(listOf(call(read), call(read).copy(id = "2"))).all { it != null })
     }
+    @Test fun `identical duplicate contracts are harmless but conflicting contracts fail closed`() {
+        val schema = ToolDefinition("read_file", "Read", listOf(ToolParameter("path", "string", "Path")))
+        val request = call(mapOf("path" to "a"), "read_file")
+        assertNull(ToolCallPreflight(listOf(schema, schema.copy())).check(request))
+        val conflicting = schema.copy(parameters = listOf(ToolParameter("url", "string", "URL")))
+        assertEquals("AMBIGUOUS_TOOL_CONTRACT", ToolCallPreflight(listOf(schema, conflicting)).check(request)?.classification)
+    }
+    @Test fun `omitted null cannot satisfy a required argument`() {
+        val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decode("""{"action":"read","path":null}""")
+        assertNull(decoded.error)
+        assertNotNull(guard.check(call(decoded.arguments)))
+    }
     @Test fun `oversized batch is rejected`() {
         assertTrue(guard.checkBatch((1..9).map { call(read).copy(id = "$it") }).all { it != null })
     }
