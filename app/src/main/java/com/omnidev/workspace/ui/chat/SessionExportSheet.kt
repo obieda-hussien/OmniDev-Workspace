@@ -48,8 +48,15 @@ internal fun SessionExportSheet(
     var busy by remember(sessionId) { mutableStateOf(false) }
     var feedback by remember(sessionId) { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(sessionId) {
+    LaunchedEffect(sessionId, isRunning) {
+        if (isRunning) {
+            // The unfinished turn is not an archive yet. Reload once the run completes.
+            snapshot = null
+            loading = false
+            return@LaunchedEffect
+        }
         loading = true
+        feedback = null
         try {
             snapshot = withContext(Dispatchers.IO) { loadSnapshot(sessionId) }
             if (snapshot == null) feedback = "This conversation is no longer available."
@@ -95,7 +102,7 @@ internal fun SessionExportSheet(
                 } else {
                     // Android's clipboard uses Binder. Refuse oversized transfers rather than
                     // silently copying only part of a long session or crashing the app.
-                    if (text.toByteArray(Charsets.UTF_8).size > 512_000) {
+                    if (withContext(Dispatchers.Default) { text.toByteArray(Charsets.UTF_8).size } > 512_000) {
                         feedback = "Too large for reliable clipboard copying. Use Share file to keep the entire conversation."
                     } else {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
