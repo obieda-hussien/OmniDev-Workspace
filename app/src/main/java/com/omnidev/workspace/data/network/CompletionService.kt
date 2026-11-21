@@ -1139,6 +1139,6 @@ internal const val GITHUB_MODELS_RETIRED = "GitHub Models was retired on July 30
  * Only send it for known compatible families; unknown future models fail safe by omission. */
 internal fun anthropicTemperature(modelId: String, value: Double): Double? {
     val id = modelId.substringAfter("::").lowercase()
-    val compatible = Regex("""^claude-(?:3(?:[-.]|$)|2(?:[-.]|$)|instant(?:[-.]|$)|(?:opus|sonnet|haiku)-4(?:[-.]([0-6])(?:-|$)|-\\d{8}$|$))""").containsMatchIn(id)
+    val compatible = Regex("""^claude-(?:3(?:[-.]|$)|2(?:[-.]|$)|instant(?:[-.]|$)|(?:opus|sonnet|haiku)-4(?:[-.]([0-6])(?:-|$)|-\d{8}$|$))""").containsMatchIn(id)
     return value.takeIf { compatible && it.isFinite() }?.coerceIn(0.0, 1.0)
 }
