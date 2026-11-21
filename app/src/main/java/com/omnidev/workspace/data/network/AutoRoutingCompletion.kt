@@ -50,8 +50,8 @@ class AutoRoutingCompletion(
     ): CompletionResponse {
         val role = request.autoRouteRole ?: return call(request)
         val policy = settings.observeAllModelAssignments().first()[role]
-            ?: return call(request)
-        if (!AutoModelRouter.isAuto(policy)) return call(request)
+            ?: throw IOException("Auto routing policy is unavailable for this role.")
+        if (!AutoModelRouter.isAuto(policy)) throw IOException("Auto model selection changed during this run. Restart the request with the explicitly selected model.")
 
         val scope = request.autoRoutePinScope
         val persisted = scope?.let { key ->
