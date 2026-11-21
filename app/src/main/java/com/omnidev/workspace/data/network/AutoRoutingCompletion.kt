@@ -21,25 +21,11 @@ import java.util.concurrent.ConcurrentHashMap
 class AutoRoutingCompletion(
     private val service: CompletionService,
     private val settings: SettingsRepository,
-    private val keys: ApiKeyRepository
+    private val keys: ApiKeyRepository,
+    private val pinStore: AutoModelPinStore? = null
 ) {
     private val unavailableUntil = ConcurrentHashMap<String, Long>()
     private val maxAttempts = 3
-
-    /** Tool-call id -> model that produced it, so tool history is never replayed through another model. */
-    private val pinnedByToolCall = ConcurrentHashMap<String, String>()
-
-    private fun pinToolCalls(response: CompletionResponse, modelId: String) {
-        if (response.toolCalls.isEmpty()) return
-        if (pinnedByToolCall.size > MAX_PINS) pinnedByToolCall.clear()
-        response.toolCalls.forEach { pinnedByToolCall[it.id] = modelId }
-    }
-
-    private fun pinnedModelFor(request: CompletionRequest): String? =
-        request.messages.asReversed()
-            .firstNotNullOfOrNull { message ->
-                message.toolCalls.firstNotNullOfOrNull { pinnedByToolCall[it.id] }
-            }
 
     suspend operator fun invoke(request: CompletionRequest): CompletionResponse =
         execute(request) { service(it) }
@@ -67,6 +53,13 @@ class AutoRoutingCompletion(
             ?: return call(request)
         if (!AutoModelRouter.isAuto(policy)) return call(request)
 
+        val scope = request.autoRoutePinScope
+        val persisted = scope?.let { key ->
+            val store = pinStore ?: throw IOException("Durable Auto model storage is unavailable.")
+            store.read(key)
+        }
+        val requiredModel = AutoModelAffinity.requiredModel(request, persisted)
+
         val connected = keys.observeConfiguredProviders().first()
         val localReady = !settings.observeLocalModelUri().first().isNullOrBlank() &&
             LocalEngineHolder.engine.isLoaded
@@ -87,7 +80,7 @@ class AutoRoutingCompletion(
             requiresTools = role != com.omnidev.workspace.data.model.ModelRole.CHAT ||
                 !request.tools.isNullOrEmpty()
         )
-        if (choices.isEmpty()) throw IOException(
+        if (choices.isEmpty() && requiredModel == null) throw IOException(
             if (policy == AutoModelRouter.FREE_ONLY)
                 "Auto found no eligible free model. If Gemini API is your only provider, confirm your project is on the unbilled Free Tier under Model Selection, then refresh Gemini models."
             else if (selectedProvider != null)
@@ -95,19 +88,14 @@ class AutoRoutingCompletion(
             else "Auto has no connected compatible model. Connect a provider in Settings."
         )
 
-        // Never replay provider-specific tool-call signatures via a different model/provider.
+        // Never substitute a different model (even on the same provider) for pinned work.
         val hasExecutedToolHistory = request.messages.any {
             it.toolCalls.isNotEmpty() || it.toolResults.isNotEmpty()
         }
-        val pinned = if (hasExecutedToolHistory) {
-            pinnedModelFor(request)?.let { id -> choices.firstOrNull { it.id == id } }
-        } else null
-        val first = pinned
-            ?: choices.firstOrNull { it.id == request.modelId }
-            ?: choices.first()
-        // With executed tool history the model is fixed: no failover, and no cooldown filtering
-        // that could silently swap in a different model.
-        val attempts = if (hasExecutedToolHistory) listOf(first)
+        val firstId = AutoModelAffinity.select(requiredModel, choices.map { it.id }, request.modelId)
+        val first = choices.first { it.id == firstId }
+        val lockModel = requiredModel != null || hasExecutedToolHistory
+        val attempts = if (lockModel) listOf(first)
         else (listOf(first) + choices.filterNot { it.id == first.id })
             .distinctBy { it.id }
             .filter { (unavailableUntil[it.id] ?: 0L) <= System.currentTimeMillis() }
@@ -118,7 +106,7 @@ class AutoRoutingCompletion(
         for (model in attempts) {
             if (attempted >= maxAttempts) break
             if (model.provider in exhaustedProviders) continue
-            if (attempted > 0 && (!mayFailover() || hasExecutedToolHistory)) break
+            if (attempted > 0 && (!mayFailover() || lockModel)) break
             val key = if (model.provider == ModelProvider.LOCAL_EDGE) null
                 else keys.getApiKey(model.provider)
             if (model.provider != ModelProvider.LOCAL_EDGE && key.isNullOrBlank()) continue
@@ -132,8 +120,14 @@ class AutoRoutingCompletion(
             )
             try {
                 val response = call(candidate)
-                pinToolCalls(response, model.id)
-                return response.copy(routedModelId = model.id)
+                // Commit before handing any proposed tool call to the execution loop. A
+                // conflicting concurrent claim is never allowed to execute this response.
+                if (scope != null && AutoModelAffinity.proposesTools(request, response)) {
+                    val committed = checkNotNull(pinStore).claim(scope, model.id)
+                    if (committed != model.id) throw IOException("Auto model affinity changed concurrently. Retry using the pinned model.")
+                }
+                return response.copy(routedModelId = model.id,
+                    toolCalls = response.toolCalls.map { it.copy(originModelId = model.id) })
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: IOException) {
@@ -156,8 +150,6 @@ class AutoRoutingCompletion(
     }
 
     companion object {
-        private const val MAX_PINS = 2_048
-
         internal fun recoverable(error: IOException): Boolean =
             error is RateLimitException || error is ModelCapabilityException || listOf(
                 "rate limit", "too many requests", "503", "502", "500", "504",
