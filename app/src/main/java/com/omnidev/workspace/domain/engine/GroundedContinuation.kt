@@ -21,7 +21,7 @@ internal object GroundedContinuation {
         if (!catalog.ensureLoaded(pending.name)) return response
         if (pending.name == "planner_tool" && response.content.isNotBlank() &&
             !UnfulfilledPromiseDetector.isUnfulfilled(response.content)) return response
-        return response.copy(content = "", toolCalls = listOf(pending))
+        return response.copy(content = "", toolCalls = listOf(pending.copy(originModelId = response.routedModelId)))
     }
 
     private fun nextCall(goal: String, evidence: List<EvidenceRef>, iteration: Int): ToolCall? {
