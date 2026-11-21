@@ -38,11 +38,20 @@ internal object SpotifyPlayback {
             if (header.groupValues[1] != "com.spotify.music") return@any false
             val fields = observation.substring(header.range.last + 1, headers.getOrNull(i + 1)?.range?.first ?: observation.length)
                 .lineSequence().map(String::trim).toList()
-            fun matches(field: String, expected: String) = fields.any {
-                it.startsWith(field) && ChatMetadataModel.normalize(it.removePrefix(field)) == ChatMetadataModel.normalize(expected)
+            fun matches(field: String, expected: String, normalize: (String) -> String): Boolean {
+                val expectedName = normalize(expected)
+                return fields.any { it.startsWith(field) && normalize(it.removePrefix(field)) == expectedName }
             }
-            matches("Title: ", track.title) && matches("Artist: ", track.artist) &&
+            matches("Title: ", track.title, ChatMetadataModel::normalize) &&
+                matches("Artist: ", track.artist, ::normalizeArtist) &&
                 fields.any { it.startsWith("Status:") && it.endsWith("▶️ Playing") }
         }
+    }
+
+    private fun normalizeArtist(value: String): String {
+        val normalized = ChatMetadataModel.normalize(value)
+        // Accept the common missing-waw spelling of Amr Diab's full Arabic name.
+        return if (normalized == "\u0639\u0645\u0631 \u062f\u064a\u0627\u0628") "\u0639\u0645\u0631\u0648 \u062f\u064a\u0627\u0628"
+        else normalized
     }
 }
