@@ -120,14 +120,19 @@ class AutoRoutingCompletion(
             )
             try {
                 val response = call(candidate)
-                // Commit before handing any proposed tool call to the execution loop. A
-                // conflicting concurrent claim is never allowed to execute this response.
-                if (scope != null && AutoModelAffinity.proposesTools(request, response)) {
-                    val committed = checkNotNull(pinStore).claim(scope, model.id)
-                    if (committed != model.id) throw IOException("Auto model affinity changed concurrently. Retry using the pinned model.")
+                // Commit before returning native/text proposals. Runtime-generated fallback
+                // calls also use the deferred guard at their actual dispatch boundary.
+                val commitAffinity: (suspend () -> Unit)? = scope?.let { keyScope ->
+                    suspend {
+                        val committed = checkNotNull(pinStore).claim(keyScope, model.id)
+                        if (committed != model.id) throw IOException("Auto model affinity changed concurrently. Retry using the pinned model.")
+                    }
                 }
+                val proposesTools = AutoModelAffinity.proposesTools(request, response)
+                if (proposesTools) commitAffinity?.invoke()
                 return response.copy(routedModelId = model.id,
-                    toolCalls = response.toolCalls.map { it.copy(originModelId = model.id) })
+                    toolCalls = response.toolCalls.map { it.copy(originModelId = model.id) },
+                    beforeAutoToolDispatch = if (proposesTools) null else commitAffinity)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: IOException) {
