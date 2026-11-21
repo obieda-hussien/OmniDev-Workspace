@@ -71,8 +71,16 @@ class DeviceWorkflowTest {
         assertFalse(SpotifyPlayback.verified(track, observation.replace("Playing", "Paused")))
         assertFalse(SpotifyPlayback.verified(track, observation.replace("عمرو دياب", "Other artist")))
         assertFalse(SpotifyPlayback.verified(track, observation.replace("com.spotify.music", "com.android.music")))
-        assertEquals(request, ExecutionEnvironmentContext.effectiveObjective(
-            "طب ما تتحكم انت في التلفون و شغلها", listOf(ChatMessage(MessageRole.USER, request))))
+        val history = listOf(ChatMessage(MessageRole.USER, request))
+        val continuation = "طب ما تتحكم انت في التلفون و شغلها"
+        val grounded = ExecutionEnvironmentContext.effectiveObjective(continuation, history)
+        assertTrue(grounded.startsWith(continuation + "\n"))
+        assertEquals(track, SpotifyPlayback.requested(grounded))
+        for (newRequest in listOf("Don't play it", "Play it on YouTube instead", "متشغلهاش", "Use semantic_ui to inspect this screen")) {
+            assertEquals(newRequest, ExecutionEnvironmentContext.effectiveObjective(newRequest, history))
+        }
+        val cancelled = history + ChatMessage(MessageRole.USER, "Don't play it")
+        assertEquals("Play it", ExecutionEnvironmentContext.effectiveObjective("Play it", cancelled))
         assertNotNull(DeviceWorkflow.orderError(request, emptyList(),
             listOf(ToolCall("play", "media_control", mapOf("action" to "play")))))
     }

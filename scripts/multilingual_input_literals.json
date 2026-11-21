@@ -88,7 +88,7 @@
     "sha256": "b2db679c8425a3594d567ee98e85b9d970239e7209c6cdb8f33e53eddaa26600"
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/ExecutionEnvironmentContext.kt": {
-    "sha256": "aa2fc8b0050007871b592d9f48b74c56a5ab56d5899b7d7321e2a4e0cdce42ca",
+    "sha256": "618eb4b6255bf9f76325aa5a758a4159963dece10c460971e2ee7f50f8c1d723",
     "purpose": "Functional GitHub repository input matching; never display prose."
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/GroundedContinuation.kt": {
@@ -121,7 +121,7 @@
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/SpotifyPlayback.kt": {
     "purpose": "Functional multilingual input matching and localized fixed responses.",
-    "sha256": "fdbb20e15b1930fc8b19db8f2cba073b72cc19306252b127ac28e0ecc6aca452"
+    "sha256": "3181787e55977aa9b4cda380daa6b5c38f4459fe1087b38329643db9f1060fb9"
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/TeamExecutionPolicy.kt": {
     "sha256": "42db94ea6bcedb36d843cd639e3278d7a2674dbe8fb733308d5624fae174eeb2",

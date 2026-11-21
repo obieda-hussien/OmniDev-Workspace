@@ -67,6 +67,8 @@ class FinishRuntime private constructor(
         planner?.refresh()
         return used
     }
+    internal val currentGoal: String get() = state.goal
+
     fun setGoal(goal: String) {
         if (state.goal != goal) {
             if (planner != null) planner?.redirect(goal) else recorder?.replan("steering: the user changed the objective", goal)

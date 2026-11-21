@@ -9,7 +9,23 @@ internal object SpotifyPlayback {
 
     data class Track(val title: String, val artist: String)
 
+    private val affirmativeContinuation = Regex(
+        """(?i)(?:please\s+)?play it(?:\s+please)?[.!؟ ]*|(?:طب\s+)?(?:ما تتحكم انت في التلفون و\s*)?(?:شغلها|تشغلها)[.!؟ ]*"""
+    )
+
+    fun isPlaybackContinuation(goal: String): Boolean = affirmativeContinuation.matches(goal.trim())
+
+    fun withTrackReference(goal: String, track: Track): String =
+        "${goal.trim()}\nSpotify track: ${track.title}\nArtist: ${track.artist}"
+
     fun requested(goal: String): Track? {
+        val lines = goal.lines()
+        if (lines.size == 3 && isPlaybackContinuation(lines[0]) &&
+            lines[1].startsWith("Spotify track: ") && lines[2].startsWith("Artist: ")) {
+            val title = lines[1].removePrefix("Spotify track: ").trim()
+            val artist = lines[2].removePrefix("Artist: ").trim()
+            if (title.isNotBlank() && artist.isNotBlank()) return Track(title, artist)
+        }
         if (!spotify.containsMatchIn(goal) || goal.trim().startsWith("how ", true)) return null
         val m = track.find(goal) ?: return null
         return if (m.groupValues[1].isNotBlank()) Track(m.groupValues[1].trim(), m.groupValues[2].trim())

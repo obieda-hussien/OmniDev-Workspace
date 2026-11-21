@@ -13,12 +13,14 @@ object ExecutionEnvironmentContext {
     private val continuation = Regex("""(?i)(?:ابد[أءا]|ابدئ|يا?لا|كمل|كمّل|continue|go ahead|start)(?: يا?لا)?[.!؟ ]*""")
 
     fun effectiveObjective(current: String, history: List<com.omnidev.workspace.data.model.ChatMessage>): String {
-        val playbackFollowup = Regex("""(?i)(?:شغلها|تشغلها|\bplay it\b|semantic_ui|screenshot_tool)""")
-        if (SpotifyPlayback.requested(current) == null && playbackFollowup.containsMatchIn(current)) {
-            val prior = history.asReversed().filter { it.role == com.omnidev.workspace.data.model.MessageRole.USER }
-                .takeWhile { playbackFollowup.containsMatchIn(it.content) || SpotifyPlayback.requested(it.content) != null }
-                .firstOrNull { SpotifyPlayback.requested(it.content) != null }
-            if (prior != null) return prior.content
+        if (SpotifyPlayback.isPlaybackContinuation(current)) {
+            val prior = history.asReversed().asSequence()
+                .filter { it.role == com.omnidev.workspace.data.model.MessageRole.USER }
+                .map { it.content }
+                .dropWhile(SpotifyPlayback::isPlaybackContinuation)
+                .firstOrNull()
+                ?.let(SpotifyPlayback::requested)
+            if (prior != null) return SpotifyPlayback.withTrackReference(current, prior)
         }
         val sourceFollowup = Regex("""(?i)^\s*(?:تعمق|اتعمق|dig deeper|go deeper)|(?:ملفات المشروع|مجلدات المشروع|the project files|the project structure)""")
         if (sourceFollowup.containsMatchIn(current) && remoteRepository(current) == null && !localRequest.containsMatchIn(current)) {

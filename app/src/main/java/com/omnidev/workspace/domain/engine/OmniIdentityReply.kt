@@ -19,10 +19,7 @@ internal object OmniIdentityReply {
         if (tools.isEmpty()) return if (ar) "مفيش أدوات متاحة في الجلسة الحالية." else "No tools are available in this session."
         val heading = if (ar) "فيه ${tools.size} أداة متاحة للجلسة. بعض العمليات بتحتاج اتصال أو صلاحية إضافية."
             else "${tools.size} tools are available to this session. Some operations require a connection or extra permissions."
-        return tools.joinToString("
-", prefix = heading + "
-
-") { tool ->
+        return tools.joinToString("\n", prefix = heading + "\n\n") { tool ->
             "- `${tool.name}` — ${tool.description.trim().lineSequence().firstOrNull().orEmpty().take(140)}"
         }
     }

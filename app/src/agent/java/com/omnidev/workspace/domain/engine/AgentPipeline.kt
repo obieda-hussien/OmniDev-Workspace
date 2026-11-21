@@ -535,7 +535,7 @@ When improving: keep every other sentence, the structure, the language and the l
                 taskSignals, model.maxOutputTokens,
                 remainingAtStart?.coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE)
             )
-            val plan = IterationPlan.compute(systemPrompt + "\n" + ExecutionEnvironmentContext.guidance(routingContext, lastToolObservation) +
+            val plan = IterationPlan.compute(systemPrompt + "\n" + ExecutionEnvironmentContext.guidance(evidenceLedger.fin.currentGoal, lastToolObservation) +
                 (if (runtimeBackends.reportOnly || permittedDefinitions.isEmpty()) "" else runCatalog.advisoryContext()), runtimeBackends,
                 evidenceLedger.fin.exposed(toolDefs, runtimeBackends.reportOnly), nativeTools, model,
                 desiredOutputBudget, config.contextWindowBuffer, evidenceLedger.fin.inputReserveTokens())
@@ -647,8 +647,8 @@ When improving: keep every other sentence, the structure, the language and the l
             if (response.toolCalls.isEmpty() && !runtimeBackends.reportOnly &&
                 (response.content.isBlank() || UnfulfilledPromiseDetector.isUnfulfilled(response.content)) &&
                 actionProgressBudget.needsStepPrompt()) {
-                val pending = DeviceWorkflow.missing(routingContext, evidenceLedger.snapshot())
-                val nextStep = pending.firstOrNull() ?: ExecutionEnvironmentContext.readmeRepository(routingContext)?.let {
+                val pending = DeviceWorkflow.missing(evidenceLedger.fin.currentGoal, evidenceLedger.snapshot())
+                val nextStep = pending.firstOrNull() ?: ExecutionEnvironmentContext.readmeRepository(evidenceLedger.fin.currentGoal)?.let {
                     "Read the requested README.md from $it, or continue from the last verified page."
                 }
                 if (nextStep != null) {
