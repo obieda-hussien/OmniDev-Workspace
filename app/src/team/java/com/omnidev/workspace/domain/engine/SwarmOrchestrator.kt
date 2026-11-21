@@ -158,7 +158,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 executeAttempt(objective + evidence.context(), orchestratorModelId, workerModelId,
                     coordinatorAuto, workerAuto, scopePath, enableDeepThinking, godModeEnabled, steering, revision,
                     teamStartedAt, observedTeamTokens, mentionFocus, disabledToolNames, toolAccessMode,
-                    focusContext, userContext.take(5000), teamRunId, objective, durable, liveRevision).collect { event ->
+                    focusContext, userContext.take(5000), teamRunId, objective, durable, liveRevision, sessionId).collect { event ->
                     evidence.record(event)
                     send(event)
                 }
@@ -196,7 +196,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         teamRunId: String,
         rootObjective: String,
         durable: DurableTeamRun?,
-        steeringRevision: Long
+        steeringRevision: Long,
+        sessionId: Long?
     ): Flow<SwarmEvent> = channelFlow {
         steering?.check(steeringRevision)
         if (observedTeamTokens.get() >= TEAM_TOTAL_TOKEN_HARD_LIMIT - SYNTHESIS_TOKEN_RESERVE) {
@@ -404,7 +405,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             var taskResult = ""
             var taskError: String? = null
             var completionReport: com.omnidev.workspace.domain.engine.completion.CompletionReport? = null
-            val workerIdentity = assignment.identity
+            val workerIdentity = assignment.identity.copy(sessionId = sessionId)
             var reviewTerminal: com.omnidev.workspace.domain.engine.completion.FinishStatus? = null
             val observedToolResults = mutableListOf<String>()
             try {
