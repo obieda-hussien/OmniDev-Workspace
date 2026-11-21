@@ -845,6 +845,7 @@ When improving: keep every other sentence, the structure, the language and the l
 
             val rawResults = executeToolBatch(
                 calls = response.toolCalls,
+                beforeAutoToolDispatch = response.beforeAutoToolDispatch,
                 scopePath = scopePath,
                 allowParallel = config.enableParallelToolExecution && !evidenceLedger.fin.sequentialPlanning,
                 capture = capture,
@@ -1062,6 +1063,7 @@ When improving: keep every other sentence, the structure, the language and the l
 
     private suspend fun executeToolBatch(
         calls: List<ToolCall>,
+        beforeAutoToolDispatch: (suspend () -> Unit)?,
         scopePath: String,
         allowParallel: Boolean,
         capture: com.omnidev.workspace.data.routines.RoutineCapture? = null,
@@ -1076,6 +1078,7 @@ When improving: keep every other sentence, the structure, the language and the l
         runtimeBackends: RuntimeBackendLedger? = null,
         recorder: com.omnidev.workspace.domain.taskstate.TaskRunRecorder? = null
     ): List<ToolExecutionResult> {
+        beforeAutoToolDispatch?.invoke()
         recorder?.requested(calls)
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
             if (steering?.changed(steeringRevision) == true) return ToolExecutionResult(
