@@ -99,7 +99,7 @@ class AgentRecoveryGovernor(
         val DEFAULT_LIMITS: Map<Kind, Int> = mapOf(
             Kind.EMPTY_RESPONSE to 3,
             Kind.UNKEPT_PROMISE to 2,
-            Kind.UNRESOLVED_FAILURE to 1, // the tool router already spends two retrieval retries first
+            Kind.UNRESOLVED_FAILURE to 2, // bounded, progressively different recovery after retrieval
             Kind.INVALID_BATCHES to 2,
             Kind.DUPLICATE_CALLS to 3,
             Kind.STAGNATION to 2
