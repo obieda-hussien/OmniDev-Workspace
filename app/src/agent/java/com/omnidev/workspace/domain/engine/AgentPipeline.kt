@@ -153,7 +153,11 @@ When improving: keep every other sentence, the structure, the language and the l
             targetContext = scopePath,
             apiKey = apiKey,
             tools = if (nativeTools) plan.exposed else null,
-            autoRouteRole = autoRouteRole
+            autoRouteRole = autoRouteRole,
+            autoRoutePinScope = com.omnidev.workspace.data.network.AutoModelPinScope.forSession(
+                evidenceLedger.fin.identity.sessionId, autoRouteRole,
+                evidenceLedger.fin.identity.runId.takeIf { evidenceLedger.fin.identity.workerId != null }
+            )
         )
         return PreparedRequestContext(
             prototype = prototype,
