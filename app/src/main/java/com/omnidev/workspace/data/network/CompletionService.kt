@@ -47,6 +47,7 @@ private data class AnthropicRequest(
     val messages: List<AnthropicMessage>,
     val system: String? = null,
     val stream: Boolean = false,
+    val temperature: Double? = null,
     val tools: List<AnthropicToolDef>? = null
 )
 
@@ -342,7 +343,7 @@ class CompletionService(
         ModelProvider.VERCEL_AI_GATEWAY -> "https://ai-gateway.vercel.sh/v1"
         ModelProvider.HUGGING_FACE  -> "https://router.huggingface.co/v1"
         ModelProvider.GITHUB_COPILOT -> "https://api.githubcopilot.com"
-        ModelProvider.GITHUB_MODELS  -> "https://models.inference.ai.azure.com"
+        ModelProvider.GITHUB_MODELS  -> throw IOException(GITHUB_MODELS_RETIRED)
         ModelProvider.OPEN_ROUTER   -> "https://openrouter.ai/api/v1"
         ModelProvider.ZENMUX -> "https://zenmux.ai/api/v1"
         ModelProvider.Z_AI -> "https://api.z.ai/api/paas/v4"
@@ -362,6 +363,7 @@ class CompletionService(
             val model = ModelRegistry.findModelById(request.modelId)
                 ?: ModelRegistry.getModelById(request.modelId)
 
+            if (model.provider == ModelProvider.GITHUB_MODELS) throw IOException(GITHUB_MODELS_RETIRED)
             if (model.provider == ModelProvider.LOCAL_EDGE) {
                 return@withContext callLocalEdge(request)
             }
@@ -445,7 +447,7 @@ class CompletionService(
     private fun anthropicMessages(request: CompletionRequest): List<AnthropicMessage> =
         request.messages.filter { it.role != MessageRole.SYSTEM }.map { msg ->
             val blocks = buildJsonArray {
-                if (msg.content.isNotBlank() && msg.role != MessageRole.TOOL) {
+                if (msg.content.isNotBlank() && (msg.role != MessageRole.TOOL || msg.toolResults.isEmpty())) {
                     add(buildJsonObject { put("type", "text"); put("text", msg.content) })
                 }
                 msg.attachments.filter { it.mediaType == AttachmentMediaType.IMAGE && it.base64Data != null }.forEach { img ->
@@ -486,6 +488,7 @@ class CompletionService(
                 maxTokens = request.maxTokens,
                 messages = messages,
                 system = anthropicSystem(request),
+                temperature = anthropicTemperature(request.modelId, request.temperature),
                 tools = anthropicTools
             )
         )
@@ -666,6 +669,7 @@ class CompletionService(
         val model = ModelRegistry.findModelById(request.modelId)
                 ?: ModelRegistry.getModelById(request.modelId)
 
+        if (model.provider == ModelProvider.GITHUB_MODELS) throw IOException(GITHUB_MODELS_RETIRED)
         if (model.provider == ModelProvider.LOCAL_EDGE) {
             return@withContext streamLocalEdge(request, onChunk)
         }
@@ -869,6 +873,7 @@ class CompletionService(
                 maxTokens = request.maxTokens,
                 messages = messages,
                 system = anthropicSystem(request),
+                temperature = anthropicTemperature(request.modelId, request.temperature),
                 stream = true,
                 tools = anthropicTools
             )
@@ -1120,9 +1125,20 @@ class CompletionService(
  * letting the registry treat the policy id as an unknown or local model.
  */
 internal fun requireConcreteModel(modelId: String) {
+    if (modelId.startsWith("GITHUB_MODELS::", ignoreCase = true)) throw IOException(GITHUB_MODELS_RETIRED)
     if (com.omnidev.workspace.data.routing.AutoModelRouter.isAuto(modelId)) {
         throw java.io.IOException(
             "Auto has no eligible connected model. Connect a provider or choose a model in Settings."
         )
     }
+}
+
+internal const val GITHUB_MODELS_RETIRED = "GitHub Models was retired on July 30, 2026. Choose another provider; GitHub Copilot is separate."
+
+/** Sampling is no longer supported on Claude 4.7+ (including Mythos/Fable/5).
+ * Only send it for known compatible families; unknown future models fail safe by omission. */
+internal fun anthropicTemperature(modelId: String, value: Double): Double? {
+    val id = modelId.substringAfter("::").lowercase()
+    val compatible = Regex("""^claude-(?:3(?:[-.]|$)|2(?:[-.]|$)|instant(?:[-.]|$)|(?:opus|sonnet|haiku)-4(?:[-.]([0-6])(?:-|$)|-\\d{8}$|$))""").containsMatchIn(id)
+    return value.takeIf { compatible && it.isFinite() }?.coerceIn(0.0, 1.0)
 }
