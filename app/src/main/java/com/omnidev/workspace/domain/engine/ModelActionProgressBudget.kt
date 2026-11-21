@@ -11,11 +11,12 @@ internal class ModelActionProgressBudget(private val ceilingTokens: Int = 32_000
     init { require(ceilingTokens in 1_000..500_000) }
     private var spentSinceProgress = 0L
 
-    private var promptedForNextStep = false
+    var focusedRecovery = false
+        private set
 
     fun needsStepPrompt(): Boolean {
-        if (promptedForNextStep || spentSinceProgress < ceilingTokens / 3) return false
-        promptedForNextStep = true
+        if (focusedRecovery || spentSinceProgress < ceilingTokens / 3) return false
+        focusedRecovery = true
         return true
     }
 
@@ -31,7 +32,7 @@ internal class ModelActionProgressBudget(private val ceilingTokens: Int = 32_000
                 !result.isError && call.name != RunToolCatalog.DISCOVER.name
             }) {
             spentSinceProgress = 0
-            promptedForNextStep = false
+            focusedRecovery = false
         }
     }
 }

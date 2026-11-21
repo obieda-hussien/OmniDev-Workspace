@@ -40,6 +40,9 @@ class RunToolCatalog(
 
     fun definitions(): List<ToolDefinition> = selection.definitions
 
+    /** Inventory is a read of the permitted registry, independent of the prompt schema budget. */
+    internal fun inventory(): List<ToolDefinition> = catalog.sortedBy { it.name }
+
     fun advisoryContext(): String {
         val query = focus?.query ?: currentObjective
         val visible = definitions()
@@ -154,12 +157,12 @@ class RunToolCatalog(
             classification = "INVALID_TOOL_ARGUMENTS")
         val preferred = if (query.isBlank()) ExecutionEnvironmentContext.priorityNames(effectiveQuery, null)
             .mapNotNull { name -> catalog.firstOrNull { it.name == name } } else emptyList()
-        val matches = (preferred + search(effectiveQuery, SEARCH_SIZE,
+        val exact = catalog.firstOrNull { it.name == effectiveQuery.trim() }
+        val matches = if (exact != null) listOf(exact) else (preferred + search(effectiveQuery, SEARCH_SIZE,
             focusedDomains = if (query.isBlank()) focus?.domains.orEmpty() else emptySet())).distinctBy { it.name }.take(SEARCH_SIZE)
         if (matches.isEmpty()) return ToolExecutionResult("No registered tool matched. Describe the needed operation differently; do not invent tool names.")
         load(matches)
         val visible = matches.filter { isLoaded(it.name) }
-        val exact = catalog.firstOrNull { it.name == effectiveQuery.trim() }
         if (visible.isEmpty() || exact != null && !isLoaded(exact.name)) return ToolExecutionResult(
             "Matching registered schemas exceed this model's tool-surface budget. Use a model with a larger context or a narrower exact tool query. No action executed.",
             true, classification = "TOOL_SCHEMA_BUDGET")
