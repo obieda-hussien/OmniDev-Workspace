@@ -56,7 +56,8 @@ internal fun ChatHistoryDrawer(
     onDeleteSession: (Long) -> Unit, onDeleteAllSessions: () -> Unit, onDeleteSelectedSessions: (Set<Long>) -> Unit,
     onCloseDrawer: () -> Unit, isOpen: Boolean = true,
     metadata: Map<Long, ChatHistoryMetadataEntity> = emptyMap(), onRefreshMetadata: () -> Unit = {},
-    onSetTopic: (Long, String?) -> Unit = { _, _ -> }, onSettings: () -> Unit = {}, onBrowser: () -> Unit = {}
+    onSetTopic: (Long, String?) -> Unit = { _, _ -> }, onSettings: () -> Unit = {}, onBrowser: () -> Unit = {},
+    onExportSession: (Long) -> Unit = {}
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
@@ -234,7 +235,7 @@ internal fun ChatHistoryDrawer(
                         onClick = { if (selection) toggle(session.id) else { onSessionClick(session.id); onCloseDrawer() } },
                         onLongClick = { selection = true; if (session.id !in selectedIds) selectedIds = selectedIds + session.id },
                         onPin = { onTogglePin(session.id) }, onRename = { renameText = session.title; renameId = session.id },
-                        onDelete = { deleteId = session.id }, info = metadata[session.id], onCategory = { topicSession = session.id }, onUseSuggestion = { metadata[session.id]?.generatedTitle?.takeIf { it.isNotBlank() }?.let { onRenameSession(session.id, it) } }, modifier = if (motion.reduced || motion.compact) Modifier else Modifier.animateItem(
+                        onDelete = { deleteId = session.id }, onExport = { onExportSession(session.id) }, info = metadata[session.id], onCategory = { topicSession = session.id }, onUseSuggestion = { metadata[session.id]?.generatedTitle?.takeIf { it.isNotBlank() }?.let { onRenameSession(session.id, it) } }, modifier = if (motion.reduced || motion.compact) Modifier else Modifier.animateItem(
                             fadeInSpec = null, fadeOutSpec = null, placementSpec = tween(motion.responseMillis, easing = OmniEasing)))
                 }
             }
@@ -251,7 +252,7 @@ internal fun ChatHistoryDrawer(
 @Composable
 private fun HistorySessionItem(session: ChatSessionEntity, active: Boolean, selection: Boolean, checked: Boolean,
     onClick: () -> Unit, onLongClick: () -> Unit, onPin: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit,
-    info: ChatHistoryMetadataEntity? = null, onCategory: () -> Unit = {}, onUseSuggestion: () -> Unit = {}, modifier: Modifier = Modifier) {
+    onExport: () -> Unit = {}, info: ChatHistoryMetadataEntity? = null, onCategory: () -> Unit = {}, onUseSuggestion: () -> Unit = {}, modifier: Modifier = Modifier) {
     var menu by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     Row(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
@@ -278,6 +279,8 @@ private fun HistorySessionItem(session: ChatSessionEntity, active: Boolean, sele
             DropdownMenu(menu, { menu = false }) {
                 DropdownMenuItem(text = { Text(if (session.isPinned) "Unpin" else "Pin") }, onClick = { menu = false; onPin() })
                 DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onRename() })
+                DropdownMenuItem(text = { Text("Export / share") }, leadingIcon = { Icon(Icons.Default.Share, null) },
+                    onClick = { menu = false; onExport() })
                 DropdownMenuItem(text = { Text("Category") }, onClick = { menu = false; onCategory() })
                 if (!info?.generatedTitle.isNullOrBlank() && info?.generatedTitle != session.title) DropdownMenuItem(text = { Text("Use local suggested title") }, onClick = { menu = false; onUseSuggestion() })
                 DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) }, onClick = { menu = false; onDelete() })

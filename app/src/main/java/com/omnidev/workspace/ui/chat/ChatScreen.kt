@@ -48,6 +48,7 @@ import com.omnidev.workspace.ui.lifecycle.rememberHostResumed
 @Composable
 fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, onOpenBrowser: () -> Unit = {}) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var exportSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
     val hostResumed = rememberHostResumed()
     val context = LocalContext.current
     val drawer = rememberDrawerState(if (state.isDrawerOpen) DrawerValue.Open else DrawerValue.Closed)
@@ -80,6 +81,15 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
             viewModel.addAttachments(uris, names)
         }
     }
+    exportSessionId?.let { id ->
+        SessionExportSheet(
+            sessionId = id,
+            sessionTitle = state.sessions.firstOrNull { it.id == id }?.title ?: "Conversation",
+            isRunning = state.isProcessing && state.currentSessionId == id,
+            loadSnapshot = viewModel::loadSessionExport,
+            onDismiss = { exportSessionId = null }
+        )
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val drawerWidth = (maxWidth * .9f).coerceAtMost(360.dp)
         ModalNavigationDrawer(drawerState = drawer, drawerContent = {
@@ -94,7 +104,8 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
                         onRefreshMetadata = viewModel::refreshHistoryMetadata,
                         onSetTopic = viewModel::setHistoryTopic,
                         onSettings = { scope.launch { drawer.close(); onNavigateToSettings() } },
-                        onBrowser = { scope.launch { drawer.close(); onOpenBrowser() } })
+                        onBrowser = { scope.launch { drawer.close(); onOpenBrowser() } },
+                        onExportSession = { id -> scope.launch { drawer.close(); exportSessionId = id } })
                 }
             }
         }) {
@@ -105,6 +116,7 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
                 pendingChanges = pendingChanges, actionCount = actionCount, onReviewChanges = { showReview = true },
                 onKeepAllChanges = { viewModel.keepAllChanges() }, onRevertAllChanges = { viewModel.revertAllChanges() },
                 onBrowser = onOpenBrowser,
+                onExportConversation = { state.currentSessionId?.let { exportSessionId = it } },
                 onAttach = { attachments.launch(arrayOf("*/*")) }, onRemoveAttachment = viewModel::removeAttachment,
                 onReply = viewModel::setReplyingTo, onDismissReply = viewModel::clearReplyingTo,
                 onEditLastUser = viewModel::editLastUserMessage, onRegenerateLast = viewModel::regenerateLastResponse,
@@ -132,6 +144,7 @@ internal fun ChatConversation(
     state: ChatUiState,
     onInputChanged: (String) -> Unit = {}, onSend: () -> Unit = {}, onStop: () -> Unit = {},
     onModeSelected: (OmniMode) -> Unit = {}, onOpenConversations: () -> Unit = {}, onNewConversation: () -> Unit = {},
+    onExportConversation: () -> Unit = {},
     onChooseScope: () -> Unit = {}, onBrowser: () -> Unit = {},
     pendingChanges: List<TrackedChange> = emptyList(), actionCount: Int = 0, onReviewChanges: () -> Unit = {},
     onKeepAllChanges: () -> Unit = {}, onRevertAllChanges: () -> Unit = {},
@@ -177,6 +190,9 @@ internal fun ChatConversation(
                 OmniIconButton(onClick = { leaveEditor(onOpenConversations) }) { Icon(Icons.Default.Menu, "Open conversations") }
                 Box(Modifier.weight(1f)) {
                     ModeSelector(state.activeMode, onModeSelected, isProcessing = state.isProcessing, conversationTitle = title)
+                }
+                OmniIconButton(onClick = { leaveEditor(onExportConversation) }, enabled = state.currentSessionId != null) {
+                    Icon(Icons.Default.Share, "Export or share conversation")
                 }
                 OmniIconButton(onClick = { leaveEditor(onNewConversation) }) { Icon(Icons.Default.Edit, "New conversation") }
             }
