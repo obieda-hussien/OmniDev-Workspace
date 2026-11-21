@@ -15,6 +15,18 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ChatSessionDao {
 
+    @Query("SELECT modelId FROM auto_model_pins WHERE sessionId = :sessionId AND scope = :scope")
+    suspend fun autoModelPin(sessionId: Long, scope: String): String?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAutoModelPin(pin: com.omnidev.workspace.data.db.entities.AutoModelPinEntity): Long
+
+    @Transaction
+    suspend fun claimAutoModelPin(pin: com.omnidev.workspace.data.db.entities.AutoModelPinEntity): String {
+        insertAutoModelPin(pin)
+        return checkNotNull(autoModelPin(pin.sessionId, pin.scope)) { "Auto model pin could not be persisted" }
+    }
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveHistoryMetadata(metadata: ChatHistoryMetadataEntity)
 
