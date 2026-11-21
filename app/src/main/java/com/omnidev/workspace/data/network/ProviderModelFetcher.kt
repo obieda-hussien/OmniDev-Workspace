@@ -74,8 +74,8 @@ class ProviderModelFetcher {
                 ModelProvider.MINIMAX -> fetchMinimax(apiKey)
                 ModelProvider.VERCEL_AI_GATEWAY -> fetchVercelAiGateway(apiKey)
                 ModelProvider.HUGGING_FACE -> fetchHuggingFace(apiKey)
+                ModelProvider.GITHUB_MODELS -> error(GITHUB_MODELS_RETIRED)
                 ModelProvider.GITHUB_COPILOT,
-                ModelProvider.GITHUB_MODELS,
                 ModelProvider.LOCAL_EDGE -> emptyList()
             }
         }
