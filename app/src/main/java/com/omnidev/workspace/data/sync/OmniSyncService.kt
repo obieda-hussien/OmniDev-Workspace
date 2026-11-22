@@ -419,28 +419,6 @@ class OmniSyncService : Service() {
         var executedCount = 0
 
         for (task in readyTasks) {
-            val timeoutDeadline = TaskSchedulerTool.getTimeoutDeadlineMillis(task.id)
-            if (timeoutDeadline != null && System.currentTimeMillis() >= timeoutDeadline) {
-                Log.w(TAG, "⏱ Task timed out: ${task.name}")
-                val summary = TaskSchedulerTool.ExecutionSummary(
-                    taskId = task.id,
-                    taskName = task.name,
-                    startTimeMs = task.startedAtMillis ?: System.currentTimeMillis(),
-                    endTimeMs = System.currentTimeMillis(),
-                    toolsUsed = 0,
-                    toolNames = emptyList(),
-                    result = "",
-                    isSuccess = false,
-                    errorMessage = "Timed out after ${task.timeoutMinutes} minutes"
-                )
-                TaskSchedulerTool.markFailed(
-                    task.id,
-                    "Timeout after ${task.timeoutMinutes}m",
-                    summary
-                )
-                continue
-            }
-
             try {
                 val startTime = System.currentTimeMillis()
                 val displayPrompt = task.prompt.take(MAX_PROMPT_LENGTH_IN_STATUS)
@@ -541,9 +519,6 @@ class OmniSyncService : Service() {
                 executedCount++
                 tasksExecuted.incrementAndGet()
 
-                if (task.recurrenceType != TaskSchedulerTool.RecurrenceType.ONCE) {
-                    TaskSchedulerTool.rescheduleRepeating(task.id)
-                }
             } catch (e: CancellationException) {
                 currentCoroutineContext().ensureActive()
                 if (
