@@ -44,6 +44,10 @@ class FinishRuntime private constructor(
     private var planner: TaskPlanningCoordinator? = null
     val sequentialPlanning: Boolean get() = planner?.active == true
     fun toolSurfaceFocus() = planner?.toolSurfaceFocus()
+    /** Additional resource-specific failures must be considered before any success verdict. */
+    fun additionalCompletionProblems(problems: () -> List<String>) {
+        gate.additionalProblems = problems
+    }
 
     fun configurePlanning(provider: suspend (CompletionRequest) -> CompletionResponse, prototype: CompletionRequest,
         contextWindow: Int, definitions: List<ToolDefinition>, history: List<ChatMessage>, approval: ConfirmationGate?) {

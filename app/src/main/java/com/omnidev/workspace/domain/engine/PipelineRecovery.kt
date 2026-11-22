@@ -67,6 +67,10 @@ internal object PipelineRecovery {
         is AgentRecoveryGovernor.Decision.GiveUp -> RecoveryStep(recovered = false)
     }
 
+    fun exhaustedMessage(maxIterations: Int, unresolvedFailure: String?): String =
+        if (unresolvedFailure.isNullOrBlank()) "Agent reached maximum iterations ($maxIterations) without completing."
+        else "Execution remains unverified after a failed tool batch (iteration limit $maxIterations): " + unresolvedFailure.take(1_200)
+
     /** Prefix of a result published when the model kept announcing work it never performed. */
     const val INCOMPLETE_PREFIX = "[Incomplete]"
 

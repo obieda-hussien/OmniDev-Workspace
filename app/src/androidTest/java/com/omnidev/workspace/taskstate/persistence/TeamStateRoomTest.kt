@@ -105,6 +105,7 @@ class TeamStateRoomTest {
     @Test fun migrationFrom19KeepsUserDataAndCreatesIndexedTeamStorage() = runBlocking {
         var db = Room.databaseBuilder(context, OmniDevDatabase::class.java, filename).build()
         val session = db.chatSessionDao().insert(ChatSessionEntity(title = "Existing conversation"))
+        db.openHelper.writableDatabase.execSQL("DROP TABLE auto_model_pins")
         db.openHelper.writableDatabase.execSQL("DROP TABLE team_runs")
         db.openHelper.writableDatabase.execSQL("PRAGMA user_version = 19")
         db.close()
@@ -114,15 +115,15 @@ class TeamStateRoomTest {
             val store = TeamStateEngine(RoomTeamStateBackend(db)) { 100L }
             store.create("team", session, "Saved objective", "/tmp", "owner")
             assertEquals("Saved objective", store.summaries(session).single().originalObjective)
-            assertEquals(21, db.openHelper.readableDatabase.version)
-            for (version in 1 until 21) {
+            assertEquals(22, db.openHelper.readableDatabase.version)
+            for (version in 1 until 22) {
                 var next = version
-                while (next < 21) {
+                while (next < 22) {
                     val migration = OmniDevDatabase.ALL_MIGRATIONS.single { it.startVersion == next }
                     assertTrue(migration.endVersion > next)
                     next = migration.endVersion
                 }
-                assertEquals(21, next)
+                assertEquals(22, next)
             }
         } finally { db.close() }
     }

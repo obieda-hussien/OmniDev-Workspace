@@ -22,6 +22,7 @@ class FinishGate(
     private val maxRejections: Int = policy.maxRejections
 ) {
     internal var planProblems: () -> List<String> = { emptyList() }
+    internal var additionalProblems: () -> List<String> = { emptyList() }
     var rejections = 0
         private set
     var malformed = 0
@@ -56,6 +57,8 @@ class FinishGate(
 
     private fun decide(request: FinishRequest): GateResult {
         if (request.status == FinishStatus.COMPLETED) {
+            val unresolved = additionalProblems()
+            if (unresolved.isNotEmpty()) return reject("Unresolved resource failures: " + unresolved.joinToString("; ").take(1200), request.claims, request)
             if (request.summary.trimStart().startsWith("Submitted calls:", ignoreCase = true))
                 return reject("Return the requested results in the user's language. A submitted-call transcript is not a result.", request.claims)
             val track = com.omnidev.workspace.domain.engine.SpotifyPlayback.requested(state.goal)

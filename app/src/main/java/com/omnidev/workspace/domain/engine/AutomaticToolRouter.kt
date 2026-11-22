@@ -32,7 +32,7 @@ class AutomaticToolRouter(private val catalog: RunToolCatalog) {
         val root = try { Json.parseToJsonElement(raw) as? JsonObject } catch (_: Exception) { null }
         if (root == null && !attempted || root != null && "omni_operation" !in root) return response
         fun rejected(reason: String) = response.copy(content = "", toolCalls = listOf(ToolCall(
-            "operation_${UUID.randomUUID()}", "discover_tools", emptyMap(), argumentError = reason, textProtocol = true
+            "operation_${UUID.randomUUID()}", "discover_tools", emptyMap(), argumentError = reason, textProtocol = true, originModelId = response.routedModelId
         )))
         val operation = root?.get("omni_operation") as? JsonObject
             ?: return rejected("Return one JSON object containing omni_operation with intent and arguments.")
@@ -50,7 +50,7 @@ class AutomaticToolRouter(private val catalog: RunToolCatalog) {
                 com.omnidev.workspace.domain.planning.TaskPlanningCoordinator.COMPLETE,
                 com.omnidev.workspace.domain.planning.TaskPlanningCoordinator.REPLAN)) {
             return response.copy(content = "", toolCalls = listOf(ToolCall(
-                "operation_${UUID.randomUUID()}", intent.content, decoded.arguments, textProtocol = true)))
+                "operation_${UUID.randomUUID()}", intent.content, decoded.arguments, textProtocol = true, originModelId = response.routedModelId)))
         }
         val match = catalog.matchOperation(intent.content)
         catalog.loadCandidates(match.candidates)
@@ -69,7 +69,7 @@ class AutomaticToolRouter(private val catalog: RunToolCatalog) {
         // loaded yet. Loading is only prompt economy; the strict argument contract still runs afterwards.
         if (tool.name !in exposedNames) catalog.ensureLoaded(tool.name)
         return response.copy(content = "", toolCalls = listOf(ToolCall(
-            "operation_${UUID.randomUUID()}", tool.name, decoded.arguments, textProtocol = true
+            "operation_${UUID.randomUUID()}", tool.name, decoded.arguments, textProtocol = true, originModelId = response.routedModelId
         )))
     }
 

@@ -14,7 +14,7 @@ object TextToolCallAdapter {
         fun malformed(): CompletionResponse = response.copy(content = "", toolCalls = listOf(ToolCall(
             "text_${UUID.randomUUID()}", "discover_tools", emptyMap(),
             argumentError = "Malformed text tool envelope. Return one valid JSON object with omni_tool_call, name and arguments.",
-            textProtocol = true
+            textProtocol = true, originModelId = response.routedModelId
         )))
         val looksLikeEnvelope = Regex("^\\{\\s*\"omni_tool_call\"").containsMatchIn(raw)
         val root = try { Json.parseToJsonElement(raw) as? JsonObject } catch (_: Exception) { null } ?: return if (looksLikeEnvelope) malformed() else response
@@ -27,7 +27,7 @@ object TextToolCallAdapter {
         val decoded = if (omittedDiscoveryArgs) ToolArgumentCodec.Decoded(emptyMap()) else ToolArgumentCodec.decode(envelope["arguments"])
         val error = if (!omittedDiscoveryArgs && envelope.keys != setOf("name", "arguments")) "Only name and arguments are allowed in the envelope." else decoded.error
         return response.copy(content = "", toolCalls = listOf(ToolCall(
-            "text_${UUID.randomUUID()}", name.content, decoded.arguments, argumentError = error, textProtocol = true
+            "text_${UUID.randomUUID()}", name.content, decoded.arguments, argumentError = error, textProtocol = true, originModelId = response.routedModelId
         )))
     }
 }

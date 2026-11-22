@@ -153,7 +153,11 @@ When improving: keep every other sentence, the structure, the language and the l
             targetContext = scopePath,
             apiKey = apiKey,
             tools = if (nativeTools) plan.exposed else null,
-            autoRouteRole = autoRouteRole
+            autoRouteRole = autoRouteRole,
+            autoRoutePinScope = com.omnidev.workspace.data.network.AutoModelPinScope.forSession(
+                evidenceLedger.fin.identity.sessionId, autoRouteRole,
+                evidenceLedger.fin.identity.runId.takeIf { evidenceLedger.fin.identity.workerId != null }
+            )
         )
         return PreparedRequestContext(
             prototype = prototype,
@@ -454,6 +458,7 @@ When improving: keep every other sentence, the structure, the language and the l
         var unresolvedToolFailure: String? = null
         var launcherEvidence = LauncherExecutionLedger(routingContext)
         var githubFailures = GitHubFailureLedger()
+        evidenceLedger.fin.additionalCompletionProblems { listOfNotNull(githubFailures.unresolved()) }
         val runtimeBackends = RuntimeBackendLedger()
         val recoveryGovernor = AgentRecoveryGovernor()
         val actionProgressBudget = ModelActionProgressBudget()
@@ -841,6 +846,7 @@ When improving: keep every other sentence, the structure, the language and the l
 
             val rawResults = executeToolBatch(
                 calls = response.toolCalls,
+                beforeAutoToolDispatch = response.beforeAutoToolDispatch,
                 scopePath = scopePath,
                 allowParallel = config.enableParallelToolExecution && !evidenceLedger.fin.sequentialPlanning,
                 capture = capture,
@@ -871,7 +877,7 @@ When improving: keep every other sentence, the structure, the language and the l
             if (nonRuntimeFailure != null) unresolvedToolFailure = SensitiveObservationRedactor.redact(nonRuntimeFailure.output)
             else if (response.toolCalls.any { it.name != RunToolCatalog.DISCOVER.name }) unresolvedToolFailure = githubFailures.unresolved()
             val preflightFailed = rawResults.any { it.classification in setOf(
-                "TOOL_NOT_EXPOSED", "INVALID_TOOL_ARGUMENTS", "INVALID_TOOL_BATCH", "BATCH_PREFLIGHT_BLOCKED"
+                "TOOL_NOT_EXPOSED", "AMBIGUOUS_TOOL_CONTRACT", "INVALID_TOOL_ARGUMENTS", "INVALID_TOOL_BATCH", "BATCH_PREFLIGHT_BLOCKED"
             ) }
             invalidBatches = if (preflightFailed) invalidBatches + 1 else 0
             val automaticRecoveryFeedback = if (preflightFailed) automaticRouter.recovery(routingContext,
@@ -966,7 +972,7 @@ When improving: keep every other sentence, the structure, the language and the l
         }
 
         brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "max iterations reached after ${config.maxIterations} loops")
-        send(AgentEvent.Error("Agent reached maximum iterations (${config.maxIterations}) without completing."))
+        send(AgentEvent.Error(PipelineRecovery.exhaustedMessage(config.maxIterations, unresolvedToolFailure ?: githubFailures.unresolved())))
     }
 
     private data class ObservedToolBatch(val toolResults: List<ToolCallResult>, val modelSafeResults: List<ToolExecutionResult>,
@@ -1021,6 +1027,7 @@ When improving: keep every other sentence, the structure, the language and the l
 
     private suspend fun executeToolBatch(
         calls: List<ToolCall>,
+        beforeAutoToolDispatch: (suspend () -> Unit)?,
         scopePath: String,
         allowParallel: Boolean,
         capture: com.omnidev.workspace.data.routines.RoutineCapture? = null,
@@ -1035,6 +1042,7 @@ When improving: keep every other sentence, the structure, the language and the l
         runtimeBackends: RuntimeBackendLedger? = null,
         recorder: com.omnidev.workspace.domain.taskstate.TaskRunRecorder? = null
     ): List<ToolExecutionResult> {
+        beforeAutoToolDispatch?.invoke()
         recorder?.requested(calls)
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
             if (steering?.changed(steeringRevision) == true) return ToolExecutionResult(

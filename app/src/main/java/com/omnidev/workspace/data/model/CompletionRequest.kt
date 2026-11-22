@@ -41,7 +41,9 @@ data class ToolCall(
     /** Preserve malformed provider input so it cannot become a valid zero-argument call. */
     val argumentError: String? = null,
     /** Text-envelope proposals are replayed as text, never forged native calls/signatures. */
-    val textProtocol: Boolean = false
+    val textProtocol: Boolean = false,
+    /** Runtime-owned exact model provenance; survives call-ID normalization. Not a provider argument. */
+    val originModelId: String? = null
 )
 
 @Serializable
@@ -105,7 +107,10 @@ data class CompletionRequest(
     val responsePrefix: String = "",
     /** Set only for user-selected Auto roles. Never sent to provider endpoints. */
     @kotlinx.serialization.Transient
-    val autoRouteRole: ModelRole? = null
+    val autoRouteRole: ModelRole? = null,
+    /** Local durable affinity scope; never included in provider payloads. */
+    @kotlinx.serialization.Transient
+    val autoRoutePinScope: com.omnidev.workspace.data.network.AutoModelPinScope? = null
 ) {
     init {
         messages = AgentPromptSanitizer.sanitizeMessages(messages)
@@ -129,7 +134,10 @@ data class CompletionResponse(
     val finishReason: String? = null,
     val tokensUsed: TokenUsage? = null,
     /** Model that actually served this response when Auto routing chose it; null otherwise. */
-    val routedModelId: String? = null
+    val routedModelId: String? = null,
+    /** Commit affinity before a runtime-generated tool dispatch, even if the model returned plain text. */
+    @kotlinx.serialization.Transient
+    val beforeAutoToolDispatch: (suspend () -> Unit)? = null
 ) {
     init {
         thinkingContent = null
