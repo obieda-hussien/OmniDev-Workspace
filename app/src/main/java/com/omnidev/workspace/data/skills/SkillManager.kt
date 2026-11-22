@@ -274,9 +274,9 @@ Requirements:
 - Never request or embed secrets.
 - Keep SKILL.md concise. Do not create executable scripts unless the workflow genuinely requires deterministic code.
 - When the document is ready, call `remember_fact` with `category=agent_skill` and put the COMPLETE SKILL.md document in `content`.
-- Verify installation by calling `search_knowledge` with `query=skill:<installed-name>`.
+- This only stages a draft. Never claim it was installed, enabled or executed.
 - If validation fails, fix the SKILL.md and retry once with the corrected document.
-- In the final response, report the installed skill name and that it can be managed from Settings → Agent Skills.
+- Tell the user to review the exact draft in Settings > Agent skills and explicitly approve promotion. Approval is never an Agent tool action.
         """.trimIndent()
 
         private fun parseFrontMatter(lines: List<String>): Map<String, String> {
