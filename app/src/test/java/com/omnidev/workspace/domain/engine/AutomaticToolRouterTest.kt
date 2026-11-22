@@ -95,11 +95,25 @@ class AutomaticToolRouterTest {
         val native = proposal("Search messages").copy(toolCalls = listOf(ToolCall("native", "file_lookup", mapOf("path" to "a"))))
         assertEquals(native, AutomaticToolRouter(RunToolCatalog(tools, "files")).adapt(native, emptySet()))
     }
-    @Test fun `malformed envelope and null parameters are rejected`() {
+    @Test fun `malformed envelope is rejected and null cannot satisfy required arguments`() {
         val router = AutomaticToolRouter(RunToolCatalog(tools, "messages"))
-        for (content in listOf("""{"omni_operation":broken""", proposal("Search messages", """{"query":null}""").content)) {
-            assertNotNull(router.adapt(CompletionResponse(content), emptySet()).toolCalls.single().argumentError)
-        }
+        val malformed = router.adapt(CompletionResponse("""{"omni_operation":broken"""), emptySet()).toolCalls.single()
+        assertNotNull(malformed.argumentError)
+        val missing = router.adapt(proposal("Search messages", """{"query":null}"""), emptySet()).toolCalls.single()
+        assertEquals("message_lookup", missing.name)
+        assertTrue(missing.arguments.isEmpty())
+        assertEquals("INVALID_TOOL_ARGUMENTS", ToolCallPreflight(tools).check(missing)?.classification)
+    }
+
+    @Test fun `null optional parameter is safely omitted before dispatch`() {
+        val schema = ToolDefinition("lookup", "Look up a record", listOf(
+            ToolParameter("query", "string", "Search query"),
+            ToolParameter("page", "integer", "Page", required = false)
+        ))
+        val router = AutomaticToolRouter(RunToolCatalog(listOf(schema), "lookup"))
+        val call = router.adapt(proposal("lookup", """{"query":"test","page":null}"""), setOf("lookup")).toolCalls.single()
+        assertEquals(mapOf("query" to "test"), call.arguments)
+        assertNull(ToolCallPreflight(listOf(schema)).check(call))
     }
     @Test fun `whole response operation survives markdown fences but embedded operation does not`() {
         val catalog = RunToolCatalog(tools, "messages")

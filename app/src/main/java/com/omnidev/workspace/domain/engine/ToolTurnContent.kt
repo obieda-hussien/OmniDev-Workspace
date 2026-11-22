@@ -23,7 +23,7 @@ internal object ToolTurnContent {
                 }
             )
             if (results.any { it.isError }) {
-                append("\n\nOne or more tools failed. Do not claim those operations succeeded; pivot strategy or report the blocker explicitly.")
+                append("\n\nOne or more tools failed. This is a failed route, not automatically a failed task. Correct invalid arguments using the current schema; retry a transient read only within its bound; otherwise discover a different permitted tool or command that achieves the same goal. Continue independent unfinished steps. Never replay an uncertain mutation or bypass approval. Verify the actual postcondition before claiming success; report any remaining blocker explicitly.")
                 recoveryFeedback?.let { append("\n\n$it") }
             } else if (launcherNeedsGuidance) {
                 append("\n\n[Omni runtime guidance] Inspection has not completed the requested Launcher changes. Use approved typed mutation capabilities, then verify the resulting layout. Files and successful read-only probes cannot substitute for Home actions.")

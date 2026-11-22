@@ -2,7 +2,7 @@ package com.omnidev.workspace.data.model
 
 import kotlinx.serialization.json.*
 
-/** Strict transport decoding. A malformed or null payload must never turn into `{}`. */
+/** Strict object decoding. Top-level null fields are omissions; required fields are checked by preflight. */
 object ToolArgumentCodec {
     data class Decoded(val arguments: Map<String, String>, val error: String? = null)
 
@@ -19,10 +19,7 @@ object ToolArgumentCodec {
 
     fun decode(element: JsonElement?): Decoded {
         if (element !is JsonObject) return Decoded(emptyMap(), "Arguments must be a JSON object.")
-        if (element.values.any { it == JsonNull }) {
-            return Decoded(emptyMap(), "Null arguments are unsupported; omit optional values.")
-        }
-        return Decoded(element.mapValues { (_, value) ->
+        return Decoded(element.filterValues { it != JsonNull }.mapValues { (_, value) ->
             if (value is JsonPrimitive) value.content else value.toString()
         })
     }

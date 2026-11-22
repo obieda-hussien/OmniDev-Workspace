@@ -118,6 +118,7 @@ class ChatToolLoop(
         val remoteNames = remote.map { it.name }.toSet()
         val definitions = (tools?.getToolDefinitions().orEmpty() + remote)
             .filter { toolAccessMode != "DISABLED" && (it.name in CHAT_TOOLS || it.name in remoteNames) && it.name !in disabled }
+            .distinct()
         mentionFocus.validateTools(definitions.map { it.name }.toSet())
         val ranked = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             LocalSpecialistAdvice.rank(userRequest, definitions)
@@ -133,6 +134,8 @@ class ChatToolLoop(
         val allowed = definitions.map { it.name }.toSet()
         val history = base.messages.toMutableList()
         val seen = mutableSetOf<String>()
+        val readAttempts = mutableMapOf<String, Int>()
+        var stalledBatches = 0
         val answer = StringBuilder()
         var lastTruncatedChunk: String? = null
         var finalize = false
@@ -234,46 +237,46 @@ class ChatToolLoop(
             )
             val results = mutableListOf<ToolCallResult>()
 
-            val callsBeforeBatch = calls
-            val batchErrors = ToolCallPreflight(request.tools.orEmpty()).checkBatch(response.toolCalls)
+            val preflight = ToolCallPreflight(request.tools.orEmpty())
+            val batchErrors = preflight.checkBatch(response.toolCalls)
+            // A mode proposal is UI-only. Evaluate it independently before dispatching any
+            // ordinary call, even if another call failed preflight. Never auto-escalate.
+            val modeCalls = response.toolCalls.filter { it.name == REQUEST_MODE }
+            val proposal = modeCalls.singleOrNull()?.takeIf { call ->
+                response.toolCalls.size <= ToolCallPreflight.MAX_BATCH_SIZE &&
+                    call.id.isNotBlank() && response.toolCalls.count { it.id == call.id } == 1 &&
+                    preflight.check(call) == null
+            }
+            val proposedMode = proposal?.arguments?.get("mode")?.takeIf { it == "AGENT" || it == "SWARM" }
+            val proposedReason = proposal?.arguments?.get("reason")?.trim()?.take(1200)
+            if (proposal != null && proposedMode != null && OmniMode.permitted(OmniMode.valueOf(proposedMode)) &&
+                !proposedReason.isNullOrBlank()) {
+                event(AgentEvent.ToolExecution(proposal.name, proposal.arguments, round))
+                event(AgentEvent.ToolResult(proposal.name, "Awaiting user approval; no execution started.", false, round))
+                return Result(proposedReason, ExecutionModeRequest(
+                    mode = proposedMode, reason = proposedReason, originMessageId = originMessageId,
+                    sourceMode = OmniMode.CHAT.name, confidence = 0.90f,
+                    trigger = AdaptiveModeRouter.Trigger.CHAT_CAPABILITY_GAP.name))
+            }
+            var madeProgress = false
             for ((callIndex, call) in response.toolCalls.withIndex()) {
                 event(AgentEvent.ToolExecution(call.name, call.arguments, round))
-                val mode = call.arguments["mode"]?.takeIf { it == "AGENT" || it == "SWARM" }
-                val reason = call.arguments["reason"]?.trim()?.take(1200)
-                if (batchErrors[callIndex] == null && call.name == REQUEST_MODE && mode != null && OmniMode.permitted(OmniMode.valueOf(mode)) && !reason.isNullOrBlank()) {
-                    event(
-                        AgentEvent.ToolResult(
-                            call.name,
-                            "Awaiting user approval; no execution started.",
-                            false,
-                            round
-                        )
-                    )
-                    return Result(
-                        reason,
-                        ExecutionModeRequest(
-                            mode = mode,
-                            reason = reason,
-                            originMessageId = originMessageId,
-                            sourceMode = OmniMode.CHAT.name,
-                            confidence = 0.90f,
-                            trigger = AdaptiveModeRouter.Trigger.CHAT_CAPABILITY_GAP.name
-                        )
-                    )
-                }
-
                 val validationError = batchErrors[callIndex]
+                val fingerprint = fingerprint(call.name, call.arguments)
+                val readOnly = call.name !in remoteNames && ToolBatchPolicy.isReadOnly(call)
                 val rawResult = when {
                     validationError != null -> validationError
                     call.name !in allowed -> ToolExecutionResult(
                         "Tool unavailable in Chat. Use request_execution_mode only if execution is required.",
                         true
                     )
-                    !seen.add(fingerprint(call.name, call.arguments)) -> ToolExecutionResult(
-                        "Identical request already executed. Use its previous result or change the query.",
-                        true
+                    fingerprint in seen -> ToolExecutionResult(
+                        "Identical request already executed or retry limit reached. Use verified prior evidence or choose a different permitted approach. Never replay an uncertain mutation.",
+                        true, classification = "DUPLICATE_CALL_BLOCKED", retryable = false
                     )
                     else -> {
+                        seen.add(fingerprint)
+                        if (readOnly) readAttempts[fingerprint] = (readAttempts[fingerprint] ?: 0) + 1
                         calls++
                         try {
                             withTimeoutOrNull(60_000) {
@@ -286,11 +289,13 @@ class ChatToolLoop(
                                         ToolExecutionResult(output, output.startsWith("Error", true))
                                     }
                                 } else tools!!.executeTool(call.name, call.arguments, null)
-                            } ?: ToolExecutionResult("Tool timed out after 60 seconds.", true)
+                            } ?: ToolExecutionResult("Tool timed out after 60 seconds. " + if (readOnly) "A bounded read retry is allowed." else "Mutation outcome may be unknown. Verify before retrying.", true,
+                                classification = if (readOnly) "TOOL_TRANSPORT_FAILURE" else "MUTATION_OUTCOME_UNKNOWN", retryable = readOnly)
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (error: Exception) {
-                            ToolExecutionResult(error.message ?: "Tool failed.", true)
+                            ToolExecutionResult(error.message ?: "Tool failed.", true,
+                                classification = if (readOnly) "TOOL_TRANSPORT_FAILURE" else "MUTATION_OUTCOME_UNKNOWN", retryable = readOnly)
                         }
                     }
                 }
@@ -299,7 +304,16 @@ class ChatToolLoop(
                 val modelSafe = normalized.copy(
                     output = SensitiveObservationRedactor.redact(normalized.output)
                 )
-                if (modelSafe.isError) hadToolError = true
+                if (modelSafe.isError) {
+                    hadToolError = true
+                    // Only actual read failures can reopen the exact fingerprint; successful
+                    // reads and all mutation attempts remain protected against duplicate dispatch.
+                    if (validationError == null && readOnly && readAttempts[fingerprint] == 1 &&
+                        modelSafe.classification != "DUPLICATE_CALL_BLOCKED" && call.name in allowed &&
+                        (modelSafe.retryable || modelSafe.classification in setOf("TOOL_TRANSPORT_FAILURE", "TIMEOUT", "NETWORK_ERROR"))) {
+                        seen.remove(fingerprint)
+                    }
+                } else madeProgress = true
                 val output = modelSafe.output.take(12_000)
                 event(AgentEvent.ToolResult(call.name, output, modelSafe.isError, round))
                 results += ToolCallResult(
@@ -310,12 +324,14 @@ class ChatToolLoop(
                 )
             }
 
-            // Finalize when every request was rejected or already executed. This is
-            // a no-progress rule, not a token/call/round cap on useful work.
-            if (calls == callsBeforeBatch) finalize = true
+            // Give correction, read retry or an alternate route room to work. Bound consecutive
+            // failed batches even when the model changes arguments or invents new tools.
+            stalledBatches = if (madeProgress) 0 else stalledBatches + 1
+            if (stalledBatches >= 3) finalize = true
             history += ChatMessage(
                 MessageRole.TOOL,
-                results.joinToString("\n") { it.output },
+                results.joinToString("\n") { it.output } +
+                    if (!madeProgress) "\nNo verified progress in this batch. Correct the schema or choose a different permitted route. Retry only safe reads, and verify uncertain mutations before any replay. Continue independent steps." else "",
                 toolResults = results
             )
         }

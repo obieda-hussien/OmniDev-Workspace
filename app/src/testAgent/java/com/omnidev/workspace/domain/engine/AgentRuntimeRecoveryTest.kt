@@ -89,6 +89,31 @@ class AgentRuntimeRecoveryTest {
         assertEquals("Package inspection completed.", events.filterIsInstance<AgentEvent.FinalAnswer>().single().content)
     }
 
+    @Test fun `missing Android binary permits a different command instead of terminating the run`() = runTest {
+        val commands = mutableListOf<String>()
+        val tools = object : ToolManager {
+            override fun getToolDefinitions() = listOf(ToolDefinition("privileged_tool", "Execute Android shell command", listOf(ToolParameter("command", "string", "Command"))))
+            override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
+                commands += arguments.getValue("command")
+                return if (commands.size == 1) ToolExecutionResult("missing binary", true, classification = "COMMAND_NOT_FOUND")
+                else ToolExecutionResult("device information verified")
+            }
+        }
+        var round = 0
+        val pipeline = AgentPipeline(tools, completionProvider = {
+            when (++round) {
+                1 -> CompletionResponse("", listOf(ToolCall("missing", "privileged_tool", mapOf("command" to "missing_binary"))))
+                2 -> CompletionResponse("", listOf(ToolCall("alternative", "privileged_tool", mapOf("command" to "getprop ro.product.model"))))
+                else -> CompletionResponse("Device information verified.")
+            }
+        }, config = config)
+        val events = pipeline.execute("Read device model", modelId = "gpt-4o-mini", scopePath = "/tmp",
+            preferredToolNames = setOf("privileged_tool")).toList()
+        assertEquals(listOf("missing_binary", "getprop ro.product.model"), commands)
+        assertTrue(events.filterIsInstance<AgentEvent.ToolResult>().any { it.classification == "COMMAND_NOT_FOUND" })
+        assertTrue(events.filterIsInstance<AgentEvent.ToolResult>().any { !it.isError })
+    }
+
     @Test fun `ordinary command errors retain failed execution guard`() = runTest {
         val tools = RuntimeTools().apply { commandFailure = true }
         var round = 0

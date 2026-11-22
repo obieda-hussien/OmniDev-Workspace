@@ -340,7 +340,7 @@ class TaskRunRecorder(
         const val MAX_RESULT_CHARS = 8_000
         /** Classifications of results that were produced without the tool ever executing. */
         val NEVER_RAN = setOf("TOOL_DEPENDENCY_MISSING", "TOOL_NOT_AVAILABLE", "TOOL_POLICY_DENIED", "TIER_DENIED", "RUN_REDIRECTED", "SKILL_NOT_SELECTED",
-            "LAUNCHER_TYPED_ACTION_REQUIRED", "TOOL_NOT_EXPOSED", "INVALID_TOOL_ARGUMENTS", "BATCH_PREFLIGHT_BLOCKED", "INVALID_TOOL_BATCH",
+            "LAUNCHER_TYPED_ACTION_REQUIRED", "TOOL_NOT_EXPOSED", "AMBIGUOUS_TOOL_CONTRACT", "INVALID_TOOL_ARGUMENTS", "BATCH_PREFLIGHT_BLOCKED", "INVALID_TOOL_BATCH",
             "PRIOR_MUTATION_OUTCOME_UNKNOWN", "DUPLICATE_SIDE_EFFECT_ALREADY_SUCCEEDED", "PERSISTENCE_UNAVAILABLE", "PLAN_STEP_NOT_READY")
 
         private val SENSITIVE_KEY = Regex("(?i)(pass(word|wd)?|secret|token|api[_-]?key|authorization|credential|otp|\\bpin\\b|private[_-]?key)")

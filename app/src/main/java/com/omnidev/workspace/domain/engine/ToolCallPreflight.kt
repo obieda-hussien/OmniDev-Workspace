@@ -7,10 +7,12 @@ import kotlinx.serialization.json.*
 
 /** Exact contract checks; no fuzzy dispatch, guessed arguments, or silent repairs. */
 class ToolCallPreflight(definitions: List<ToolDefinition>) {
-    private val catalog = definitions.associateBy { it.name }
-    private val corrections = ToolCorrectionAdvisor(definitions)
+    private val contracts = definitions.distinct().groupBy { it.name }
+    private val catalog = contracts.mapValues { (_, candidates) -> candidates.first() }
+    private val corrections = ToolCorrectionAdvisor(definitions.distinct())
 
     fun check(call: ToolCall): ToolExecutionResult? {
+        if ((contracts[call.name]?.size ?: 0) > 1) return denied("AMBIGUOUS_TOOL_CONTRACT", "Conflicting definitions for this tool name. Choose another registered capability or resolve the catalog conflict.")
         val failure = checkExact(call)
         if (failure == null && corrections.hasUniqueContract(call.name)) return null
         val report = corrections.review(call)

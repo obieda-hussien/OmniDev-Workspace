@@ -73,6 +73,7 @@ class RunEvidenceLedger(
                 trimmed.startsWith("Skipped retry", ignoreCase = true) ||
                 listOf(
                     "TOOL_NOT_EXPOSED",
+                    "AMBIGUOUS_TOOL_CONTRACT",
                     "INVALID_TOOL_ARGUMENTS",
                     "INVALID_TOOL_BATCH",
                     "BATCH_PREFLIGHT_BLOCKED",

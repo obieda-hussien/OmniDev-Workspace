@@ -160,7 +160,7 @@ class ChatToolLoopTest {
             CompletionResponse("", listOf(ToolCall("call-$completions", "semantic_ui", emptyMap())))
         }, event = {})
         assertTrue(tools.executed.isEmpty())
-        assertEquals(2, completions)
+        assertEquals(4, completions)
     }
 
     @Test fun `duplicate web calls execute once`() = runTest {
@@ -171,6 +171,63 @@ class ChatToolLoopTest {
         assertEquals(1, tools.executed.size)
     }
 
+    @Test fun `transient read failure can retry exact arguments once`() = runTest {
+        var dispatched = 0
+        val tools = object : ToolManager {
+            override fun getToolDefinitions() = listOf(ToolDefinition("web_search", "Search", listOf(ToolParameter("query", "string", "Query"))))
+            override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
+                dispatched++
+                return if (dispatched == 1) ToolExecutionResult("timeout", true, retryable = true)
+                else ToolExecutionResult("Verified search result")
+            }
+        }
+        var round = 0
+        val result = ChatToolLoop(tools).run(request, emptySet(), "user", complete = {
+            if (++round <= 2) CompletionResponse("", listOf(ToolCall("read-$round", "web_search", mapOf("query" to "test"))))
+            else CompletionResponse("Found")
+        }, event = {})
+        assertEquals(2, dispatched)
+        assertEquals("Found", result.content)
+    }
+    @Test fun `preflight failure allows a corrected or alternative call next round`() = runTest {
+        val tools = FakeTools()
+        var round = 0
+        val result = ChatToolLoop(tools).run(request, emptySet(), "user", complete = {
+            when (++round) {
+                1 -> CompletionResponse("", listOf(ToolCall("invalid", "unavailable", emptyMap())))
+                2 -> CompletionResponse("", listOf(ToolCall("valid", "web_search", mapOf("query" to "test"))))
+                else -> CompletionResponse("Found")
+            }
+        }, event = {})
+        assertEquals(listOf("web_search"), tools.executed)
+        assertEquals("Found", result.content)
+    }
+    @Test fun `valid mode proposal survives invalid batch member without dispatch`() = runTest {
+        org.junit.Assume.assumeTrue(OmniMode.permitted(OmniMode.AGENT))
+        val tools = FakeTools()
+        val result = ChatToolLoop(tools).run(request, emptySet(), "user", complete = {
+            CompletionResponse("", listOf(ToolCall("bad", "missing_tool", emptyMap()), ToolCall("mode", ChatToolLoop.REQUEST_MODE,
+                mapOf("mode" to "AGENT", "reason" to "Approve execution?"))))
+        }, event = {})
+        assertTrue(tools.executed.isEmpty())
+        assertEquals("AGENT", result.request?.mode)
+    }
+    @Test fun `uncertain mutation is never replayed on identical arguments`() = runTest {
+        var dispatched = 0
+        val tools = object : ToolManager {
+            override fun getToolDefinitions() = listOf(ToolDefinition("media_generation", "Generate", listOf(ToolParameter("prompt", "string", "Prompt"))))
+            override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
+                dispatched++
+                throw java.io.IOException("connection interrupted")
+            }
+        }
+        var round = 0
+        ChatToolLoop(tools).run(request.copy(messages = listOf(ChatMessage(MessageRole.USER, "Draw a tree"))), emptySet(), "user", complete = {
+            if (++round <= 3) CompletionResponse("", listOf(ToolCall("write-$round", "media_generation", mapOf("prompt" to "tree"))))
+            else CompletionResponse("Generation status uncertain")
+        }, event = {})
+        assertEquals(1, dispatched)
+    }
     @Test fun `cancellation is not converted to tool error`() = runTest {
         val tools = object : ToolManager {
             override fun getToolDefinitions() = listOf(ToolDefinition("web_search", "search", listOf(ToolParameter("query", "string", "Query", false))))

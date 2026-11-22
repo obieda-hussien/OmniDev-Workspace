@@ -5,10 +5,16 @@ import org.junit.Test
 
 class ToolArgumentCodecTest {
     @Test fun `malformed blank null and nonobject payloads fail closed`() {
-        for (raw in listOf("", "not JSON", "{broken}", "[]", "null", "42", "{\"x\":null}")) {
+        for (raw in listOf("", "not JSON", "{broken}", "[]", "null", "42")) {
             assertNotNull(raw, ToolArgumentCodec.decode(raw).error)
         }
     }
+    @Test fun `optional null object fields become omissions but nested null remains data`() {
+        val decoded = ToolArgumentCodec.decode("""{"path":"file","optional":null,"obj":{"x":null}}""")
+        assertNull(decoded.error)
+        assertEquals(mapOf("path" to "file", "obj" to """{"x":null}"""), decoded.arguments)
+    }
+
     @Test fun `only omitted discovery arguments get an empty object`() {
         for (raw in listOf(null, "", "  ")) {
             assertNull(ToolArgumentCodec.decodeProviderCall("discover_tools", raw).error)

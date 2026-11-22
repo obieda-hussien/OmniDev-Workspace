@@ -40,6 +40,30 @@ class AgentPipelineToolContractTest {
         assertTrue(events.filterIsInstance<AgentEvent.Error>().any { it.message.contains("unverified") })
     }
 
+    @Test fun `failed GitHub read can recover through a successful exact resource retry`() = runTest {
+        var round = 0
+        var dispatched = 0
+        val tools = object : ToolManager {
+            override fun getToolDefinitions() = listOf(ToolDefinition("github_manager", "GitHub repository reads", listOf(
+                ToolParameter("action", "string", "Action"), ToolParameter("repo", "string", "Repository", required = false))))
+            override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
+                dispatched++
+                return if (dispatched == 1) ToolExecutionResult("HTTP404", true, classification = "GITHUB_RESOURCE_NOT_FOUND")
+                else ToolExecutionResult("Verified repository metadata")
+            }
+        }
+        val pipeline = AgentPipeline(tools, completionProvider = {
+            when (++round) {
+                1 -> CompletionResponse("", listOf(ToolCall("read", "github_manager", mapOf("action" to "get_repo", "repo" to "a/b"))))
+                2 -> CompletionResponse("", listOf(ToolCall("retry", "github_manager", mapOf("action" to "get_repo", "repo" to "a/b"))))
+                else -> CompletionResponse("Repository metadata inspected")
+            }
+        }, config = config)
+        val events = pipeline.execute("Inspect GitHub repository metadata", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
+        assertEquals(2, dispatched)
+        assertEquals("Repository metadata inspected", events.filterIsInstance<AgentEvent.FinalAnswer>().single().content)
+    }
+
     @Test fun `invented tool triggers runtime recovery without a discover call`() = runTest {
         val tools = FakeTools()
         var round = 0
