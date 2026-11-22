@@ -10,7 +10,7 @@ internal enum class SettingsGroup(val title: String, val description: String) {
     INSIGHTS("Usage & diagnostics", "Costs, agent activity and troubleshooting")
 }
 
-internal enum class SettingsDestination { PROVIDERS, MODELS, REASONING, EXECUTION_MODES, LOCAL_MODELS, ASSISTANT, VOICE, DEVICE_ACCESS, ACCESSIBILITY, FILE_ACCESS, COMPANION, PROFILE, MEMORY, INTEGRATIONS, VAULT, MCP, SCHEDULE, SKILLS, ANALYTICS, BRAIN, DEBUG }
+internal enum class SettingsDestination { PROVIDERS, MODELS, REASONING, EXECUTION_MODES, LOCAL_MODELS, ASSISTANT, VOICE, DEVICE_ACCESS, ACCESSIBILITY, FILE_ACCESS, COMPANION, PROFILE, MEMORY, INTEGRATIONS, VAULT, INBOX, MCP, SCHEDULE, SKILLS, ANALYTICS, BRAIN, DEBUG }
 
 internal data class SettingsEntry(
     val destination: SettingsDestination,
@@ -37,6 +37,7 @@ internal object SettingsCatalog {
         SettingsEntry(SettingsDestination.MEMORY, SettingsGroup.PERSONAL, "Knowledge & memory", "Browse, search and edit saved memories", "knowledge base explorer context ذاكرة ذكريات معرفة سياق"),
         SettingsEntry(SettingsDestination.INTEGRATIONS, SettingsGroup.AUTOMATION, "Linked accounts", "Connect GitHub, Telegram and other platforms", "integrations whatsapp bridge github agent access ربط تكامل حسابات تيليجرام واتساب"),
         SettingsEntry(SettingsDestination.VAULT, SettingsGroup.AUTOMATION, "OmniVault", "Store credentials encrypted on this device", "password secret login keystore credentials account vault"),
+        SettingsEntry(SettingsDestination.INBOX, SettingsGroup.AUTOMATION, "OmniConnect Inbox", "Browse sessions from all connected channels", "inbox telegram whatsapp discord messages channels"),
         SettingsEntry(SettingsDestination.MCP, SettingsGroup.AUTOMATION, "MCP servers", "Connect external tools and services", "model context protocol json سيرفر خوادم ادوات أدوات"),
         SettingsEntry(SettingsDestination.SKILLS, SettingsGroup.AUTOMATION, "Agent skills & tools", "Manage reusable skills and available tools", "registry import learned tasks routines taskly مهارات ادوات أدوات مهام متعلمة"),
         SettingsEntry(SettingsDestination.SCHEDULE, SettingsGroup.AUTOMATION, "Scheduled tasks", "Create and manage background tasks", "scheduler autonomous reminders جدولة مهام تذكير"),
