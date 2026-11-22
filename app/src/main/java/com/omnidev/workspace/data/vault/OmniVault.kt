@@ -25,7 +25,7 @@ import javax.crypto.spec.GCMParameterSpec
  */
 internal class OmniVault(
     context: Context,
-    private val grants: VaultGrantLedger = VaultGrantLedger(),
+    private val grants: VaultGrantLedger = SHARED_GRANTS,
     private val clock: () -> Long = System::currentTimeMillis
 ) {
     private val directory = File(context.applicationContext.noBackupFilesDir, "omni-agent-vault-v1")
@@ -153,6 +153,9 @@ internal class OmniVault(
     }
 
     companion object {
+        // Every store instance in this process observes revocation of the same one-use tickets.
+        // Process death still invalidates all grants; no ticket is written to disk.
+        private val SHARED_GRANTS = VaultGrantLedger()
         private const val VERSION = 1
         private const val IV_LENGTH = 12
         private const val MAX_RECORD_BYTES = 65_536
