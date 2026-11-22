@@ -70,6 +70,7 @@ fun AISettingsScreen(
     onNavigateToMemoryExplorer: () -> Unit = {},
     onNavigateToIntegrations: () -> Unit = {},
     onNavigateToVault: () -> Unit = {},
+    onNavigateToInbox: () -> Unit = {},
     onNavigateToLocalModels: () -> Unit = {},
     onNavigateToScheduledTasks: () -> Unit = {},
     onNavigateToToolRegistry: () -> Unit = {},
@@ -136,6 +137,7 @@ fun AISettingsScreen(
             SettingsDestination.MEMORY -> onNavigateToMemoryExplorer()
             SettingsDestination.INTEGRATIONS -> onNavigateToIntegrations()
             SettingsDestination.VAULT -> onNavigateToVault()
+            SettingsDestination.INBOX -> onNavigateToInbox()
             SettingsDestination.MCP -> onNavigateToMcpSettings()
             SettingsDestination.SCHEDULE -> onNavigateToScheduledTasks()
             SettingsDestination.SKILLS -> onNavigateToToolRegistry()
