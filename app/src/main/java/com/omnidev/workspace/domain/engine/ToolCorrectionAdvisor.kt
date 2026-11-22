@@ -32,9 +32,23 @@ internal class ToolCorrectionAdvisor(definitions: List<ToolDefinition>) {
         val definition = matches?.singleOrNull()
         if (definition == null) return ToolCorrectionReport(null, listOf(ToolContractIssue(ToolContractIssueKind.UNKNOWN_TOOL,
             suggestion = if (matches == null) ToolTypoAdvisor.suggest(call.name, contracts.filterValues { it.size == 1 }.keys) else null)))
-        if (call.argumentError != null) return ToolCorrectionReport(definition.name, listOf(ToolContractIssue(
-            ToolContractIssueKind.MALFORMED_ARGUMENTS, expected = if (definition.name == "discover_tools") "{} or {\"query\":\"operation\"}" else "JSON object matching the current schema"
-        )))
+        if (call.argumentError != null) {
+            // Do not echo malformed provider bytes. An exact schema hint is more actionable
+            // than a generic "JSON object" and cannot bypass preflight authorization.
+            val action = definition.parameters.firstOrNull { it.name == "action" }
+            val expected = if (definition.name == "discover_tools") "{} or {\"query\":\"operation\"}" else buildString {
+                append("JSON object; ")
+                if (action?.allowedValues?.isNotEmpty() == true)
+                    append("action one of ").append(action.allowedValues.take(6).joinToString("|")).append("; ")
+                append("fields: ")
+                append(definition.parameters.joinToString(", ") { p ->
+                    p.name + (if (p.required) "*" else "") + ":" + p.type
+                })
+            }.take(180)
+            return ToolCorrectionReport(definition.name, listOf(ToolContractIssue(
+                ToolContractIssueKind.MALFORMED_ARGUMENTS, expected = expected
+            )))
+        }
         val parameters = definition.parameters.associateBy { it.name }
         val issues = ArrayList<ToolContractIssue>()
         fun add(issue: ToolContractIssue) { if (issues.size < 13) issues += issue }
