@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(omnidev_native CXX)
 
+# Norm intentionally excludes local SLM inference. AGP may still configure CMake
+# using ABI-specific task names, so enforce the flavor's explicit flag here.
+# Do not download llama.cpp, create JNI targets or package a stub for this tier.
+option(OMNIDEV_DISABLE_NATIVE "Disable native local inference for the selected flavor" OFF)
+if(OMNIDEV_DISABLE_NATIVE)
+    message(STATUS "[llama_jni] Native local inference disabled for this flavor")
+    return()
+endif()
+
 # ─────────────────────────────────────────────────────────────────────────────
 # llama.cpp source resolution — two tiers, no stub
 #
