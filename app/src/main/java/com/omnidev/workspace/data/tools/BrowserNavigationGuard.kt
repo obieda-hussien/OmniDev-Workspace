@@ -36,6 +36,6 @@ internal object BrowserNavigationGuard {
 
     private val CHALLENGE_TITLES = listOf(
         "just a moment", "checking your browser", "attention required",
-        "verify you are human", "security check", "لحظة", "التحقق من الأمان"
+        "verify you are human", "security check", "\u0644\u062d\u0638\u0629", "\u0627\u0644\u062a\u062d\u0642\u0642 \u0645\u0646 \u0627\u0644\u0623\u0645\u0627\u0646"
     )
 }
