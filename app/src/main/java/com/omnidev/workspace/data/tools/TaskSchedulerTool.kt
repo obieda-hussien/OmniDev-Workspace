@@ -583,10 +583,12 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
             repeatIntervalMinutes != null -> RecurrenceType.INTERVAL_MINUTES
             else -> recurrenceType
         }
+        require(selectedRecurrence != RecurrenceType.INTERVAL_MINUTES || repeatIntervalMinutes != null) { "Interval recurrence requires repeatIntervalMinutes." }
+        require(selectedRecurrence != RecurrenceType.CRON || cronExpression != null) { "Cron recurrence requires cronExpression." }
         val scheduledTime = computeInitialScheduledTime(delayMinutes, selectedRecurrence,
             cronExpression, timeOfDay, dayOfWeek, dayOfMonth)
         val initialStatus = if (dependsOn.isNotEmpty() &&
-            dependsOn.any { dep -> tasks.none { it.id == dep && it.status == TaskStatus.COMPLETED } })
+            dependsOn.any { dep -> tasks.none { it.id == dep && (it.status == TaskStatus.COMPLETED || it.runCount > 0) } })
             TaskStatus.WAITING_DEPENDENCY else TaskStatus.PENDING
 
         val id = UUID.randomUUID().toString()
@@ -902,6 +904,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         if (t.tags.isNotEmpty()) appendLine("Tags:       ${t.tags.joinToString()}")
         if (t.timeoutMinutes != null) appendLine("Timeout:    ${t.timeoutMinutes}m")
         if (t.maxRetries > 0) appendLine("Retries:    ${t.retryCount}/${t.maxRetries}")
+        if (t.failedOccurrenceCount > 0) appendLine("Failed occurrences: ${t.failedOccurrenceCount}")
         if (t.dependsOn.isNotEmpty()) appendLine("Depends:    ${t.dependsOn.joinToString()}")
         if (t.runCount > 0) appendLine("Runs:       ${t.runCount}${if(t.maxRuns!=null) "/${t.maxRuns}" else ""}")
         if (t.startedAtMillis != null) appendLine("Started:    ${fmt.format(Date(t.startedAtMillis))}")
