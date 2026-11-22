@@ -250,9 +250,10 @@ class TaskRunRecorder(
                 resultTruncated = safe.length > MAX_RESULT_CHARS, resultChars = safe.length, isError = isError || status != InvocationStatus.SUCCEEDED,
                 errorDetail = if (isError) safe.take(500) else "", classification = classification.orEmpty(), verification = verification?.let(redact)), clock(), "done:$invocationId", status.name)
         }
-        if (planningActive && status == InvocationStatus.FAILED) stepByCall[call.id]?.let { sid ->
-            safely { store.transitionStep(sid, StepStatus.FAILED, "Tool execution invalidated the active step", clock(), "step-failed:$invocationId") }
-        }
+        // An individual failed invocation does not end its plan step. Keep the step RUNNING
+        // so a later safe read or corrected call in the next turn remains dependency-ready.
+        // The P0 finish verdict (or task interruption) owns terminal step outcomes; unknown
+        // side effects still fail closed independently in gateRunning().
         cycleNotes.append(call.name).append(if (status == InvocationStatus.SUCCEEDED) " ok. " else " ${status.name.lowercase()}. ")
         safely { store.heartbeat(taskId, clock()) }
     }
