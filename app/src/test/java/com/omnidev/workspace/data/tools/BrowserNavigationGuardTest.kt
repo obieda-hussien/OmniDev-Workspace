@@ -17,7 +17,7 @@ class BrowserNavigationGuardTest {
         val result = BrowserNavigationGuard.verify(
             "https://wuzzuf.net/search/jobs/?q=AI",
             "https://wuzzuf.net/search/jobs/?q=AI",
-            "لحظة…", true
+            "\u0644\u062d\u0638\u0629\u2026", true
         )
         assertEquals("BROWSER_CHALLENGE", result?.classification)
     }
