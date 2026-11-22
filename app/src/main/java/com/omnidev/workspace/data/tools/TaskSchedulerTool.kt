@@ -192,6 +192,10 @@ object TaskSchedulerTool {
         val cronExpression: String? = null,
         val maxRuns: Int? = null,
         val runCount: Int = 0,
+        /** Terminal failures count toward maxRuns, but never satisfy dependencies. */
+        val failedOccurrenceCount: Int = 0,
+        /** Original occurrence time, retained across retry backoff. */
+        val occurrenceTimeMillis: Long? = null,
 
         val priority: TaskPriority = TaskPriority.NORMAL,
         val tags: List<String> = emptyList(),
@@ -301,13 +305,13 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
                 ToolParameter("tags", "string", "Comma-separated labels", false),
                 ToolParameter("maxRetries", "string", "Auto-retry count on failure (default 0)", false),
                 ToolParameter("timeoutMinutes", "string", "Abort after N minutes running", false),
-                ToolParameter("maxRuns", "string", "Stop repeating after N runs", false),
+                ToolParameter("maxRuns", "string", "Stop repeating after N terminal occurrences (successful or failed; retries do not count)", false),
                 ToolParameter("dependsOn", "string", "Comma-separated task IDs to depend on", false),
                 ToolParameter("notifyOnComplete", "string", "true/false — notify on success", false),
                 ToolParameter("notifyOnFail", "string", "true/false — notify on failure", false),
                 ToolParameter("recurrence", "string", "once|interval|daily|weekly|monthly|cron", false),
                 ToolParameter("repeatIntervalMinutes", "string", "Repeat every N minutes", false),
-                ToolParameter("cronExpression", "string", "5-field CRON: 'min hour dom month dow'", false),
+                ToolParameter("cronExpression", "string", "5-field CRON: min hour dom month dow; Sunday 0 or 7; restricted DOM and DOW use OR, wildcard-based fields use AND", false),
                 ToolParameter("timeOfDay", "string", "HH:mm for daily/weekly/monthly", false),
                 ToolParameter("dayOfWeek", "string", "1=Mon..7=Sun for weekly", false),
                 ToolParameter("dayOfMonth", "string", "1-31 for monthly", false),
@@ -436,12 +440,15 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
     @Synchronized
     fun getReadyTasks(): List<ScheduledTask> {
         val completedIds = tasks.filter { (it.status == TaskStatus.COMPLETED || it.runCount > 0) }.map { it.id }.toSet()
+        var changed = false
         for (i in tasks.indices) {
             val t = tasks[i]
             if (t.status == TaskStatus.WAITING_DEPENDENCY && t.dependsOn.all { it in completedIds }) {
                 tasks[i] = t.copy(status = TaskStatus.PENDING)
+                changed = true
             }
         }
+        if (changed) notifyChanged()
         val now = System.currentTimeMillis()
         return tasks
             .filter { it.status == TaskStatus.PENDING && now >= it.scheduledTimeMillis }
@@ -454,6 +461,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         if (idx != -1 && tasks[idx].status == TaskStatus.PENDING) {
             tasks[idx] = tasks[idx].copy(
                 status = TaskStatus.RUNNING,
+                occurrenceTimeMillis = tasks[idx].occurrenceTimeMillis ?: tasks[idx].scheduledTimeMillis,
                 startedAtMillis = System.currentTimeMillis(),
                 lastResult = executionDetails ?: tasks[idx].lastResult
             )
@@ -473,7 +481,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
             } else t.executionSummaries
             val historyEntry = summary?.toHistoryEntry() ?: result
             val history = (listOf(historyEntry) + t.executionHistory).take(10)
-            tasks[idx] = t.copy(
+            val terminal = t.copy(
                 status = TaskStatus.COMPLETED,
                 lastResult = result.take(500),
                 completedAtMillis = System.currentTimeMillis(),
@@ -481,10 +489,10 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
                 executionSummaries = summaries,
                 executionHistory = history
             )
+            tasks[idx] = advanceRecurring(terminal, System.currentTimeMillis())
             notifyChanged()
-            // Fire notification if enabled
             if (t.notifyOnComplete && summary != null) {
-                notificationCallback?.invoke(tasks[idx], summary)
+                runCatching { notificationCallback?.invoke(terminal, summary) }
             }
         }
     }
@@ -492,51 +500,49 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
     @Synchronized
     fun markFailed(taskId: String, error: String, summary: ExecutionSummary? = null) {
         val idx = tasks.indexOfFirst { it.id == taskId }
-        if (idx == -1) return
-        if (tasks[idx].status == TaskStatus.CANCELLED) return
+        if (idx == -1 || tasks[idx].status != TaskStatus.RUNNING) return
         val t = tasks[idx]
-        val summaries = if (summary != null) {
-            (listOf(summary) + t.executionSummaries).take(10)
-        } else t.executionSummaries
-        val historyEntry = summary?.toHistoryEntry() ?: "FAILED: $error"
-        val history = (listOf(historyEntry) + t.executionHistory).take(10)
-        tasks[idx] = t.copy(
-            status = TaskStatus.FAILED,
-            lastResult = error.take(500),
-            executionSummaries = summaries,
-            executionHistory = history
-        )
+        val now = System.currentTimeMillis()
+        val terminal = failureSnapshot(t, error, summary, now)
+        tasks[idx] = afterFailure(terminal, now)
         notifyChanged()
-        // Notification on failure
         if (t.notifyOnFail && summary != null) {
-            notificationCallback?.invoke(tasks[idx], summary)
-        }
-        // Auto-retry
-        if (t.retryCount < t.maxRetries) {
-            val backoffMs = (1L shl t.retryCount.coerceAtMost(6)) * 60_000L
-            tasks[idx] = tasks[idx].copy(
-                scheduledTimeMillis = System.currentTimeMillis() + backoffMs,
-                status = TaskStatus.PENDING,
-                retryCount = t.retryCount + 1,
-                lastResult = null,
-                startedAtMillis = null,
-                completedAtMillis = null
-            )
-            notifyChanged()
+            runCatching { notificationCallback?.invoke(terminal, summary) }
         }
     }
 
-    @Synchronized
-    fun rescheduleRepeating(taskId: String) {
-        val index = tasks.indexOfFirst { it.id == taskId }
-        if (index < 0) return
-        val task = tasks[index]
-        if (task.status != TaskStatus.COMPLETED) return
-        val nextSchedule = computeNextScheduledTime(task) ?: return
-        if (task.maxRuns != null && task.runCount >= task.maxRuns) return
-        tasks[index] = task.copy(scheduledTimeMillis = nextSchedule,
+    internal fun failureSnapshot(task: ScheduledTask, error: String, summary: ExecutionSummary?, now: Long): ScheduledTask =
+        task.copy(
+            status = TaskStatus.FAILED,
+            lastResult = error.take(500),
+            completedAtMillis = now,
+            executionSummaries = if (summary != null) (listOf(summary) + task.executionSummaries).take(10) else task.executionSummaries,
+            executionHistory = (listOf(summary?.toHistoryEntry() ?: "FAILED: ${error.take(500)}") + task.executionHistory).take(10)
+        )
+
+    /** Retry the current occurrence first; when exhausted atomically advance its recurrence. */
+    internal fun afterFailure(failed: ScheduledTask, now: Long): ScheduledTask {
+        if (failed.status != TaskStatus.FAILED) return failed
+        if (failed.retryCount < failed.maxRetries) {
+            val backoffMs = (1L shl failed.retryCount.coerceIn(0, 6)) * 60_000L
+            return failed.copy(
+                scheduledTimeMillis = now + backoffMs,
+                occurrenceTimeMillis = failed.occurrenceTimeMillis ?: failed.scheduledTimeMillis,
+                status = TaskStatus.PENDING, retryCount = failed.retryCount + 1,
+                startedAtMillis = null, completedAtMillis = null
+            )
+        }
+        return advanceRecurring(failed.copy(failedOccurrenceCount = failed.failedOccurrenceCount + 1), now)
+    }
+
+    /** The next occurrence is persisted in the same transaction as the outcome. */
+    internal fun advanceRecurring(task: ScheduledTask, now: Long): ScheduledTask {
+        if (task.status !in setOf(TaskStatus.COMPLETED, TaskStatus.FAILED) ||
+            task.recurrenceType == RecurrenceType.ONCE ||
+            task.maxRuns?.let { task.runCount.toLong() + task.failedOccurrenceCount >= it } == true) return task
+        val next = computeNextScheduledTime(task, now) ?: return task
+        return task.copy(scheduledTimeMillis = next, occurrenceTimeMillis = null,
             status = TaskStatus.PENDING, retryCount = 0, startedAtMillis = null, completedAtMillis = null)
-        notifyChanged()
     }
 
     @Synchronized
@@ -577,10 +583,12 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
             repeatIntervalMinutes != null -> RecurrenceType.INTERVAL_MINUTES
             else -> recurrenceType
         }
+        require(selectedRecurrence != RecurrenceType.INTERVAL_MINUTES || repeatIntervalMinutes != null) { "Interval recurrence requires repeatIntervalMinutes." }
+        require(selectedRecurrence != RecurrenceType.CRON || cronExpression != null) { "Cron recurrence requires cronExpression." }
         val scheduledTime = computeInitialScheduledTime(delayMinutes, selectedRecurrence,
             cronExpression, timeOfDay, dayOfWeek, dayOfMonth)
         val initialStatus = if (dependsOn.isNotEmpty() &&
-            dependsOn.any { dep -> tasks.none { it.id == dep && it.status == TaskStatus.COMPLETED } })
+            dependsOn.any { dep -> tasks.none { it.id == dep && (it.status == TaskStatus.COMPLETED || it.runCount > 0) } })
             TaskStatus.WAITING_DEPENDENCY else TaskStatus.PENDING
 
         val id = UUID.randomUUID().toString()
@@ -896,6 +904,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         if (t.tags.isNotEmpty()) appendLine("Tags:       ${t.tags.joinToString()}")
         if (t.timeoutMinutes != null) appendLine("Timeout:    ${t.timeoutMinutes}m")
         if (t.maxRetries > 0) appendLine("Retries:    ${t.retryCount}/${t.maxRetries}")
+        if (t.failedOccurrenceCount > 0) appendLine("Failed occurrences: ${t.failedOccurrenceCount}")
         if (t.dependsOn.isNotEmpty()) appendLine("Depends:    ${t.dependsOn.joinToString()}")
         if (t.runCount > 0) appendLine("Runs:       ${t.runCount}${if(t.maxRuns!=null) "/${t.maxRuns}" else ""}")
         if (t.startedAtMillis != null) appendLine("Started:    ${fmt.format(Date(t.startedAtMillis))}")
@@ -931,22 +940,33 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         }
     }
 
-    private fun nextCronTime(expr: String, afterMillis: Long): Long? {
+    internal fun nextCronTime(expr: String, afterMillis: Long, zone: TimeZone = TimeZone.getDefault()): Long? {
         val fields = expr.trim().split("\\s+".toRegex())
-        if (fields.size != 5) return null
+        if (!isValidCron(expr)) return null
         val (minF, hourF, domF, monthF, dowF) = fields
-        val cal = Calendar.getInstance().apply {
+        val cal = Calendar.getInstance(zone).apply {
             timeInMillis = afterMillis + 60_000L
             set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }
-        val limit = afterMillis + 366L * 24 * 60 * 60_000
+        // Eight years covers leap-day gaps across non-leap century years.
+        val limit = (cal.clone() as Calendar).apply { add(Calendar.YEAR, 8) }.timeInMillis
+        val minutes = (0..59).filter { matchCronField(minF, it, 0..59) }.toSet()
+        val hours = (0..23).filter { matchCronField(hourF, it, 0..23) }.toSet()
+        val months = (1..12).filter { matchCronField(monthF, it, 1..12) }.toSet()
+        val days = (1..31).filter { matchCronField(domF, it, 1..31) }.toSet()
+        val weekdays = (0..7).filter { matchCronField(dowF, it, 0..7) }.map { it % 7 }.toSet()
         while (cal.timeInMillis < limit) {
-            val min = cal.get(Calendar.MINUTE); val hour = cal.get(Calendar.HOUR_OF_DAY)
-            val dom = cal.get(Calendar.DAY_OF_MONTH); val month = cal.get(Calendar.MONTH) + 1
-            val dow = cal.get(Calendar.DAY_OF_WEEK) - 1
-            if (matchCronField(minF,min,0..59)&&matchCronField(hourF,hour,0..23)&&
-                matchCronField(domF,dom,1..31)&&matchCronField(monthF,month,1..12)&&
-                (matchCronField(dowF,dow,0..6)||matchCronField(dowF,if(dow==0) 7 else dow,0..7)))
+            val domMatches = cal.get(Calendar.DAY_OF_MONTH) in days
+            val dowMatches = cal.get(Calendar.DAY_OF_WEEK) - 1 in weekdays
+            val dayMatches = if (domF.startsWith("*") || dowF.startsWith("*"))
+                domMatches && dowMatches else domMatches || dowMatches
+            if (cal.get(Calendar.MONTH) + 1 !in months || !dayMatches) {
+                cal.add(Calendar.DAY_OF_YEAR, 1)
+                cal.set(Calendar.HOUR_OF_DAY, 0)
+                cal.set(Calendar.MINUTE, 0)
+                continue
+            }
+            if (cal.get(Calendar.MINUTE) in minutes && cal.get(Calendar.HOUR_OF_DAY) in hours)
                 return cal.timeInMillis
             cal.add(Calendar.MINUTE, 1)
         }
@@ -965,24 +985,38 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
     // ── Time Computation ──────────────────────────────────────────────────
 
     private fun computeInitialScheduledTime(delayMinutes: Int, recurrenceType: RecurrenceType, cronExpression: String?, timeOfDay: String?, dayOfWeek: Int?, dayOfMonth: Int?): Long {
-        if (delayMinutes > 0) return System.currentTimeMillis() + delayMinutes * 60_000L
+        if (delayMinutes > 0) {
+            val delayed = System.currentTimeMillis() + delayMinutes * 60_000L
+            if (recurrenceType == RecurrenceType.CRON) return requireNotNull(nextCronTime(cronExpression ?: "* * * * *", delayed - 1)) { "CRON has no matching date within eight years." }
+            return delayed
+        }
         val now = Calendar.getInstance()
         return when (recurrenceType) {
             RecurrenceType.ONCE, RecurrenceType.INTERVAL_MINUTES -> now.timeInMillis
             RecurrenceType.DAILY   -> nextDaily(now, timeOfDay).timeInMillis
             RecurrenceType.WEEKLY  -> nextWeekly(now, timeOfDay, dayOfWeek).timeInMillis
             RecurrenceType.MONTHLY -> nextMonthly(now, timeOfDay, dayOfMonth).timeInMillis
-            RecurrenceType.CRON    -> nextCronTime(cronExpression ?: "* * * * *", now.timeInMillis) ?: now.timeInMillis
+            RecurrenceType.CRON    -> requireNotNull(nextCronTime(cronExpression ?: "* * * * *", now.timeInMillis)) { "CRON has no matching date within eight years." }
         }
     }
 
-    private fun computeNextScheduledTime(task: ScheduledTask): Long? = when (task.recurrenceType) {
-        RecurrenceType.ONCE -> null
-        RecurrenceType.INTERVAL_MINUTES -> task.repeatIntervalMinutes?.takeIf { it > 0 }?.let { System.currentTimeMillis() + it * 60_000L }
-        RecurrenceType.DAILY   -> nextDaily(Calendar.getInstance(), task.timeOfDay).timeInMillis
-        RecurrenceType.WEEKLY  -> nextWeekly(Calendar.getInstance(), task.timeOfDay, task.dayOfWeek).timeInMillis
-        RecurrenceType.MONTHLY -> nextMonthly(Calendar.getInstance(), task.timeOfDay, task.dayOfMonth).timeInMillis
-        RecurrenceType.CRON    -> nextCronTime(task.cronExpression ?: "* * * * *", Calendar.getInstance().timeInMillis)
+    private fun computeNextScheduledTime(task: ScheduledTask, now: Long): Long? {
+        val anchor = task.occurrenceTimeMillis ?: task.scheduledTimeMillis
+        val original = Calendar.getInstance().apply { timeInMillis = anchor }
+        val current = Calendar.getInstance().apply { timeInMillis = now }
+        val time = task.timeOfDay ?: "%02d:%02d".format(Locale.ROOT, original.get(Calendar.HOUR_OF_DAY), original.get(Calendar.MINUTE))
+        val weekday = task.dayOfWeek ?: ((original.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1)
+        return when (task.recurrenceType) {
+            RecurrenceType.ONCE -> null
+            RecurrenceType.INTERVAL_MINUTES -> task.repeatIntervalMinutes?.takeIf { it > 0 }?.let {
+                val interval = it * 60_000L
+                anchor + ((now - anchor).coerceAtLeast(0) / interval + 1) * interval
+            }
+            RecurrenceType.DAILY -> nextDaily(current, time).timeInMillis
+            RecurrenceType.WEEKLY -> nextWeekly(current, time, weekday).timeInMillis
+            RecurrenceType.MONTHLY -> nextMonthly(current, time, task.dayOfMonth ?: 1).timeInMillis
+            RecurrenceType.CRON -> nextCronTime(task.cronExpression ?: "* * * * *", now)
+        }
     }
 
     private fun parseTimeOfDay(timeOfDay: String?): Pair<Int,Int>? {

@@ -3,13 +3,19 @@ package com.omnidev.workspace.data.network
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.LinkProperties
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.VpnService
 import android.os.Build
-import android.os.IBinder
 import android.os.ParcelFileDescriptor
+import android.system.Os
+import android.system.OsConstants
+import android.system.StructPollfd
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,66 +23,38 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.FileInputStream
-import java.io.FileOutputStream
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.InetAddress
-import java.nio.ByteBuffer
 import java.util.Collections
 import java.util.LinkedHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * OmniDevVpnService — a local VPN tunnel that intercepts all device IP traffic so the
- * agent can monitor outbound connections, detect privacy-leaking apps, and block ad/tracker
- * domains — all without root.
- *
- * ## How it works
- * Android's [VpnService] lets an app create a TUN interface without root.  We build the
- * interface with [Builder], read raw IP packets from it, inspect the destination address
- * or DNS name, decide whether to forward or drop, then write the packet back (for
- * dropped packets we write a simple TCP-RST / DNS-NXDOMAIN so the app fails fast).
- *
- * Actual forwarding is intentional and explicit: only traffic to hosts **not** on the block
- * list is written back to the TUN so the Android IP stack can route it normally.
- *
- * ## Security / privacy note
- * Packet inspection is purely local — no data is sent to any external server.  The
- * agent only sees destination IPs, hostnames extracted from DNS queries, and byte counts.
- *
- * ## Limitations
- * * Encrypted SNI (ESNI / ECH) prevents hostname extraction from TLS handshakes.
- * * DNS-over-HTTPS (DoH) resolvers bypass plain-DNS inspection; only UDP/53 is parsed.
- * * The "bypass" set lets the app's own traffic leave the tunnel so the AI can still
- *   make network calls while the VPN is active.
+ * DNS-only monitor. Route one virtual IPv4 resolver, not ordinary internet traffic.
+ * Forward valid UDP DNS over protected sockets bound to the existing underlying network.
+ * Unsupported protocols, upstream failures and network changes tear down the tunnel so
+ * Android can restore its normal resolver. Never reinject an outbound packet as inbound.
+ * Private DNS, DoH, direct IP connections and IPv6 traffic are not inspected.
  */
 class OmniDevVpnService : VpnService() {
-
-    // ──────────────────────────────────────────────────────────────────────
-    // Companion — public contract shared with NetworkMonitorTool
-    // ──────────────────────────────────────────────────────────────────────
     companion object {
         const val ACTION_START = "com.omnidev.workspace.VPN_START"
-        const val ACTION_STOP  = "com.omnidev.workspace.VPN_STOP"
-
-        private const val CHANNEL_ID      = "omni_vpn_monitor"
+        const val ACTION_STOP = "com.omnidev.workspace.VPN_STOP"
+        const val MODE = "DNS-only (IPv4 UDP/53)"
+        private const val CHANNEL_ID = "omni_vpn_monitor"
         private const val NOTIFICATION_ID = 7701
         private const val MAX_LOG_ENTRIES = 500
 
-        @Volatile var isRunning: Boolean = false
+        @Volatile var isRunning = false
+            private set
+        @Volatile var lastError: String? = null
             private set
 
-        /** Live traffic log: timestamp → human-readable entry. */
         val trafficLog: MutableList<TrafficEntry> = Collections.synchronizedList(ArrayList())
-
-        /** Per-host byte counters: hostname/IP → stats. */
-        val hostByteStats: MutableMap<String, HostStats> =
-            Collections.synchronizedMap(LinkedHashMap())
-
-        /** Domains/IPs that should be blocked (DNS NXDOMAIN / TCP RST). */
-        val blockedDomains: MutableSet<String> =
-            Collections.synchronizedSet(LinkedHashSet())
-
-        val totalBytesIn  = AtomicLong(0)
+        val hostByteStats: MutableMap<String, HostStats> = Collections.synchronizedMap(LinkedHashMap())
+        val blockedDomains: MutableSet<String> = Collections.synchronizedSet(LinkedHashSet())
+        val totalBytesIn = AtomicLong(0)
         val totalBytesOut = AtomicLong(0)
 
         fun clearLog() {
@@ -87,308 +65,218 @@ class OmniDevVpnService : VpnService() {
         }
 
         fun addBlockedDomain(domain: String) {
-            blockedDomains.add(domain.lowercase().trim())
+            DnsMonitorPacket.normalizeDomain(domain)?.let { blockedDomains.add(it) }
         }
 
         fun removeBlockedDomain(domain: String) {
-            blockedDomains.remove(domain.lowercase().trim())
+            DnsMonitorPacket.normalizeDomain(domain)?.let { blockedDomains.remove(it) }
         }
 
-        private fun addTrafficEntry(entry: TrafficEntry) {
-            if (trafficLog.size >= MAX_LOG_ENTRIES) {
-                try { trafficLog.removeAt(0) } catch (_: Exception) {}
-            }
+        private fun addTrafficEntry(entry: TrafficEntry) = synchronized(trafficLog) {
+            if (trafficLog.size >= MAX_LOG_ENTRIES) trafficLog.removeAt(0)
             trafficLog.add(entry)
         }
 
-        /** Start or stop the VPN from anywhere (Activity, Tool, etc.). */
         fun startVpn(context: Context) {
-            val intent = Intent(context, OmniDevVpnService::class.java).apply {
-                action = ACTION_START
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            val intent = Intent(context, OmniDevVpnService::class.java).apply { action = ACTION_START }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+            else context.startService(intent)
         }
 
         fun stopVpn(context: Context) {
-            val intent = Intent(context, OmniDevVpnService::class.java).apply {
-                action = ACTION_STOP
-            }
-            context.startService(intent)
+            context.stopService(Intent(context, OmniDevVpnService::class.java))
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Instance state
-    // ──────────────────────────────────────────────────────────────────────
-
-    private var vpnInterface: ParcelFileDescriptor? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-    // ──────────────────────────────────────────────────────────────────────
-    // Service lifecycle
-    // ──────────────────────────────────────────────────────────────────────
+    private var vpnInterface: ParcelFileDescriptor? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    @Volatile private var activeSocket: DatagramSocket? = null
+    @Volatile private var stopping = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_STOP -> {
-                stopSelf()
-                return START_NOT_STICKY
-            }
-            else -> startTunnel()
+            ACTION_START -> startTunnel()
+            ACTION_STOP -> stopTunnel()
+            else -> stopTunnel()
         }
-        return START_STICKY
+        return START_NOT_STICKY
+    }
+
+    override fun onRevoke() {
+        stopTunnel("VPN permission revoked")
+        super.onRevoke()
     }
 
     override fun onDestroy() {
-        isRunning = false
+        releaseTunnel()
         scope.cancel()
-        vpnInterface?.close()
-        vpnInterface = null
         super.onDestroy()
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    @Synchronized private fun releaseTunnel() {
+        stopping = true
+        isRunning = false
+        activeSocket?.close()
+        activeSocket = null
+        runCatching { vpnInterface?.close() }
+        vpnInterface = null
+        networkCallback?.let { callback ->
+            runCatching { getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(callback) }
+        }
+        networkCallback = null
+    }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Tunnel management
-    // ──────────────────────────────────────────────────────────────────────
+    @Synchronized private fun stopTunnel(reason: String? = null) {
+        if (stopping) return
+        if (reason != null) {
+            lastError = reason
+            addTrafficEntry(TrafficEntry(System.currentTimeMillis(), "ERROR", reason, 0))
+        }
+        releaseTunnel()
+        stopSelf()
+    }
 
-    private fun startTunnel() {
-        if (isRunning) return
-
+    @Synchronized private fun startTunnel() {
+        if (isRunning || stopping) return
+        lastError = null
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification("🔒 Network Monitor active"))
-
-        val builder = Builder()
-            .setSession("OmniDev Network Monitor")
-            .addAddress("10.0.0.2", 24)          // virtual IP for this device
-            .addRoute("0.0.0.0", 0)               // capture all IPv4 traffic
-            .addDnsServer("8.8.8.8")
-            .addDnsServer("1.1.1.1")
-            .setMtu(1500)
-            .allowFamily(android.system.OsConstants.AF_INET)
-
-        // Allow OmniDev's own traffic to bypass the tunnel so the agent can still
-        // make AI/network calls while the VPN is active.  Traffic from all other
-        // apps goes through the tunnel and can be inspected.
+        startForeground(NOTIFICATION_ID, buildNotification("DNS monitor: starting"))
         try {
-            builder.addDisallowedApplication(packageName)
-        } catch (_: Exception) {}
+            // Network-bound DatagramSocket and underlying-network selection require API 23.
+            check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) { "DNS monitoring requires Android 6 or newer" }
+            check(prepare(this) == null) { "VPN consent required" }
+            check(Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !isAlwaysOn && !isLockdownEnabled) { "DNS-only monitoring is incompatible with always-on/lockdown VPN" }
+            val manager = checkNotNull(getSystemService(ConnectivityManager::class.java))
+            val network = checkNotNull(manager.activeNetwork) { "No underlying network" }
+            val caps = checkNotNull(manager.getNetworkCapabilities(network))
+            check(!caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) { "Another VPN is active" }
+            val link = checkNotNull(manager.getLinkProperties(network))
+            check(!privateDns(link)) { "Private DNS is active; monitoring would downgrade encrypted DNS" }
+            val upstream = link.dnsServers.distinct().take(3)
+            check(upstream.isNotEmpty()) { "No underlying DNS resolver" }
 
-        try {
-            vpnInterface = builder.establish()
+            // Do not intercept other IPv4 or IPv6 destinations, including encrypted DNS.
+            val builder = Builder().setSession("OmniDev DNS Monitor")
+                .addAddress(DnsMonitorPacket.CLIENT, 32)
+                .addRoute(DnsMonitorPacket.RESOLVER, 32)
+                .addDnsServer(DnsMonitorPacket.RESOLVER)
+                .allowFamily(OsConstants.AF_INET6)
+                .allowBypass()
+                .setMtu(DnsMonitorPacket.MTU)
+                .setBlocking(false)
+                .addDisallowedApplication(packageName)
+                .setUnderlyingNetworks(arrayOf(network))
+
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onLost(lost: Network) {
+                    if (lost == network) stopTunnel("Underlying network disconnected")
+                }
+                override fun onLinkPropertiesChanged(changed: Network, properties: LinkProperties) {
+                    if (changed == network && (privateDns(properties) || properties.dnsServers.distinct().take(3) != upstream)) {
+                        stopTunnel("Underlying DNS changed; restart monitor if needed")
+                    }
+                }
+            }
+            networkCallback = callback
+            manager.registerNetworkCallback(NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).build(), callback)
+            val fd = checkNotNull(builder.establish()) { "VPN establishment denied" }
+            vpnInterface = fd
+            isRunning = true
+            getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, buildNotification("DNS-only monitoring active"))
+            startPacketReader(fd, network, upstream)
         } catch (e: Exception) {
-            addTrafficEntry(TrafficEntry(System.currentTimeMillis(), "ERROR", "Failed to establish VPN tunnel: ${e.message}", 0))
-            stopSelf()
-            return
+            stopTunnel("DNS monitor could not start: ${e.message ?: e.javaClass.simpleName}")
         }
-
-        isRunning = true
-        startPacketReader()
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Packet reader coroutine
-    // ──────────────────────────────────────────────────────────────────────
+    private fun privateDns(link: LinkProperties): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && (link.isPrivateDnsActive || link.privateDnsServerName != null)
 
-    private fun startPacketReader() {
-        val fd = vpnInterface ?: return
-
+    private fun startPacketReader(fd: ParcelFileDescriptor, network: Network, upstream: List<InetAddress>) {
         scope.launch {
-            val input  = FileInputStream(fd.fileDescriptor)
-            val output = FileOutputStream(fd.fileDescriptor)
-            val packet = ByteBuffer.allocate(32_768)
-
-            while (isActive && isRunning) {
-                packet.clear()
-                val len = try {
-                    input.read(packet.array())
-                } catch (_: Exception) {
-                    break
+            val descriptor = fd.fileDescriptor
+            val poll = StructPollfd().apply {
+                this.fd = descriptor
+                events = OsConstants.POLLIN.toShort()
+            }
+            val packet = ByteArray(DnsMonitorPacket.MTU + 1)
+            try {
+                while (isActive && isRunning && !stopping) {
+                    if (Os.poll(arrayOf(poll), 500) == 0) continue
+                    if (poll.revents.toInt() and OsConstants.POLLIN == 0) error("DNS tunnel unavailable")
+                    val length = Os.read(descriptor, packet, 0, packet.size)
+                    if (length <= 0) error("DNS tunnel closed")
+                    val query = DnsMonitorPacket.parse(packet, length)
+                        ?: error("Unsupported DNS packet (including TCP); restoring system DNS")
+                    val blocked = synchronized(blockedDomains) { DnsMonitorPacket.blocked(query.domain, blockedDomains) }
+                    val answer = if (blocked) DnsMonitorPacket.refused(query) else forward(query, network, upstream)
+                    val reply = DnsMonitorPacket.reply(query, answer)
+                    check(Os.write(descriptor, reply, 0, reply.size) == reply.size) { "Incomplete DNS reply" }
+                    totalBytesOut.addAndGet(length.toLong())
+                    totalBytesIn.addAndGet(reply.size.toLong())
+                    addTrafficEntry(TrafficEntry(System.currentTimeMillis(), if (blocked) "BLOCKED" else "DNS", query.domain, length))
+                    synchronized(hostByteStats) {
+                        if (!hostByteStats.containsKey(query.domain) && hostByteStats.size >= MAX_LOG_ENTRIES) {
+                            hostByteStats.keys.iterator().apply { next(); remove() }
+                        }
+                        val stat = hostByteStats.getOrPut(query.domain) { HostStats(query.domain) }
+                        stat.bytesOut += length
+                        stat.bytesIn += reply.size
+                        stat.connections++
+                    }
                 }
-                if (len <= 0) continue
-
-                packet.limit(len)
-                totalBytesOut.addAndGet(len.toLong())
-
-                val drop = processPacket(packet, len)
-
-                if (!drop) {
-                    // Forward the packet back to the TUN (kernel routes it normally).
-                    try {
-                        output.write(packet.array(), 0, len)
-                    } catch (_: Exception) {}
-                }
-                // Dropped packets are silently discarded — the connection attempt will
-                // time out (no RST is sent, so the OS sees a hang rather than an immediate
-                // "connection refused").
+            } catch (e: Exception) {
+                if (!stopping) stopTunnel("DNS monitoring stopped: ${e.message ?: e.javaClass.simpleName}")
             }
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Packet inspection
-    // ──────────────────────────────────────────────────────────────────────
-
-    /**
-     * Parses a raw IPv4 packet from the TUN, extracts the destination address (and for
-     * UDP/53 — the queried DNS hostname), logs the connection, and decides whether to
-     * drop the packet.
-     *
-     * @return `true` if the packet should be dropped (domain is blocked).
-     */
-    private fun processPacket(buf: ByteBuffer, len: Int): Boolean {
-        if (len < 20) return false // too short for a valid IPv4 header
-
-        val ipVersion = (buf.get(0).toInt() ushr 4) and 0xF
-        if (ipVersion != 4) return false // skip IPv6 for now
-
-        val protocol = buf.get(9).toInt() and 0xFF
-        val srcIp = extractIp(buf, 12)
-        val dstIp = extractIp(buf, 16)
-
-        val ihlBytes = (buf.get(0).toInt() and 0xF) * 4
-        if (ihlBytes < 20 || ihlBytes > len) return false
-
-        var dnsName: String? = null
-
-        // UDP
-        if (protocol == 17 && len > ihlBytes + 8) {
-            val dstPort = ((buf.get(ihlBytes + 2).toInt() and 0xFF) shl 8) or
-                           (buf.get(ihlBytes + 3).toInt() and 0xFF)
-            // Plain-text DNS query on port 53
-            if (dstPort == 53) {
-                dnsName = parseDnsQuery(buf, ihlBytes + 8)
+    /** Connected UDP socket validates source address/port. Never use a public fallback DNS. */
+    private fun forward(query: DnsMonitorPacket.Query, network: Network, upstream: List<InetAddress>): ByteArray {
+        for (server in upstream) {
+            if (stopping) error("Monitor stopped")
+            try {
+                DatagramSocket().use { socket ->
+                    activeSocket = socket
+                    check(!stopping && protect(socket)) { "Could not protect DNS socket" }
+                    network.bindSocket(socket)
+                    socket.soTimeout = 1500
+                    socket.connect(server, 53)
+                    socket.send(DatagramPacket(query.dns, query.dns.size))
+                    val data = ByteArray(65535)
+                    val response = DatagramPacket(data, data.size)
+                    socket.receive(response)
+                    val reply = data.copyOf(response.length)
+                    if (DnsMonitorPacket.validReply(query, reply)) return reply
+                }
+            } catch (_: Exception) {
+                // Try the next resolver already configured by the underlying network.
+            } finally {
+                activeSocket = null
             }
         }
-
-        val label = dnsName ?: dstIp
-        val blocked = isBlocked(label)
-
-        val tag = when {
-            dnsName != null -> "DNS"
-            protocol == 6   -> "TCP"
-            protocol == 17  -> "UDP"
-            else            -> "IP"
-        }
-
-        addTrafficEntry(
-            TrafficEntry(
-                timestamp = System.currentTimeMillis(),
-                type      = if (blocked) "BLOCKED" else tag,
-                host      = label,
-                bytes     = len
-            )
-        )
-
-        // Update per-host (simplified — real per-app tracking needs /proc/net/tcp).
-        val key = dnsName ?: dstIp
-        val stats = hostByteStats.getOrPut(key) { HostStats(key) }
-        stats.bytesOut += len
-
-        return blocked
+        error("No usable UDP DNS reply (timeout, truncation or unsupported size)")
     }
-
-    /** Extracts a dotted-quad IPv4 string from a ByteBuffer at [offset]. */
-    private fun extractIp(buf: ByteBuffer, offset: Int): String {
-        return "${buf.get(offset).toInt() and 0xFF}." +
-               "${buf.get(offset + 1).toInt() and 0xFF}." +
-               "${buf.get(offset + 2).toInt() and 0xFF}." +
-               "${buf.get(offset + 3).toInt() and 0xFF}"
-    }
-
-    /**
-     * Parses a DNS query payload (starting right after the UDP header) and returns the
-     * queried name, or `null` on malformed/truncated input.
-     */
-    private fun parseDnsQuery(buf: ByteBuffer, udpPayloadOffset: Int): String? {
-        // DNS header is 12 bytes; QDCOUNT at offset +4 (2 bytes)
-        val dnsOff = udpPayloadOffset
-        if (buf.limit() < dnsOff + 12) return null
-        val qdCount = ((buf.get(dnsOff + 4).toInt() and 0xFF) shl 8) or
-                       (buf.get(dnsOff + 5).toInt() and 0xFF)
-        if (qdCount == 0) return null
-
-        // Walk the QNAME labels starting at dnsOff + 12
-        var pos = dnsOff + 12
-        val labels = mutableListOf<String>()
-        while (pos < buf.limit()) {
-            val labelLen = buf.get(pos).toInt() and 0xFF
-            if (labelLen == 0) break
-            // Compression pointer (top 2 bits set) — skip, just return what we have
-            if ((labelLen and 0xC0) == 0xC0) break
-            pos++
-            if (pos + labelLen > buf.limit()) break
-            val label = ByteArray(labelLen)
-            for (i in 0 until labelLen) label[i] = buf.get(pos + i)
-            labels.add(String(label, Charsets.US_ASCII))
-            pos += labelLen
-        }
-        return if (labels.isEmpty()) null else labels.joinToString(".")
-    }
-
-    /**
-     * Returns true if [label] matches any entry in [blockedDomains].
-     * Exact match is checked first (O(1) HashSet contains), then each label
-     * component is tried as a suffix ("ads.example.com" blocks if "example.com" is listed).
-     */
-    private fun isBlocked(label: String): Boolean {
-        val lower = label.lowercase()
-        if (blockedDomains.contains(lower)) return true
-        // Walk suffixes: "ads.example.com" → check "example.com", then "com"
-        var dot = lower.indexOf('.')
-        while (dot != -1) {
-            val suffix = lower.substring(dot + 1)
-            if (blockedDomains.contains(suffix)) return true
-            dot = lower.indexOf('.', dot + 1)
-        }
-        return false
-    }
-
-    // ──────────────────────────────────────────────────────────────────────
-    // Notification helpers
-    // ──────────────────────────────────────────────────────────────────────
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "OmniDev Network Monitor",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "Shows VPN-based network monitoring status" }
+            val channel = NotificationChannel(CHANNEL_ID, "OmniDev DNS Monitor", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 
-    private fun buildNotification(text: String): Notification {
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("OmniDev Network Monitor")
+    private fun buildNotification(text: String): Notification =
+        NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("OmniDev DNS Monitor")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
-    }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Data classes
-    // ──────────────────────────────────────────────────────────────────────
-
-    data class TrafficEntry(
-        val timestamp: Long,
-        val type: String,       // DNS | TCP | UDP | IP | BLOCKED | ERROR
-        val host: String,
-        val bytes: Int
-    )
-
-    data class HostStats(
-        val host: String,
-        var bytesOut: Long = 0,
-        var bytesIn:  Long = 0,
-        var connections: Int = 0
-    )
+    data class TrafficEntry(val timestamp: Long, val type: String, val host: String, val bytes: Int)
+    data class HostStats(val host: String, var bytesOut: Long = 0, var bytesIn: Long = 0, var connections: Int = 0)
 }

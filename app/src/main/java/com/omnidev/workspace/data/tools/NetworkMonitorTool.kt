@@ -3,20 +3,14 @@ package com.omnidev.workspace.data.tools
 import android.content.Context
 import android.net.VpnService
 import com.omnidev.workspace.data.network.OmniDevVpnService
+import com.omnidev.workspace.data.network.DnsMonitorPacket
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * NetworkMonitorTool — Gives the AI agent full control over a local VPN-based traffic
- * inspector. Uses [OmniDevVpnService] to intercept all IP packets via Android's
- * [VpnService] API. No root required.
- *
- * This tool allows the agent to audit privacy, block ads, and analyze app behavior
- * in real-time.
- */
+/** DNS-only monitor and best-effort domain filtering; not a full traffic capture. */
 object NetworkMonitorTool {
 
     // ──────────────────────────────────────────────────────────────────────
@@ -49,13 +43,13 @@ object NetworkMonitorTool {
         ToolDefinition(
             name = "network_monitor",
             description = """
-Monitor and control device network traffic via a local VPN tunnel. 100% on-device.
+Monitor plaintext IPv4 UDP DNS using a local VPN. Ordinary TCP/UDP, IPv6, Private DNS and DoH are not monitored. DNS requests use the existing network resolver; never a public fallback. Unsupported traffic or resolver failures stop the monitor to restore normal connectivity.
 
 Actions:
 • start              — Start monitoring (Requires user VPN consent).
 • stop               — Stop monitoring and close tunnel.
-• status             — Get current state, byte counts, and block rules.
-• get_traffic_log    — Get recent events. Params: limit (default 50), filter_type (DNS|TCP|UDP|BLOCKED), filter_host (substring).
+• status             — Get current state, DNS-only byte counts, last error, and block rules.
+• get_traffic_log    — Get recent events. Params: limit (default 50), filter_type (DNS|BLOCKED|ERROR), filter_host (substring).
 • get_app_stats      — Get top hosts by traffic. Params: top_n (default 20).
 • block_domain       — Add domain to block list (e.g., "doubleclick.net").
 • unblock_domain     — Remove domain from block list.
@@ -65,7 +59,7 @@ Actions:
 """.trimIndent(),
             parameters = listOf(
                 ToolParameter("action", "string", "Action to perform.", required = true),
-                ToolParameter("domain", "string", "Domain/IP for blocking.", required = false),
+                ToolParameter("domain", "string", "DNS domain for best-effort blocking (not IP).", required = false),
                 ToolParameter("limit", "string", "Max log entries (default 50).", required = false),
                 ToolParameter("filter_type", "string", "DNS|TCP|UDP|BLOCKED|ALL.", required = false),
                 ToolParameter("filter_host", "string", "Host substring filter.", required = false),
@@ -116,12 +110,12 @@ Actions:
         }
 
         OmniDevVpnService.startVpn(context)
-        return ToolExecutionResult("✅ Network Monitor started successfully. Traffic is now being intercepted.")
+        return ToolExecutionResult("DNS monitor start requested. Check status for confirmed activation; only plaintext UDP DNS is inspected.")
     }
 
     private fun doStop(context: Context): ToolExecutionResult {
         OmniDevVpnService.stopVpn(context)
-        return ToolExecutionResult("🔴 Network Monitor stopped. VPN tunnel closed.")
+        return ToolExecutionResult("DNS monitor stop requested. Check status to confirm shutdown.")
     }
 
     private fun doStatus(): ToolExecutionResult {
@@ -129,14 +123,17 @@ Actions:
         // Use Locale.US to ensure LLM-friendly decimal points
         val outMB     = "%.2f MB".format(Locale.US, OmniDevVpnService.totalBytesOut.get() / 1_048_576.0)
         val inMB      = "%.2f MB".format(Locale.US, OmniDevVpnService.totalBytesIn.get()  / 1_048_576.0)
-        val blocked   = OmniDevVpnService.trafficLog.count { it.type == "BLOCKED" }
+        val blocked   = synchronized(OmniDevVpnService.trafficLog) { OmniDevVpnService.trafficLog.count { it.type == "BLOCKED" } }
 
         return ToolExecutionResult(buildString {
             appendLine("🔒 Network Monitor Status")
             appendLine("────────────────────────")
             appendLine("State        : ${if (running) "✅ RUNNING" else "🔴 STOPPED"}")
-            appendLine("Traffic Out  : $outMB")
-            appendLine("Traffic In   : $inMB")
+            appendLine("Mode         : ${OmniDevVpnService.MODE}")
+            appendLine("DNS Out      : $outMB")
+            appendLine("DNS In       : $inMB")
+            OmniDevVpnService.lastError?.let { appendLine("Last error   : $it") }
+            appendLine("Coverage     : No IPv6, TCP, direct-IP, Private DNS or DoH inspection")
             appendLine("Log Size     : ${OmniDevVpnService.trafficLog.size} entries")
             appendLine("Blocked Pkts : $blocked")
             appendLine("Active Rules : ${OmniDevVpnService.blockedDomains.size} domains")
@@ -149,7 +146,7 @@ Actions:
         val hostFilter = args["filter_host"]?.lowercase()?.trim()
 
         // Optimization: Filter using sequences to avoid massive list copying
-        val filtered = OmniDevVpnService.trafficLog.asSequence()
+        val filtered = synchronized(OmniDevVpnService.trafficLog) { OmniDevVpnService.trafficLog.toList() }.asSequence()
             .filter { e ->
                 (typeFilter == "ALL" || e.type.equals(typeFilter, ignoreCase = true)) &&
                 (hostFilter == null || e.host.lowercase().contains(hostFilter))
@@ -182,7 +179,7 @@ Actions:
     private fun doGetAppStats(args: Map<String, String>): ToolExecutionResult {
         val topN = (args["top_n"]?.toIntOrNull() ?: 20).coerceIn(1, 100)
 
-        val stats = OmniDevVpnService.hostByteStats.values.asSequence()
+        val stats = synchronized(OmniDevVpnService.hostByteStats) { OmniDevVpnService.hostByteStats.values.map { it.copy() } }.asSequence()
             .sortedByDescending { it.bytesOut }
             .take(topN)
             .toList()
@@ -192,13 +189,13 @@ Actions:
         }
 
         return ToolExecutionResult(buildString {
-            appendLine("📊 Top $topN Hosts by Outbound Traffic")
+            appendLine("📊 Top $topN Hosts by Outbound DNS")
             appendLine("─────────────────────────────────────────────")
             stats.forEachIndexed { i, s ->
                 val out = formatBytes(s.bytesOut)
-                val isBlocked = OmniDevVpnService.blockedDomains.any { d ->
+                val isBlocked = synchronized(OmniDevVpnService.blockedDomains) { OmniDevVpnService.blockedDomains.any { d ->
                     s.host.lowercase() == d || s.host.lowercase().endsWith(".$d")
-                }
+                } }
                 val icon = if (isBlocked) "🚫" else "  "
                 appendLine("${(i + 1).toString().padStart(3)}. $icon ${out.padStart(10)}  ${s.host}")
             }
@@ -206,13 +203,13 @@ Actions:
     }
 
     private fun doBlockDomain(args: Map<String, String>): ToolExecutionResult {
-        val domain = args["domain"]?.lowercase()?.trim()
-            ?: return ToolExecutionResult("Missing 'domain' parameter.", isError = true)
+        val domain = args["domain"]?.let(DnsMonitorPacket::normalizeDomain)
+            ?: return ToolExecutionResult("Expected a valid DNS domain (not an IP address).", isError = true)
 
         if (domain.isBlank()) return ToolExecutionResult("Domain cannot be empty.", isError = true)
 
         OmniDevVpnService.addBlockedDomain(domain)
-        return ToolExecutionResult("🚫 Domain '$domain' (and its sub-domains) added to block list.")
+        return ToolExecutionResult("🚫 Domain '$domain' (and its sub-domains) added to DNS block list. Only observed plaintext DNS is filtered.")
     }
 
     private fun doUnblockDomain(args: Map<String, String>): ToolExecutionResult {
@@ -228,7 +225,7 @@ Actions:
     }
 
     private fun doGetBlockedDomains(): ToolExecutionResult {
-        val domains = OmniDevVpnService.blockedDomains.toList().sorted()
+        val domains = synchronized(OmniDevVpnService.blockedDomains) { OmniDevVpnService.blockedDomains.toList().sorted() }
         if (domains.isEmpty()) return ToolExecutionResult("Block list is currently empty.")
         
         return ToolExecutionResult(buildString {
