@@ -124,6 +124,30 @@ class TaskRunRecorderTest {
         assertEquals(InvocationStatus.SUCCEEDED, store.snapshot("t1")!!.invocations[0].status)
     }
 
+    @Test fun `failed read does not permanently block the current plan step or corrected retry`() = runBlocking {
+        val r = recorder()
+        r.planningActive = true
+        r.start("inspect a file")
+        r.beginTurn()
+        val first = read("search-failed")
+        r.requested(listOf(first))
+        assertEquals(RunGate.Proceed, r.gateRunning(first))
+        r.completed(first, "Provider throttled the read", true, "TOOL_ERROR")
+        val afterFailure = store.snapshot("t1")!!
+        assertEquals(InvocationStatus.FAILED, afterFailure.invocations.single().status)
+        assertEquals(StepStatus.RUNNING, afterFailure.currentSteps.single().status)
+
+        // New turn has a fresh cycle but still belongs to the same dependency-ready plan step.
+        r.beginTurn()
+        val recovered = read("search-retried")
+        r.requested(listOf(recovered))
+        assertEquals(RunGate.Proceed, r.gateRunning(recovered))
+        r.completed(recovered, "Found results", false, null)
+        val snapshot = store.snapshot("t1")!!
+        assertEquals(InvocationStatus.SUCCEEDED, snapshot.invocations.last().status)
+        assertEquals(snapshot.currentSteps.single().stepId, snapshot.invocations.last().stepId)
+    }
+
     @Test fun `calls blocked before dispatch are recorded as cancelled never as executed`() = runBlocking {
         val r = recorder(); r.start("g"); r.beginTurn()
         r.requested(listOf(patch("c1")))
