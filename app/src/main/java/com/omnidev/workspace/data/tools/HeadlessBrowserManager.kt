@@ -644,6 +644,25 @@ ACTIONS:
     @Volatile private var sessionMinReadinessScore = MIN_READINESS_SCORE
     private var blockedDomains: Set<String> = DEFAULT_BLOCKED_DOMAINS
 
+    /** Agent-only boundary; manual Browser Viewer operations continue through execute(). */
+    suspend fun executeForAgent(action: String, args: Map<String, String>): ToolExecutionResult {
+        restoreSessions()
+        checkAgentAction(action, args)?.let { return it }
+        return execute(action, args)
+    }
+
+    /** Preflight before any approval dialog so secrets never appear in a tool preview. */
+    fun checkAgentAction(action: String, args: Map<String, String>): ToolExecutionResult? {
+        val requestedSession = args["session_id"] ?: getActiveSessionId()
+        val active = sessionsFlow.value.firstOrNull { it.id == requestedSession }
+        val decision = AgentBrowserPolicy.evaluate(
+            action, args, active?.currentUrl.orEmpty(), active?.title.orEmpty()
+        ) ?: return null
+        if (decision.handoff) com.omnidev.workspace.MainActivity.pendingBrowserHandoff.value = true
+        return ToolExecutionResult(decision.reason, isError = true, classification = decision.classification,
+            retryable = false)
+    }
+
     suspend fun execute(action: String, args: Map<String, String>): ToolExecutionResult {
         if (action.trim().lowercase(java.util.Locale.ROOT) !in BrowserToolPolicy.allActions)
             return ToolExecutionResult("INVALID_TOOL_ARGUMENTS: Unsupported browser action. Use get_dom or screenshot after reading the advertised schema. No action executed.", true, classification = "INVALID_TOOL_ARGUMENTS")
@@ -1444,13 +1463,12 @@ ACTIONS:
         val js = """(function(){
   var el=document.querySelector("$safe");
   if(!el) return null;
-  var attrs={};for(var i=0;i<el.attributes.length;i++){attrs[el.attributes[i].name]=el.attributes[i].value;}
   var r=el.getBoundingClientRect();
   return JSON.stringify({tag:el.tagName.toLowerCase(),id:el.id||'',classes:el.className||'',
-    text:(el.innerText||el.textContent||'').trim().substring(0,200),attributes:attrs,
+    text:(el.innerText||el.textContent||'').trim().substring(0,200),
     visible:(r.width>0&&r.height>0&&el.offsetParent!==null),
     rect:{top:r.top,left:r.left,width:r.width,height:r.height},
-    value:el.value||null,checked:el.checked||null
+    checked:el.checked||null
   });
 })()"""
         val result = executeJs(js, sessionId)
@@ -1468,7 +1486,7 @@ ACTIONS:
     var r=el.getBoundingClientRect();
     return {index:i,tag:el.tagName.toLowerCase(),id:el.id||'',
       text:(el.innerText||el.textContent||'').trim().substring(0,80),
-      visible:(r.width>0&&r.height>0),value:el.value||null};
+      visible:(r.width>0&&r.height>0)};
   }));
 })()"""
         val result = executeJs(js, sessionId)
