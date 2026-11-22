@@ -89,19 +89,20 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         val category = args["category"]?.takeIf { it.isNotBlank() }?.lowercase()?.trim() ?: "general"
 
         if (category == SKILL_CATEGORY) {
-            val manager = runCatching { SkillManager(OmniDevApp.instance.applicationContext) }
-                .getOrElse {
-                    return ToolExecutionResult("Skill runtime is unavailable: ${it.message}", isError = true)
-                }
-            return manager.installSkillMarkdown(rawContent).fold(
-                onSuccess = { skill ->
+            val drafts = runCatching {
+                com.omnidev.workspace.data.skills.SkillDraftStore(OmniDevApp.instance.applicationContext)
+            }.getOrElse {
+                return ToolExecutionResult("Skill draft storage unavailable.", isError = true)
+            }
+            return drafts.stage(rawContent).fold(
+                onSuccess = { draft ->
                     ToolExecutionResult(
-                        "✅ Agent Skill '${skill.name}' installed and enabled. " +
-                            "Manage it from Settings → Agent Skills and choose whether it is available in Add to chat."
+                        "SKILL_DRAFT_PENDING_REVIEW: '${draft.name}' was validated and staged, NOT installed or enabled. " +
+                            "Open Settings > Agent skills to inspect and approve the exact draft."
                     )
                 },
-                onFailure = { error ->
-                    ToolExecutionResult("SKILL_VALIDATION_FAILED: ${error.message ?: "invalid SKILL.md"}", isError = true)
+                onFailure = {
+                    ToolExecutionResult("SKILL_VALIDATION_FAILED: Draft rejected; review syntax and size.", isError = true)
                 }
             )
         }
