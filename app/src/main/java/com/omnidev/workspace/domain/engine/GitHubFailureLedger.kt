@@ -9,16 +9,16 @@ class GitHubFailureLedger {
     private val failures = linkedMapOf<String, String>()
     private val attempts = mutableMapOf<String, Int>()
     fun observe(call: ToolCall, result: ToolExecutionResult) {
-        if (call.name != "github_manager" || result.classification in setOf("TOOL_NOT_EXPOSED", "INVALID_TOOL_BATCH", "BATCH_PREFLIGHT_BLOCKED", "INVALID_TOOL_ARGUMENTS")) return
+        if (call.name != "github_manager" || result.classification in setOf("TOOL_NOT_EXPOSED", "INVALID_TOOL_BATCH", "BATCH_PREFLIGHT_BLOCKED", "AMBIGUOUS_TOOL_CONTRACT", "INVALID_TOOL_ARGUMENTS")) return
         val key = GitHubRequestContract.failureKey(call.arguments["action"].orEmpty(), call.arguments) ?: return
         if (result.isError) {
-            failures[key] = result.output.take(1200)
+            failures[key] = SensitiveObservationRedactor.redact(result.output).take(1200)
             attempts[key] = (attempts[key] ?: 0) + 1
         } else {
             failures.remove(key)
             attempts.remove(key)
         }
     }
-    fun unresolved(): String? = failures.takeIf { it.isNotEmpty() }?.entries?.joinToString("\n") { "${it.key}: ${it.value}" }
+    fun unresolved(): String? = failures.takeIf { it.isNotEmpty() }?.entries?.joinToString("\n") { "${SensitiveObservationRedactor.redact(it.key)}: ${it.value}" }
     fun repeatedFailure(): Boolean = attempts.values.any { it >= 2 }
 }
