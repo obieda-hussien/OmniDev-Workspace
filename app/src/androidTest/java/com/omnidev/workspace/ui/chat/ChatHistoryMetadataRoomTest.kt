@@ -159,7 +159,7 @@ class ChatHistoryMetadataRoomTest {
     }
 
     @Test fun realMigrationChainFromEverySupportedLegacyVersionPreservesChats() = runBlocking {
-        for (legacy in 1..20) {
+        for (legacy in 1..21) {
             val name = "history-from-$legacy.db"
             context.deleteDatabase(name)
             val helper = FrameworkSQLiteOpenHelperFactory().create(SupportSQLiteOpenHelper.Configuration.builder(context)
@@ -180,7 +180,7 @@ class ChatHistoryMetadataRoomTest {
             helper.close()
             val db = Room.databaseBuilder(context, OmniDevDatabase::class.java, name).addMigrations(*OmniDevDatabase.ALL_MIGRATIONS).build()
             try {
-                assertEquals(21, db.openHelper.readableDatabase.version)
+                assertEquals(22, db.openHelper.readableDatabase.version)
                 assertEquals("Fix Gradle tests", db.chatMessageDao().getBySession(1).single().content)
                 assertEquals("Legacy chosen title", db.chatSessionDao().getById(1)!!.title)
                 db.chatSessionDao().refreshHistoryMetadata(1)

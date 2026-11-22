@@ -99,7 +99,8 @@ object WorkspaceChatRuntime {
         )
 
         val completionService = CompletionService(settingsRepository)
-        val autoCompletion = AutoRoutingCompletion(completionService, settingsRepository, apiKeyRepository)
+        val autoCompletion = AutoRoutingCompletion(completionService, settingsRepository, apiKeyRepository,
+            com.omnidev.workspace.data.network.RoomAutoModelPinStore(database.chatSessionDao()))
         val completionProvider: suspend (com.omnidev.workspace.data.model.CompletionRequest) -> com.omnidev.workspace.data.model.CompletionResponse =
             autoCompletion::invoke
 
