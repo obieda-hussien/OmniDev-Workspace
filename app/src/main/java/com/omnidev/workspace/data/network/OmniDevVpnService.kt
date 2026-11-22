@@ -146,6 +146,7 @@ class OmniDevVpnService : VpnService() {
             // Network-bound DatagramSocket and underlying-network selection require API 23.
             check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) { "DNS monitoring requires Android 6 or newer" }
             check(prepare(this) == null) { "VPN consent required" }
+            check(Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !isAlwaysOn && !isLockdownEnabled) { "DNS-only monitoring is incompatible with always-on/lockdown VPN" }
             val manager = checkNotNull(getSystemService(ConnectivityManager::class.java))
             val network = checkNotNull(manager.activeNetwork) { "No underlying network" }
             val caps = checkNotNull(manager.getNetworkCapabilities(network))
@@ -161,6 +162,7 @@ class OmniDevVpnService : VpnService() {
                 .addRoute(DnsMonitorPacket.RESOLVER, 32)
                 .addDnsServer(DnsMonitorPacket.RESOLVER)
                 .allowFamily(OsConstants.AF_INET6)
+                .allowBypass()
                 .setMtu(DnsMonitorPacket.MTU)
                 .setBlocking(false)
                 .addDisallowedApplication(packageName)
