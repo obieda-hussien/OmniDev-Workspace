@@ -122,7 +122,7 @@ class OmniDevVpnService : VpnService() {
         runCatching { vpnInterface?.close() }
         vpnInterface = null
         networkCallback?.let { callback ->
-            runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(callback) }
+            runCatching { getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(callback) }
         }
         networkCallback = null
     }
@@ -146,7 +146,7 @@ class OmniDevVpnService : VpnService() {
             // Network-bound DatagramSocket and underlying-network selection require API 23.
             check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) { "DNS monitoring requires Android 6 or newer" }
             check(prepare(this) == null) { "VPN consent required" }
-            val manager = getSystemService(ConnectivityManager::class.java)
+            val manager = checkNotNull(getSystemService(ConnectivityManager::class.java))
             val network = checkNotNull(manager.activeNetwork) { "No underlying network" }
             val caps = checkNotNull(manager.getNetworkCapabilities(network))
             check(!caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) { "Another VPN is active" }
@@ -183,7 +183,7 @@ class OmniDevVpnService : VpnService() {
             val fd = checkNotNull(builder.establish()) { "VPN establishment denied" }
             vpnInterface = fd
             isRunning = true
-            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification("DNS-only monitoring active"))
+            getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, buildNotification("DNS-only monitoring active"))
             startPacketReader(fd, network, upstream)
         } catch (e: Exception) {
             stopTunnel("DNS monitor could not start: ${e.message ?: e.javaClass.simpleName}")
@@ -262,7 +262,7 @@ class OmniDevVpnService : VpnService() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(CHANNEL_ID, "OmniDev DNS Monitor", NotificationManager.IMPORTANCE_LOW)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 
