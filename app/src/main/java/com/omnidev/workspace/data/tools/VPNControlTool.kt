@@ -2,6 +2,8 @@ package com.omnidev.workspace.data.tools
 
 import android.content.Context
 import com.omnidev.workspace.data.network.OmniDevVpnService
+import com.omnidev.workspace.data.network.DnsMonitorPacket
+import android.net.VpnService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -17,6 +19,7 @@ object VPNControlTool {
         when (action.lowercase()) {
             "start" -> {
                 if (OmniDevVpnService.isRunning) return@withContext ToolExecutionResult("VPN is already running.")
+                if (VpnService.prepare(context) != null) return@withContext ToolExecutionResult("VPN consent required.", isError = true)
                 OmniDevVpnService.startVpn(context)
                 ToolExecutionResult("✅ VPN start command issued. Check 'status' in a moment.")
             }
@@ -28,6 +31,8 @@ object VPNControlTool {
             "status" -> {
                 val status = JSONObject().apply {
                     put("isRunning", OmniDevVpnService.isRunning)
+                    put("mode", OmniDevVpnService.MODE)
+                    put("lastError", OmniDevVpnService.lastError ?: JSONObject.NULL)
                     put("totalBytesIn", OmniDevVpnService.totalBytesIn.get())
                     put("totalBytesOut", OmniDevVpnService.totalBytesOut.get())
                     put("blockedCount", OmniDevVpnService.blockedDomains.size)
@@ -36,8 +41,8 @@ object VPNControlTool {
                 ToolExecutionResult(status.toString(2))
             }
             "get_logs" -> {
-                val limit = arguments["limit"]?.toIntOrNull() ?: 50
-                val logs = OmniDevVpnService.trafficLog.takeLast(limit)
+                val limit = (arguments["limit"]?.toIntOrNull() ?: 50).coerceIn(1, 200)
+                val logs = synchronized(OmniDevVpnService.trafficLog) { OmniDevVpnService.trafficLog.takeLast(limit) }
                 val array = JSONArray()
                 logs.forEach { entry ->
                     array.put(JSONObject().apply {
@@ -50,12 +55,12 @@ object VPNControlTool {
                 ToolExecutionResult(array.toString(2))
             }
             "block_domain" -> {
-                val domain = arguments["domain"] ?: return@withContext ToolExecutionResult("Missing 'domain' argument.", isError = true)
+                val domain = arguments["domain"]?.let(DnsMonitorPacket::normalizeDomain) ?: return@withContext ToolExecutionResult("Expected a DNS domain, not an IP.", isError = true)
                 OmniDevVpnService.addBlockedDomain(domain)
                 ToolExecutionResult("✅ Domain '$domain' added to blocklist.")
             }
             "unblock_domain" -> {
-                val domain = arguments["domain"] ?: return@withContext ToolExecutionResult("Missing 'domain' argument.", isError = true)
+                val domain = arguments["domain"]?.let(DnsMonitorPacket::normalizeDomain) ?: return@withContext ToolExecutionResult("Expected a DNS domain, not an IP.", isError = true)
                 OmniDevVpnService.removeBlockedDomain(domain)
                 ToolExecutionResult("✅ Domain '$domain' removed from blocklist.")
             }
@@ -70,7 +75,7 @@ object VPNControlTool {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "vpn_control",
-            description = "Control the local VPN network monitor and blocklist. Actions: 'start', 'stop', 'status', 'get_logs', 'block_domain', 'unblock_domain', 'clear_logs'.",
+            description = "Control the local DNS-only IPv4 UDP monitor and domain blocklist. No full traffic, IPv6, Private DNS or DoH inspection. Actions: 'start', 'stop', 'status', 'get_logs', 'block_domain', 'unblock_domain', 'clear_logs'.",
             parameters = listOf(
                 ToolParameter("action", "string", "The action to perform.", required = true),
                 ToolParameter("domain", "string", "Domain to block/unblock (required for block/unblock actions).", required = false),
