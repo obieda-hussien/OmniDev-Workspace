@@ -60,6 +60,7 @@ object Routes {
     const val MEMORY_EXPLORER = "memory_explorer"
     const val INTEGRATIONS = "integrations"
     const val VAULT = "vault"
+    const val OMNICONNECT_INBOX = "omniconnect_inbox"
     const val LOCAL_MODELS = "local_models"
     const val SCHEDULED_TASKS = "scheduled_tasks"
     const val TOOL_REGISTRY = "tool_registry"
@@ -164,6 +165,7 @@ fun AppNavigation(
                 onNavigateToMemoryExplorer = { navController.navigate(Routes.MEMORY_EXPLORER) { launchSingleTop = true } },
                 onNavigateToIntegrations = { if (com.omnidev.workspace.BuildConfig.TIER != "LITE") navController.navigate(Routes.INTEGRATIONS) { launchSingleTop = true } },
                 onNavigateToVault = { navController.navigate(Routes.VAULT) { launchSingleTop = true } },
+                onNavigateToInbox = { navController.navigate(Routes.OMNICONNECT_INBOX) { launchSingleTop = true } },
                 onNavigateToLocalModels = { navController.navigate(Routes.LOCAL_MODELS) { launchSingleTop = true } },
                 onNavigateToScheduledTasks = { navController.navigate(Routes.SCHEDULED_TASKS) { launchSingleTop = true } },
                 onNavigateToToolRegistry = { navController.navigate(Routes.TOOL_REGISTRY) { launchSingleTop = true } },
@@ -278,6 +280,19 @@ fun AppNavigation(
             )
             AgentBrainDashboard(
                 viewModel = agentBrainViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.OMNICONNECT_INBOX) {
+            val sessions by OmniDevApp.instance.database.chatSessionDao().observeAll()
+                .collectAsState(initial = emptyList())
+            com.omnidev.workspace.ui.settings.OmniConnectInboxScreen(
+                sessions = sessions,
+                onOpenSession = { id ->
+                    chatViewModel.loadSession(id)
+                    navController.navigate(Routes.CHAT) { launchSingleTop = true }
+                },
                 onNavigateBack = { navController.popBackStack() }
             )
         }
