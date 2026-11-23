@@ -8,7 +8,7 @@ buildscript {
         // AGP/ODC bring Jackson transitively, so align the whole family on a patched release.
         classpath(platform("com.fasterxml.jackson:jackson-bom:2.23.0"))
         classpath("org.bouncycastle:bcprov-jdk18on:1.87")
-        classpath("org.bouncycastle:bcpkix-jdk18on:1.86")
+        classpath("org.bouncycastle:bcpkix-jdk18on:1.87")
         constraints {
             // AGP/UTP and ODC carry their own dependency graphs. App implementation
             // constraints cannot repair these older build-classpath dependencies.
