@@ -58,9 +58,9 @@ class VaultAccessPolicyTest {
 
     @Test fun consentRequestIdsRejectControlCharactersAndSeparators() {
         val unsafeIds = listOf(
-            "request\\n12345", "request\\r12345", "request 12345",
-            "request/12345", "request:12345", "request\\t12345",
-            "request\\u000012345"
+            "request\n12345", "request\r12345", "request 12345",
+            "request/12345", "request:12345", "request\t12345",
+            "request\u000012345"
         )
         unsafeIds.forEach { id ->
             assertThrows(IllegalArgumentException::class.java) {
