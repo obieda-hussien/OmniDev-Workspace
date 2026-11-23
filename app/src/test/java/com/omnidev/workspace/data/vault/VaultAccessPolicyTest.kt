@@ -150,4 +150,29 @@ class VaultAccessPolicyTest {
         )
     }
 
+    @Test fun credentialConsentRejectsSpecialUseDnsNamespaces() {
+        val rejected = listOf(
+            "https://login.localhost/auth",
+            "https://printer.local/auth",
+            "https://login.internal/auth",
+            "https://login.test/auth",
+            "https://login.invalid/auth",
+            "https://router.home.arpa/auth",
+            "https://1.168.192.in-addr.arpa/auth",
+            "https://node.ip6.arpa/auth"
+        )
+        rejected.forEach { url ->
+            assertNull("Must reject special-use credential origin: $url", VaultAccessPolicy.canonicalOrigin(url))
+        }
+        assertEquals(
+            "https://accounts.example.com",
+            VaultAccessPolicy.canonicalOrigin("https://accounts.example.com/login")
+        )
+        rejected.forEach { url ->
+            assertThrows(IllegalArgumentException::class.java) {
+                VaultAccessPolicy.issueAfterUserConfirmation(scope.copy(origin = url), 1000L)
+            }
+        }
+    }
+
 }
