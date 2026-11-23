@@ -1114,12 +1114,19 @@ ACTIONS:
                     "⚠️ Page partially ready — ${readiness.describe()} — agent should wait_for_network_idle if issues arise"
                 }
 
+                val problem = BrowserNavigationGuard.verify(
+                    normalizedUrl, landedUrl, session.title, readiness.isFullyReady
+                )
                 ToolExecutionResult(
-                    "✅ Navigated to: $landedUrl\n" +
+                    (if (problem == null) "✅ Navigated to: $landedUrl\n"
+                    else "⚠️ Navigation not verified: $landedUrl\n${problem.explanation}\n") +
                     "Title: ${session.title}\n" +
                     "Session: ${session.id}\n" +
                     "Readiness: $readinessNote\n" +
-                    "Wait time: ${readiness.waitedMs}ms"
+                    "Wait time: ${readiness.waitedMs}ms",
+                    isError = problem != null,
+                    classification = problem?.classification,
+                    retryable = problem?.classification == "BROWSER_PAGE_NOT_READY"
                 )
             }
         } catch (e: TimeoutCancellationException) {
@@ -1129,7 +1136,8 @@ ACTIONS:
             ToolExecutionResult(
                 "⚠️ Navigation timed out after ${NAVIGATE_TIMEOUT_MS/1000}s. " +
                 "Page may have partially loaded at: $partialUrl\n" +
-                "Use wait_for_network_idle before interacting."
+                "Use wait_for_network_idle before interacting.",
+                isError = true, classification = "BROWSER_NAVIGATION_TIMEOUT", retryable = true
             )
         } catch (e: Exception) {
             session.isPageLoading = false
@@ -1141,8 +1149,10 @@ ACTIONS:
         session: BrowserSession,
         deferred: CompletableDeferred<String>
     ) = object : WebViewClient() {
+        private var navigationStarted = false
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+            navigationStarted = true
             super.onPageStarted(view, url, favicon)
             session.isPageLoading = true
             session.currentUrl = normalizeLeadingSlashHttpUrl(url ?: session.currentUrl)
@@ -1151,6 +1161,9 @@ ACTIONS:
         }
 
         override fun onPageFinished(view: WebView?, loadedUrl: String?) {
+            // The prior WebView load can finish after a new client has been installed.
+            // Such a callback must not satisfy the current navigation's deferred.
+            if (!navigationStarted) return
             session.currentUrl = normalizeLeadingSlashHttpUrl(loadedUrl ?: session.currentUrl)
             session.title = view?.title.orEmpty()
             session.isPageLoading = false

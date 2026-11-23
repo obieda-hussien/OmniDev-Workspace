@@ -8,7 +8,7 @@ object ToolArgumentCodec {
 
     /** Some compatible providers omit the payload for zero-argument discovery. */
     fun decodeProviderCall(name: String, raw: String?): Decoded =
-        if (name == "discover_tools" && raw.isNullOrBlank()) Decoded(emptyMap())
+        if (name == "discover_tools" && (raw.isNullOrBlank() || raw.trim() == "null")) Decoded(emptyMap())
         else decode(raw.orEmpty())
 
     fun decode(raw: String): Decoded = try {

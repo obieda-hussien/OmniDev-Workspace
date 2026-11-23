@@ -102,6 +102,29 @@ class DeviceWorkflowTest {
         assertNull(next())
     }
 
+    @Test fun teamReadmeObjectiveRecoversIntoVerifiableGithubRead() {
+        val assigned = "Read README.md from obieda-hussien/OmniDev-Workspace using github_manager(action=read_file, repo=obieda-hussien/OmniDev-Workspace, path=README.md)"
+        val catalog = RunToolCatalog(
+            listOf(com.omnidev.workspace.data.tools.ToolDefinition(
+                "github_manager", "Read repository files", listOf(
+                    com.omnidev.workspace.data.tools.ToolParameter("action", "string", "Action", required = true),
+                    com.omnidev.workspace.data.tools.ToolParameter("repo", "string", "Repository", required = true),
+                    com.omnidev.workspace.data.tools.ToolParameter("path", "string", "Path")
+                )
+            )), assigned
+        )
+        val response = GroundedContinuation.recover(
+            com.omnidev.workspace.data.model.CompletionResponse("I will read the README"),
+            assigned, emptyList(), catalog, 1
+        )
+        val call = response.toolCalls.single()
+        assertEquals("github_manager", call.name)
+        assertEquals("read_file", call.arguments["action"])
+        assertEquals("README.md", call.arguments["path"])
+        assertEquals("obieda-hussien/OmniDev-Workspace", call.arguments["repo"])
+        assertNull(ToolCallPreflight(catalog.definitions()).check(call))
+    }
+
     @Test fun identityAndInventoryComeFromTheRuntime() {
         val catalog = RunToolCatalog(listOf(com.omnidev.workspace.data.tools.ToolDefinition(
             "read_file", "Read a file", emptyList())), "inventory")

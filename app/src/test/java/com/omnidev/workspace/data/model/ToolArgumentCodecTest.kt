@@ -16,11 +16,11 @@ class ToolArgumentCodecTest {
     }
 
     @Test fun `only omitted discovery arguments get an empty object`() {
-        for (raw in listOf(null, "", "  ")) {
+        for (raw in listOf(null, "", "  ", "null")) {
             assertNull(ToolArgumentCodec.decodeProviderCall("discover_tools", raw).error)
             assertNotNull(ToolArgumentCodec.decodeProviderCall("patch_file_content", raw).error)
         }
-        for (raw in listOf("{", "null", "[]")) {
+        for (raw in listOf("{", "[]")) {
             assertNotNull(ToolArgumentCodec.decodeProviderCall("discover_tools", raw).error)
         }
     }

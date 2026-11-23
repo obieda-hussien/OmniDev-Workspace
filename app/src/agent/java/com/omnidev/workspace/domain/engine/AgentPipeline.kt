@@ -629,8 +629,12 @@ When improving: keep every other sentence, the structure, the language and the l
                 TextToolCallAdapter.adapt(nativeResponse), evidenceLedger.fin.callableNames(toolDefs, runtimeBackends.reportOnly)
             )
 
-            if (!runtimeBackends.reportOnly && workerPersona == null && revision == 0L &&
-                !mentionFocus.active && userAttachments.isEmpty()) {
+            // Workers need the same grounded README recovery as solo agents. The narrow
+            // exception is safe because it only proposes an explicit read_file call and all
+            // tool policies, P3 step gates and P0 verification still apply.
+            if (!runtimeBackends.reportOnly &&
+                (workerPersona == null || ExecutionEnvironmentContext.readmeRepository(routingObjective) != null) &&
+                revision == 0L && !mentionFocus.active && userAttachments.isEmpty()) {
                 response = GroundedContinuation.recover(response, routingObjective, evidenceLedger.snapshot(), runCatalog, iteration)
             }
 

@@ -47,6 +47,21 @@ class ToolCorrectionAdvisorTest {
     @Test fun `malformed decoded arguments never become repairable empty calls`() {
         assertEquals(ToolContractIssueKind.MALFORMED_ARGUMENTS, advisor.review(call().copy(argumentError = "private malformed payload")).issues.single().kind)
     }
+    @Test fun `malformed browser feedback includes action names and fields without leaking payload`() {
+        val browser = ToolDefinition("headless_browser", "Browser", listOf(
+            ToolParameter("action", "string", "Action", required = true, allowedValues = listOf("navigate", "get_dom")),
+            ToolParameter("url", "string", "Page to load")
+        ))
+        val report = ToolCorrectionAdvisor(listOf(browser)).review(ToolCall(
+            "bad", "headless_browser", emptyMap(), argumentError = "secret malformed data"
+        ))
+        assertEquals(ToolContractIssueKind.MALFORMED_ARGUMENTS, report.issues.single().kind)
+        assertTrue(report.render().contains("navigate"))
+        assertTrue(report.render().contains("action"))
+        assertTrue(report.render().contains("url"))
+        assertFalse(report.render().contains("secret malformed data"))
+    }
+
     @Test fun `feedback excludes supplied keys values and credential-like input`() {
         val secret = "private-credential-do-not-render"
         val r = advisor.review(call(mapOf("action" to secret, secret to secret, "count" to secret)))
