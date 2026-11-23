@@ -50,6 +50,21 @@ class OAuthCallbackValidatorTest {
         assertNotNull(OAuthCallbackValidator.verify("$redirect?code=valid&state=${tx.state}", redirect, tx, 1001L))
     }
 
+    @Test fun oversizedAndControlCharacterUrisDoNotConsumeGrant() {
+        val tx = OAuthPkceTransaction.create(1000L)
+        val valid = "$redirect?code=valid&state=${tx.state}"
+        val invalid = listOf(
+            "$redirect?code=${"a".repeat(100_000)}&state=${tx.state}",
+            "${"a".repeat(100_000)}$valid",
+            "$redirect?code=a&state=${tx.state}\u0000",
+            "$redirect?code=a&state=${tx.state}\n"
+        )
+        invalid.forEach { assertNull(OAuthCallbackValidator.verify(it, redirect, tx, 1001L)) }
+        assertNull(OAuthCallbackValidator.verify(valid, redirect + "a".repeat(3000), tx, 1001L))
+        assertNull(OAuthCallbackValidator.verify(valid, redirect + "\u0000", tx, 1001L))
+        assertNotNull(OAuthCallbackValidator.verify(valid, redirect, tx, 1001L))
+    }
+
     @Test fun expiredAndInvalidRedirectFailClosed() {
         val tx = OAuthPkceTransaction.create(1000L, 1L)
         val callback = "$redirect?code=a&state=${tx.state}"
