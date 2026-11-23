@@ -2,6 +2,8 @@ package com.omnidev.workspace.domain.engine
 
 import android.content.Context
 import com.omnidev.workspace.data.model.ModelRole
+import com.omnidev.workspace.domain.engine.completion.CompletionReport
+import com.omnidev.workspace.domain.engine.completion.RunIdentity
 import com.omnidev.workspace.data.tools.ScheduledTaskChatLogger
 import com.omnidev.workspace.data.tools.TaskSchedulerTool
 import com.omnidev.workspace.ui.chat.AgentConsoleEntry
@@ -23,6 +25,7 @@ class ScheduledTaskExecutor(private val context: Context) {
         var lastSaved = started
         var result = ""
         var error: String? = null
+        var completionReport: CompletionReport? = null
         var iterations = 0
         val tools = mutableListOf<String>()
         val entries = mutableListOf<AgentConsoleEntry>()
@@ -33,12 +36,17 @@ class ScheduledTaskExecutor(private val context: Context) {
             runtime.agentPipeline.execute(
                 userMessage = task.prompt + if (dependencies.isBlank()) "" else "\n\nDependency results:\n$dependencies",
                 modelId = runtime.settingsRepository.observeModelIdForRole(ModelRole.AGENT).first(),
-                scopePath = runtime.settingsRepository.observeTargetContext().first().orEmpty()
+                scopePath = runtime.settingsRepository.observeTargetContext().first().orEmpty(),
+                runIdentity = RunIdentity(sessionId = session, forceFinishProtocol = true)
             ).collect { event ->
                 event.consoleEntry()?.let { entries.add(it) }
                 when (event) {
                     is AgentEvent.StreamChunk -> result += event.delta
-                    is AgentEvent.FinalAnswer -> { result = event.content; iterations = event.totalIterations }
+                    is AgentEvent.FinalAnswer -> {
+                        result = event.content
+                        completionReport = event.completion
+                        iterations = event.totalIterations
+                    }
                     is AgentEvent.Error -> error = event.message
                     is AgentEvent.ToolExecution -> tools.add(event.toolName)
                     else -> Unit
@@ -54,8 +62,10 @@ class ScheduledTaskExecutor(private val context: Context) {
         } catch (failure: Exception) {
             error = failure.message ?: "Task execution failed"
         }
-        val success = error == null && result.isNotBlank()
-        val output = if (success) result else "${error ?: "No final response received"}\n$result"
+        val verdict = ScheduledRunVerification.evaluate(result, error, completionReport)
+        val success = verdict.succeeded
+        if (!success && error == null) error = verdict.reason
+        val output = if (success) result else "${error ?: "Execution was not verified"}\n$result"
         logger.progress(row, output, entries)
         runtime.chatRepository.touchSession(session, task.name)
         return TaskSchedulerTool.ExecutionSummary(task.id, task.name, started, System.currentTimeMillis(),
