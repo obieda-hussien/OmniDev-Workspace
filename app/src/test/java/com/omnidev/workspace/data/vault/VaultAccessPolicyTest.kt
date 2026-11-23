@@ -88,4 +88,40 @@ class VaultAccessPolicyTest {
             VaultAccessPolicy.issueAfterUserConfirmation(scope.copy(requestId = ""), 1000L)
         }
     }
+    @Test fun concurrentConsumersCannotSpendTheSameGrantTwice() {
+        val grant = VaultAccessPolicy.issueAfterUserConfirmation(scope, 1000L)
+        val ready = java.util.concurrent.CountDownLatch(1)
+        val done = java.util.concurrent.CountDownLatch(16)
+        val successes = java.util.concurrent.atomic.AtomicInteger(0)
+        repeat(16) {
+            Thread {
+                try {
+                    ready.await()
+                    if (grant.consume(scope, 1001L)) successes.incrementAndGet()
+                } finally {
+                    done.countDown()
+                }
+            }.start()
+        }
+        ready.countDown()
+        assertTrue("Consumers must terminate", done.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        assertEquals("Grant must be consumed once", 1, successes.get())
+    }
+
+    @Test fun approvalLifetimeBoundariesFailClosed() {
+        assertThrows(IllegalArgumentException::class.java) {
+            VaultAccessPolicy.issueAfterUserConfirmation(scope, Long.MAX_VALUE, 1L)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            VaultAccessPolicy.issueAfterUserConfirmation(scope, -1L, 1L)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            VaultAccessPolicy.issueAfterUserConfirmation(scope, 1000L, 0L)
+        }
+        val grant = VaultAccessPolicy.issueAfterUserConfirmation(scope, 1000L, 1L)
+        assertFalse(grant.consume(scope, 999L))
+        assertFalse(grant.consume(scope, 1001L))
+        assertTrue(grant.consume(scope, 1000L))
+    }
+
 }
