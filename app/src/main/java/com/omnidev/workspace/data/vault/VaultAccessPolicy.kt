@@ -39,6 +39,13 @@ internal object VaultAccessPolicy {
         // Require an unambiguous public DNS-style hostname before granting consent.
         if (host.length > 253 || host == "localhost" || !host.contains('.')) return null
         if (host.startsWith('[') || host.endsWith(']')) return null
+        // Never grant credentials to special-use or local DNS namespaces.
+        // These can resolve to a different device depending on the network.
+        val forbiddenSuffixes = listOf(
+            "localhost", "local", "internal", "test", "invalid",
+            "home.arpa", "in-addr.arpa", "ip6.arpa"
+        )
+        if (forbiddenSuffixes.any { host == it || host.endsWith(".$it") }) return null
         val labels = host.split('.')
         if (labels.any { label ->
                 label.isEmpty() || label.length > 63 ||
