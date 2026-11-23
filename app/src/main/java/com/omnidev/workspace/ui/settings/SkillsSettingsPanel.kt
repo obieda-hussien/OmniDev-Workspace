@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -45,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.omnidev.workspace.data.skills.AgentSkill
 import com.omnidev.workspace.data.skills.SkillManager
+import com.omnidev.workspace.data.skills.SkillDraftStore
 import com.omnidev.workspace.data.skills.SkillOrigin
 import com.omnidev.workspace.ui.components.SettingsDisclosure
 import com.omnidev.workspace.ui.components.SettingsEmptyState
@@ -61,8 +65,11 @@ fun SkillsSettingsPanel(
 ) {
     val context = LocalContext.current
     val manager = remember(context) { SkillManager(context) }
+    val draftStore = remember(context) { SkillDraftStore(context) }
     val scope = rememberCoroutineScope()
     var skills by remember { mutableStateOf(emptyList<AgentSkill>()) }
+    var drafts by remember { mutableStateOf(emptyList<SkillDraftStore.Draft>()) }
+    var reviewing by remember { mutableStateOf<SkillDraftStore.Draft?>(null) }
     var loading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -86,6 +93,7 @@ fun SkillsSettingsPanel(
         scope.launch {
             try {
                 skills = withContext(Dispatchers.IO) { manager.listSkills() }
+                drafts = withContext(Dispatchers.IO) { draftStore.drafts() }
                 loadError = null
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (_: Exception) { loadError = "Could not load the skill library." }
@@ -118,7 +126,7 @@ fun SkillsSettingsPanel(
                 else if (loadError != null) {
                     Text(loadError!!, color = MaterialTheme.colorScheme.error)
                     TextButton(onClick = { refresh() }) { Text("Retry") }
-                } else Text("${skills.count { it.enabled }} enabled · ${skills.size} installed",
+                } else Text("${skills.count { it.enabled }} enabled · ${skills.size} installed · ${drafts.size} awaiting review",
                     style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("Reusable instructions Omni can load when a task needs them.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -133,6 +141,21 @@ fun SkillsSettingsPanel(
                 }
                 status?.let { Text(it, style = MaterialTheme.typography.bodySmall,
                     color = if (it.startsWith("Import failed") || it.startsWith("Could not")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
+            }
+        }
+        if (drafts.isNotEmpty()) {
+            item(key = "draft_heading") {
+                Text("Pending Agent-generated drafts", style = MaterialTheme.typography.titleMedium)
+                Text("Drafts cannot run until you inspect and approve them.", style = MaterialTheme.typography.bodySmall)
+            }
+            items(drafts, key = { "draft:${it.name}" }) { draft ->
+                Card(onClick = { reviewing = draft }) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                        Text(draft.name, style = MaterialTheme.typography.titleSmall)
+                        Text(draft.description, style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { reviewing = draft }) { Text("Review draft") }
+                    }
+                }
             }
         }
         items(filtered, key = { "${it.origin}:${it.name}" }) { skill ->
@@ -162,6 +185,48 @@ fun SkillsSettingsPanel(
             }
         }
     }
+    reviewing?.let { draft ->
+        AlertDialog(
+            onDismissRequest = { reviewing = null },
+            title = { Text("Review ${draft.name}") },
+            text = {
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                    Text("Review the complete instructions. Approval installs and enables this exact SHA-256 version.")
+                    Spacer(Modifier.height(8.dp))
+                    Text(draft.markdown, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    reviewing = null
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            draftStore.promoteReviewed(draft.name, draft.digest)
+                        }
+                        status = result.fold(
+                            onSuccess = { "Approved and installed ${it.name}" },
+                            onFailure = { "Could not approve: draft changed or validation failed" }
+                        )
+                        refresh()
+                    }
+                }) { Text("Approve & install") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        reviewing = null
+                        scope.launch {
+                            withContext(Dispatchers.IO) { draftStore.discard(draft.name) }
+                            status = "Draft discarded."
+                            refresh()
+                        }
+                    }) { Text("Discard") }
+                    TextButton(onClick = { reviewing = null }) { Text("Cancel") }
+                }
+            }
+        )
+    }
+
     pendingDelete?.let { skill ->
         AlertDialog(onDismissRequest = { pendingDelete = null }, title = { Text("Delete ${skill.name}?") },
             text = { Text("This removes the installed skill. Import it again to restore it.") },
@@ -244,7 +309,7 @@ private fun CreateSkillDialog(
         text = {
             Column {
                 Text(
-                    "Describe the reusable capability or workflow you want. Omni will draft a complete SKILL.md, validate it, install it into the same registry as imported skills, enable it, and verify that it can be invoked by name."
+                    "Describe the reusable capability you want. Omni will draft a SKILL.md and stage it for your review. It will not be installed or enabled until you approve the exact instructions."
                 )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
