@@ -111,6 +111,31 @@ class OmniVaultTest {
         ) { assertEquals("safe", String(it)) }
     }
 
+    @Test fun oversizedRecordFailsClosedWithoutBlockingHealthyReferences() {
+        val healthy = vault.storeFromUserInput(
+            "Healthy", "https://healthy.example", "safe".toCharArray()
+        )
+        val oversized = vault.storeFromUserInput(
+            "Oversized", "https://oversized.example", "secret".toCharArray()
+        )
+        File(folder, oversized.id).outputStream().use { output ->
+            val chunk = ByteArray(8192) { 0x42.toByte() }
+            repeat(128) { output.write(chunk) }
+        }
+
+        assertEquals(listOf(healthy), vault.listReferences())
+        assertThrows(IllegalArgumentException::class.java) {
+            vault.withApprovedSecret(
+                oversized.id, oversized.origin, VaultAccessPolicy.Operation.SIGN_IN,
+                "request-12345", approved(oversized), 1001L
+            ) { fail("Oversized credential must never be exposed") }
+        }
+        vault.withApprovedSecret(
+            healthy.id, healthy.origin, VaultAccessPolicy.Operation.SIGN_IN,
+            "request-12345", approved(healthy), 1001L
+        ) { assertEquals("safe", String(it)) }
+    }
+
     @Test fun callbackFailureStillWipesBorrowedSecret() {
         val ref = vault.storeFromUserInput("Site", "https://site.example", "secret".toCharArray())
         var borrowed: CharArray? = null
