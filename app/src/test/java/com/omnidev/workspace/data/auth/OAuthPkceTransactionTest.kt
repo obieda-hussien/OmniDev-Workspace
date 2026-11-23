@@ -30,6 +30,22 @@ class OAuthPkceTransactionTest {
         assertNull(transaction.consumeVerifier(transaction.state, 1002L))
     }
 
+    @Test fun malformedOrOversizedStateDoesNotConsumeValidTransaction() {
+        val transaction = OAuthPkceTransaction.create(1000L)
+        val invalidStates = listOf(
+            "x".repeat(1_000_000),
+            transaction.state.dropLast(1),
+            transaction.state + "A",
+            transaction.state.dropLast(1) + "%",
+            transaction.state.dropLast(1) + "é",
+            transaction.state.dropLast(1) + "\u0000",
+            transaction.state.dropLast(1) + "+"
+        )
+        invalidStates.forEach { assertNull(transaction.consumeVerifier(it, 1001L)) }
+        assertNotNull(transaction.consumeVerifier(transaction.state, 1001L))
+        assertNull(transaction.consumeVerifier(transaction.state, 1002L))
+    }
+
     @Test fun expiryRevocationAndOverflowFailClosed() {
         val expired = OAuthPkceTransaction.create(1000L, 1L)
         assertNull(expired.consumeVerifier(expired.state, 999L))
