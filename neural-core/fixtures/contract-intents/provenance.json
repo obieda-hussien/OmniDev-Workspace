@@ -42,8 +42,8 @@
     "app/src/main/java/com/omnidev/workspace/data/tools/GitHubManagerTool.kt": "80e57c9374272051b29131fe058714da0128a9b6739aac05b36777b5576eb8ef",
     "app/src/main/java/com/omnidev/workspace/data/tools/BuildDoctorTools.kt": "980b76892cffcc28ec7435bd1e061e7349aae903579364007be9afc8c7049355",
     "app/src/main/java/com/omnidev/workspace/data/tools/AdvancedSystemTools.kt": "12bee3475ec6501626953a23647b997aa6fc45be997a5984fd68153de806705f",
-    "app/src/main/java/com/omnidev/workspace/data/tools/WebSearchTool.kt": "b146e52f1f3ca63bc7ca002e5764ab5004398544e0bfb98c92d89eb3a6f58a19",
-    "app/src/main/java/com/omnidev/workspace/data/tools/MemoryManager.kt": "24bb0f7e72c4f34acca54a01b612129c7f3e5e3db0de8e331ab547518f2600be",
+    "app/src/main/java/com/omnidev/workspace/data/tools/WebSearchTool.kt": "844cc58bbff378e3753a708616752ab1d2f231947631b5b0d92b9266b26cfed2",
+    "app/src/main/java/com/omnidev/workspace/data/tools/MemoryManager.kt": "b8a9e0235beabb77fed23dfce8ba72b12d82c49f164a19ef235221e1b36bb3ef",
     "docs/TOOL_EXECUTION_CONTRACT.md": "b5adf1cbeea52f8ba4d4c018424e337c051681ef2220dcdcc8b970d5441aecea"
   },
   "limits": "Authored wording and annotation; source anchors prove definition presence only. Not human traffic, actual execution, authorization or semantic-OOD benchmark. All variants remain grouped; old task families can recur."
