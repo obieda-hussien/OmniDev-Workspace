@@ -1,6 +1,7 @@
 package com.omnidev.workspace.ui.settings
 
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
+import java.text.Normalizer
 import java.util.Locale
 
 /**
@@ -13,11 +14,31 @@ internal object OmniConnectInboxFilter {
         source: String?,
         query: String
     ): List<ChatSessionEntity> {
-        val term = query.trim().lowercase(Locale.ROOT)
+        val terms = normalize(query.take(256)).split(Regex("\\s+")).filter { it.isNotEmpty() }
         return sessions.asSequence()
             .filter { source == null || it.source == source }
-            .filter { term.isEmpty() || it.title.lowercase(Locale.ROOT).contains(term) }
+            .filter { session ->
+                if (terms.isEmpty()) true else {
+                    val title = normalize(session.title)
+                    terms.all { title.contains(it) }
+                }
+            }
             .sortedWith(compareByDescending<ChatSessionEntity> { it.lastUpdated }.thenByDescending { it.id })
             .toList()
+    }
+
+    /** Search normalization only; never used for sender identity or session merging. */
+    private fun normalize(value: String): String {
+        val decomposed = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFKD)
+        return buildString(decomposed.length) {
+            for (character in decomposed) {
+                if (Character.getType(character) == Character.NON_SPACING_MARK.toInt() || character == '\u0640') continue
+                append(when (character) {
+                    '\u0623', '\u0625', '\u0622', '\u0671' -> '\u0627'
+                    '\u0649' -> '\u064a'
+                    else -> character
+                })
+            }
+        }
     }
 }
