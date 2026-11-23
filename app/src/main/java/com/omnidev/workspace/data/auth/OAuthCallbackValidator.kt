@@ -1,7 +1,10 @@
 package com.omnidev.workspace.data.auth
 
 import java.net.URI
-import java.net.URLDecoder
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.StandardCharsets
 
 /**
  * Strict, side-effect-free callback validation for a future PKCE OAuth integration.
@@ -48,17 +51,34 @@ internal object OAuthCallbackValidator {
     }
 
     private fun decode(value: String): String? {
-        // Reject malformed percent escapes and non-ASCII encodings of parameter names.
-        if (value.any { it == '+' }) return null
+        // URLDecoder silently replaces malformed UTF-8. OAuth callbacks must fail closed
+        // instead of accepting multiple byte representations of the same parameter.
+        val bytes = ByteArrayOutputStream(value.length)
         var i = 0
         while (i < value.length) {
-            if (value[i] == '%') {
-                if (i + 2 >= value.length ||
-                    !value[i + 1].isHexDigit() || !value[i + 2].isHexDigit()) return null
-                i += 3
-            } else i++
+            val char = value[i]
+            when {
+                char == '%' -> {
+                    if (i + 2 >= value.length || !value[i + 1].isHexDigit() ||
+                        !value[i + 2].isHexDigit()) return null
+                    val octet = (Character.digit(value[i + 1], 16) shl 4) or
+                        Character.digit(value[i + 2], 16)
+                    bytes.write(octet)
+                    i += 3
+                }
+                char == '+' || char.toInt() > 0x7f -> return null
+                else -> {
+                    bytes.write(char.toInt())
+                    i++
+                }
+            }
         }
-        return runCatching { URLDecoder.decode(value, "UTF-8") }.getOrNull()
+        return runCatching {
+            StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(bytes.toByteArray())).toString()
+        }.getOrNull()
     }
 
     private fun Char.isHexDigit(): Boolean =
