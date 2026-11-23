@@ -1089,7 +1089,7 @@ class CompositeToolManager(
                 val browser = headlessBrowserManager
                     ?: return ToolExecutionResult("Headless browser not configured.", isError = true)
                 val action = arguments["action"] ?: return missingArg("action")
-                browser.execute(action, arguments)
+                browser.executeForAgent(action, arguments)
             }
 
             // ── Advanced root file tools ──

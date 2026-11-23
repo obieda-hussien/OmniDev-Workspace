@@ -62,6 +62,9 @@ class CompositeToolManager(
         com.omnidev.workspace.domain.engine.ToolCallPreflight(getToolDefinitions()).check(
             com.omnidev.workspace.data.model.ToolCall("lite", name, arguments))?.let { return it }
         assistantActionGuard?.invoke(name, arguments)?.let { return it }
+        if (name == "headless_browser") {
+            headlessBrowserManager?.checkAgentAction(arguments["action"].orEmpty(), arguments)?.let { return it }
+        }
         if (name == "headless_browser" && arguments["action"]?.lowercase() in BrowserToolPolicy.mutations) {
             if (confirmationGate?.request(com.omnidev.workspace.core.policy.ConfirmationKind.ASSISTANT_ACTION,
                 com.omnidev.workspace.data.assistant.AssistantActionPolicy.preview(name, arguments), null) != true)
@@ -78,7 +81,7 @@ class CompositeToolManager(
             "web_search", "web_search_deep" -> if (name == "web_search") WebSearchTool.execute(arguments["query"].orEmpty(), null, null, null) else WebSearchTool.executeDeep(arguments["query"].orEmpty(), arguments["max_sites"]?.toIntOrNull() ?: 5, null, null, null)
             "fetch_page" -> PageFetchTool.execute(arguments["url"].orEmpty())
             "web_scraper", "scrape_multiple" -> WebScraperTool.executeTool(name, arguments)
-            "headless_browser" -> headlessBrowserManager?.execute(arguments["action"].orEmpty(), arguments) ?: ToolExecutionResult("Browser unavailable", true)
+            "headless_browser" -> headlessBrowserManager?.executeForAgent(arguments["action"].orEmpty(), arguments) ?: ToolExecutionResult("Browser unavailable", true)
             "media_generation" -> context?.let { MediaGenerationTool.execute(it, arguments, currentSessionId) } ?: ToolExecutionResult("Context unavailable", true)
             "omni_link" -> OmniLinkTool.execute(arguments["action"].orEmpty(), arguments, confirmationGate)
             "github_manager" -> GitHubManagerTool.execute(null, arguments["action"].orEmpty(), arguments["repo"].orEmpty(), arguments["title"].orEmpty(), arguments["body"].orEmpty(), arguments["head"], arguments["base"], arguments)
