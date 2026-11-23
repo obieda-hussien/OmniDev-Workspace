@@ -32,10 +32,10 @@ internal object OmniConnectInboxFilter {
         val decomposed = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFKD)
         return buildString(decomposed.length) {
             for (character in decomposed) {
-                if (Character.getType(character) == Character.NON_SPACING_MARK.toInt() || character == 'ـ') continue
+                if (Character.getType(character) == Character.NON_SPACING_MARK.toInt() || character == '\u0640') continue
                 append(when (character) {
-                    'أ', 'إ', 'آ', 'ٱ' -> 'ا'
-                    'ى' -> 'ي'
+                    '\u0623', '\u0625', '\u0622', '\u0671' -> '\u0627'
+                    '\u0649' -> '\u064a'
                     else -> character
                 })
             }
