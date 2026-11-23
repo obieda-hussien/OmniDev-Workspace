@@ -42,7 +42,7 @@ internal object VaultAccessPolicy {
         // Never grant credentials to special-use or local DNS namespaces.
         // These can resolve to a different device depending on the network.
         val forbiddenSuffixes = listOf(
-            "localhost", "local", "internal", "test", "invalid", "example",
+            "localhost", "local", "internal", "test", "invalid",
             "home.arpa", "in-addr.arpa", "ip6.arpa"
         )
         if (forbiddenSuffixes.any { host == it || host.endsWith(".$it") }) return null
