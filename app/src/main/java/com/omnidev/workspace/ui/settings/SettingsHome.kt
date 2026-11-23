@@ -133,6 +133,7 @@ private fun SettingsDestination.icon(): ImageVector = when (this) {
     SettingsDestination.PROFILE -> Icons.Default.PersonOutline
     SettingsDestination.MEMORY -> Icons.Default.Bookmarks
     SettingsDestination.INTEGRATIONS -> Icons.Default.Link
+    SettingsDestination.VAULT -> Icons.Default.Key
     SettingsDestination.MCP -> Icons.Default.Dns
     SettingsDestination.SCHEDULE -> Icons.Default.Schedule
     SettingsDestination.SKILLS -> Icons.Default.Extension
