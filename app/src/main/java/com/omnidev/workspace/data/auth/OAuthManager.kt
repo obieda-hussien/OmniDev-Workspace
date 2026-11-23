@@ -13,26 +13,15 @@ object OAuthManager {
     const val CALLBACK_PATH = "/callback"
     const val CALLBACK_URI = "$DEEP_LINK_SCHEME://$DEEP_LINK_HOST$CALLBACK_PATH"
 
-    /**
-     * Replace with your actual GitHub OAuth App credentials.
-     * In production: store client_id in BuildConfig, never commit client_secret to source.
-     */
-
-
-    /**
-     * Launches the GitHub OAuth authorization page in Chrome Custom Tabs.
-     * The user will be redirected to [CALLBACK_URI] after authorization.
-     */
+    /** Legacy entry point retained for compatibility; never starts a browser. */
+    @Suppress("UNUSED_PARAMETER")
     fun launchGitHubAuth(context: Context) {
         // Disabled until a verified state + PKCE or confidential backend flow
         // exists. Do not initiate a login that this client cannot finish safely.
         android.util.Log.w("OAuthManager", "Legacy GitHub OAuth is disabled; secure login is not configured")
     }
 
-    /**
-     * Extracts the OAuth code from a deep link callback URI.
-     * Returns null if the URI is not a valid OAuth callback.
-     */
+    /** Reject callbacks without a verified pending authorization transaction. */
     @Suppress("UNUSED_PARAMETER")
     fun extractCodeFromCallback(uri: Uri): String? {
         // Unsolicited or replayed callbacks cannot be trusted without a stored
@@ -40,15 +29,7 @@ object OAuthManager {
         return null
     }
 
-    /**
-     * Exchanges an OAuth authorization [code] for a GitHub access token.
-     * Saves the token to [settingsRepository] on success.
-     *
-     * NOTE: In production, this POST should be made to YOUR backend server,
-     * which holds the client_secret securely. Never expose client_secret in the APK.
-     *
-     * @return Result wrapping the access token string, or an exception on failure.
-     */
+    /** Reject legacy token exchanges without transmitting credentials. */
     @Suppress("UNUSED_PARAMETER")
     suspend fun handleGitHubCallback(
         code: String,
