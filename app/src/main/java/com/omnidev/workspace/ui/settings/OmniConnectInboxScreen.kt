@@ -12,6 +12,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,9 +46,9 @@ fun OmniConnectInboxScreen(
         "Connected apps" to ChatSessionEntity.SOURCE_EXTERNAL_APP
     )
     var selected by remember { mutableStateOf<String?>(null) }
-    val filtered = remember(sessions, selected) {
-        sessions.filter { selected == null || it.source == selected }
-            .sortedWith(compareByDescending<ChatSessionEntity> { it.lastUpdated }.thenByDescending { it.id })
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(sessions, selected, query) {
+        OmniConnectInboxFilter.select(sessions, selected, query)
     }
     Scaffold(topBar = {
         TopAppBar(
@@ -60,6 +61,13 @@ fun OmniConnectInboxScreen(
             Text(
                 "Saved conversations across connected channels. Source badges describe where a session came from; they do not verify a sender's real-world identity.",
                 style = MaterialTheme.typography.bodySmall
+            )
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it.take(120) },
+                label = { Text("Search saved conversations") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
             )
             androidx.compose.foundation.lazy.LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
