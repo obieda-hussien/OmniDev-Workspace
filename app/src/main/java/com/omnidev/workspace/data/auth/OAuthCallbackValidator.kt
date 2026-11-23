@@ -42,7 +42,7 @@ internal object OAuthCallbackValidator {
         if (fields.size != 2) return null
         val code = fields["code"] ?: return null
         val state = fields["state"] ?: return null
-        if (code.length > 2048 || code.any { it.isWhitespace() || it.isISOControl() }) return null
+        if (code.length > 2048 || code.any { it.isWhitespace() || Character.isISOControl(it) }) return null
         val verifier = transaction.consumeVerifier(state, nowMillis) ?: return null
         return VerifiedCode(code, verifier)
     }
