@@ -73,7 +73,9 @@ internal object VaultAccessPolicy {
     ): Grant {
         require(scope.referenceId.matches(REFERENCE_ID))
         require(scope.origin == canonicalOrigin(scope.origin))
-        require(scope.requestId.length in 8..128)
+        require(scope.requestId.length in 8..128 && scope.requestId.all {
+            it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == '-' || it == '_'
+        })
         require(validForMillis in 1L..300_000L)
         require(issuedAtMillis >= 0L && issuedAtMillis <= Long.MAX_VALUE - validForMillis)
         return Grant(scope, issuedAtMillis, issuedAtMillis + validForMillis)
