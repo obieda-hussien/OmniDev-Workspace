@@ -124,4 +124,30 @@ class VaultAccessPolicyTest {
         assertTrue(grant.consume(scope, 1000L))
     }
 
+    @Test fun credentialConsentRejectsLocalAndAmbiguousHosts() {
+        val rejected = listOf(
+            "https://localhost/login",
+            "https://intranet/login",
+            "https://127.0.0.1/login",
+            "https://192.168.1.1/login",
+            "https://[::1]/login",
+            "https://bad_host.example.com/login",
+            "https://-bad.example.com/login",
+            "https://bad-.example.com/login",
+            "https://example..com/login",
+            "https://example.com./login"
+        )
+        rejected.forEach { url ->
+            assertNull("Must reject credential origin: $url", VaultAccessPolicy.canonicalOrigin(url))
+        }
+        assertEquals(
+            "https://login.example.co.uk:8443",
+            VaultAccessPolicy.canonicalOrigin("https://LOGIN.EXAMPLE.CO.UK:8443/sign-in")
+        )
+        assertEquals(
+            "https://xn--bcher-kva.example",
+            VaultAccessPolicy.canonicalOrigin("https://xn--bcher-kva.example/login")
+        )
+    }
+
 }
