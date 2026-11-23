@@ -21,6 +21,10 @@ internal class OAuthPkceTransaction private constructor(
     /** Returns the verifier only once, for an exact state match inside the validity window. */
     fun consumeVerifier(candidateState: String, nowMillis: Long): String? {
         if (nowMillis < issuedAtMillis || nowMillis >= expiresAtMillis) return null
+        // Bound untrusted callback state before allocating/encoding; never allow lossy ASCII replacement.
+        if (candidateState.length != state.length || candidateState.any {
+                it !in 'A'..'Z' && it !in 'a'..'z' && it !in '0'..'9' && it != '-' && it != '_'
+            }) return null
         val a = state.toByteArray(Charsets.US_ASCII)
         val b = candidateState.toByteArray(Charsets.US_ASCII)
         if (!MessageDigest.isEqual(a, b)) return null
