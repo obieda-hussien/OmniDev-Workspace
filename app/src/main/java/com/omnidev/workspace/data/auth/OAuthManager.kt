@@ -1,16 +1,8 @@
 package com.omnidev.workspace.data.auth
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
-import androidx.browser.customtabs.CustomTabsIntent
 import com.omnidev.workspace.data.repository.SettingsRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.net.URL
-import java.net.URLEncoder
-import javax.net.ssl.HttpsURLConnection
 
 /**
  * Manages OAuth 2.0 authentication flows for third-party platform integrations.
@@ -50,31 +42,16 @@ object OAuthManager {
      * The user will be redirected to [CALLBACK_URI] after authorization.
      */
     fun launchGitHubAuth(context: Context) {
-        val authUrl = Uri.parse(GITHUB_AUTH_URL).buildUpon()
-            .appendQueryParameter("client_id", GITHUB_CLIENT_ID)
-            .appendQueryParameter("scope", GITHUB_SCOPES)
-            .appendQueryParameter("redirect_uri", CALLBACK_URI)
-            .build()
-            .toString()
-
-        try {
-            val customTabsIntent = CustomTabsIntent.Builder()
-                .setShowTitle(true)
-                .build()
-            customTabsIntent.launchUrl(context, Uri.parse(authUrl))
-        } catch (e: Exception) {
-            // Fallback to plain browser if Chrome Custom Tabs not available
-            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
-            browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(browserIntent)
-        }
+        // Disabled until a verified state + PKCE or confidential backend flow
+        // exists. Do not initiate a login that this client cannot finish safely.
+        android.util.Log.w("OAuthManager", "Legacy GitHub OAuth is disabled; secure login is not configured")
     }
 
     /**
      * Extracts the OAuth code from a deep link callback URI.
      * Returns null if the URI is not a valid OAuth callback.
      */
-    fun extractCodeFromCallback(uri: Uri): String? {
+    fun extractCodeFromCallback(uri: Uri): String? {\n        // Unsolicited or replayed callbacks cannot be trusted without a stored\n        // one-time authorization state. Legacy callbacks are rejected.\n        return null\n    }\n\n    /* Legacy parsing intentionally removed.\n    private fun unusedLegacyParser(uri: Uri): String? {
         return if (uri.scheme == DEEP_LINK_SCHEME &&
             uri.host == DEEP_LINK_HOST &&
             uri.path == CALLBACK_PATH
@@ -83,7 +60,7 @@ object OAuthManager {
         } else null
     }
 
-    /**
+    */\n\n    /**
      * Exchanges an OAuth authorization [code] for a GitHub access token.
      * Saves the token to [settingsRepository] on success.
      *
@@ -92,41 +69,16 @@ object OAuthManager {
      *
      * @return Result wrapping the access token string, or an exception on failure.
      */
+    @Suppress("UNUSED_PARAMETER")
     suspend fun handleGitHubCallback(
         code: String,
         clientSecret: String,
         settingsRepository: SettingsRepository
-    ): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val postBody = buildString {
-                append("client_id=").append(URLEncoder.encode(GITHUB_CLIENT_ID, "UTF-8"))
-                append("&client_secret=").append(URLEncoder.encode(clientSecret, "UTF-8"))
-                append("&code=").append(URLEncoder.encode(code, "UTF-8"))
-                append("&redirect_uri=").append(URLEncoder.encode(CALLBACK_URI, "UTF-8"))
-            }
-            val url = URL(GITHUB_TOKEN_URL)
-            val connection = url.openConnection() as HttpsURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-            connection.doOutput = true
-            connection.outputStream.write(postBody.toByteArray())
-            connection.connect()
-
-            val response = connection.inputStream.bufferedReader().readText()
-            val json = JSONObject(response)
-            val token = json.optString("access_token")
-            if (token.isNotBlank()) {
-                settingsRepository.setGitHubOAuthToken(token)
-                // Also update legacy PAT field for backward compatibility with GitHubManagerTool
-                settingsRepository.setGitHubPat(token)
-                Result.success(token)
-            } else {
-                val error = json.optString("error_description", "Unknown error")
-                Result.failure(Exception("GitHub OAuth failed: $error"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    ): Result<String> {
+        // Never transmit a client secret from a distributable APK or persist a
+        // token obtained from an unbound callback. No network or storage side effects.
+        return Result.failure(IllegalStateException(
+            "GitHub OAuth is disabled until state-bound PKCE or secure backend exchange is implemented."
+        ))
     }
 }
