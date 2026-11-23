@@ -108,9 +108,13 @@ class OmniVault(context: Context) {
         val files = folder.listFiles() ?: return emptyList()
         return files.asSequence()
             .filter { it.isFile && isReferenceId(it.name) }
-            .map { file ->
-                val entry = readEntry(file.name)
-                try { entry.reference } finally { entry.clear() }
+            .mapNotNull { file ->
+                // A damaged record must not prevent access to unrelated accounts.
+                // Direct reads of the damaged reference still fail closed.
+                runCatching {
+                    val entry = readEntry(file.name)
+                    try { entry.reference } finally { entry.clear() }
+                }.getOrNull()
             }
             .sortedBy { it.label }
             .toList()
