@@ -90,6 +90,27 @@ class OmniVaultTest {
         assertFalse(invoked)
     }
 
+    @Test fun corruptRecordDoesNotBlockListingOtherCredentials() {
+        val healthy = vault.storeFromUserInput("Healthy", "https://healthy.example", "safe".toCharArray())
+        val damaged = vault.storeFromUserInput("Damaged", "https://damaged.example", "secret".toCharArray())
+        val file = File(folder, damaged.id)
+        val bytes = file.readBytes()
+        bytes[bytes.lastIndex] = (bytes.last().toInt() xor 1).toByte()
+        file.writeBytes(bytes)
+
+        assertEquals(listOf(healthy), vault.listReferences())
+        assertThrows(Exception::class.java) {
+            vault.withApprovedSecret(
+                damaged.id, damaged.origin, VaultAccessPolicy.Operation.SIGN_IN,
+                "request-12345", approved(damaged), 1001L
+            ) { fail("Corrupted credential must never be exposed") }
+        }
+        vault.withApprovedSecret(
+            healthy.id, healthy.origin, VaultAccessPolicy.Operation.SIGN_IN,
+            "request-12345", approved(healthy), 1001L
+        ) { assertEquals("safe", String(it)) }
+    }
+
     @Test fun callbackFailureStillWipesBorrowedSecret() {
         val ref = vault.storeFromUserInput("Site", "https://site.example", "secret".toCharArray())
         var borrowed: CharArray? = null
