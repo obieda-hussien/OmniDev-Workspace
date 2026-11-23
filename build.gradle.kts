@@ -19,7 +19,7 @@ buildscript {
             add("classpath", "commons-beanutils:commons-beanutils:1.11.0")
             add("classpath", "org.apache.commons:commons-lang3:3.21.0")
             add("classpath", "org.bitbucket.b_c:jose4j:0.9.7")
-            add("classpath", "org.bouncycastle:bcpg-jdk18on:1.86")
+            add("classpath", "org.bouncycastle:bcpg-jdk18on:1.87")
             add("classpath", "org.jsoup:jsoup:1.23.2")
             add("classpath", "org.apache.httpcomponents.client5:httpclient5:5.6.5")
             add("classpath", "org.apache.httpcomponents.client5:httpclient5-cache:5.6.5")
