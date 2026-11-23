@@ -165,7 +165,30 @@ class OmniVault(context: Context) {
 
     private fun readEntry(referenceId: String): Entry {
         require(isReferenceId(referenceId))
-        val encrypted = AtomicFile(File(folder, referenceId)).openRead().use { it.readBytes() }
+        // Bound allocations before parsing untrusted/corrupt on-disk records.
+        // Checking File.length alone is insufficient: files can change during a read.
+        val encrypted = AtomicFile(File(folder, referenceId)).openRead().use { input ->
+            val maxBytes = MAX_RECORD_BYTES + 64
+            val bounded = ByteArray(maxBytes + 1)
+            var count = 0
+            while (count < bounded.size) {
+                val read = input.read(bounded, count, bounded.size - count)
+                if (read < 0) break
+                if (read == 0) {
+                    val single = input.read()
+                    if (single < 0) break
+                    bounded[count++] = single.toByte()
+                } else {
+                    count += read
+                }
+            }
+            try {
+                require(count in 31..maxBytes) { "Invalid vault record length" }
+                bounded.copyOf(count)
+            } finally {
+                bounded.fill(0)
+            }
+        }
         var plaintext: ByteArray? = null
         try {
             require(encrypted.size in 31..(MAX_RECORD_BYTES + 64))
