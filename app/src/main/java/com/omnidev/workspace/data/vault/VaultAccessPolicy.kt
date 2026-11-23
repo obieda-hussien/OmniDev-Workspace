@@ -34,6 +34,18 @@ internal object VaultAccessPolicy {
         if (uri.rawUserInfo != null || uri.rawAuthority.isNullOrBlank()) return null
         val host = uri.host?.lowercase(Locale.ROOT) ?: return null
         if (host.isBlank() || host.endsWith('.') || host.any { it.isWhitespace() }) return null
+        // Credential grants must not target loopback, IP literals, or single-label
+        // internal hosts. Browser navigation to such hosts is not proof of identity.
+        // Require an unambiguous public DNS-style hostname before granting consent.
+        if (host.length > 253 || host == "localhost" || !host.contains('.')) return null
+        if (host.startsWith('[') || host.endsWith(']')) return null
+        val labels = host.split('.')
+        if (labels.any { label ->
+                label.isEmpty() || label.length > 63 ||
+                    label.first() == '-' || label.last() == '-' ||
+                    label.any { it !in 'a'..'z' && it !in '0'..'9' && it != '-' }
+            }) return null
+        if (labels.all { label -> label.all { it in '0'..'9' } }) return null
         if (uri.port != -1 && uri.port !in 1..65535) return null
         val port = if (uri.port == -1 || uri.port == 443) "" else ":" + uri.port
         return "https://" + host + port
