@@ -565,7 +565,7 @@ Run local shell commands, scripts, jobs and development tools with the available
                 val recursive = args["recursive"]?.lowercase() == "true"
                 val flags     = if (recursive) "-la -R" else "-la"
                 validatePath(path)?.let { return@withContext it }
-                EnvironmentSetupManager.executeShell("ls $flags ${sq(path)} 2>&1 | head -200")
+                EnvironmentSetupManager.executeShell("set -o pipefail; ls $flags ${sq(path)} 2>&1 | sed -n '1,200p'")
             }
 
             "file_delete" -> {
@@ -605,7 +605,7 @@ Run local shell commands, scripts, jobs and development tools with the available
                 validatePath(path)?.let { return@withContext it }
                 val safePattern = pattern.replace(Regex("[^a-zA-Z0-9_.\\-*?]"), "")
                 EnvironmentSetupManager.executeShell(
-                    "find ${sq(path)} -name ${sq(safePattern)}$type 2>&1 | head -100"
+                    "set -o pipefail; find ${sq(path)} -name ${sq(safePattern)}$type 2>&1 | sed -n '1,100p'"
                 )
             }
 
