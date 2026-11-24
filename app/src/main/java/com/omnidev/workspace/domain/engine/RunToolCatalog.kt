@@ -149,7 +149,37 @@ class RunToolCatalog(
         catalog.sortedBy { it.name }.take(limit).joinToString("; ") { signature(it) } +
             if (catalog.size > limit) "; +${catalog.size - limit} more (use discover_tools)" else ""
 
+    /** Read-only inventory: never loads schemas or changes the permitted set. */
+    private fun inventoryPage(offset: Int): ToolExecutionResult {
+        val entries = inventory()
+        if (offset !in 0..entries.size) return ToolExecutionResult(
+            "Inventory offset out of range (0..${entries.size}).", true,
+            classification = "INVALID_TOOL_ARGUMENTS")
+        val page = entries.drop(offset).take(INVENTORY_PAGE_SIZE)
+        val next = offset + page.size
+        return ToolExecutionResult(buildString {
+            appendLine("Permitted registry inventory (not a live backend health check). Total: ${entries.size}; offset: $offset; count: ${page.size}.")
+            page.forEach { tool ->
+                appendLine("${tool.name} — ${if (isLoaded(tool.name)) "schema loaded" else "schema on demand"}")
+            }
+            if (next < entries.size) appendLine("Next page: discover_tools(query=inventory:$next)")
+            else appendLine("End of inventory.")
+            appendLine("Use an exact tool name to load its schema. Permission does not imply backend availability.")
+        })
+    }
+
     fun discover(query: String): ToolExecutionResult {
+        val request = query.trim().lowercase()
+        if (request == "inventory" || request in INVENTORY_QUERIES ||
+            (request.isEmpty() && currentObjective.trim().lowercase() in INVENTORY_QUERIES)) {
+            return inventoryPage(0)
+        }
+        if (request.startsWith("inventory:")) {
+            val offset = request.substringAfter(':').toIntOrNull()
+                ?: return ToolExecutionResult("Use inventory:<nonnegative offset>.", true,
+                    classification = "INVALID_TOOL_ARGUMENTS")
+            return inventoryPage(offset)
+        }
         // A model that calls discovery without a query (common with small models) is helped, not rejected:
         // Fall back to the same active step/latest objective used by automatic retrieval.
         val effectiveQuery = query.take(2_000).ifBlank { focus?.query ?: currentObjective }
@@ -215,6 +245,10 @@ class RunToolCatalog(
         private const val INITIAL_SIZE = 24
         private const val SEARCH_SIZE = 6
         private const val DIGEST_SIZE = 40
+        private const val INVENTORY_PAGE_SIZE = 40
+        private val INVENTORY_QUERIES = setOf("all tools", "list all tools", "all available tools",
+            "all available tools and capabilities", "list tools", "كل الادوات", "كل الأدوات",
+            "اعرض كل الأدوات", "اي هي ادواتك كلها", "اي هي أدواتك كلها")
         private val WORD = Regex("[\\p{L}\\p{N}_.-]+")
         private val WORKSPACE_TERMS = setOf("workspace", "project", "codebase", "repository", "المشروع", "مشروع")
         private val SEARCH_TERMS = setOf("search", "find", "locate", "list", "بحث", "ابحث", "دور", "اعرض")
@@ -222,6 +256,6 @@ class RunToolCatalog(
         private val STOP = setOf("the", "and", "for", "with", "tool", "tools", "use", "عايز", "اعمل", "من", "في", "علي", "failed", "returned", "error", "tool_error", "success", "retryable", "persistent", "class", "false", "true", "omni-outcome")
         val DISCOVER = ToolDefinition("discover_tools",
             "Load tool schemas when the current tools do not cover an operation. Search by operation or exact name, then call the matching tool. Discovery does not execute it or grant access.",
-            listOf(ToolParameter("query", "string", "Concrete operation, keywords, or exact tool name. Optional: defaults to the run objective.", required = false)))
+            listOf(ToolParameter("query", "string", "Concrete operation or exact tool name. For all permitted tools use inventory, then inventory:<offset> for subsequent pages. Inventory does not load schemas. Optional: defaults to the run objective.", required = false)))
     }
 }
