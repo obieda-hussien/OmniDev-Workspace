@@ -21,6 +21,11 @@ internal object OAuthCallbackValidator {
         transaction: OAuthPkceTransaction,
         nowMillis: Long
     ): VerifiedCode? {
+        // Bound attacker-controlled URI text before parsing or splitting. The query has
+        // a separate 4096-character limit below; the redirect itself must stay small.
+        if (callback.length > 8192 || expectedRedirect.length > 2048) return null
+        if (callback.any { Character.isISOControl(it) } ||
+            expectedRedirect.any { Character.isISOControl(it) }) return null
         val expected = runCatching { URI(expectedRedirect) }.getOrNull() ?: return null
         val actual = runCatching { URI(callback) }.getOrNull() ?: return null
         // Exact redirect binding. No fragment, user-info, alternate port, path or authority.
