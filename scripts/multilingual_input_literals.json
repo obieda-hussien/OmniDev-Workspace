@@ -112,7 +112,7 @@
     "sha256": "e0445ee1a8a0c854a7a3f8454b626bd118b75ebc389c97ffcad7229b8f8b0060"
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/RunToolCatalog.kt": {
-    "sha256": "3d0602f89850280be08eb31170b15527f832f3742f97224f60bf9db605797fb2",
+    "sha256": "24b9cb939036591354f02ecf6d17826db4b678d5de48dea503e0c0bca49b4997",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/SensitiveObservationRedactor.kt": {

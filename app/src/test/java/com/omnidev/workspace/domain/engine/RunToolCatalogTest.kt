@@ -5,6 +5,24 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RunToolCatalogTest {
+    @Test fun `inventory enumerates all permitted tools without expanding schemas`() {
+        val run = RunToolCatalog(registry, "all available tools and capabilities")
+        val before = run.definitions()
+        val pages = listOf(run.discover(""), run.discover("inventory:40"), run.discover("inventory:80"))
+        assertTrue(pages.none { it.isError })
+        val names = pages.flatMap { result ->
+            result.output.lineSequence().filter { it.startsWith("registered_") }
+                .map { it.substringBefore(" — ") }.toList()
+        }
+        assertEquals(registry.map { it.name }.sorted(), names)
+        assertTrue(pages.first().output.contains("inventory:40"))
+        assertTrue(pages.last().output.contains("End of inventory"))
+        assertEquals(before, run.definitions())
+        assertTrue(run.discover("inventory:-1").isError)
+        assertTrue(run.discover("inventory:121").isError)
+        assertTrue(run.discover("inventory:bad").isError)
+    }
+
     @Test fun `mentions preload priority tools while discovery can load supporting tools`() {
         val selected = (1..12).map { "registered_$it" }.toSet()
         val catalog = RunToolCatalog(registry, "registered_120", mentionedToolNames = selected)
