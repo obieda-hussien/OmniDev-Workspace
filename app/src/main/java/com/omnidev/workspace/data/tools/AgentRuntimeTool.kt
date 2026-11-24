@@ -565,7 +565,7 @@ Run local shell commands, scripts, jobs and development tools with the available
                 val recursive = args["recursive"]?.lowercase() == "true"
                 val flags     = if (recursive) "-la -R" else "-la"
                 validatePath(path)?.let { return@withContext it }
-                EnvironmentSetupManager.executeShell("ls $flags ${sq(path)} 2>&1 | head -200")
+                EnvironmentSetupManager.executeShell("set -o pipefail; ls $flags ${sq(path)} 2>&1 | sed -n '1,200p'")
             }
 
             "file_delete" -> {
@@ -605,7 +605,7 @@ Run local shell commands, scripts, jobs and development tools with the available
                 validatePath(path)?.let { return@withContext it }
                 val safePattern = pattern.replace(Regex("[^a-zA-Z0-9_.\\-*?]"), "")
                 EnvironmentSetupManager.executeShell(
-                    "find ${sq(path)} -name ${sq(safePattern)}$type 2>&1 | head -100"
+                    "set -o pipefail; find ${sq(path)} -name ${sq(safePattern)}$type 2>&1 | sed -n '1,100p'"
                 )
             }
 
@@ -616,7 +616,7 @@ Run local shell commands, scripts, jobs and development tools with the available
                 validatePath(path)?.let { return@withContext it }
                 val flag = if (recursive) "-r" else ""
                 EnvironmentSetupManager.executeShell(
-                    "grep -n $flag ${sq(pattern)} ${sq(path)} 2>&1 | head -100"
+                    "set -o pipefail; grep -n $flag -- ${sq(pattern)} ${sq(path)} 2>&1 | sed -n '1,100p'"
                 )
             }
 
@@ -733,7 +733,7 @@ Run local shell commands, scripts, jobs and development tools with the available
                     else  -> ""
                 }
                 EnvironmentSetupManager.executeShell(
-                    "ps -eo pid,ppid,%cpu,%mem,stat,comm$sortFlag 2>&1$filter | head -60"
+                    "set -o pipefail; ps -eo pid,ppid,%cpu,%mem,stat,comm$sortFlag 2>&1$filter | sed -n '1,60p'"
                 )
             }
 
@@ -753,7 +753,7 @@ Run local shell commands, scripts, jobs and development tools with the available
             "proc_top" -> {
                 val count = args["count"]?.toIntOrNull()?.coerceIn(1, 30) ?: 10
                 EnvironmentSetupManager.executeShell(
-                    "ps -eo pid,%cpu,%mem,comm --sort=-%cpu 2>&1 | head -${count + 1}"
+                    "set -o pipefail; ps -eo pid,%cpu,%mem,comm --sort=-%cpu 2>&1 | sed -n '1,${count + 1}p'"
                 )
             }
 
