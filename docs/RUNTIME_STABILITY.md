@@ -45,6 +45,12 @@ Chat has no application-imposed token, tool-call or round ceiling in any flavor.
 
 Usage/cost accounting remains active, with no run-budget denominator. Exact duplicate tools never execute again in the same run. A batch consisting entirely of rejected/duplicate requests enters final synthesis; repeated identical continuation text stops a stuck provider. Completed actions are not replayed during completion retries. Flavor authorization, confirmations, transport timeouts, provider context windows, quotas/rate limits and physical device memory still apply; removing an application cap cannot remove those constraints.
 
+### H3 Agent compaction budget
+
+In budgeted Agent runs, history summarization uses a provider request only when its estimated input and reserved output fit the remaining run allowance. The input estimate includes the current history excerpt, earlier summary and complete system prompt. The local digest handles the remaining cases and retains the original and latest user messages. The runtime records provider usage when reported and uses the same complete-request estimator when native usage is missing.
+
+The focused replay rejected a summary request with 2,400 tokens remaining that the old runtime sent to the provider. On a separate request without native usage, the old fallback charged 229 tokens against the complete-request local estimate of 1,817. These are deterministic fixture counts, with provider-billed usage and device performance still to be measured.
+
 ## Verification
 
 Regression coverage includes stall deduplication/recovery/debugger behavior, long-history compaction without stored-history mutation, useful work beyond old run ceilings, same-response provider continuation/repetition/cancellation, non-serialized UI prefixes, private diagnostic file/console visibility, and ignoring obsolete Lite sync preferences. Android CI owns resolved dependency checks, flavor compilation/unit tests, API 30 UI tests, lint and release assembly. A physical Infinix/OEM device soak test is still required to validate the reported hours-apart behavior.

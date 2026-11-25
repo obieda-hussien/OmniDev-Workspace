@@ -149,7 +149,7 @@ object ContextCompressor {
         val enoughBudgetForSummary = remainingTokenBudget == null || remainingTokenBudget >= 1_800
         val useModel = allowModelSummary && enoughBudgetForSummary
 
-        val summary = if (useModel) {
+        val modelSummary = if (useModel) {
             try {
                 val outputCap = minOf(
                     1_400,
@@ -172,22 +172,19 @@ object ContextCompressor {
                         append(input)
                     }))
                 )
-                val response = completionProvider(request)
-                val content = response.content.trim().also {
-                    require(it.isNotBlank()) { "Empty summary" }
-                }.take(6_500)
-                // Some providers omit usage. Use a conservative fallback so the cost is never zero.
-                modelTokens = response.tokensUsed?.totalTokens
-                    ?.takeIf { it > 0 }
-                    ?: ((input.length + content.length) / 4).coerceAtLeast(1)
-                content
+                val estimate = TokenAccounting.estimateInputTokens(request).toLong() + request.maxTokens
+                if (remainingTokenBudget == null || estimate <= remainingTokenBudget) {
+                    val response = completionProvider(request)
+                    modelTokens = TokenAccounting.usage(request, response).totalTokens
+                    response.content.trim().take(6_500).takeIf(String::isNotBlank)
+                } else null
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                degraded = true
-                mergeDigest(priorSummary, deterministicDigest(oldFresh))
+                null
             }
-        } else {
+        } else null
+        val summary = modelSummary ?: run {
             degraded = true
             mergeDigest(priorSummary, deterministicDigest(oldFresh))
         }
@@ -209,7 +206,7 @@ object ContextCompressor {
 
         return CompactionReport(
             tokensUsed = modelTokens,
-            usedModel = useModel && modelTokens > 0,
+            usedModel = modelTokens > 0,
             degraded = degraded
         )
     }
