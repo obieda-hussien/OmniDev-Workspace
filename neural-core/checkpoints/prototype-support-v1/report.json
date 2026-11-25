@@ -401,7 +401,7 @@
     "neural-core/checkpoints/rich-text-v1/TrainedRichVocabulary.java": "b277f2a7c97d549632d399929f029c12479d6492eef0deb9aaf2973ab7a37a1d",
     "neural-core/checkpoints/public-refusal-v1/TrainedPublicRefusal.java": "d79539ac9455ccbb84be796fd334ba3b35cd7193ae9a4d07a1dbd5528ead3fe0",
     "neural-core/fixtures/prototype-support/protocol.json": "bba6bacebb6e63901f1aa2dbbf3dd5539a219a58cf4344e2c0aa838b4f6d6a70",
-    "neural-core/fixtures/prototype-support/provenance.json": "dafc6f468653fab46601fa59f0fdf9b0c9cd86e98fe1dfe17095bff013487dcc",
+    "neural-core/fixtures/prototype-support/provenance.json": "9df42259fafdef21b6892a1bf90d18c56d8f974f6505a5f0e737dade04fb8948",
     "neural-core/fixtures/prototype-support/authored.tsv": "631dd708c7bd59dd6bca98b9204a9cdf1b8953d39280bb28861fa3cbc49ff102",
     "neural-core/fixtures/bilingual-refusal/corpus.tsv": "cfd303a0225c1d137c8b1744c298e133a553e9c41d5011e38fca61f1f000e57e",
     "neural-core/fixtures/massive-refusal/corpus.tsv": "f300371ef4656d78fc22449066250918d5f6270afafb53595232351b1d95b6e8",
