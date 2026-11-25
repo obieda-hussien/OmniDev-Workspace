@@ -58,6 +58,34 @@ class ContextCompressorTest {
         assertEquals(listOf(message), ContextCompressor.trim(listOf(message), 100))
     }
 
+    @Test fun trimmingLargeToolOutputKeepsRunLedger() {
+        val goal = ChatMessage(MessageRole.USER, "Read the current report")
+        val summary = ChatMessage(MessageRole.SYSTEM, "[COMPACTED HISTORY]\n" + "old text ".repeat(500))
+        val ledger = ChatMessage(MessageRole.SYSTEM, "[RUN LEDGER]\n#1 write report -> ERROR: outcome unknown")
+        val call = ChatMessage(MessageRole.ASSISTANT, "", toolCalls = listOf(ToolCall("c2", "read", emptyMap())))
+        val result = ToolCallResult("c2", "read", "x".repeat(10_000))
+        val reply = ChatMessage(MessageRole.TOOL, "", toolResults = listOf(result))
+
+        val trimmed = ContextCompressor.trim(listOf(goal, summary, ledger, call, reply), 500)
+
+        assertEquals(listOf(goal, ledger, call), trimmed.dropLast(1))
+        assertEquals(result.toolCallId, trimmed.last().toolResults.single().toolCallId)
+        assertTrue(trimmed.last().toolResults.single().output.contains("truncated"))
+        assertTrue(trimmed.sumOf(ContextCompressor::estimatedTokens) <= 500)
+    }
+
+    @Test fun requiredEvidenceStaysIntactWhenItAloneExceedsBudget() {
+        val goal = ChatMessage(MessageRole.USER, "Verify the result")
+        val ledger = ChatMessage(MessageRole.SYSTEM, "[RUN LEDGER]\n" + "unresolved outcome ".repeat(250))
+        val latest = ChatMessage(MessageRole.USER, "Continue verification")
+        val required = listOf(goal, ledger, latest)
+
+        val trimmed = ContextCompressor.trim(required, 500)
+
+        assertEquals(required, trimmed)
+        assertTrue(trimmed.sumOf(ContextCompressor::estimatedTokens) > 500)
+    }
+
     @Test fun compactionUsesCredentialsAndPreservesToolExchange() = runTest {
         val call = ChatMessage(MessageRole.ASSISTANT, "", toolCalls = listOf(ToolCall("c1", "read", emptyMap())))
         val result = ChatMessage(MessageRole.TOOL, "", toolResults = listOf(ToolCallResult("c1", "read", "output")))
