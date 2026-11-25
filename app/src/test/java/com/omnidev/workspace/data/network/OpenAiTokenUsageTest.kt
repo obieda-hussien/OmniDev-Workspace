@@ -5,13 +5,16 @@ import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.TokenUsage
 import com.omnidev.workspace.domain.engine.TokenAccounting
-import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
-import java.net.InetSocketAddress
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.Socket
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class OpenAiTokenUsageTest {
     private val usage = """{
@@ -74,25 +77,50 @@ class OpenAiTokenUsageTest {
         contentType: String = "application/json",
         test: suspend (CompletionRequest) -> Unit
     ) {
-        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        server.createContext("/v1/chat/completions") { exchange ->
-            exchange.requestBody.use { it.readBytes() }
-            val bytes = response.toByteArray(Charsets.UTF_8)
-            exchange.responseHeaders.set("Content-Type", contentType)
-            exchange.sendResponseHeaders(200, bytes.size.toLong())
-            exchange.responseBody.use { it.write(bytes) }
+        // Android unit-test compilation does not expose the JDK's jdk.httpserver module.
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
+            val baseUrl = "http://127.0.0.1:${server.localPort}/v1"
+            server.soTimeout = 5_000
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                val served = executor.submit {
+                    server.use { it.accept().use { socket -> respond(socket, response, contentType) } }
+                }
+                test(CompletionRequest(
+                    modelId = "CUSTOM_OPENAI::usage-fixture",
+                    messages = listOf(ChatMessage(MessageRole.USER, "Report status")),
+                    apiKey = "fixture-key",
+                    customBaseUrl = baseUrl,
+                    retryManagedByCaller = true
+                ))
+                served.get(5, TimeUnit.SECONDS)
+            } finally {
+                executor.shutdownNow()
+            }
         }
-        server.start()
-        try {
-            test(CompletionRequest(
-                modelId = "CUSTOM_OPENAI::usage-fixture",
-                messages = listOf(ChatMessage(MessageRole.USER, "Report status")),
-                apiKey = "fixture-key",
-                customBaseUrl = "http://127.0.0.1:${server.address.port}/v1",
-                retryManagedByCaller = true
-            ))
-        } finally {
-            server.stop(0)
+    }
+
+    private fun respond(socket: Socket, response: String, contentType: String) {
+        socket.soTimeout = 5_000
+        val request = socket.getInputStream().bufferedReader(Charsets.ISO_8859_1)
+        check(request.readLine() == "POST /v1/chat/completions HTTP/1.1")
+        var contentLength = 0
+        while (true) {
+            val header = checkNotNull(request.readLine()) { "Incomplete HTTP request headers" }
+            if (header.isEmpty()) break
+            if (header.startsWith("Content-Length:", ignoreCase = true)) {
+                contentLength = header.substringAfter(':').trim().toInt()
+            }
+        }
+        check(contentLength in 1..65_536)
+        repeat(contentLength) { check(request.read() >= 0) { "Incomplete HTTP request body" } }
+
+        val bytes = response.toByteArray(Charsets.UTF_8)
+        socket.getOutputStream().apply {
+            write(("HTTP/1.1 200 OK\r\nContent-Type: $contentType\r\n" +
+                "Content-Length: ${bytes.size}\r\nConnection: close\r\n\r\n").toByteArray(Charsets.US_ASCII))
+            write(bytes)
+            flush()
         }
     }
 }
