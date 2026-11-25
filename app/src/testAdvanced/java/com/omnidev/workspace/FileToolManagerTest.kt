@@ -1,7 +1,12 @@
 package com.omnidev.workspace
 
+import com.omnidev.workspace.data.model.ToolCall
+import com.omnidev.workspace.data.tools.AdvancedFileTools
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.ToolExecutionResult
+import com.omnidev.workspace.data.tools.ToolExecutionSemantics
+import com.omnidev.workspace.domain.engine.RuntimeBackendLedger
+import com.omnidev.workspace.domain.engine.ValidatedToolBatchExecutor
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -25,6 +30,52 @@ class FileToolManagerTest {
     fun setup() {
         toolManager = FileToolManager()
         scopePath = tempDir.root.absolutePath
+    }
+
+    @Test
+    fun `in scope file read still executes after a blocked privileged search retry`() = runTest {
+        val project = tempDir.newFolder("project")
+        val readme = File(project, "README.md").apply { writeText("project-only evidence\n") }
+        val adjacent = tempDir.newFolder("project-other")
+        val outside = File(adjacent, "README.md").apply { writeText("outside evidence\n") }
+        val ledger = RuntimeBackendLedger()
+        val definitions = toolManager.getToolDefinitions() + AdvancedFileTools.getToolDefinitions()
+        var shellDispatches = 0
+        suspend fun dispatch(call: ToolCall) = ValidatedToolBatchExecutor.execute(
+            listOf(call), definitions, allowParallel = false
+        ) {
+            ledger.before(it) ?: run {
+                val result = if (it.name == "find_files") {
+                    shellDispatches++
+                    ToolExecutionSemantics.normalize(it.name, ToolExecutionResult(
+                        "Engine failed to inject script: No execution backend available.\n" +
+                            "Shizuku: Unavailable (Shizuku is not running)\nrish: Unavailable",
+                        isError = true
+                    ))
+                } else {
+                    toolManager.executeTool(it.name, it.arguments, project.absolutePath)
+                }
+                ledger.observe(it, result)
+                result
+            }
+        }.single()
+
+        val search = ToolCall("search", "find_files", mapOf("directory" to project.absolutePath))
+        assertEquals("ANDROID_BACKEND_UNAVAILABLE", dispatch(search).classification)
+        assertEquals("RUNTIME_BACKEND_BLOCKED", dispatch(search.copy(id = "retry")).classification)
+        assertEquals(1, shellDispatches)
+        assertFalse(ledger.reportOnly)
+
+        fun callFor(file: File) = ToolCall(
+            "read", "read_file_lines",
+            mapOf("filePath" to file.absolutePath, "startLine" to "1", "endLine" to "1")
+        )
+        val result = dispatch(callFor(readme))
+        assertFalse(result.isError)
+        assertTrue(result.output.contains("1: project-only evidence"))
+        val denied = dispatch(callFor(outside))
+        assertTrue(denied.isError)
+        assertFalse(denied.output.contains("outside evidence"))
     }
 
     @Test

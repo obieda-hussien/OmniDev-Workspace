@@ -127,6 +127,28 @@ class RuntimeBackendLedgerTest {
         assertNull(ledger.before(ToolCall(id = "env", name = "agent_runtime", arguments = mapOf("action" to "env_probe"))))
     }
 
+    @Test fun `typed Termux read failure blocks only its backend`() {
+        val ledger = RuntimeBackendLedger()
+        val list = ToolCall("list", "agent_runtime", mapOf("action" to "file_list", "path" to "."))
+        val read = ToolCall("read", "agent_runtime", mapOf("action" to "file_read", "path" to "README.md"))
+        ledger.observe(list, failure("TERMUX_RUN_COMMAND_UNAVAILABLE", "termux"))
+
+        assertEquals("RUNTIME_BACKEND_BLOCKED", ledger.before(read)?.classification)
+        assertFalse(ledger.reportOnly)
+        assertNull(ledger.before(shell("pm list packages")))
+        assertNull(ledger.before(ToolCall("local", "read_file_lines", emptyMap())))
+        assertEquals("android-shell=unknown, termux=unavailable, rish=unknown", ledger.availabilitySummary())
+    }
+
+    @Test fun `inaccessible path does not mark Termux unavailable`() {
+        val ledger = RuntimeBackendLedger()
+        val list = ToolCall("list", "agent_runtime", mapOf("action" to "file_list", "path" to "."))
+        ledger.observe(list, failure("FILESYSTEM_PERMISSION_DENIED", "termux"))
+
+        assertNull(ledger.before(list))
+        assertNull(ledger.availabilitySummary())
+    }
+
     @Test fun `new runs have no inherited infrastructure block`() {
         val old = RuntimeBackendLedger()
         old.observe(shell("pm list packages"), failure())

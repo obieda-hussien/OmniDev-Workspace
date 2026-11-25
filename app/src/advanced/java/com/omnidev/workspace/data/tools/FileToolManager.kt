@@ -1504,8 +1504,9 @@ class FileToolManager(
 
         val canonicalFile = File(filePath).canonicalPath
         val canonicalScope = File(scopePath).canonicalPath
+        val scopePrefix = canonicalScope.trimEnd(File.separatorChar) + File.separator
 
-        if (!canonicalFile.startsWith(canonicalScope)) {
+        if (canonicalFile != canonicalScope && !canonicalFile.startsWith(scopePrefix)) {
             throw SecurityException(
                 "Path '$filePath' resolves to '$canonicalFile' which is outside the " +
                     "allowed scope '$canonicalScope'. All file operations must stay within " +
