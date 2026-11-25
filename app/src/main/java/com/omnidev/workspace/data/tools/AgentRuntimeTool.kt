@@ -953,19 +953,11 @@ Run local shell commands, scripts, jobs and development tools with the available
     }
 
     private suspend fun pipeExec(pipelineJson: String, cwd: String?): ToolExecutionResult {
-        val commands = try {
-            // Simple JSON array parse — avoids importing a full JSON library
-            pipelineJson.trim()
-                .removePrefix("[").removeSuffix("]")
-                .split(Regex(""",\s*(?="[^"]*")"""))
-                .map { it.trim().removePrefix("\"").removeSuffix("\"") }
-                .filter { it.isNotBlank() }
-        } catch (e: Exception) {
-            return err("Invalid pipeline JSON: ${e.message}")
-        }
-        if (commands.isEmpty()) return err("Empty pipeline.")
-        val joined = commands.joinToString(" | ")
-        return EnvironmentSetupManager.executeShell(joined, cwd)
+        val script = RuntimeShellPipeline.script(pipelineJson) ?: return ToolExecutionResult(
+            "pipe_exec requires a non-empty JSON array of non-blank command strings.",
+            isError = true, classification = "INVALID_TOOL_ARGUMENTS"
+        )
+        return EnvironmentSetupManager.executeShell(script, cwd)
     }
 
     private suspend fun runBootstrap(args: Map<String, String>): ToolExecutionResult {

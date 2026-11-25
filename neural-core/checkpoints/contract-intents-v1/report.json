@@ -483,7 +483,7 @@
     "neural-core/checkpoints/public-refusal-v1/TrainedPublicRefusal.java": "d79539ac9455ccbb84be796fd334ba3b35cd7193ae9a4d07a1dbd5528ead3fe0",
     "neural-core/checkpoints/utility-expert-v2/TrainedUtilityExpert.java": "5d0620826db3f332c0ed8f334c171a9b6ab5e6700cb0f5d0a7ea8190aa6a434b",
     "neural-core/fixtures/contract-intents/protocol.json": "2d51a7cfb4463d5d2abc8864e932c33b3a256f59c449ddf822bea494682f2e2a",
-    "neural-core/fixtures/contract-intents/provenance.json": "a8747809e5998a441ce9e2c34edeb092b57ef42c9289de3acf9e77be6cf1061f",
+    "neural-core/fixtures/contract-intents/provenance.json": "fd953dafc8a911e7d91933aefbab4c620d03ea6ab1e4aef360b7c7b64a937436",
     "neural-core/fixtures/contract-intents/corpus.tsv": "68d487ed99348588c64d7f6c86eea9460e41c7de468482e550e8d90dc99a5f2e",
     "neural-core/fixtures/text-intents.tsv": "e1aac35b6d45015e0798bb039ab8f6bee33e96720fa72f3f4ebb42c477ba4fd1",
     "neural-core/fixtures/clinc-subset/rejection.tsv": "ecc3598ed5c2385ecbcd5ab3fef3e5d4ba36112342b0239287ff0a0bf65b1843",
