@@ -6,14 +6,16 @@ import java.util.UUID
 
 /** Opt-in syntax in the agent contract, never regex extraction from prose or tool results. */
 object TextToolCallAdapter {
-    const val CONTRACT = "If native function calling is unavailable, output ONLY {\"omni_tool_call\":{\"name\":\"exact_name\",\"arguments\":{}}}. One call per response. Replace exact_name and supply required fields inside arguments. Never output a call transcript or a list of tool names as the answer. Use only loaded tools; call discover_tools with arguments {\"query\":\"concrete operation\"} to load missing tools. Never embed this envelope in prose."
+    internal const val ENVELOPE_EXAMPLE = "{\"omni_tool_call\":{\"name\":\"exact_name\",\"arguments\":{}}}"
+    internal const val MALFORMED_ENVELOPE = "Malformed text tool envelope. Return one valid JSON object with omni_tool_call, name and arguments."
+    const val CONTRACT = "If native function calling is unavailable, output ONLY $ENVELOPE_EXAMPLE. One call per response. Replace exact_name and supply required fields inside arguments. Never output a call transcript or a list of tool names as the answer. Use only loaded tools; call discover_tools with arguments {\"query\":\"concrete operation\"} to load missing tools. Never embed this envelope in prose."
 
     fun adapt(response: CompletionResponse): CompletionResponse {
         if (response.toolCalls.isNotEmpty()) return response
         val raw = WholeResponseEnvelope.normalize(response.content)
         fun malformed(): CompletionResponse = response.copy(content = "", toolCalls = listOf(ToolCall(
             "text_${UUID.randomUUID()}", "discover_tools", emptyMap(),
-            argumentError = "Malformed text tool envelope. Return one valid JSON object with omni_tool_call, name and arguments.",
+            argumentError = MALFORMED_ENVELOPE,
             textProtocol = true, originModelId = response.routedModelId
         )))
         val looksLikeEnvelope = Regex("^\\{\\s*\"omni_tool_call\"").containsMatchIn(raw)

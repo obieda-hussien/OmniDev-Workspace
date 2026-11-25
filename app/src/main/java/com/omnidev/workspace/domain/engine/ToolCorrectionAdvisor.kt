@@ -36,7 +36,9 @@ internal class ToolCorrectionAdvisor(definitions: List<ToolDefinition>) {
             // Do not echo malformed provider bytes. An exact schema hint is more actionable
             // than a generic "JSON object" and cannot bypass preflight authorization.
             val action = definition.parameters.firstOrNull { it.name == "action" }
-            val expected = if (definition.name == "discover_tools") "{} or {\"query\":\"operation\"}" else buildString {
+            val expected = if (call.textProtocol && call.argumentError == TextToolCallAdapter.MALFORMED_ENVELOPE) {
+                "Complete JSON envelope ${TextToolCallAdapter.ENVELOPE_EXAMPLE}. Use an exact permitted tool name and its required arguments."
+            } else if (definition.name == "discover_tools") "{} or {\"query\":\"operation\"}" else buildString {
                 append("JSON object; ")
                 if (action?.allowedValues?.isNotEmpty() == true)
                     append("action one of ").append(action.allowedValues.take(6).joinToString("|")).append("; ")
