@@ -61,6 +61,51 @@ class ContextCompressorBudgetTest {
         assertTrue(report.degraded)
         assertTrue(messages.any { it.content.contains("PARTIAL") })
     }
+
+    @Test
+    fun `large summary request uses local digest when its input exceeds the remaining budget`() = runTest {
+        val messages = largeHistory().apply {
+            add(1, ChatMessage(MessageRole.SYSTEM, "[COMPACTED HISTORY]\n" + "earlier fact ".repeat(400)))
+        }
+        val latest = messages.last()
+        var providerCalled = false
+        val report = ContextCompressor.checkAndCompact(
+            messages = messages,
+            tokenBudget = 24_000,
+            modelId = "test",
+            completionProvider = {
+                providerCalled = true
+                CompletionResponse("request exceeded the budget")
+            },
+            remainingTokenBudget = 2_400,
+            force = true
+        ) { }
+
+        assertFalse(providerCalled)
+        assertEquals(0, report.tokensUsed)
+        assertTrue(report.degraded)
+        assertEquals(latest, messages.last())
+    }
+
+    @Test
+    fun `summary usage fallback counts the full request`() = runTest {
+        val messages = largeHistory()
+        var expectedUsage = 0
+        val report = ContextCompressor.checkAndCompact(
+            messages = messages,
+            tokenBudget = 2_500,
+            modelId = "test",
+            completionProvider = { request ->
+                CompletionResponse("bounded summary").also {
+                    expectedUsage = TokenAccounting.usage(request, it).totalTokens
+                }
+            },
+            remainingTokenBudget = 10_000
+        ) { }
+
+        assertTrue(report.usedModel)
+        assertEquals(expectedUsage, report.tokensUsed)
+    }
     @Test
     fun `rolling tool compaction keeps latest observation full and shrinks older dumps`() {
         val oldDump = "old-evidence-" + "x".repeat(8_000)
