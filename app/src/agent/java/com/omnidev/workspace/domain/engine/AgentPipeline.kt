@@ -1049,7 +1049,9 @@ When improving: keep every other sentence, the structure, the language and the l
                 true, classification = "RUN_REDIRECTED", retryable = false)
             if (call.name != RunToolCatalog.DISCOVER.name && !runCatalog.isPermitted(call.name)) return ToolExecutionResult(
                 "Tool is unavailable under the current access policy.", true, classification = "TOOL_NOT_AVAILABLE")
-            if (call.name == RunToolCatalog.DISCOVER.name) return runCatalog.discover(call.arguments["query"].orEmpty())
+            if (call.name == RunToolCatalog.DISCOVER.name) return runCatalog.discover(
+                call.arguments["query"].orEmpty(), runtimeBackends?.availabilitySummary()
+            )
             launcherEvidence?.checkTool(call.name, call.arguments)?.let { reason ->
                 return ToolExecutionResult(reason, true, classification = "LAUNCHER_TYPED_ACTION_REQUIRED", retryable = false)
             }

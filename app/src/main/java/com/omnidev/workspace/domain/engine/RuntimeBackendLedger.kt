@@ -7,6 +7,7 @@ import com.omnidev.workspace.data.tools.ToolExecutionResult
 /** Per-run capability circuit. A healthy developer shell cannot heal an Android shell. */
 class RuntimeBackendLedger {
     private val blocked = linkedMapOf<String, String>()
+    private val observedReadiness = mutableMapOf<String, Boolean>()
     @Volatile var reportOnly: Boolean = false
         private set
 
@@ -17,8 +18,7 @@ class RuntimeBackendLedger {
 
     @Synchronized fun before(call: ToolCall): ToolExecutionResult? {
         val domain = domain(call) ?: return null
-        val failure = blocked[domain] ?: if (domain == "rish") blocked["android-shell"]
-            ?.takeIf { it in setOf("SHIZUKU_UNAVAILABLE", "SHIZUKU_PERMISSION_REQUIRED") } else null
+        val failure = blocker(domain)
         if (failure == null) return null
         // One real failure already supplied the evidence. Cosmetic script/PATH changes and
         // terminal aliases must not replay the same unavailable capability.
@@ -38,18 +38,27 @@ class RuntimeBackendLedger {
         if (call.name == "agent_runtime" && call.arguments["action"] in setOf("env_check", "termux_check", "env_probe") &&
             !result.isError && result.backend == "runtime-probe") {
             val evidence = result.verification.orEmpty().split(';').map(String::trim).toSet()
-            if ("android-shell=ready" in evidence) blocked.remove("android-shell")
-            if ("rish=ready" in evidence) blocked.remove("rish")
-            if ("termux=ready" in evidence) blocked.remove("termux")
+            for (backend in observedDomains) {
+                when {
+                    "$backend=ready" in evidence -> {
+                        observedReadiness[backend] = true
+                        blocked.remove(backend)
+                    }
+                    "$backend=unavailable" in evidence -> observedReadiness[backend] = false
+                }
+            }
             if (blocked.isEmpty()) reportOnly = false
         }
         val domain = domain(call) ?: return
         if (isBackendFailure(result)) {
             blocked[domain] = result.classification.orEmpty()
+            observedReadiness[domain] = false
         } else if (!result.isError && result.backend in setOf("shizuku-user-service", "rish", "termux")) {
             // Actual execution success heals only its own execution domain.
-            if ((domain == "android-shell" && result.backend != "termux") || domain == result.backend)
+            if ((domain == "android-shell" && result.backend != "termux") || domain == result.backend) {
                 blocked.remove(domain)
+                observedReadiness[domain] = true
+            }
             if (blocked.isEmpty()) reportOnly = false
         }
     }
@@ -61,6 +70,24 @@ class RuntimeBackendLedger {
         "RISH_UNAVAILABLE", "RISH_NATIVE_LOADER_FAILURE", "RISH_DEX_MISSING", "RISH_LAYOUT_BROKEN",
         "TERMUX_RUN_COMMAND_UNAVAILABLE", "TERMUX_EXTERNAL_APPS_DISABLED", "RUNTIME_BACKEND_BLOCKED"
     )
+
+    /** Describe evidence already recorded in this run without triggering a probe. */
+    @Synchronized internal fun availabilitySummary(): String? {
+        if (observedReadiness.isEmpty()) return null
+        return observedDomains.joinToString { backend ->
+            val state = when {
+                blocker(backend) != null -> "unavailable"
+                observedReadiness[backend] == true -> "ready"
+                observedReadiness[backend] == false -> "unavailable"
+                else -> "unknown"
+            }
+            "$backend=$state"
+        }
+    }
+
+    private fun blocker(domain: String): String? =
+        blocked[domain] ?: if (domain == "rish") blocked["android-shell"]
+            ?.takeIf { it in setOf("SHIZUKU_UNAVAILABLE", "SHIZUKU_PERMISSION_REQUIRED") } else null
 
     @Synchronized fun reportSummary(): String = if (blocked.isEmpty()) "" else
         "Runtime limitation: " + blocked.entries.joinToString { "${it.key} (${it.value})" } +
@@ -78,6 +105,7 @@ class RuntimeBackendLedger {
     }
 
     companion object {
+        private val observedDomains = listOf("android-shell", "termux", "rish")
         private val shellActions = setOf("shell_script", "termux_run", "job_submit")
         fun domain(call: ToolCall): String? {
             val args = call.arguments
