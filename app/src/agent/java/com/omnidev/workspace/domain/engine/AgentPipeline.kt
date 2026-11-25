@@ -357,20 +357,16 @@ When improving: keep every other sentence, the structure, the language and the l
 
         var taskSignals = IntentClassifier.analyze(routingObjective)
         val localTools = toolManager.getToolDefinitions()
-            .asSequence()
-            .filter { it.name !in disabledToolNames }
-            .toList()
         val mcpTools = try {
-            (if (toolAccessMode == "DISABLED") emptyList()
-                else mcpRegistry?.fetchAllAvailableTools().orEmpty())
-                .filter { it.name !in disabledToolNames }
+            if (toolAccessMode == "DISABLED") emptyList() else mcpRegistry?.fetchAllAvailableTools().orEmpty()
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             emptyList()
         }
-        val rawToolDefs = (localTools + mcpTools).distinctBy { it.name }
-            .filter { toolEligibility?.invoke(it.name) == null }
+        val registeredDefinitions = (localTools + mcpTools).distinctBy { it.name }
+        val permittedDefinitions = if (toolAccessMode == "DISABLED") emptyList() else registeredDefinitions
+            .filter { it.name !in disabledToolNames && toolEligibility?.invoke(it.name) == null }
         val toolQuality = try {
             analyticsRepository?.getStats()?.toolUsageCount.orEmpty().mapNotNull { (name, stats) ->
                 if (stats.executionCount < 10) null else {
@@ -381,11 +377,9 @@ When improving: keep every other sentence, the structure, the language and the l
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) { emptyMap() }
-        val eligibleDefinitions = if (toolAccessMode == "DISABLED") emptyList() else rawToolDefs
-        try { mentionFocus.validateTools(eligibleDefinitions.map { it.name }.toSet()) } catch (error: IllegalArgumentException) {
+        try { mentionFocus.validateTools(permittedDefinitions.map { it.name }.toSet()) } catch (error: IllegalArgumentException) {
             send(AgentEvent.Error(error.message ?: "Invalid tool mention")); return@channelFlow
         }
-        val permittedDefinitions = eligibleDefinitions
         val selectedSkillContext = try {
             if (mentionFocus.skills.isEmpty()) null else com.omnidev.workspace.data.skills.SkillManager(
                 com.omnidev.workspace.OmniDevApp.instance.applicationContext).buildMentionedPromptContext(mentionFocus.skills)
@@ -395,7 +389,8 @@ When improving: keep every other sentence, the structure, the language and the l
         val runCatalog = RunToolCatalog(
             permittedDefinitions, routingContext,
             preferredToolNames + (if (routineCandidates.isEmpty()) emptySet() else setOf("learned_routine")), toolQuality, additionalToolDomains, mentionFocus.tools,
-            budget = ToolSurfaceBudget.forContext(model.contextWindow)
+            budget = ToolSurfaceBudget.forContext(model.contextWindow),
+            registeredToolCount = registeredDefinitions.count { it.name != RunToolCatalog.DISCOVER.name }
         )
         if (workerPersona == null && runIdentity?.forceFinishProtocol != true && runIdentity?.resume == null &&
             steeringRevision == null && !mentionFocus.active && userAttachments.isEmpty()) {

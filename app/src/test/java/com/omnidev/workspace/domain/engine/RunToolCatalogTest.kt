@@ -23,6 +23,48 @@ class RunToolCatalogTest {
         assertTrue(run.discover("inventory:bad").isError)
     }
 
+    @Test fun `inventory separates registered authorized and loaded totals`() {
+        val allowed = listOf(ToolDefinition("read_file", "Read a file"), ToolDefinition("web_search", "Search the web"))
+        val run = RunToolCatalog(
+            allowed, "read_file", mentionedToolNames = setOf("read_file"), registeredToolCount = 5
+        )
+
+        val page = run.discover("inventory")
+        assertTrue(page.output.contains("Registered: 5; authorized: 2; schemas loaded: 1."))
+        assertTrue(page.output.contains("Live backend availability: unknown."))
+        assertTrue(page.output.contains("read_file — schema loaded"))
+        assertTrue(page.output.contains("web_search — schema on demand"))
+        assertEquals(setOf("discover_tools", "read_file"), run.definitions().map { it.name }.toSet())
+
+        val reply = OmniIdentityReply.reply("list all tools", null, run)!!
+        assertTrue(reply.contains("Registered tools: 5. Authorized for this session: 2. Schemas loaded: 1."))
+        assertTrue(reply.contains("Live backend availability is unknown."))
+    }
+
+    @Test fun `category cursor keeps the same filter and rejects invalid offsets`() {
+        val code = (1..44).map { ToolDefinition("build_project_$it", "Build a project") }
+        val browser = ToolDefinition("web_search", "Search the web")
+        val run = RunToolCatalog(code + browser, "all tools")
+        val first = run.discover("inventory:code_terminal")
+        val second = run.discover("inventory:code_terminal:40")
+
+        assertFalse(first.isError)
+        assertFalse(second.isError)
+        assertTrue(first.output.contains("category", ignoreCase = true))
+        assertTrue(first.output.contains("inventory:code_terminal:40"))
+        assertTrue(second.output.contains("End of inventory."))
+        val names = listOf(first, second).flatMap { page ->
+            page.output.lineSequence().filter { it.startsWith("build_project_") }
+                .map { it.substringBefore(" — ") }.toList()
+        }
+        assertEquals(code.map { it.name }.sorted(), names)
+        assertFalse(first.output.contains("web_search"))
+        assertFalse(second.output.contains("web_search"))
+        assertTrue(run.discover("inventory:code_terminal:45").isError)
+        assertTrue(run.discover("inventory:code_terminal:0:1").isError)
+        assertTrue(run.discover("inventory:imaginary:0").isError)
+    }
+
     @Test fun `mentions preload priority tools while discovery can load supporting tools`() {
         val selected = (1..12).map { "registered_$it" }.toSet()
         val catalog = RunToolCatalog(registry, "registered_120", mentionedToolNames = selected)
