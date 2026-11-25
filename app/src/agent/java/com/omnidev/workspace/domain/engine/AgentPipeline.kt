@@ -390,7 +390,8 @@ When improving: keep every other sentence, the structure, the language and the l
             permittedDefinitions, routingContext,
             preferredToolNames + (if (routineCandidates.isEmpty()) emptySet() else setOf("learned_routine")), toolQuality, additionalToolDomains, mentionFocus.tools,
             budget = ToolSurfaceBudget.forContext(model.contextWindow),
-            registeredToolCount = registeredDefinitions.count { it.name != RunToolCatalog.DISCOVER.name }
+            registeredToolCount = registeredDefinitions.count { it.name != RunToolCatalog.DISCOVER.name },
+            mcpToolNames = mcpTools.map { it.name }.toSet() - localTools.map { it.name }.toSet()
         )
         if (workerPersona == null && runIdentity?.forceFinishProtocol != true && runIdentity?.resume == null &&
             steeringRevision == null && !mentionFocus.active && userAttachments.isEmpty()) {

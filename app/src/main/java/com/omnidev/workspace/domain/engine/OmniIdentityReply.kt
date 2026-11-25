@@ -25,7 +25,7 @@ internal object OmniIdentityReply {
         }
         if (tools.isEmpty()) return heading
         return tools.joinToString("\n", prefix = heading + "\n\n") { tool ->
-            "- `${tool.name}` — ${tool.description.trim().lineSequence().firstOrNull().orEmpty().take(140)}"
+            "- `${tool.name}` [${catalog.inventorySource(tool.name)}] — ${tool.description.trim().lineSequence().firstOrNull().orEmpty().take(140)}"
         }
     }
 }
