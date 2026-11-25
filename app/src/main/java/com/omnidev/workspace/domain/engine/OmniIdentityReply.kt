@@ -16,9 +16,14 @@ internal object OmniIdentityReply {
         if (!inventory.matches(input) && !(more.matches(input) && previousUserRequest?.trim()?.let(inventory::matches) == true))
             return null
         val tools = catalog.inventory()
-        if (tools.isEmpty()) return if (ar) "مفيش أدوات متاحة في الجلسة الحالية." else "No tools are available in this session."
-        val heading = if (ar) "فيه ${tools.size} أداة متاحة للجلسة. بعض العمليات بتحتاج اتصال أو صلاحية إضافية."
-            else "${tools.size} tools are available to this session. Some operations require a connection or extra permissions."
+        val counts = catalog.inventoryCounts()
+        val heading = if (ar) {
+            "المسجّل ${counts.registered} أداة، المسموح للجلسة ${counts.authorized}، والمحمّل ${counts.loaded}. جاهزية التشغيل محتاجة تحقق منفصل."
+        } else {
+            "Registered tools: ${counts.registered}. Authorized for this session: ${counts.authorized}. " +
+                "Schemas loaded: ${counts.loaded}. Live backend availability is unknown."
+        }
+        if (tools.isEmpty()) return heading
         return tools.joinToString("\n", prefix = heading + "\n\n") { tool ->
             "- `${tool.name}` — ${tool.description.trim().lineSequence().firstOrNull().orEmpty().take(140)}"
         }

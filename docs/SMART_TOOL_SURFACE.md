@@ -12,6 +12,12 @@ Selection priority is: recent exact discovery requests, the step's verification 
 
 Without a structured plan, the latest objective supplies retrieval context. Blank `discover_tools` queries use the active step or latest redirected objective. Users can always request an exact registered name. Loading and discovery never execute an action.
 
+## Tool inventory
+
+`discover_tools(query=inventory)` returns an alphabetical page of permitted capabilities. Pass the returned `inventory:<offset>` cursor for the next page. To filter by the existing tool domains, use `inventory:<category>` and follow the category-specific cursor. An unknown category returns the valid choices.
+
+The registry snapshot reports the number of distinct definitions exposed by the build or discovered through MCP. Authorization counts only definitions allowed for the current session or worker. Loaded counts only ordinary schemas selected in the current surface. Inventory pages return only authorized names and make no change to schema selection. Backend availability remains unknown without separate runtime evidence.
+
 ## Budgets and contracts
 
 `ToolSurfaceBudget` bounds ordinary tool count and estimated schema characters after the existing `ToolSchemaCompactor`. The default ceiling is 40 ordinary tools plus discovery and 48,000 estimated characters. Model context sizes of 8,192 tokens or fewer use a 12-tool ceiling. The character allowance is approximately 20 percent of model context at the runtime's existing three-characters-per-token estimate, bounded between 1,500 and 48,000 characters.

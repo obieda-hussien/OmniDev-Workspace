@@ -11,7 +11,8 @@ class RunToolCatalog(
     private val quality: Map<String, Float> = emptyMap(),
     private val additionalDomains: Set<IntentClassifier.ToolDomain> = emptySet(),
     private val mentionedToolNames: Set<String> = emptySet(),
-    private val budget: ToolSurfaceBudget = ToolSurfaceBudget()
+    private val budget: ToolSurfaceBudget = ToolSurfaceBudget(),
+    private val registeredToolCount: Int? = null
 ) {
     private val catalog = definitions.filter { it.name != DISCOVER.name }.distinctBy { it.name }
     private val terms = catalog.associate { tool -> tool.name to words(
@@ -42,6 +43,10 @@ class RunToolCatalog(
 
     /** Inventory is a read of the permitted registry, independent of the prompt schema budget. */
     internal fun inventory(): List<ToolDefinition> = catalog.sortedBy { it.name }
+
+    internal data class InventoryCounts(val registered: Int, val authorized: Int, val loaded: Int)
+
+    internal fun inventoryCounts() = InventoryCounts(registeredToolCount ?: catalog.size, catalog.size, loaded.size)
 
     fun advisoryContext(): String {
         val query = focus?.query ?: currentObjective
@@ -150,22 +155,40 @@ class RunToolCatalog(
             if (catalog.size > limit) "; +${catalog.size - limit} more (use discover_tools)" else ""
 
     /** Read-only inventory: never loads schemas or changes the permitted set. */
-    private fun inventoryPage(offset: Int): ToolExecutionResult {
-        val entries = inventory()
+    private fun inventoryPage(offset: Int, category: IntentClassifier.ToolDomain? = null): ToolExecutionResult {
+        val entries = inventory().filter { category == null || IntentClassifier.getToolDomain(it.name) == category }
         if (offset !in 0..entries.size) return ToolExecutionResult(
             "Inventory offset out of range (0..${entries.size}).", true,
             classification = "INVALID_TOOL_ARGUMENTS")
         val page = entries.drop(offset).take(INVENTORY_PAGE_SIZE)
         val next = offset + page.size
+        val categoryName = category?.name?.lowercase()
+        val counts = inventoryCounts()
         return ToolExecutionResult(buildString {
-            appendLine("Permitted registry inventory (not a live backend health check). Total: ${entries.size}; offset: $offset; count: ${page.size}.")
+            appendLine("Run registry snapshot. Registered: ${counts.registered}; authorized: ${counts.authorized}; schemas loaded: ${counts.loaded}.")
+            appendLine("Live backend availability: unknown. Registration is limited to this build and discovered MCP tools.")
+            appendLine("Permitted inventory. Category: ${categoryName ?: "all"}; total: ${entries.size}; offset: $offset; count: ${page.size}.")
             page.forEach { tool ->
                 appendLine("${tool.name} — ${if (isLoaded(tool.name)) "schema loaded" else "schema on demand"}")
             }
-            if (next < entries.size) appendLine("Next page: discover_tools(query=inventory:$next)")
+            val cursor = categoryName?.let { "$it:$next" } ?: next.toString()
+            if (next < entries.size) appendLine("Next page: discover_tools(query=inventory:$cursor)")
             else appendLine("End of inventory.")
-            appendLine("Use an exact tool name to load its schema. Permission does not imply backend availability.")
+            appendLine("Use an exact tool name to load its schema.")
         })
+    }
+
+    private fun inventoryQuery(query: String): ToolExecutionResult {
+        val parts = query.split(':', limit = 3)
+        if (parts.size == 1) parts.single().toIntOrNull()?.let { return inventoryPage(it) }
+        val category = IntentClassifier.ToolDomain.entries.firstOrNull { it.name.lowercase() == parts.first() }
+        val offset = if (parts.size == 1) 0 else parts[1].toIntOrNull()
+        if (category != null && offset != null && parts.size < 3) return inventoryPage(offset, category)
+        val categories = IntentClassifier.ToolDomain.entries.joinToString { it.name.lowercase() }
+        return ToolExecutionResult(
+            "Use inventory:<offset> or inventory:<category>[:offset]. Categories: $categories.",
+            true, classification = "INVALID_TOOL_ARGUMENTS"
+        )
     }
 
     fun discover(query: String): ToolExecutionResult {
@@ -174,12 +197,7 @@ class RunToolCatalog(
             (request.isEmpty() && currentObjective.trim().lowercase() in INVENTORY_QUERIES)) {
             return inventoryPage(0)
         }
-        if (request.startsWith("inventory:")) {
-            val offset = request.substringAfter(':').toIntOrNull()
-                ?: return ToolExecutionResult("Use inventory:<nonnegative offset>.", true,
-                    classification = "INVALID_TOOL_ARGUMENTS")
-            return inventoryPage(offset)
-        }
+        if (request.startsWith("inventory:")) return inventoryQuery(request.substringAfter(':'))
         // A model that calls discovery without a query (common with small models) is helped, not rejected:
         // Fall back to the same active step/latest objective used by automatic retrieval.
         val effectiveQuery = query.take(2_000).ifBlank { focus?.query ?: currentObjective }
@@ -256,6 +274,6 @@ class RunToolCatalog(
         private val STOP = setOf("the", "and", "for", "with", "tool", "tools", "use", "عايز", "اعمل", "من", "في", "علي", "failed", "returned", "error", "tool_error", "success", "retryable", "persistent", "class", "false", "true", "omni-outcome")
         val DISCOVER = ToolDefinition("discover_tools",
             "Load tool schemas when the current tools do not cover an operation. Search by operation or exact name, then call the matching tool. Discovery does not execute it or grant access.",
-            listOf(ToolParameter("query", "string", "Concrete operation or exact tool name. For all permitted tools use inventory, then inventory:<offset> for subsequent pages. Inventory does not load schemas. Optional: defaults to the run objective.", required = false)))
+            listOf(ToolParameter("query", "string", "Concrete operation or exact tool name. For all permitted tools use inventory. Continue with inventory:<offset> or filter with inventory:<category>[:offset]. Inventory does not load schemas. Optional: defaults to the run objective.", required = false)))
     }
 }
