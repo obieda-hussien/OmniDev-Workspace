@@ -33,6 +33,8 @@ class RunToolCatalog(
     private var lastRankingQuery = ""
     private var lastRanking = emptyList<String>()
     private var currentObjective = objective
+    private var environmentPriorities = ExecutionEnvironmentContext.priorityNames(currentObjective, null)
+    private var observationMatches = emptyList<ToolDefinition>()
     private var selection = ToolSurfaceSelector.select(emptyList(), budget)
     val surface: ToolSurfaceSnapshot get() = selection.snapshot
 
@@ -73,7 +75,11 @@ class RunToolCatalog(
             objective.take(2_000) != currentObjective) demanded.clear()
         focus = activeStep
         currentObjective = objective.take(2_000)
-        refresh(observation = observation)
+        environmentPriorities = ExecutionEnvironmentContext.priorityNames(currentObjective, observation)
+        // Keep only the catalog matches for the current turn, not the untrusted observation text.
+        observationMatches = if (observation.isNullOrBlank()) emptyList()
+            else search(observation.take(800), 2, lexicalOnly = true)
+        refresh()
         return loaded.filter { it !in previous }
     }
 
@@ -108,13 +114,13 @@ class RunToolCatalog(
         refresh()
     }
 
-    private fun refresh(initial: Boolean = false, observation: String? = null) {
+    private fun refresh(initial: Boolean = false) {
         val candidates = mutableListOf<ToolSurfaceCandidate>()
         fun add(tools: List<ToolDefinition>, source: ToolSurfaceSource) { tools.forEach { candidates += ToolSurfaceCandidate(it, source) } }
         add(demanded.toList().asReversed().mapNotNull { name -> catalog.firstOrNull { it.name == name } }, ToolSurfaceSource.DISCOVERY)
         add(catalog.filter { it.name == focus?.verificationTool }, ToolSurfaceSource.VERIFICATION)
         add(catalog.filter { it.name in mentionedToolNames }.sortedBy { it.name }, ToolSurfaceSource.MENTION)
-        add(ExecutionEnvironmentContext.priorityNames(currentObjective, observation).mapNotNull { name ->
+        add(environmentPriorities.mapNotNull { name ->
             catalog.firstOrNull { it.name == name }
         }, ToolSurfaceSource.OBJECTIVE)
         val step = focus
@@ -126,7 +132,7 @@ class RunToolCatalog(
             val objectiveLimit = if (step == null && ExecutionEnvironmentContext.remoteRepository(currentObjective) == null) INITIAL_SIZE else SEARCH_SIZE
             add(search(currentObjective, objectiveLimit), ToolSurfaceSource.OBJECTIVE)
         }
-        if (!observation.isNullOrBlank()) add(search(observation.take(800), 2, lexicalOnly = true), ToolSurfaceSource.OBSERVATION)
+        add(observationMatches, ToolSurfaceSource.OBSERVATION)
         selection = ToolSurfaceSelector.select(candidates, budget)
         loaded.clear(); loaded.addAll(selection.snapshot.entries.map { it.name })
     }

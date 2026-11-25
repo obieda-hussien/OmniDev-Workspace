@@ -125,6 +125,22 @@ class RunToolCatalogTest {
         assertTrue(run.discover("inventory:imaginary:0").isError)
     }
 
+    @Test fun `schema loading preserves current observation hints until the next prepare`() {
+        val catalog = RunToolCatalog(registry, "web_search")
+        val initiallyDeferred = registry.filterNot { catalog.isLoaded(it.name) }
+        val observation = initiallyDeferred[0].name
+        val requested = initiallyDeferred[1].name
+        catalog.prepare("web_search", observation)
+
+        assertEquals(ToolSurfaceSource.OBSERVATION, catalog.surface.entries.singleOrNull { it.name == observation }?.source)
+        assertFalse(catalog.discover(requested).isError)
+        assertEquals(ToolSurfaceSource.OBSERVATION, catalog.surface.entries.singleOrNull { it.name == observation }?.source)
+
+        catalog.prepare("web_search")
+        assertFalse(catalog.isLoaded(observation))
+        assertTrue(catalog.isLoaded(requested))
+    }
+
     @Test fun `mentions preload priority tools while discovery can load supporting tools`() {
         val selected = (1..12).map { "registered_$it" }.toSet()
         val catalog = RunToolCatalog(registry, "registered_120", mentionedToolNames = selected)

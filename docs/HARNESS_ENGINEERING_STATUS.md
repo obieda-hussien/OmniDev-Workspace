@@ -1,14 +1,15 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-25: [`6a02a68`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/6a02a6878e0f0395cebb5450a2dc0c3cd5dd352e).
+Baseline after verified merges on 2026-11-25: [`9012eb0`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/9012eb0847e5ca6d38248a827b492816cd134fc9).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
 | H0 Execution integrity | [#324](https://github.com/obieda-hussien/OmniDev-Workspace/pull/324) merged. The [Android workflow](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45370669076) passed the API 30 UI job and all-flavor test job. [#326](https://github.com/obieda-hussien/OmniDev-Workspace/pull/326) and [#327](https://github.com/obieda-hussien/OmniDev-Workspace/pull/327) merged after Android CI passed, including API 30 instrumentation. [#332](https://github.com/obieda-hussien/OmniDev-Workspace/pull/332) merged after Android CI and the provenance workflows passed. | Verify Termux on the Android 11 reference device. Audit timeout and cancellation outcomes and mutation receipts. |
-| H1 Capability registry | [#325](https://github.com/obieda-hussien/OmniDev-Workspace/pull/325) merged. It enumerates permitted tool names in pages without loading schemas. [#328](https://github.com/obieda-hussien/OmniDev-Workspace/pull/328) merged with distinct registry counts and domain filters. | [#333](https://github.com/obieda-hussien/OmniDev-Workspace/pull/333) merged with run-observed shell readiness. This follow-up adds local and MCP registration-source filters. Continue readiness evidence for other backends. |
+| H1 Capability registry | [#325](https://github.com/obieda-hussien/OmniDev-Workspace/pull/325) merged. It enumerates permitted tool names in pages without loading schemas. [#328](https://github.com/obieda-hussien/OmniDev-Workspace/pull/328) merged with distinct registry counts and domain filters. | [#333](https://github.com/obieda-hussien/OmniDev-Workspace/pull/333) merged with run-observed shell readiness. [#334](https://github.com/obieda-hussien/OmniDev-Workspace/pull/334) merged with local and MCP registration-source filters. Continue readiness evidence for other backends. |
+| H2 Schema management | This follow-up keeps the current turn's observation matches through schema discovery and on-demand loading. [#335](https://github.com/obieda-hussien/OmniDev-Workspace/pull/335) tracks native schema constraint costs. | Validate both paths in Android CI and replay provider requests. |
 | H4 Adaptive recovery | [#329](https://github.com/obieda-hussien/OmniDev-Workspace/pull/329) merged with safeguards against uncertain privileged shell replays. | Audit transport recovery and reconciliation for other mutation types. |
 | H5 Context and evidence | [#330](https://github.com/obieda-hussien/OmniDev-Workspace/pull/330) and [#331](https://github.com/obieda-hussien/OmniDev-Workspace/pull/331) merged. The latter keeps an unresolved failure until its recorded target succeeds. | Replay cross-provider compaction and recovery scenarios. |
-| H2–H3, H6–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
+| H3, H6–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
 
 ## H0 replay results
 
@@ -31,4 +32,8 @@ Agent inventory pages can report Android shell, Termux and rish status from the 
 
 Use `inventory:local` and `inventory:mcp` to filter permitted registrations by source. A returned cursor such as `inventory:mcp:40` keeps its filter on the next page. Sources come from the registration lists, independently of tool name prefixes. All 28 catalog and runtime-ledger tests passed in an isolated Kotlin 2.4.21 JVM run, including the source filter, cursor, direct reply and authorization regression.
 
-Continue H2 schema management against the existing registry and coordinate source changes with P11–P15. No workload-level completion, latency, memory, or device baseline has been measured yet.
+## H2 schema refresh
+
+The catalog drops observation-only entries in a same-turn rebuild if it only receives the original objective and the new discovery hint. It now retains up to two ranked catalog matches plus environment-priority names from the current observation. The next preparation replaces those hints. Existing source priority, schema budgets, and permission checks govern the refreshed surface. The regression failed on the baseline and passed alongside 28 other catalog and runtime-ledger tests in an isolated Kotlin 2.4.21 JVM run.
+
+Continue with provider request replays and H3 tool-call repair. Coordinate source changes with P11–P15. No workload-level completion, latency, memory, or device baseline has been measured yet.
