@@ -66,8 +66,26 @@ internal object BrowserNavigationGuard {
         if (uri.port != -1) uri.port else if (uri.scheme.equals("https", ignoreCase = true)) 443 else 80
 
     private fun samePage(first: URI, second: URI): Boolean =
-        first.rawPath.ifEmpty { "/" } == second.rawPath.ifEmpty { "/" } &&
-            first.rawQuery == second.rawQuery && first.rawFragment == second.rawFragment
+        browserPath(first.rawPath) == browserPath(second.rawPath) &&
+            first.rawQuery?.replace("'", "%27") == second.rawQuery?.replace("'", "%27") &&
+            first.rawFragment == second.rawFragment
+
+    // HTTP(S) URL parsing resolves literal and encoded dot segments without collapsing slashes.
+    private fun browserPath(path: String): String {
+        val segments = path.split('/').drop(1)
+        val normalized = ArrayDeque<String>()
+        segments.forEachIndexed { index, segment ->
+            when (segment.replace("%2e", ".", ignoreCase = true)) {
+                "." -> if (index == segments.lastIndex) normalized.addLast("")
+                ".." -> {
+                    normalized.removeLastOrNull()
+                    if (index == segments.lastIndex) normalized.addLast("")
+                }
+                else -> normalized.addLast(segment)
+            }
+        }
+        return "/" + normalized.joinToString("/")
+    }
 
     private val CHALLENGE_TITLES = listOf(
         "just a moment", "checking your browser", "attention required",

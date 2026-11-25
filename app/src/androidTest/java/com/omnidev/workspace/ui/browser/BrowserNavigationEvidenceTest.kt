@@ -63,6 +63,9 @@ class BrowserNavigationEvidenceTest {
                     val ready = navigate("/ready")
                     assertFalse(ready.output, ready.isError)
 
+                    val canonicalized = navigate("/old/../ready?q=women's+jobs")
+                    assertFalse(canonicalized.output, canonicalized.isError)
+
                     val redirected = navigate("/redirect")
                     assertTrue(redirected.output, redirected.isError)
                     assertEquals(redirected.output, "BROWSER_UNVERIFIED_REDIRECT", redirected.classification)
@@ -83,7 +86,7 @@ class BrowserNavigationEvidenceTest {
     private fun serve(socket: Socket) {
         socket.soTimeout = 2_000
         val reader = socket.getInputStream().bufferedReader(Charsets.US_ASCII)
-        val path = reader.readLine()?.split(' ')?.getOrNull(1) ?: return
+        val path = reader.readLine()?.split(' ')?.getOrNull(1)?.substringBefore('?') ?: return
         while (!reader.readLine().isNullOrEmpty()) { /* Drain request headers. */ }
 
         val status = when (path) {

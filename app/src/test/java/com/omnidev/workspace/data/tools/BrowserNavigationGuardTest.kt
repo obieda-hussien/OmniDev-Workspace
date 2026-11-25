@@ -84,6 +84,25 @@ class BrowserNavigationGuardTest {
             "https://example.com/?q=%D9%88%D8%B8%D8%A7%D8%A6%D9%81"))
     }
 
+    @Test fun `WebView URL canonicalization still verifies the requested page`() {
+        assertNull(verify(
+            "https://example.com/a/%2E./search?q=women's+jobs",
+            "https://example.com/search?q=women%27s+jobs"
+        ))
+        assertNull(verify("https://example.com/a/../jobs/.", "https://example.com/jobs/"))
+    }
+
+    @Test fun `canonicalized navigation keeps distinct paths and queries separate`() {
+        assertEquals("BROWSER_UNVERIFIED_REDIRECT", verify(
+            "https://example.com/a/../jobs//open?q=women's+jobs",
+            "https://example.com/jobs/open?q=women%27s+jobs"
+        )?.classification)
+        assertEquals("BROWSER_UNVERIFIED_REDIRECT", verify(
+            "https://example.com/a/../jobs?q=women's+jobs",
+            "https://example.com/jobs?q=women%27s%2Bjobs"
+        )?.classification)
+    }
+
     @Test fun `partial load is unverified despite matching host`() {
         assertEquals("BROWSER_PAGE_NOT_READY", verify(
             "https://example.com/jobs", "https://example.com/jobs", "Jobs", false
