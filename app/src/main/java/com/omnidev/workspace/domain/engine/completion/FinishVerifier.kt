@@ -100,7 +100,8 @@ object FinishVerifier {
         }
         if (invalid.isNotEmpty()) problems += "invalid evidence: " + invalid.joinToString("; ")
 
-        val ok = ctx.evidence.filter { it.outcome == Outcome.OK && it.runId == ctx.runId && it.workerId == ctx.workerId && it.tool != "discover_tools" }
+        val ownedEvidence = ctx.evidence.filter { it.runId == ctx.runId && it.workerId == ctx.workerId }
+        val ok = ownedEvidence.filter { it.outcome == Outcome.OK && it.tool != "discover_tools" }
 
         // 2. Runtime-owned baseline criteria.
         if (ctx.requireExecution) {
@@ -115,11 +116,11 @@ object FinishVerifier {
                 acted.isNotEmpty(), acted.takeLast(3).map { it.citeId }, if (acted.isNotEmpty()) null else "only reads succeeded")
             if (acted.isEmpty()) problems += "this is implementation work but only read calls succeeded, so nothing was changed or run"
         }
-        val open = openErrors(ctx.evidence)
+        val open = openErrors(ownedEvidence)
         results += CriterionResult(AcceptanceCriterion("R2", "No unresolved tool failure", AcceptanceCriterion.Source.RUNTIME), open.isEmpty(),
             open.map { it.citeId }, if (open.isEmpty()) null else "unresolved: " + open.joinToString { "${it.citeId} ${it.tool}" })
         if (open.isNotEmpty()) problems += "unresolved failures: " + open.joinToString { "${it.citeId} (${it.tool})" } + "; fix or report them as blocked/failed"
-        val unread = unverifiedMutations(ctx.evidence)
+        val unread = unverifiedMutations(ownedEvidence)
         results += CriterionResult(AcceptanceCriterion("R3", "Edits were read back", AcceptanceCriterion.Source.RUNTIME), unread.isEmpty(),
             unread.map { it.citeId }, if (unread.isEmpty()) null else "not read back: " + unread.joinToString { it.target.ifBlank { it.tool } })
         if (unread.isNotEmpty()) problems += "changed but never read back: " + unread.joinToString { "${it.citeId} ${it.tool} ${it.target}".trim() }
@@ -146,12 +147,15 @@ object FinishVerifier {
         return Evaluation(problems.isEmpty(), results, problems.distinct())
     }
 
-    /** An ERROR is open unless a later call to the same tool succeeded. EMPTY/SKIPPED never block. */
+    /** Only a later successful recovery of the recorded operation closes its error. */
     fun openErrors(evidence: List<EvidenceRef>): List<EvidenceRef> = evidence.filterIndexed { index, e ->
-        e.outcome == Outcome.ERROR && evidence.drop(index + 1).none { it.tool == e.tool && it.outcome == Outcome.OK }
+        e.outcome == Outcome.ERROR && evidence.drop(index + 1).none { later ->
+            later.tool == e.tool && later.outcome == Outcome.OK &&
+                EvidenceKinds.matchesRecoveryTarget(e.tool, e.target, later.target)
+        }
     }
 
-    /** Last successful mutation per path that has no later successful read of the same path (or any pathless read). */
+    /** Last successful mutation per path that lacks a later successful read of that path. */
     fun unverifiedMutations(evidence: List<EvidenceRef>): List<EvidenceRef> {
         val lastByPath = LinkedHashMap<String, EvidenceRef>()
         evidence.filter { it.kind == EvidenceKinds.Kind.MUTATION && it.outcome == Outcome.OK }
