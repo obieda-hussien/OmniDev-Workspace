@@ -1,6 +1,8 @@
 package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.model.*
+import com.omnidev.workspace.data.tools.ToolDefinition
+import com.omnidev.workspace.data.tools.ToolParameter
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -38,6 +40,28 @@ class TextToolCallAdapterTest {
             assertNotNull(TextToolCallAdapter.adapt(CompletionResponse(raw)).toolCalls.single().argumentError)
         }
     }
+    @Test fun `preflight asks for a complete text envelope when the adapter cannot recover a target`() {
+        val definitions = listOf(
+            ToolDefinition("discover_tools", "Find tools"),
+            ToolDefinition("read_file", "Read a file", listOf(ToolParameter("path", "string", "Exact path")))
+        )
+        val preflight = ToolCallPreflight(definitions)
+        val malformed = TextToolCallAdapter.adapt(
+            CompletionResponse("""{"omni_tool_call":"private fixture"}""")
+        ).toolCalls.single()
+
+        val rejection = preflight.check(malformed)!!
+        assertEquals("INVALID_TOOL_ARGUMENTS", rejection.classification)
+        assertTrue(rejection.output.contains("""{"omni_tool_call":{"name":"exact_name","arguments":{}}}"""))
+        assertFalse(rejection.output.contains("private fixture"))
+
+        val corrected = TextToolCallAdapter.adapt(CompletionResponse(envelope)).toolCalls.single()
+        assertNull(preflight.check(corrected))
+        val native = preflight.check(ToolCall("native", "discover_tools", emptyMap(), argumentError = "bad object"))!!
+        assertTrue(native.output.contains("""{} or {"query":"operation"}"""))
+        assertFalse(native.output.contains("omni_tool_call"))
+    }
+
     @Test fun `null arguments and extra envelope keys are refused by preflight`() {
         for (raw in listOf("""{"omni_tool_call":{"name":"erase","arguments":null}}""",
             """{"omni_tool_call":{"name":"erase","arguments":{},"confirmation":true}}""")) {
