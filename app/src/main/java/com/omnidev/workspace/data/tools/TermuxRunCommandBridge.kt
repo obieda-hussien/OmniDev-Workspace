@@ -10,14 +10,17 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.coroutineContext
 
 /**
  * Executes commands *inside the Termux app process* through Termux's official
@@ -278,49 +281,58 @@ object TermuxRunCommandBridge {
         }
 
         val effectiveTimeout = timeoutMs.coerceIn(1_000L, MAX_TIMEOUT_MS)
+        var callback: PendingIntent? = null
+        awaitServiceResult(effectiveTimeout, cancelCallback = { callback?.cancel() }) { executionId ->
+            val callbackIntent = Intent(context, TermuxResultReceiver::class.java).apply {
+                action = "${context.packageName}.TERMUX_RESULT.$executionId"
+                putExtra(EXTRA_EXECUTION_ID, executionId)
+            }
+            val flags = PendingIntent.FLAG_ONE_SHOT or
+                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
+            val resultCallback = PendingIntent.getBroadcast(context, executionId, callbackIntent, flags)
+            callback = resultCallback
+
+            val intent = Intent().apply {
+                setClassName(TERMUX_PACKAGE, RUN_COMMAND_SERVICE)
+                action = ACTION_RUN_COMMAND
+                putExtra(EXTRA_COMMAND_PATH, executable)
+                putExtra(EXTRA_ARGUMENTS, arguments)
+                if (stdin != null) putExtra(EXTRA_STDIN, stdin)
+                putExtra(EXTRA_WORKDIR, cwd)
+                putExtra(EXTRA_BACKGROUND, true)
+                putExtra(EXTRA_COMMAND_LABEL, label.take(120))
+                description?.let { putExtra(EXTRA_COMMAND_DESCRIPTION, it.take(500)) }
+                putExtra(EXTRA_PENDING_INTENT, resultCallback)
+            }
+            context.startService(intent) != null
+        }
+    }
+
+    internal suspend fun awaitServiceResult(
+        timeoutMs: Long,
+        cancelCallback: () -> Unit,
+        startService: (executionId: Int) -> Boolean
+    ): TermuxCommandResult {
+        coroutineContext.ensureActive()
         val executionId = nextId.getAndIncrement()
         val deferred = CompletableDeferred<TermuxCommandResult>()
         pending[executionId] = deferred
-
-        val callbackIntent = Intent(context, TermuxResultReceiver::class.java).apply {
-            action = "${context.packageName}.TERMUX_RESULT.$executionId"
-            putExtra(EXTRA_EXECUTION_ID, executionId)
-        }
-        val flags = PendingIntent.FLAG_ONE_SHOT or
-            (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
-        val callback = PendingIntent.getBroadcast(context, executionId, callbackIntent, flags)
-
-        val intent = Intent().apply {
-            setClassName(TERMUX_PACKAGE, RUN_COMMAND_SERVICE)
-            action = ACTION_RUN_COMMAND
-            putExtra(EXTRA_COMMAND_PATH, executable)
-            putExtra(EXTRA_ARGUMENTS, arguments)
-            if (stdin != null) putExtra(EXTRA_STDIN, stdin)
-            putExtra(EXTRA_WORKDIR, cwd)
-            putExtra(EXTRA_BACKGROUND, true)
-            putExtra(EXTRA_COMMAND_LABEL, label.take(120))
-            description?.let { putExtra(EXTRA_COMMAND_DESCRIPTION, it.take(500)) }
-            putExtra(EXTRA_PENDING_INTENT, callback)
-        }
-
-        try {
-            val component = context.startService(intent)
-            if (component == null) {
-                pending.remove(executionId)
-                callback.cancel()
-                return@withContext setupFailure(
+        return try {
+            val result = if (startService(executionId)) {
+                withTimeoutOrNull(timeoutMs) { deferred.await() }
+                    ?: setupFailure("Timed out waiting for Termux result after ${timeoutMs}ms")
+            } else {
+                setupFailure(
                     "Android could not resolve/start Termux RunCommandService. Verify that the official Termux app is installed and enabled."
-                ).also(::recordTransportHealth)
+                )
             }
-            withTimeout(effectiveTimeout) { deferred.await() }
-                .also(::recordTransportHealth)
+            result.also(::recordTransportHealth)
+        } catch (cancelled: CancellationException) {
+            // Cancelling this wait does not determine whether the remote command ran.
+            throw cancelled
         } catch (t: Throwable) {
-            pending.remove(executionId)
-            callback.cancel()
             setupFailure(
                 when (t) {
-                    is kotlinx.coroutines.TimeoutCancellationException ->
-                        "Timed out waiting for Termux result after ${effectiveTimeout}ms"
                     is SecurityException -> {
                         PermissionRequestBridge.requestRuntimePermissions(
                             arrayOf(PERMISSION_RUN_COMMAND),
@@ -331,6 +343,9 @@ object TermuxRunCommandBridge {
                     else -> "Termux RunCommandService failure: ${t.javaClass.simpleName}: ${t.message}"
                 }
             ).also(::recordTransportHealth)
+        } finally {
+            // A receiver that claimed the result already consumed the one-shot callback.
+            if (pending.remove(executionId, deferred)) cancelCallback()
         }
     }
 
