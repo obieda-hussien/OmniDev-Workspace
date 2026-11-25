@@ -1,11 +1,11 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-25: [`e2d6e4f`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/e2d6e4fabfcab456ab5810b32e95ea29ee901b10).
+Baseline after verified merges on 2026-11-25: [`5f4cc49`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/5f4cc494b4bf71f77a8306e6a94097ec08605010).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
-| H0 Execution integrity | [#324](https://github.com/obieda-hussien/OmniDev-Workspace/pull/324) merged. The [Android workflow](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45370669076) passed the API 30 UI job and all-flavor test job. [#326](https://github.com/obieda-hussien/OmniDev-Workspace/pull/326) and [#327](https://github.com/obieda-hussien/OmniDev-Workspace/pull/327) merged after Android CI passed, including API 30 instrumentation. This follow-up covers the generic Termux pipeline executor. | Verify Termux on the Android 11 reference device. Audit timeout and cancellation outcomes and mutation receipts. |
-| H1 Capability registry | [#325](https://github.com/obieda-hussien/OmniDev-Workspace/pull/325) merged. It enumerates permitted tool names in pages without loading schemas. [#328](https://github.com/obieda-hussien/OmniDev-Workspace/pull/328) merged with distinct registry counts and domain filters. | Report backend availability from existing runtime evidence and add provider-source categories. |
+| H0 Execution integrity | [#324](https://github.com/obieda-hussien/OmniDev-Workspace/pull/324) merged. The [Android workflow](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45370669076) passed the API 30 UI job and all-flavor test job. [#326](https://github.com/obieda-hussien/OmniDev-Workspace/pull/326) and [#327](https://github.com/obieda-hussien/OmniDev-Workspace/pull/327) merged after Android CI passed, including API 30 instrumentation. [#332](https://github.com/obieda-hussien/OmniDev-Workspace/pull/332) merged after Android CI and the provenance workflows passed. | Verify Termux on the Android 11 reference device. Audit timeout and cancellation outcomes and mutation receipts. |
+| H1 Capability registry | [#325](https://github.com/obieda-hussien/OmniDev-Workspace/pull/325) merged. It enumerates permitted tool names in pages without loading schemas. [#328](https://github.com/obieda-hussien/OmniDev-Workspace/pull/328) merged with distinct registry counts and domain filters. | The follow-up reports run-observed shell readiness in inventory. Add provider-source categories and readiness evidence for other backends. |
 | H4 Adaptive recovery | [#329](https://github.com/obieda-hussien/OmniDev-Workspace/pull/329) merged with safeguards against uncertain privileged shell replays. | Audit transport recovery and reconciliation for other mutation types. |
 | H5 Context and evidence | [#330](https://github.com/obieda-hussien/OmniDev-Workspace/pull/330) and [#331](https://github.com/obieda-hussien/OmniDev-Workspace/pull/331) merged. The latter keeps an unresolved failure until its recorded target succeeds. | Replay cross-provider compaction and recovery scenarios. |
 | H2–H3, H6–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
@@ -25,4 +25,8 @@ The follow-up uses the existing `TermuxRunCommandBridge` Bash route. It drains s
 
 The generic `pipe_exec` baseline returned exit 0 when an upstream stage returned 17 and `cat` succeeded. The follow-up validates JSON stages before dispatch and uses the existing Termux Bash route with `pipefail`. All 14 focused JVM tests passed using Kotlin 2.4.21 and Linux Bash, including the four generic pipeline regressions. The contract and prototype source pins also now include the reviewed documentation change from #329.
 
-Continue H1 against the existing registry and coordinate source changes with the separate P11–P15 maintenance automation. No workload-level completion, latency, memory, or device baseline has been measured yet.
+## H1 backend evidence
+
+Agent inventory pages can report Android shell, Termux and rish status from the current run's execution circuit and trusted probe metadata. The inventory does not start a probe, and unobserved routes and other backends remain unknown. A probe reporting unavailable can update the inventory without creating a dispatch block. Provider discovery, tool authorization and schema selection are independent of this status. A focused isolated JVM run passed 27 catalog and runtime-ledger tests, including no-evidence, independent recovery, and paginated availability cases.
+
+Continue H1 provider-source categories against the existing registry and coordinate source changes with P11–P15. No workload-level completion, latency, memory, or device baseline has been measured yet.

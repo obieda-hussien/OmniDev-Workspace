@@ -1,5 +1,6 @@
 package com.omnidev.workspace.domain.engine
 
+import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.tools.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -39,6 +40,28 @@ class RunToolCatalogTest {
         val reply = OmniIdentityReply.reply("list all tools", null, run)!!
         assertTrue(reply.contains("Registered tools: 5. Authorized for this session: 2. Schemas loaded: 1."))
         assertTrue(reply.contains("Live backend availability is unknown."))
+    }
+
+    @Test fun `inventory can report observed backend health without changing authorization or schemas`() {
+        val run = RunToolCatalog(registry, "all tools")
+        val before = run.definitions()
+        val backends = RuntimeBackendLedger()
+        backends.observe(
+            ToolCall("check", "agent_runtime", mapOf("action" to "env_probe")),
+            ToolExecutionResult(
+                "probe",
+                backend = "runtime-probe",
+                verification = SetupState(termuxPrefix = "/termux").probeEvidence()
+            )
+        )
+
+        val page = run.discover("inventory:40", backends.availabilitySummary())
+
+        assertTrue(page.output.contains("android-shell=unavailable, termux=ready, rish=unavailable"))
+        assertTrue(page.output.contains("Other backends: unknown."))
+        assertTrue(page.output.contains("authorized: 120"))
+        assertEquals(before, run.definitions())
+        assertTrue(run.discover("inventory").output.contains("Live backend availability: unknown."))
     }
 
     @Test fun `category cursor keeps the same filter and rejects invalid offsets`() {

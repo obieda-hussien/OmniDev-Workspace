@@ -155,7 +155,11 @@ class RunToolCatalog(
             if (catalog.size > limit) "; +${catalog.size - limit} more (use discover_tools)" else ""
 
     /** Read-only inventory: never loads schemas or changes the permitted set. */
-    private fun inventoryPage(offset: Int, category: IntentClassifier.ToolDomain? = null): ToolExecutionResult {
+    private fun inventoryPage(
+        offset: Int,
+        backendAvailability: String?,
+        category: IntentClassifier.ToolDomain? = null
+    ): ToolExecutionResult {
         val entries = inventory().filter { category == null || IntentClassifier.getToolDomain(it.name) == category }
         if (offset !in 0..entries.size) return ToolExecutionResult(
             "Inventory offset out of range (0..${entries.size}).", true,
@@ -166,7 +170,9 @@ class RunToolCatalog(
         val counts = inventoryCounts()
         return ToolExecutionResult(buildString {
             appendLine("Run registry snapshot. Registered: ${counts.registered}; authorized: ${counts.authorized}; schemas loaded: ${counts.loaded}.")
-            appendLine("Live backend availability: unknown. Registration is limited to this build and discovered MCP tools.")
+            if (backendAvailability == null) appendLine("Live backend availability: unknown.")
+            else appendLine("Shell backends observed in this run: $backendAvailability. Other backends: unknown.")
+            appendLine("Registration is limited to this build and discovered MCP tools.")
             appendLine("Permitted inventory. Category: ${categoryName ?: "all"}; total: ${entries.size}; offset: $offset; count: ${page.size}.")
             page.forEach { tool ->
                 appendLine("${tool.name} — ${if (isLoaded(tool.name)) "schema loaded" else "schema on demand"}")
@@ -178,12 +184,12 @@ class RunToolCatalog(
         })
     }
 
-    private fun inventoryQuery(query: String): ToolExecutionResult {
+    private fun inventoryQuery(query: String, backendAvailability: String?): ToolExecutionResult {
         val parts = query.split(':', limit = 3)
-        if (parts.size == 1) parts.single().toIntOrNull()?.let { return inventoryPage(it) }
+        if (parts.size == 1) parts.single().toIntOrNull()?.let { return inventoryPage(it, backendAvailability) }
         val category = IntentClassifier.ToolDomain.entries.firstOrNull { it.name.lowercase() == parts.first() }
         val offset = if (parts.size == 1) 0 else parts[1].toIntOrNull()
-        if (category != null && offset != null && parts.size < 3) return inventoryPage(offset, category)
+        if (category != null && offset != null && parts.size < 3) return inventoryPage(offset, backendAvailability, category)
         val categories = IntentClassifier.ToolDomain.entries.joinToString { it.name.lowercase() }
         return ToolExecutionResult(
             "Use inventory:<offset> or inventory:<category>[:offset]. Categories: $categories.",
@@ -191,13 +197,15 @@ class RunToolCatalog(
         )
     }
 
-    fun discover(query: String): ToolExecutionResult {
+    fun discover(query: String): ToolExecutionResult = discover(query, backendAvailability = null)
+
+    internal fun discover(query: String, backendAvailability: String?): ToolExecutionResult {
         val request = query.trim().lowercase()
         if (request == "inventory" || request in INVENTORY_QUERIES ||
             (request.isEmpty() && currentObjective.trim().lowercase() in INVENTORY_QUERIES)) {
-            return inventoryPage(0)
+            return inventoryPage(0, backendAvailability)
         }
-        if (request.startsWith("inventory:")) return inventoryQuery(request.substringAfter(':'))
+        if (request.startsWith("inventory:")) return inventoryQuery(request.substringAfter(':'), backendAvailability)
         // A model that calls discovery without a query (common with small models) is helped, not rejected:
         // Fall back to the same active step/latest objective used by automatic retrieval.
         val effectiveQuery = query.take(2_000).ifBlank { focus?.query ?: currentObjective }

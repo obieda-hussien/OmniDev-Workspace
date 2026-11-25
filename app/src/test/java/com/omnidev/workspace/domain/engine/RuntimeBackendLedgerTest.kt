@@ -19,6 +19,28 @@ class RuntimeBackendLedgerTest {
         ToolExecutionResult("probe", backend = "runtime-probe", verification = state.probeEvidence())
     )
 
+    @Test fun `availability shows only trusted observations and keeps routes independent`() {
+        val ledger = RuntimeBackendLedger()
+        assertNull(ledger.availabilitySummary())
+        ledger.observe(shell("cat log"), ToolExecutionResult("android-shell=ready; termux=ready"))
+        assertNull(ledger.availabilitySummary())
+
+        ledger.observe(shell("pm list packages"), failure())
+        ledger.observe(shell("git status"), ToolExecutionResult("On branch main", backend = "termux"))
+        assertEquals("android-shell=unavailable, termux=ready, rish=unavailable", ledger.availabilitySummary())
+
+        probe(ledger, SetupState(privilegeBackend = "shizuku-user-service+rish"))
+        assertEquals("android-shell=ready, termux=unavailable, rish=ready", ledger.availabilitySummary())
+    }
+
+    @Test fun `negative probe is informative and does not add an execution block`() {
+        val ledger = RuntimeBackendLedger()
+        probe(ledger, SetupState())
+        assertEquals("android-shell=unavailable, termux=unavailable, rish=unavailable", ledger.availabilitySummary())
+        assertFalse(ledger.hasBlocks())
+        assertNull(ledger.before(shell("git status")))
+    }
+
     @Test fun `reported log stops backend execution despite unrelated Termux success`() {
         val ledger = RuntimeBackendLedger()
         var executions = 0
