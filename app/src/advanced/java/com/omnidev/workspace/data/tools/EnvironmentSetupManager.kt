@@ -288,6 +288,15 @@ object EnvironmentSetupManager {
         script: String,
         cwd: String? = null,
         @Suppress("UNUSED_PARAMETER") useBase64: Boolean? = null
+    ): ToolExecutionResult = executeTerminalScript(script, cwd)
+
+    internal suspend fun executeReadPipeline(pipeline: RuntimeReadPipeline): ToolExecutionResult =
+        executeTerminalScript(pipeline.script, cwd = null, readPipeline = pipeline)
+
+    private suspend fun executeTerminalScript(
+        script: String,
+        cwd: String?,
+        readPipeline: RuntimeReadPipeline? = null
     ): ToolExecutionResult = withContext(Dispatchers.IO) {
         if (script.isBlank()) return@withContext err("Empty script.")
         if (appContext == null) return@withContext err("Runtime is not initialized.")
@@ -298,7 +307,7 @@ object EnvironmentSetupManager {
             timeoutMs = TERMUX_TIMEOUT_MS,
             label = "OmniDev agent terminal"
         )
-        toToolResult(result, operation = "terminal")
+        toToolResult(result, operation = "terminal", readPipeline = readPipeline)
     }
 
     suspend fun runPython(
@@ -710,27 +719,51 @@ object EnvironmentSetupManager {
         "none"
     }
 
-    private fun toToolResult(
+    internal fun toToolResult(
         result: TermuxRunCommandBridge.TermuxCommandResult,
-        operation: String
+        operation: String,
+        readPipeline: RuntimeReadPipeline? = null
     ): ToolExecutionResult {
-        val output = result.mergedOutput().trim().take(MAX_OUTPUT)
-        return if (result.isSuccess) {
-            ToolExecutionResult(output.ifBlank { "(no output)" }, backend = "termux", exitCode = 0)
-        } else {
-            val diagnostic = buildString {
-                append("❌ $operation failed")
-                if (result.exitCode >= 0) append(" (exit=${result.exitCode})")
-                if (result.internalErrorCode != 0) append(" [Termux err=${result.internalErrorCode}]")
-                if (output.isNotBlank()) appendLine().append(output)
-                if (!result.transportSucceeded) {
-                    appendLine()
-                    append(termuxSetupHint())
-                }
-            }
-            ToolExecutionResult(diagnostic.take(MAX_OUTPUT), isError = true, backend = "termux",
-                exitCode = result.exitCode.takeIf { it >= 0 })
+        val stdout = readPipeline?.limitStdout(result.stdout) ?: result.stdout
+        val stderr = readPipeline?.limitStderr(result.stderr) ?: result.stderr
+        val lineLimited = stdout.length < result.stdout.length || stderr.length < result.stderr.length
+        val output = buildString {
+            if (lineLimited) appendLine("[Runtime read output limited by line count]")
+            append(result.mergedOutput(stdout, stderr).trim())
         }
+        val truncated = lineLimited || result.wasTruncated || output.length > MAX_OUTPUT
+        val isNoMatch = result.transportSucceeded && !truncated && result.internalError.isNullOrEmpty() &&
+            readPipeline?.isNoMatch(result.exitCode, result.stdout, result.stderr) == true
+        if (isNoMatch) {
+            return ToolExecutionResult(
+                "NO_MATCHES: search completed without matching lines.",
+                classification = "NO_MATCHES", backend = "termux", exitCode = result.exitCode
+            )
+        }
+
+        if (result.isSuccess) {
+            return ToolExecutionResult(
+                output.take(MAX_OUTPUT).ifBlank { "(no output)" },
+                truncated = truncated, backend = "termux", exitCode = result.exitCode
+            )
+        }
+
+        val diagnostic = buildString {
+            append("❌ $operation failed")
+            if (result.exitCode >= 0) append(" (exit=${result.exitCode})")
+            if (result.internalErrorCode != 0) append(" [Termux err=${result.internalErrorCode}]")
+            if (output.isNotBlank()) appendLine().append(output.take(MAX_OUTPUT))
+            if (!result.transportSucceeded) {
+                appendLine()
+                append(termuxSetupHint())
+            }
+        }
+        return ToolExecutionResult(
+            diagnostic.take(MAX_OUTPUT), isError = true, truncated = truncated || diagnostic.length > MAX_OUTPUT,
+            classification = readPipeline?.failureClassification(result.stderr)
+                ?.takeIf { result.transportSucceeded && result.exitCode > 0 },
+            backend = "termux", exitCode = result.exitCode.takeIf { it >= 0 }
+        )
     }
 
     private fun termuxSetupHint(): String =

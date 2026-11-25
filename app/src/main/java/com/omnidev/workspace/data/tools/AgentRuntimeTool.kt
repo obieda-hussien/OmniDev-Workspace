@@ -565,7 +565,7 @@ Run local shell commands, scripts, jobs and development tools with the available
                 val recursive = args["recursive"]?.lowercase() == "true"
                 val flags     = if (recursive) "-la -R" else "-la"
                 validatePath(path)?.let { return@withContext it }
-                EnvironmentSetupManager.executeShell("set -o pipefail; ls $flags ${sq(path)} 2>&1 | sed -n '1,200p'")
+                EnvironmentSetupManager.executeReadPipeline(RuntimeReadPipeline.read("ls $flags ${sq(path)}", 200))
             }
 
             "file_delete" -> {
@@ -604,8 +604,8 @@ Run local shell commands, scripts, jobs and development tools with the available
                 val type    = args["type"]?.let { if (it in listOf("f", "d")) " -type $it" else "" } ?: ""
                 validatePath(path)?.let { return@withContext it }
                 val safePattern = pattern.replace(Regex("[^a-zA-Z0-9_.\\-*?]"), "")
-                EnvironmentSetupManager.executeShell(
-                    "set -o pipefail; find ${sq(path)} -name ${sq(safePattern)}$type 2>&1 | sed -n '1,100p'"
+                EnvironmentSetupManager.executeReadPipeline(
+                    RuntimeReadPipeline.read("find ${sq(path)} -name ${sq(safePattern)}$type", 100)
                 )
             }
 
@@ -615,8 +615,8 @@ Run local shell commands, scripts, jobs and development tools with the available
                 val recursive = args["recursive"]?.lowercase() == "true"
                 validatePath(path)?.let { return@withContext it }
                 val flag = if (recursive) "-r" else ""
-                EnvironmentSetupManager.executeShell(
-                    "set -o pipefail; grep -n $flag -- ${sq(pattern)} ${sq(path)} 2>&1 | sed -n '1,100p'"
+                EnvironmentSetupManager.executeReadPipeline(
+                    RuntimeReadPipeline.search("grep -n $flag -- ${sq(pattern)} ${sq(path)}", 100)
                 )
             }
 
@@ -725,16 +725,17 @@ Run local shell commands, scripts, jobs and development tools with the available
             // ── Process Management ────────────────────────────────────────
 
             "proc_list" -> {
-                val filter = args["filter"]?.let { " | grep -i ${sq(it)}" } ?: ""
+                val filter = args["filter"]?.let { "grep -i -- ${sq(it)}" }
                 val sortFlag = when (args["sort"]?.lowercase()) {
                     "cpu" -> " --sort=-%cpu"
                     "mem" -> " --sort=-%mem"
                     "pid" -> " --sort=pid"
                     else  -> ""
                 }
-                EnvironmentSetupManager.executeShell(
-                    "set -o pipefail; ps -eo pid,ppid,%cpu,%mem,stat,comm$sortFlag 2>&1$filter | sed -n '1,60p'"
-                )
+                val command = "ps -eo pid,ppid,%cpu,%mem,stat,comm$sortFlag"
+                val pipeline = if (filter == null) RuntimeReadPipeline.read(command, 60)
+                else RuntimeReadPipeline.filter(command, filter, 60)
+                EnvironmentSetupManager.executeReadPipeline(pipeline)
             }
 
             "proc_kill" -> {
@@ -752,16 +753,16 @@ Run local shell commands, scripts, jobs and development tools with the available
 
             "proc_top" -> {
                 val count = args["count"]?.toIntOrNull()?.coerceIn(1, 30) ?: 10
-                EnvironmentSetupManager.executeShell(
-                    "set -o pipefail; ps -eo pid,%cpu,%mem,comm --sort=-%cpu 2>&1 | sed -n '1,${count + 1}p'"
+                EnvironmentSetupManager.executeReadPipeline(
+                    RuntimeReadPipeline.read("ps -eo pid,%cpu,%mem,comm --sort=-%cpu", count + 1)
                 )
             }
 
             "proc_find" -> {
                 val pattern = args["pattern"] ?: return@withContext err("proc_find requires 'pattern'")
                 val safeP = pattern.replace(Regex("[^a-zA-Z0-9_.\\-]"), "")
-                EnvironmentSetupManager.executeShell(
-                    "ps -eo pid,ppid,%cpu,%mem,comm 2>&1 | grep -i ${sq(safeP)}"
+                EnvironmentSetupManager.executeReadPipeline(
+                    RuntimeReadPipeline.filter("ps -eo pid,ppid,%cpu,%mem,comm", "grep -i -- ${sq(safeP)}", 100)
                 )
             }
 

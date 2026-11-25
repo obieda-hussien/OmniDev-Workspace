@@ -149,7 +149,7 @@ object TermuxRunCommandBridge {
         val wasTruncated: Boolean
             get() = stdoutOriginalLength > stdout.length || stderrOriginalLength > stderr.length
 
-        fun mergedOutput(): String = buildString {
+        fun mergedOutput(stdout: String = this.stdout, stderr: String = this.stderr): String = buildString {
             if (stdout.isNotBlank()) append(stdout.trimEnd())
             if (stderr.isNotBlank()) {
                 if (isNotEmpty()) appendLine().appendLine("[stderr]")

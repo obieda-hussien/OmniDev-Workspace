@@ -33,6 +33,8 @@ object EnvironmentSetupManager {
         cwd: String? = null,
         @Suppress("UNUSED_PARAMETER") useBase64: Boolean? = null
     ): ToolExecutionResult = ToolExecutionResult("Execution backend is not included in Lite.", true)
+    internal suspend fun executeReadPipeline(pipeline: RuntimeReadPipeline): ToolExecutionResult =
+        executeShell(pipeline.script)
     suspend fun runPython(
         code: String,
         extraArgs: String? = null,
