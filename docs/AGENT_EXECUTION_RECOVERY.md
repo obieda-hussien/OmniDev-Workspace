@@ -12,3 +12,13 @@ These fixes address the reported Android Git/GitHub and browser failures without
 - REPORT phase wording follows the actual P0 verdict. Incomplete results are never labeled as publishing a verified result. Team workers do not restart from scratch after P0 has exhausted its bounded completion recoveries. Failure propagates through every dependent before readiness is checked, so a blocked dependency chain is not mislabeled as a cycle.
 
 Deterministic domain and real Agent/Team pipeline tests cover the reported call sequences, safe fallback, discovery, browser correction, interrupted streaming, persistence restoration, honest report wording and transitive dependency failure. Existing UI/flavor/security workflows run unchanged. Live Gemini behavior and actual Android shell/browser sessions require device testing; scripted providers exercise protocol behavior without claiming a live-model success rate.
+
+## Harness engineering handoff
+
+### H0 browser destination evidence
+
+- Baseline `71037c95`: Android CI (including tests, lint, release and API 30 UI) and the public repository security gate passed on the #324 and #325 PR heads. GitHub returned no runs for the baseline merge SHA. #324 preserves shell pipeline failures for five inspection actions, and #325 pages the permitted registry without loading schemas.
+- Reproduced two false-success cases in `BrowserNavigationGuardTest`: readiness on a different path or scheme at the same host passed the old guard.
+- The guard now checks the finished URL against the live WebView URL, then verifies scheme, host, effective port, path, query and fragment against the requested address. The existing `www.` alias works for an otherwise matching destination. Main-frame HTTP errors are failed observations, and challenge titles retain their dedicated classification.
+- Validation during development includes ten focused JVM tests. The API 30 UI suite has a new loopback WebView fixture for a successful document with a missing image, a same-host redirect and a main-frame 404. Full Gradle validation belongs to Android CI when the wrapper download is unavailable locally. Physical Infinix and Termux validation are pending.
+- Next H0 audit item: `proc_find` still pipes process stdout and stderr together through a filter without preserving the producer exit status. H1 follow-up should verify dynamic registry changes and permission changes during a run. For H2 through H6, use the existing recovery, finish and durable runtime contracts and add regressions against concrete traces before changing policy.

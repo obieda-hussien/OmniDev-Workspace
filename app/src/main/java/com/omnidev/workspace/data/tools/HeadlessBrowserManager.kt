@@ -1096,6 +1096,8 @@ ACTIONS:
     // Navigation — SMART (waits for full readiness)
     // ════════════════════════════════════════════════════════════════════════
 
+    private data class NavigationLoad(val url: String, val httpStatus: Int?)
+
     private suspend fun navigate(url: String, sessionId: String? = null): ToolExecutionResult {
         val normalizedUrl = normalizeLeadingSlashHttpUrl(url)
         if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
@@ -1104,25 +1106,29 @@ ACTIONS:
         val session = resolveSession(sessionId) ?: return noSession()
 
         return try {
-            withTimeout(NAVIGATE_TIMEOUT_MS) {
+            withTimeoutOrNull(NAVIGATE_TIMEOUT_MS) {
                 session.isPageLoading = true
-                val deferred = CompletableDeferred<String>()
+                val deferred = CompletableDeferred<NavigationLoad>()
 
                 withContext(Dispatchers.Main) {
                     session.webView?.webViewClient = buildSmartWebViewClient(session, deferred)
                     session.webView?.loadUrl(normalizedUrl)
                 }
 
-                val landedUrl = deferred.await()
-                session.currentUrl = normalizeLeadingSlashHttpUrl(landedUrl)
+                val loaded = deferred.await()
 
                 // ── Smart Readiness Wait ────────────────────────────────────
                 val readiness = waitForPageReadiness(session)
                 session.lastReadiness = readiness
                 session.isPageLoading = false
 
-                session.title = withContext(Dispatchers.Main) { session.webView?.title ?: "" }
-                session.history.addLast(landedUrl)
+                val (currentUrl, currentTitle) = withContext(Dispatchers.Main) {
+                    val view = session.webView
+                    normalizeLeadingSlashHttpUrl(view?.url.orEmpty()) to view?.title.orEmpty()
+                }
+                session.currentUrl = currentUrl
+                session.title = currentTitle
+                session.history.addLast(loaded.url)
                 session.lastActivity = System.currentTimeMillis()
                 session.pageLoadCount.incrementAndGet()
                 emitSessionsUpdate()
@@ -1134,12 +1140,13 @@ ACTIONS:
                 }
 
                 val problem = BrowserNavigationGuard.verify(
-                    normalizedUrl, landedUrl, session.title, readiness.isFullyReady
+                    normalizedUrl, normalizeLeadingSlashHttpUrl(loaded.url), currentUrl, currentTitle,
+                    readiness.isFullyReady, loaded.httpStatus
                 )
                 ToolExecutionResult(
-                    (if (problem == null) "✅ Navigated to: $landedUrl\n"
-                    else "⚠️ Navigation not verified: $landedUrl\n${problem.explanation}\n") +
-                    "Title: ${session.title}\n" +
+                    (if (problem == null) "✅ Navigated to: $currentUrl\n"
+                    else "⚠️ Navigation not verified: ${currentUrl.ifBlank { "(unknown)" }}\n${problem.explanation}\n") +
+                    "Title: $currentTitle\n" +
                     "Session: ${session.id}\n" +
                     "Readiness: $readinessNote\n" +
                     "Wait time: ${readiness.waitedMs}ms",
@@ -1147,28 +1154,31 @@ ACTIONS:
                     classification = problem?.classification,
                     retryable = problem?.classification == "BROWSER_PAGE_NOT_READY"
                 )
+            } ?: run {
+                val partialUrl = withContext(Dispatchers.Main) { session.webView?.url.orEmpty() }
+                session.currentUrl = normalizeLeadingSlashHttpUrl(partialUrl)
+                ToolExecutionResult(
+                    "⚠️ Navigation timed out after ${NAVIGATE_TIMEOUT_MS/1000}s. " +
+                    "Current page: ${session.currentUrl.ifBlank { "(unknown)" }}\n" +
+                    "Use wait_for_network_idle before interacting.",
+                    isError = true, classification = "BROWSER_NAVIGATION_TIMEOUT", retryable = true
+                )
             }
-        } catch (e: TimeoutCancellationException) {
-            session.isPageLoading = false
-            val partialUrl = withContext(Dispatchers.Main) { session.webView?.url ?: normalizedUrl }
-            session.currentUrl = normalizeLeadingSlashHttpUrl(partialUrl)
-            ToolExecutionResult(
-                "⚠️ Navigation timed out after ${NAVIGATE_TIMEOUT_MS/1000}s. " +
-                "Page may have partially loaded at: $partialUrl\n" +
-                "Use wait_for_network_idle before interacting.",
-                isError = true, classification = "BROWSER_NAVIGATION_TIMEOUT", retryable = true
-            )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            session.isPageLoading = false
             ToolExecutionResult("Navigation failed: ${e.message}", isError = true)
+        } finally {
+            session.isPageLoading = false
         }
     }
 
     private fun buildSmartWebViewClient(
         session: BrowserSession,
-        deferred: CompletableDeferred<String>
+        deferred: CompletableDeferred<NavigationLoad>
     ) = object : WebViewClient() {
         private var navigationStarted = false
+        private var mainFrameHttpError: Pair<String, Int>? = null
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
             navigationStarted = true
@@ -1182,14 +1192,25 @@ ACTIONS:
         override fun onPageFinished(view: WebView?, loadedUrl: String?) {
             // The prior WebView load can finish after a new client has been installed.
             // Such a callback must not satisfy the current navigation's deferred.
-            if (!navigationStarted) return
-            session.currentUrl = normalizeLeadingSlashHttpUrl(loadedUrl ?: session.currentUrl)
+            if (!navigationStarted || loadedUrl.isNullOrBlank()) return
+            session.currentUrl = normalizeLeadingSlashHttpUrl(loadedUrl)
             session.title = view?.title.orEmpty()
             session.isPageLoading = false
             session.lastActivity = System.currentTimeMillis()
             if (!session.isIncognito) browserScope.launch(Dispatchers.IO) { session.cookieManager.flush() }
-            if (!deferred.isCompleted) deferred.complete(loadedUrl ?: session.currentUrl)
+            val httpStatus = mainFrameHttpError?.takeIf { it.first == loadedUrl.substringBefore('#') }?.second
+            if (!deferred.isCompleted) deferred.complete(NavigationLoad(loadedUrl, httpStatus))
             emitSessionsUpdate()
+        }
+
+        override fun onReceivedHttpError(
+            view: WebView?,
+            request: WebResourceRequest?,
+            errorResponse: WebResourceResponse?
+        ) {
+            if (request?.isForMainFrame == true && errorResponse != null) {
+                mainFrameHttpError = request.url.toString().substringBefore('#') to errorResponse.statusCode
+            }
         }
 
         override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
