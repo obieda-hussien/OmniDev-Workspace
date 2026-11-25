@@ -139,6 +139,16 @@ class ExecutionDomainGuardTest {
     }
 
     @Test
+    fun `a privileged read with shell redirection is an unverified effect`() {
+        assertFalse(ExecutionDomainGuard.isReadOnlyPrivilegedCommand(
+            "settings get system screen_brightness > snapshot.txt"
+        ))
+        assertFalse(ExecutionDomainGuard.isReadOnlyPrivilegedCommand(
+            "rish -c 'settings get system screen_brightness > snapshot.txt'"
+        ))
+    }
+
+    @Test
     fun `limit removal preserves quoted whitespace`() {
         val prepared = ExecutionDomainGuard.preparePrivilegedCommand(
             "content query --uri content://sms --where \"body LIKE '%Orange  Cash%'\" --limit 5"

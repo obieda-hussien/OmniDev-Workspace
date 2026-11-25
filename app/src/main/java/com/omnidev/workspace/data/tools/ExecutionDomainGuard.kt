@@ -32,6 +32,7 @@ object ExecutionDomainGuard {
     )
 
     private val hereDocStart = Regex("<<-?\\s*['\"]?([A-Za-z0-9_.-]+)['\"]?")
+    private val unprovenShellSyntax = setOf('|', '&', ';', '<', '>', '(', ')', '{', '}', '$', '`', '\\', '#')
 
     private val privilegedAtCommandPosition = Regex(
         pattern = "(?i)(?:^|[;&|]\\s*|\\$\\(\\s*|`\\s*|\\bthen\\s+|\\bdo\\s+)(?:" +
@@ -135,18 +136,17 @@ object ExecutionDomainGuard {
         return PreparedPrivilegedCommand(command, rowLimit, notes)
     }
 
-    /**
-     * Used by stagnation detection only. Be deliberately conservative: a compound/multiline shell
-     * script is considered an action even if its first command is read-only.
-     */
+    /** Shared by retry, diagnostic, scheduling and persisted effect decisions. */
+    internal fun isSimpleShellCommand(command: String): Boolean =
+        command.isNotBlank() && command.none {
+            it in unprovenShellSyntax || (it.isISOControl() && it != '\t')
+        }
+
+    /** A recognized Android query is read-only only when it has simple shell syntax. */
     fun isReadOnlyPrivilegedCommand(script: String): Boolean {
         val prepared = preparePrivilegedCommand(script)
         val command = prepared.command.trim()
-        if (command.isBlank() || command.contains('\n')) return false
-        if (command.contains("&&") || command.contains("||") || Regex("\\s;\\s").containsMatchIn(command)) {
-            return false
-        }
-        return readOnlyPrivilegedCommands.any { it.containsMatchIn(command) }
+        return isSimpleShellCommand(command) && readOnlyPrivilegedCommands.any { it.containsMatchIn(command) }
     }
 
     /** Preserve multiline content rows while applying a model-requested logical row limit. */

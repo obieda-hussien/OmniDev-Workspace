@@ -89,6 +89,15 @@ class ToolBatchPolicyTest {
     }
 
     @Test
+    fun `a terminal read that writes output cannot run in a read only batch`() {
+        val write = call("run_terminal", mapOf("command" to "getprop ro.product.model > snapshot.txt"))
+        assertFalse(ToolBatchPolicy.isReadOnly(write))
+        assertFalse(ToolBatchPolicy.canRunBatchInParallel(listOf(
+            write, call("run_terminal", mapOf("command" to "getprop ro.build.version.sdk"))
+        )))
+    }
+
+    @Test
     fun `SMS reader is read only while screenshot stays at most once`() {
         assertTrue(
             ToolBatchPolicy.isReadOnly(
