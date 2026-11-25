@@ -221,4 +221,8 @@ object EvidenceKinds {
 
     /** Path-like target recorded by the ledger (already redacted), or null. */
     fun pathOf(target: String): String? = PATH.find(target)?.groupValues?.get(1)
+
+    /** GitHub recovery uses its dedicated canonical resource ledger across legacy and typed calls. */
+    internal fun matchesRecoveryTarget(tool: String, failedTarget: String, successfulTarget: String): Boolean =
+        tool == "github_manager" || failedTarget == successfulTarget
 }

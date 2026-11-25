@@ -25,14 +25,16 @@ in one of them is not retried by the coordinator.
 Evidence comes only from the run ledger, which the runtime fills from real tool results.
 
 - R1 (when the task needs execution): at least one successful tool call exists.
-- R2: no unresolved failed call (a later success of the same tool resolves it; empty results never block).
-- R3: every successful file edit was read back afterwards (same path, or a pathless read).
+- R2: no unresolved failed call. A later success must recover the recorded operation in the same run. GitHub additionally checks canonical resource identity across its legacy and typed routes. Empty results do not block this criterion.
+- R3: every successful file edit was followed by a successful read of its recorded path in the same run.
 - R4 (implementation workers): at least one successful non-read action, not only reads.
 - A1..An: each acceptance item from the coordinator's task is claimed with valid evidence ids.
 - Every cited evidence id must exist in this run, belong to this worker and have ended `OK`.
 
 Without planner criteria the baseline checks still apply: a missing criteria list is never an automatic pass.
 Claims about verification of results (for example "tests pass") are only as strong as the cited tool output.
+
+The H5 regression reads a different file after the requested file fails. The finish verifier keeps the original failure open and the run ledger reports it until a successful read of that same target arrives.
 
 ## Rejections
 

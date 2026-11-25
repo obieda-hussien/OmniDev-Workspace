@@ -2,6 +2,10 @@ package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.model.ToolCallResult
+import com.omnidev.workspace.domain.engine.completion.FinishRequest
+import com.omnidev.workspace.domain.engine.completion.FinishStatus
+import com.omnidev.workspace.domain.engine.completion.FinishVerifier
+import com.omnidev.workspace.domain.engine.completion.VerificationContext
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -97,6 +101,40 @@ class RunEvidenceLedgerTest {
         record(ledger, "probe", "agent_runtime", mapOf("action" to "env_probe"), "Fresh probe")
         record(ledger, "retry", "agent_runtime", mapOf("action" to "shell_script"), "Completed")
         assertTrue(ledger.groundingNote("Execution completed").isEmpty())
+    }
+
+    @Test fun `successful read of another path leaves the failed resource unresolved`() {
+        val ledger = RunEvidenceLedger("local-run", null)
+        val path = mapOf("path" to "/workspace/First report.md")
+        record(ledger, "failed", "read_file", path, "Permission denied", error = true)
+        record(ledger, "other", "read_file", mapOf("path" to "/workspace/First draft.md"), "Other report")
+
+        fun accepted() = FinishVerifier.evaluate(
+            VerificationContext("local-run", null, ledger.snapshot(), true),
+            FinishRequest(FinishStatus.COMPLETED, "Read the report")
+        ).accepted
+        assertFalse(accepted())
+        assertTrue(ledger.groundingNote("Read the report").contains("read_file:error"))
+
+        record(ledger, "recovered", "read_file", path, "Requested report contents")
+        assertTrue(accepted())
+        assertTrue(ledger.groundingNote("Read the report").isEmpty())
+    }
+
+    @Test fun `foreign worker readback cannot verify a local edit`() {
+        val local = RunEvidenceLedger("local-run", "worker")
+        val foreign = RunEvidenceLedger("local-run", "other-worker")
+        val path = mapOf("path" to "/workspace/report.md")
+        record(local, "edit", "patch_file_content", path, "Report updated")
+        record(foreign, "foreign-read", "read_file", path, "Updated report")
+        val evidence = local.snapshot() + foreign.snapshot().map { it.copy(seq = 2) }
+
+        val report = FinishVerifier.evaluate(
+            VerificationContext("local-run", "worker", evidence, true),
+            FinishRequest(FinishStatus.COMPLETED, "Updated and verified the report")
+        )
+        assertFalse(report.accepted)
+        assertFalse(report.results.single { it.criterion.id == "R3" }.met)
     }
 
     @Test fun `actions skipped after steering are not reported as execution failures`() {

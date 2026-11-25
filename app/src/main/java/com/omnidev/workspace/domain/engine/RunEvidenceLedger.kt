@@ -227,7 +227,7 @@ class RunEvidenceLedger(
     }
 
     /**
-     * A later successful call to the same tool means its earlier transient failure was recovered.
+     * A later success for the recorded operation closes its earlier transient failure.
      * Calls rejected before execution and actions skipped after steering are not execution failures.
      */
     private fun unresolvedProblems(): List<Entry> = entries.filterIndexed { index, entry ->
@@ -235,7 +235,8 @@ class RunEvidenceLedger(
             false
         } else {
             entries.drop(index + 1).none { later ->
-                later.tool == entry.tool && later.outcome == Outcome.OK
+                later.tool == entry.tool && later.outcome == Outcome.OK &&
+                    EvidenceKinds.matchesRecoveryTarget(entry.tool, entry.target, later.target)
             }
         }
     }
