@@ -12,7 +12,8 @@ class RunToolCatalog(
     private val additionalDomains: Set<IntentClassifier.ToolDomain> = emptySet(),
     private val mentionedToolNames: Set<String> = emptySet(),
     private val budget: ToolSurfaceBudget = ToolSurfaceBudget(),
-    private val registeredToolCount: Int? = null
+    private val registeredToolCount: Int? = null,
+    private val mcpToolNames: Set<String> = emptySet()
 ) {
     private val catalog = definitions.filter { it.name != DISCOVER.name }.distinctBy { it.name }
     private val terms = catalog.associate { tool -> tool.name to words(
@@ -43,6 +44,8 @@ class RunToolCatalog(
 
     /** Inventory is a read of the permitted registry, independent of the prompt schema budget. */
     internal fun inventory(): List<ToolDefinition> = catalog.sortedBy { it.name }
+
+    internal fun inventorySource(name: String): String = if (name in mcpToolNames) "mcp" else "local"
 
     internal data class InventoryCounts(val registered: Int, val authorized: Int, val loaded: Int)
 
@@ -158,26 +161,32 @@ class RunToolCatalog(
     private fun inventoryPage(
         offset: Int,
         backendAvailability: String?,
-        category: IntentClassifier.ToolDomain? = null
+        filter: String? = null
     ): ToolExecutionResult {
-        val entries = inventory().filter { category == null || IntentClassifier.getToolDomain(it.name) == category }
+        val bySource = filter in INVENTORY_SOURCES
+        val entries = inventory().filter { tool ->
+            filter == null || filter == when {
+                bySource -> inventorySource(tool.name)
+                else -> IntentClassifier.getToolDomain(tool.name).name.lowercase()
+            }
+        }
         if (offset !in 0..entries.size) return ToolExecutionResult(
             "Inventory offset out of range (0..${entries.size}).", true,
             classification = "INVALID_TOOL_ARGUMENTS")
         val page = entries.drop(offset).take(INVENTORY_PAGE_SIZE)
         val next = offset + page.size
-        val categoryName = category?.name?.lowercase()
+        val filterLabel = if (bySource) "Source" else "Category"
         val counts = inventoryCounts()
         return ToolExecutionResult(buildString {
             appendLine("Run registry snapshot. Registered: ${counts.registered}; authorized: ${counts.authorized}; schemas loaded: ${counts.loaded}.")
             if (backendAvailability == null) appendLine("Live backend availability: unknown.")
             else appendLine("Shell backends observed in this run: $backendAvailability. Other backends: unknown.")
             appendLine("Registration is limited to this build and discovered MCP tools.")
-            appendLine("Permitted inventory. Category: ${categoryName ?: "all"}; total: ${entries.size}; offset: $offset; count: ${page.size}.")
+            appendLine("Permitted inventory. $filterLabel: ${filter ?: "all"}; total: ${entries.size}; offset: $offset; count: ${page.size}.")
             page.forEach { tool ->
-                appendLine("${tool.name} — ${if (isLoaded(tool.name)) "schema loaded" else "schema on demand"}")
+                appendLine("${tool.name} — ${if (isLoaded(tool.name)) "schema loaded" else "schema on demand"} [${inventorySource(tool.name)}]")
             }
-            val cursor = categoryName?.let { "$it:$next" } ?: next.toString()
+            val cursor = filter?.let { "$it:$next" } ?: next.toString()
             if (next < entries.size) appendLine("Next page: discover_tools(query=inventory:$cursor)")
             else appendLine("End of inventory.")
             appendLine("Use an exact tool name to load its schema.")
@@ -187,12 +196,14 @@ class RunToolCatalog(
     private fun inventoryQuery(query: String, backendAvailability: String?): ToolExecutionResult {
         val parts = query.split(':', limit = 3)
         if (parts.size == 1) parts.single().toIntOrNull()?.let { return inventoryPage(it, backendAvailability) }
-        val category = IntentClassifier.ToolDomain.entries.firstOrNull { it.name.lowercase() == parts.first() }
+        val filter = parts.first()
         val offset = if (parts.size == 1) 0 else parts[1].toIntOrNull()
-        if (category != null && offset != null && parts.size < 3) return inventoryPage(offset, backendAvailability, category)
-        val categories = IntentClassifier.ToolDomain.entries.joinToString { it.name.lowercase() }
+        if ((filter in INVENTORY_SOURCES || filter in INVENTORY_DOMAINS) && offset != null && parts.size < 3) {
+            return inventoryPage(offset, backendAvailability, filter)
+        }
+        val categories = INVENTORY_DOMAINS.joinToString()
         return ToolExecutionResult(
-            "Use inventory:<offset> or inventory:<category>[:offset]. Categories: $categories.",
+            "Use inventory:<offset> or inventory:<filter>[:offset]. Sources: local, mcp. Categories: $categories.",
             true, classification = "INVALID_TOOL_ARGUMENTS"
         )
     }
@@ -272,6 +283,8 @@ class RunToolCatalog(
         private const val SEARCH_SIZE = 6
         private const val DIGEST_SIZE = 40
         private const val INVENTORY_PAGE_SIZE = 40
+        private val INVENTORY_SOURCES = setOf("local", "mcp")
+        private val INVENTORY_DOMAINS = IntentClassifier.ToolDomain.entries.map { it.name.lowercase() }.toSet()
         private val INVENTORY_QUERIES = setOf("all tools", "list all tools", "all available tools",
             "all available tools and capabilities", "list tools", "كل الادوات", "كل الأدوات",
             "اعرض كل الأدوات", "اي هي ادواتك كلها", "اي هي أدواتك كلها")
@@ -282,6 +295,6 @@ class RunToolCatalog(
         private val STOP = setOf("the", "and", "for", "with", "tool", "tools", "use", "عايز", "اعمل", "من", "في", "علي", "failed", "returned", "error", "tool_error", "success", "retryable", "persistent", "class", "false", "true", "omni-outcome")
         val DISCOVER = ToolDefinition("discover_tools",
             "Load tool schemas when the current tools do not cover an operation. Search by operation or exact name, then call the matching tool. Discovery does not execute it or grant access.",
-            listOf(ToolParameter("query", "string", "Concrete operation or exact tool name. For all permitted tools use inventory. Continue with inventory:<offset> or filter with inventory:<category>[:offset]. Inventory does not load schemas. Optional: defaults to the run objective.", required = false)))
+            listOf(ToolParameter("query", "string", "Operation or exact tool name. List tools with inventory, then inventory:<offset>. Filter with inventory:<local|mcp|category>[:offset]. Empty query uses the run objective.", required = false)))
     }
 }

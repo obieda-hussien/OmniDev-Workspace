@@ -64,6 +64,43 @@ class RunToolCatalogTest {
         assertTrue(run.discover("inventory").output.contains("Live backend availability: unknown."))
     }
 
+    @Test fun `source filter pages only authorized registrations without reloading schemas`() {
+        val local = ToolDefinition("mcp_named_local", "A local tool")
+        val remote = (1..43).map { ToolDefinition("remote_$it", "A discovered tool") }
+        val catalog = RunToolCatalog(
+            listOf(local) + remote, "all tools",
+            registeredToolCount = 45,
+            mcpToolNames = remote.map { it.name }.toSet() + "disabled_tool"
+        )
+        val before = catalog.definitions()
+
+        val first = catalog.discover("inventory:mcp")
+        val second = catalog.discover("inventory:mcp:40")
+        val localPage = catalog.discover("inventory:local")
+        assertFalse(first.isError)
+        assertFalse(second.isError)
+        assertFalse(localPage.isError)
+        assertTrue(first.output.contains("Source: mcp; total: 43"))
+        assertTrue(first.output.contains("inventory:mcp:40"))
+        assertTrue(second.output.contains("End of inventory."))
+        val remoteNames = listOf(first, second).flatMap { page ->
+            page.output.lineSequence().filter { it.startsWith("remote_") }
+                .map { it.substringBefore(" — ") }.toList()
+        }
+        assertEquals(remote.map { it.name }.sorted(), remoteNames)
+        assertFalse(first.output.contains("disabled_tool"))
+        assertFalse(second.output.contains(local.name))
+        assertTrue(localPage.output.contains("Source: local; total: 1"))
+        assertTrue(localPage.output.contains(local.name))
+        assertTrue(catalog.discover("inventory:mcp:44").isError)
+        assertEquals(before, catalog.definitions())
+
+        val reply = OmniIdentityReply.reply("list all tools", null, catalog)!!
+        assertTrue(reply.contains("`remote_1` [mcp]"))
+        assertTrue(reply.contains("`mcp_named_local` [local]"))
+        assertFalse(reply.contains("disabled_tool"))
+    }
+
     @Test fun `category cursor keeps the same filter and rejects invalid offsets`() {
         val code = (1..44).map { ToolDefinition("build_project_$it", "Build a project") }
         val browser = ToolDefinition("web_search", "Search the web")
