@@ -1,11 +1,15 @@
 package com.omnidev.workspace.domain.taskstate
 
+import com.omnidev.workspace.data.model.ChatMessage
+import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.model.ToolCallResult
+import com.omnidev.workspace.domain.engine.IntentClassifier
 import com.omnidev.workspace.domain.engine.RunEvidenceLedger
 import com.omnidev.workspace.domain.engine.SensitiveObservationRedactor
 import com.omnidev.workspace.domain.engine.completion.FinalizationPolicy
 import com.omnidev.workspace.domain.engine.completion.FinishGate
+import com.omnidev.workspace.domain.engine.completion.FinishRuntime
 import com.omnidev.workspace.domain.engine.completion.FinishTool
 import com.omnidev.workspace.domain.engine.completion.GateResult
 import com.omnidev.workspace.domain.engine.completion.RunIdentity
@@ -252,20 +256,19 @@ class TaskRecoveryTest {
             taskKind = com.omnidev.workspace.domain.engine.completion.TaskKind.IMPLEMENTATION,
             sessionId = 7L
         )
-        val policy = FinalizationPolicy(enforce = true, requireExecution = true, requireAction = true)
-        val metadata = TaskResumeMetadata.encode(originalIdentity, policy)
-        val first = TaskRunRecorder(
-            store, "t1", 7L, "edit Foo.kt and verify it", null, null,
-            originalIdentity.acceptance, false, effect,
-            SensitiveObservationRedactor::redact, ::tick,
-            constraintsJson = metadata
-        )
-        first.start("edit Foo.kt"); first.beginTurn()
+        val originalScope = "/work/Omni Dev \"fixture\""
+        val first = checkNotNull(FinishRuntime.create(
+            originalIdentity, "edit Foo.kt", IntentClassifier.analyze("edit Foo.kt"),
+            isWorker = false, toolsAvailable = true, modelId = "test-model", enableModelProfiles = false,
+            store = store, originalRequest = "edit Foo.kt and verify it", workspaceScope = originalScope
+        ).recorder)
+        first.beginTurn()
         first.requested(listOf(read("read-before-resume"), read("read-interrupted")))
         assertEquals(RunGate.Proceed, first.gateRunning(read("read-before-resume")))
         assertEquals(RunGate.Proceed, first.gateRunning(read("read-interrupted")))
         first.completed(read("read-before-resume"), "verified content", false, null)
         TaskRecovery(store, ::tick).recover("t1")
+        val metadata = checkNotNull(store.task("t1")).constraintsJson
 
         val coordinator = TaskContinuationCoordinator(store, ::tick)
         val visible = coordinator.tasksForSession(7L).single()
@@ -282,6 +285,19 @@ class TaskRecoveryTest {
         assertEquals("t1", continuation.taskId)
         assertEquals(7L, continuation.sessionId)
         assertEquals("edit Foo.kt and verify it", continuation.originalRequest)
+        val laterTurn = ChatMessage(
+            MessageRole.USER, continuation.originalRequest,
+            userInput = continuation.originalRequest, userScopePath = "/work/another-project"
+        )
+        assertEquals(originalScope, continuation.workspaceForResume(listOf(laterTurn), "/work/current", false))
+        assertEquals(originalScope, continuation.workspaceForResume(emptyList(), "/work/current", false))
+        assertEquals("", continuation.copy(workspaceScope = "").workspaceForResume(emptyList(), "/work/current", false))
+        assertNull(continuation.copy(workspaceScope = "/").workspaceForResume(emptyList(), "/work/current", false))
+        assertEquals("/", continuation.copy(workspaceScope = "/").workspaceForResume(emptyList(), "/work/current", true))
+        assertEquals("/work/another-project", continuation.copy(workspaceScope = null)
+            .workspaceForResume(listOf(laterTurn), "/work/current", false))
+        assertEquals("/work/current", continuation.copy(workspaceScope = null)
+            .workspaceForResume(emptyList(), "/work/current", false))
         assertEquals("t1", continuation.identity.runId)
         assertEquals(7L, continuation.identity.sessionId)
         assertTrue(continuation.identity.forceFinishProtocol)
@@ -303,6 +319,7 @@ class TaskRecoveryTest {
         val snapshot = store.snapshot("t1")!!
         assertEquals("edit Foo.kt and verify it", snapshot.task.originalRequest)
         assertEquals(7L, snapshot.task.sessionId)
+        assertEquals(originalScope, TaskResumeMetadata.workspaceScope(snapshot.task.constraintsJson))
         assertEquals(TaskStatus.RUNNING, snapshot.task.status)
         assertEquals(2, snapshot.cycles.size)
         assertEquals("t1:c1", snapshot.cycles.first().cycleId)

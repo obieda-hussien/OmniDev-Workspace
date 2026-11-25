@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-26: [`578c28a`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/578c28ac89ba21b2476cd6dc6efffa5e8b47f4bd).
+Baseline after verified merges on 2026-11-26: [`59a266b`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/59a266b3a600d643c1500f79c7531b5ce1ad9fd1).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
@@ -10,8 +10,9 @@ Baseline after verified merges on 2026-11-26: [`578c28a`](https://github.com/obi
 | H4 Adaptive recovery | [#329](https://github.com/obieda-hussien/OmniDev-Workspace/pull/329) merged with safeguards against uncertain privileged shell replays. [#340](https://github.com/obieda-hussien/OmniDev-Workspace/pull/340) merged with reconciliation for missing Termux results after dispatch. | Audit transport recovery for additional mutation backends and replay on the Android 11 device. |
 | H5 Context and evidence | [#330](https://github.com/obieda-hussien/OmniDev-Workspace/pull/330) and [#331](https://github.com/obieda-hussien/OmniDev-Workspace/pull/331) merged. The latter keeps an unresolved failure until its recorded target succeeds. | [#341](https://github.com/obieda-hussien/OmniDev-Workspace/pull/341) merged with ledger retention. [#342](https://github.com/obieda-hussien/OmniDev-Workspace/pull/342) merged with OpenAI-compatible usage details through runtime accounting. Replay other provider formats and audit the analytics path. |
 | H3 Tool-call repair | [#339](https://github.com/obieda-hussien/OmniDev-Workspace/pull/339) merged with canonical text-envelope guidance in preflight feedback. | Replay malformed native arguments and schema correction through provider-backed sessions. |
-| H6 Environment routing | [#338](https://github.com/obieda-hussien/OmniDev-Workspace/pull/338) merged with stricter Team provider-status detection. | The `fix/h6-typed-file-backend-isolation` branch covers scoped file dispatch after a backend outage. Replay on Android and verify worker routing. |
-| H7–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
+| H6 Environment routing | [#338](https://github.com/obieda-hussien/OmniDev-Workspace/pull/338) merged with stricter Team provider-status detection. | [#344](https://github.com/obieda-hussien/OmniDev-Workspace/pull/344) merged with scoped file dispatch after a backend outage. Replay on Android and verify worker routing. |
+| H7 Objective continuity | The `fix/h7-resume-workspace-boundary` branch restores the persisted workspace during explicit task resume. | Replay the UI handoff and verify routing on the saved objective across provider prompts. |
+| H8–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
 
 ## H0 replay results
 
@@ -72,4 +73,10 @@ Next, confirm the remaining providers' usage contracts before extending this nor
 
 `RuntimeBackendLedger` now attributes typed Termux file reads and privileged file searches to the transport that actually dispatches them. A typed read blocked by an observed outage stays blocked in its own domain, while other authorized tools remain available. Path-specific permission errors do not mark the service unavailable. The existing stagnation guard still handles repeated blocked calls.
 
-The advanced-flavor replay passes a simulated unavailable-Android-shell result through production normalization and batch dispatch. It verifies one privileged dispatch, a rejected retry, and a real file read through the unprivileged workspace manager inside the selected workspace. Canonical scope matching now requires a directory boundary and rejects a neighboring folder with the same name prefix. The 31 catalog and ledger tests and the scoped-file replay passed on Linux JVM. Android CI and physical API 30 validation are pending. Next, replay the same flow on Android with Shizuku stopped, then verify that task continuation restores the original workspace and objective in H7.
+The advanced-flavor replay passes a simulated unavailable-Android-shell result through production normalization and batch dispatch. It verifies one privileged dispatch, a rejected retry, and a real file read through the unprivileged workspace manager inside the selected workspace. Canonical scope matching now requires a directory boundary and rejects a neighboring folder with the same name prefix. The 31 catalog and ledger tests and the scoped-file replay passed on Linux JVM. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45717520547) and the [required security check](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45717520570) passed at the merged head, including the API 30 UI job. Physical replay with Shizuku stopped is pending.
+
+## H7 workspace continuity
+
+Agent task creation records the effective workspace in the existing task constraints JSON. The explicit resume uses that stored workspace before consulting chat history or the current Target Context. Tasks created before this metadata retain their existing fallback. A root workspace requires the current God Mode setting, and tool permissions and mutation reconciliation still apply at execution time.
+
+The recovery replay starts a task through the finish runtime, interrupts it, and resumes it with a later message that repeats the original request in a different workspace. It verifies that the saved workspace, including spaces and quotes, survives the ambiguity, an empty history, and an acceptance update. The replay also covers explicit empty scope, legacy fallback, and the current God Mode check. All 48 persistence and recovery tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. Android CI and physical device validation are pending.

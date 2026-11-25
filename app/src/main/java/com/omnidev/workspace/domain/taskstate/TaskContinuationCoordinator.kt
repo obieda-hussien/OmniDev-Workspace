@@ -1,5 +1,7 @@
 package com.omnidev.workspace.domain.taskstate
 
+import com.omnidev.workspace.data.model.ChatMessage
+import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.domain.planning.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
@@ -7,6 +9,7 @@ import kotlinx.serialization.json.*
 import com.omnidev.workspace.domain.engine.SensitiveObservationRedactor
 import com.omnidev.workspace.domain.engine.completion.RunIdentity
 import com.omnidev.workspace.domain.engine.completion.TaskKind
+import java.io.File
 import java.util.UUID
 
 /** Redacted list/detail projection; full invocation results are loaded only for an explicit resume/review. */
@@ -50,8 +53,23 @@ data class TaskContinuation(
     val prompt: String,
     val identity: RunIdentity,
     /** Cycle counter at claim time; used to release only an unstarted claim. */
-    val claimedCycle: Int
-)
+    val claimedCycle: Int,
+    val workspaceScope: String? = null
+) {
+    /** Only older tasks need to recover a workspace from their conversation. */
+    fun workspaceForResume(messages: List<ChatMessage>, currentScope: String?, godModeEnabled: Boolean): String? {
+        val scope = workspaceScope ?: messages.lastOrNull { message ->
+            message.role == MessageRole.USER && (
+                message.userInput == originalRequest ||
+                    message.content.contains(originalRequest) ||
+                    originalRequest.startsWith(message.userInput?.takeIf { it.isNotBlank() } ?: message.content)
+            )
+        }?.userScopePath ?: currentScope.orEmpty()
+        return scope.takeUnless {
+            !godModeEnabled && it.isNotBlank() && File(it).canonicalFile.parentFile == null
+        }
+    }
+}
 
 sealed class TaskResumeResult {
     data class Ready(val continuation: TaskContinuation) : TaskResumeResult()
@@ -59,19 +77,32 @@ sealed class TaskResumeResult {
 }
 
 /**
- * Stores only the small piece of P0 policy metadata not represented by the P1 plan.
+ * Stores runtime policy and the selected workspace alongside the P1 plan.
  * It uses the existing constraintsJson column, so P2 does not require a Room migration.
  */
 object TaskResumeMetadata {
-    fun encode(identity: RunIdentity, policy: com.omnidev.workspace.domain.engine.completion.FinalizationPolicy): String = buildString {
+    fun encode(
+        identity: RunIdentity,
+        policy: com.omnidev.workspace.domain.engine.completion.FinalizationPolicy,
+        workspaceScope: String? = null
+    ): String = buildString {
         append("{\"p2FinishPolicy\":{\"enforce\":true,\"requireExecution\":")
         append(policy.requireExecution.toString())
         append(",\"taskKind\":\"")
         append(identity.taskKind.name)
         append("\"},\"p3Acceptance\":")
         append(Json.encodeToString(identity.acceptance.map(PlanningPrivacy::safe).take(8)))
+        if (workspaceScope != null) {
+            append(",\"workspaceScope\":")
+            append(Json.encodeToString(workspaceScope))
+        }
         append("}")
     }
+
+    fun workspaceScope(raw: String): String? = runCatching {
+        (Json.parseToJsonElement(raw).jsonObject["workspaceScope"] as? JsonPrimitive)
+            ?.takeIf { it.isString }?.content
+    }.getOrNull()
 
     fun withAcceptance(raw: String, items: List<String>): String {
         val original = runCatching { Json.parseToJsonElement(raw).jsonObject }.getOrElse { throw TaskStateException("INVALID_RESUME_METADATA") }
@@ -223,7 +254,8 @@ class TaskContinuationCoordinator(
                     originalRequest = task.originalRequest,
                     prompt = continuationPrompt(snapshot, instruction),
                     identity = identity,
-                    claimedCycle = task.currentCycle
+                    claimedCycle = task.currentCycle,
+                    workspaceScope = TaskResumeMetadata.workspaceScope(metadata)
                 ))
             }
         }

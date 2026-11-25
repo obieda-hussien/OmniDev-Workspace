@@ -421,7 +421,8 @@ When improving: keep every other sentence, the structure, the language and the l
         // Finish protocol: runtime-owned state, kept out of this lambda (see FinishRuntime).
         val evidenceLedger = FinishRuntime.create(runIdentity, routingObjective, taskSignals,
             workerPersona != null || runIdentity?.workerId != null || userMessage.contains("## Assigned Team Task"),
-            permittedDefinitions.isNotEmpty(), modelId, config.enableModelProfiles, taskStateStore, userMessage).ledger
+            permittedDefinitions.isNotEmpty(), modelId, config.enableModelProfiles, taskStateStore, userMessage,
+            workspaceScope = scopePath).ledger
         evidenceLedger.fin.attach(coroutineContext[kotlinx.coroutines.Job])
         configureTaskPlanning(evidenceLedger.fin, model, modelId, resolvedApiKey, autoRouteRole,
             scopePath, permittedDefinitions, conversationHistory)
