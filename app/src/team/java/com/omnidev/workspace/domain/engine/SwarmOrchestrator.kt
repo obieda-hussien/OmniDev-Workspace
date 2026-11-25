@@ -1039,7 +1039,7 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
             } catch (error: Exception) {
                 recordOrchestratorAnalytics(request, null, started, true)
                 if (error is com.omnidev.workspace.data.network.AutoRoutingExhaustedException) throw error
-                val rateLimit = isRateLimit(error.message.orEmpty())
+                val rateLimit = TeamFailurePolicy.classify(error.message.orEmpty()) == TeamFailureCategory.RATE_LIMIT
                 if (!rateLimit || attempt >= maxRetries) throw error
                 attempt++
                 delay(min(baseDelayMs * attempt, 60_000L))
@@ -1096,15 +1096,10 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         )
     }
 
-    private fun isRateLimit(message: String): Boolean {
-        val lower = message.lowercase()
-        return "rate limit" in lower || "429" in lower || "too many requests" in lower
-    }
-
     private fun isInfrastructureFailure(message: String): Boolean {
         val lower = message.lowercase()
-        return listOf(
-            "rate limit", "429", "quota", "api key", "unauthorized", "forbidden", "network",
+        return TeamFailurePolicy.classify(message) == TeamFailureCategory.RATE_LIMIT || listOf(
+            "quota", "api key", "unauthorized", "forbidden", "network",
             "timeout", "timed out", "connection", "dns", "service unavailable", "provider cooldown",
             "persistent infrastructure", "backend failure"
         ).any(lower::contains)
