@@ -5,6 +5,8 @@ import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.TokenUsage
+import com.omnidev.workspace.data.tools.ToolDefinition
+import com.omnidev.workspace.data.tools.ToolParameter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -119,5 +121,29 @@ class TokenAccountingTest {
         )
 
         assertTrue(TokenAccounting.estimateInputTokens(large) > TokenAccounting.estimateInputTokens(small))
+    }
+
+    @Test
+    fun `native tool enums and conditional arguments increase estimated usage`() {
+        val choices = (1..48).map { "inspect_saved_configuration_variant_$it" }
+        val parameter = ToolParameter("profile", "string", "A saved profile", required = false)
+        val plain = ToolDefinition("inspect_profile", "Inspect a saved profile", listOf(parameter))
+        fun request(definition: ToolDefinition) = CompletionRequest(
+            modelId = "test",
+            messages = listOf(ChatMessage(MessageRole.USER, "Inspect my profile")),
+            tools = listOf(definition)
+        )
+
+        val baseline = TokenAccounting.estimateInputTokens(request(plain))
+        val minimumConstraintTokens = choices.sumOf(String::length) / 3
+        val tested = listOf(parameter.copy(allowedValues = choices), parameter.copy(requiredForActions = choices))
+        for (constrained in tested) {
+            val nativeRequest = request(plain.copy(parameters = listOf(constrained)))
+            val estimated = TokenAccounting.usage(nativeRequest, CompletionResponse("Done"))
+            assertTrue(estimated.inputTokens >= baseline + minimumConstraintTokens)
+            assertEquals(150, TokenAccounting.usage(
+                nativeRequest, CompletionResponse("Done", tokensUsed = TokenUsage(140, 10, 150))
+            ).totalTokens)
+        }
     }
 }

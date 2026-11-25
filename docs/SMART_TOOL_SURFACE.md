@@ -24,6 +24,8 @@ The registry snapshot reports the number of distinct definitions exposed by the 
 
 `ToolSurfaceSelector` includes or defers entire compacted schemas. It never removes required parameters, enum members or action-specific requirements. These are capability-specific schema views, not alternate dispatch names. P0 finish and P3 planning controls remain separately owned by `FinishRuntime`; the existing request budget check still accounts for the whole request.
 
+Native request accounting includes enum values and action-specific argument requirements because the provider receives them with the schema. This affects remaining-run admission and usage estimates when provider totals are missing. Native provider usage remains authoritative. The focused regression compares a plain schema against the same schema with 48 declared values or conditional action names.
+
 Discovery and verification may replace a mentioned schema under budget pressure. A mention is a preference, not a restriction on supporting capabilities. If a matching schema cannot fit, discovery returns `TOOL_SCHEMA_BUDGET`; it never reports a deferred tool as loaded. Choose an exact narrower query or a model with enough context. A single inherently oversized schema requires a larger context.
 
 Native and text-only providers receive the same selected contracts. Exact permitted calls can still load on demand before `ToolCallPreflight`, which validates the original registered argument contract. Unknown, disabled and flavor-denied tools cannot be restored by hints or discovery. Execution-time eligibility, existing confirmations, scope validation, retries and backend routing remain unchanged.
