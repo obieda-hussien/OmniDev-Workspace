@@ -300,7 +300,7 @@ class ChatToolLoop(
                     }
                 }
 
-                val normalized = ToolExecutionSemantics.normalize(call.name, rawResult)
+                val normalized = ToolExecutionSemantics.normalize(call.name, rawResult, retrySafe = readOnly)
                 val modelSafe = normalized.copy(
                     output = SensitiveObservationRedactor.redact(normalized.output)
                 )

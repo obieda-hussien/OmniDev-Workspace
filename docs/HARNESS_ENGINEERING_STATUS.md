@@ -1,15 +1,15 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-25: [`a36e388`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/a36e388cb23ff53134a257add3d79614543d7b71).
+Baseline after verified merges on 2026-11-25: [`208b67f`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/208b67f90e6b6039e7525395132903846dc6dbda).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
 | H0 Execution integrity | [#324](https://github.com/obieda-hussien/OmniDev-Workspace/pull/324) merged. The [Android workflow](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45370669076) passed the API 30 UI job and all-flavor test job. [#326](https://github.com/obieda-hussien/OmniDev-Workspace/pull/326) and [#327](https://github.com/obieda-hussien/OmniDev-Workspace/pull/327) merged after Android CI passed, including API 30 instrumentation. [#332](https://github.com/obieda-hussien/OmniDev-Workspace/pull/332) merged after Android CI and the provenance workflows passed. [#337](https://github.com/obieda-hussien/OmniDev-Workspace/pull/337) merged with cancellation-safe Termux transport health. | Verify Termux on the Android 11 reference device. Audit timeout and cancellation outcomes and mutation receipts. |
 | H1 Capability registry | [#325](https://github.com/obieda-hussien/OmniDev-Workspace/pull/325) merged. It enumerates permitted tool names in pages without loading schemas. [#328](https://github.com/obieda-hussien/OmniDev-Workspace/pull/328) merged with distinct registry counts and domain filters. | [#333](https://github.com/obieda-hussien/OmniDev-Workspace/pull/333) merged with run-observed shell readiness. [#334](https://github.com/obieda-hussien/OmniDev-Workspace/pull/334) merged with local and MCP registration-source filters. Continue readiness evidence for other backends. |
 | H2 Schema management | [#335](https://github.com/obieda-hussien/OmniDev-Workspace/pull/335) and [#336](https://github.com/obieda-hussien/OmniDev-Workspace/pull/336) merged after Android CI. Native schema constraints count toward estimated input and current-turn observation matches survive same-turn schema rebuilds. | Replay provider requests and compare measured context use. |
-| H4 Adaptive recovery | [#329](https://github.com/obieda-hussien/OmniDev-Workspace/pull/329) merged with safeguards against uncertain privileged shell replays. | Audit transport recovery and reconciliation for other mutation types. |
+| H4 Adaptive recovery | [#329](https://github.com/obieda-hussien/OmniDev-Workspace/pull/329) merged with safeguards against uncertain privileged shell replays. The follow-up makes missing Termux results after dispatch require mutation reconciliation. | Audit transport recovery for additional mutation backends and replay on the Android 11 device. |
 | H5 Context and evidence | [#330](https://github.com/obieda-hussien/OmniDev-Workspace/pull/330) and [#331](https://github.com/obieda-hussien/OmniDev-Workspace/pull/331) merged. The latter keeps an unresolved failure until its recorded target succeeds. | Replay cross-provider compaction and recovery scenarios. |
-| H3 Tool-call repair | This follow-up gives malformed whole-response text tool calls the canonical envelope example in preflight feedback. | Replay malformed native arguments and schema correction through provider-backed sessions. |
+| H3 Tool-call repair | [#339](https://github.com/obieda-hussien/OmniDev-Workspace/pull/339) merged with canonical text-envelope guidance in preflight feedback. | Replay malformed native arguments and schema correction through provider-backed sessions. |
 | H6 Environment routing | [#338](https://github.com/obieda-hussien/OmniDev-Workspace/pull/338) merged with stricter Team provider-status detection. | Replay actual provider outages and verify worker routing. |
 | H7–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
 
@@ -44,4 +44,8 @@ The catalog drops observation-only entries in a same-turn rebuild if it only rec
 
 The text adapter can represent a malformed envelope with an internal discovery proposal carrying a parse error. Preflight now gives those proposals the same complete envelope example advertised by the text protocol. Malformed calls still fail before dispatch, and corrected proposals go through the ordinary tool contract. Native discovery keeps its existing arguments guidance. The regression failed on the baseline and passed alongside 33 other adapter, preflight and correction tests using Kotlin 2.4.21 on an isolated JVM.
 
-Continue with provider request replays and H4 recovery coverage. Coordinate source changes with P11–P15. No workload-level completion, latency, memory, or device baseline has been measured yet.
+## H4 Termux mutation deadlines
+
+A returned Termux response deadline after dispatch means the outcome of a side effect is unknown. Agent and Chat now pass their existing read-only decision to result normalization. The existing Agent recorder persists `MUTATION_OUTCOME_UNKNOWN` as `UNKNOWN`, and replay of an identical effect requires exact reconciliation. Verified read-only operations keep their timeout guidance. A regression using the orchestration entry point failed on the baseline because it kept the retryable timeout classification. All 25 result semantics and orchestration tests passed after the fix using Kotlin 2.4.21 on JVM. Android CI and device replay are pending.
+
+Continue with provider request replays and H5 context coverage. Coordinate source changes with P11–P15. No workload-level completion, latency, memory, or device baseline has been measured yet.
