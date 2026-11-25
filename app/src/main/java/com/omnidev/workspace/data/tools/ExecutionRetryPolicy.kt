@@ -9,6 +9,8 @@ package com.omnidev.workspace.data.tools
  */
 object ExecutionRetryPolicy {
 
+    private val chainSeparator = Regex("&&|;")
+
     private val idempotentSetters = listOf(
         Regex("(?is)^\\s*settings\\s+put\\b"),
         Regex("(?is)^\\s*setprop\\b"),
@@ -34,9 +36,9 @@ object ExecutionRetryPolicy {
         val trimmed = command.trim()
         if (trimmed.isBlank()) return false
 
-        val segments = splitSimpleChain(trimmed)
-        if (segments.size > 1) return segments.all(::isSafeSingleCommand)
-        return isSafeSingleCommand(trimmed)
+        return trimmed.split(chainSeparator).all { segment ->
+            ExecutionDomainGuard.isSimpleShellCommand(segment) && isSafeSingleCommand(segment)
+        }
     }
 
     private fun isSafeSingleCommand(command: String): Boolean {
@@ -46,14 +48,4 @@ object ExecutionRetryPolicy {
         return false
     }
 
-    private fun splitSimpleChain(command: String): List<String> {
-        if (command.contains('$') || command.contains('`') || command.contains("\n") || command.contains("||")) {
-            return listOf(command)
-        }
-        return command
-            .split(Regex("\\s*(?:&&|;)\\s*"))
-            .map(String::trim)
-            .filter(String::isNotBlank)
-            .ifEmpty { listOf(command) }
-    }
 }

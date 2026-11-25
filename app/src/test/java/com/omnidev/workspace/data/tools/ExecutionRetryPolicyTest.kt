@@ -43,4 +43,33 @@ class ExecutionRetryPolicyTest {
             )
         )
     }
+
+    @Test
+    fun `known reads and idempotent operations can form a simple retryable chain`() {
+        assertTrue(ExecutionRetryPolicy.isSafeToRetry(
+            "getprop ro.product.model && settings get system screen_brightness; svc wifi disable"
+        ))
+        assertTrue(ExecutionRetryPolicy.isSafeToRetry(
+            "content query --uri content://example/items --where \"label = 'Two words'\""
+        ))
+    }
+
+    @Test
+    fun `output redirection makes a read command ineligible for replay`() {
+        assertFalse(ExecutionRetryPolicy.isSafeToRetry("dumpsys battery > snapshot.txt"))
+        assertFalse(ExecutionRetryPolicy.isSafeToRetry("settings get system screen_brightness >> snapshots.txt"))
+    }
+
+    @Test
+    fun `first read does not authorize a compound shell program for replay`() {
+        for (script in listOf(
+            "getprop ro.product.model | cat",
+            "getprop ro.product.model || printf unavailable",
+            "getprop ro.product.model\ngetprop ro.build.version.sdk",
+            "getprop ro.product.model &",
+            "getprop $(printf ro.product.model)"
+        )) {
+            assertFalse(script, ExecutionRetryPolicy.isSafeToRetry(script))
+        }
+    }
 }
