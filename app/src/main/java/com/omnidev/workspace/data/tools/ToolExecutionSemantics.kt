@@ -52,7 +52,11 @@ object ToolExecutionSemantics {
         it.isEmpty() || it == "(no output)" || it.startsWith("NO_MATCHES")
     }
 
-    fun normalize(toolName: String, result: ToolExecutionResult): ToolExecutionResult {
+    fun normalize(
+        toolName: String,
+        result: ToolExecutionResult,
+        retrySafe: Boolean = true
+    ): ToolExecutionResult {
         val normalized = when {
             result.isError -> {
                 // The tool already declared failure, so its whole diagnostic payload is evidence.
@@ -60,7 +64,8 @@ object ToolExecutionSemantics {
                 result.copy(
                     classification = result.classification ?: match?.classification ?: "TOOL_ERROR",
                     backend = result.backend ?: inferBackend(toolName, result.output),
-                    retryable = result.retryable || match?.retryable == true,
+                    retryable = result.classification != "MUTATION_OUTCOME_UNKNOWN" &&
+                        (result.retryable || match?.retryable == true),
                     persistentFailure = result.persistentFailure || match?.persistent == true
                 )
             }
@@ -106,7 +111,19 @@ object ToolExecutionSemantics {
             }
         }
 
-        return compact(decorate(normalized))
+        // RunCommandService was started but the callback did not establish the process outcome.
+        val outcome = if (!retrySafe && normalized.isError && normalized.backend == "termux" &&
+            normalized.classification == "TERMUX_RESULT_TIMEOUT" && (normalized.exitCode ?: -1) < 0) {
+            normalized.copy(
+                output = "Termux did not report the mutation outcome. Reconcile the exact effect before any retry.\n" +
+                    observationBody(normalized.output),
+                classification = "MUTATION_OUTCOME_UNKNOWN",
+                retryable = false,
+                persistentFailure = true
+            )
+        } else normalized
+
+        return compact(decorate(outcome))
     }
 
     /** Strong failure signatures used when the caller already knows the text is an error channel. */

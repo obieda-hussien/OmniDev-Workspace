@@ -132,6 +132,33 @@ class ToolOrchestratorSemanticTest {
     }
 
     @Test
+    fun `returned Termux deadline requires reconciliation for a mutation and preserves read guidance`() = runBlocking {
+        val orchestrator = ToolOrchestrator()
+        val timeout = ToolExecutionResult(
+            "terminal failed [Termux err=1]\n[termux] Timed out waiting for Termux result after 120000ms",
+            isError = true,
+            backend = "termux"
+        )
+        var mutationAttempts = 0
+        val mutation = orchestrator.executeTool("agent_runtime", maxRetries = 3, retrySafe = false) {
+            mutationAttempts++
+            timeout
+        }.getOrThrow()
+
+        assertEquals(1, mutationAttempts)
+        assertEquals("MUTATION_OUTCOME_UNKNOWN", mutation.classification)
+        assertFalse(mutation.retryable)
+        assertTrue(mutation.output.contains("Reconcile"))
+        assertTrue(mutation.output.startsWith("[omni-outcome] status=FAIL class=MUTATION_OUTCOME_UNKNOWN"))
+
+        val read = orchestrator.executeTool("agent_runtime", maxRetries = 3, retrySafe = true) {
+            timeout
+        }.getOrThrow()
+        assertEquals("TERMUX_RESULT_TIMEOUT", read.classification)
+        assertTrue(read.retryable)
+    }
+
+    @Test
     fun `explicit read-only transport retry may recover`() = runBlocking {
         val orchestrator = ToolOrchestrator()
         var attempts = 0
