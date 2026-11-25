@@ -20,7 +20,9 @@ object TokenAccounting {
         val inputTokens: Int,
         val outputTokens: Int,
         val totalTokens: Int,
-        val estimated: Boolean
+        val estimated: Boolean,
+        val cachedInputTokens: Int? = null,
+        val reasoningTokens: Int? = null
     )
 
     fun usage(request: CompletionRequest, response: CompletionResponse): Usage {
@@ -41,7 +43,9 @@ object TokenAccounting {
                 outputTokens = reconciled.second,
                 totalTokens = total,
                 // Total is provider-native; only component allocation may be inferred.
-                estimated = false
+                estimated = false,
+                cachedInputTokens = native.cachedInputTokens,
+                reasoningTokens = native.reasoningTokens
             )
         }
 

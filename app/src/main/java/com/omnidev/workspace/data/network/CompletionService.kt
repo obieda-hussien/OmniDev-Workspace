@@ -26,6 +26,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -165,8 +166,24 @@ private data class OpenAiMessageContent(val role: String, val content: String = 
 private data class OpenAiUsage(
     @SerialName("prompt_tokens") val promptTokens: Int = 0,
     @SerialName("completion_tokens") val completionTokens: Int = 0,
-    @SerialName("total_tokens") val totalTokens: Int = 0
-)
+    @SerialName("total_tokens") val totalTokens: Int = 0,
+    @SerialName("prompt_tokens_details") val promptDetails: JsonElement? = null,
+    @SerialName("completion_tokens_details") val completionDetails: JsonElement? = null
+) {
+    fun toTokenUsage() = TokenUsage(
+        promptTokens = promptTokens,
+        completionTokens = completionTokens,
+        totalTokens = totalTokens,
+        cachedInputTokens = optionalCount(promptDetails, "cached_tokens"),
+        reasoningTokens = optionalCount(completionDetails, "reasoning_tokens")
+    )
+
+    // Compatible servers can omit these fields or use a different optional details shape.
+    private fun optionalCount(details: JsonElement?, name: String): Int? {
+        val value = (details as? JsonObject)?.get(name) as? JsonPrimitive ?: return null
+        return value.takeUnless { it.isString }?.intOrNull?.takeIf { it >= 0 }
+    }
+}
 
 // ─── OpenAI Native Tool Calling DTOs ─────────────────────────────────────────
 
@@ -635,13 +652,7 @@ class CompletionService(
             toolCalls = toolCalls,
             thinkingContent = choice?.message?.reasoningContent ?: choice?.message?.thought,
             finishReason = choice?.finishReason,
-            tokensUsed = parsed.usage?.let {
-                TokenUsage(
-                    promptTokens = it.promptTokens,
-                    completionTokens = it.completionTokens,
-                    totalTokens = it.totalTokens
-                )
-            }
+            tokensUsed = parsed.usage?.toTokenUsage()
         )
     }
 
@@ -850,7 +861,7 @@ class CompletionService(
             thinkingContent = fullReasoning.toString().ifBlank { null },
             toolCalls    = toolCalls,
             finishReason = finishReason,
-            tokensUsed   = totalTokens?.let { TokenUsage(it.promptTokens, it.completionTokens, it.totalTokens) }
+            tokensUsed   = totalTokens?.toTokenUsage()
         )
     }
 
