@@ -22,11 +22,17 @@ class RuntimeBackendLedger {
         if (failure == null) return null
         // One real failure already supplied the evidence. Cosmetic script/PATH changes and
         // terminal aliases must not replay the same unavailable capability.
-        reportOnly = true
+        val nextStep = if (fileReadDomain(call) != null) {
+            "For a known file in the authorized project, use the permitted scoped file reader if available. " +
+                "Otherwise continue independent work or report the blocked search."
+        } else {
+            reportOnly = true
+            "Report completed work and the blocker."
+        }
         return ToolExecutionResult(
             "RUNTIME_BACKEND_BLOCKED: $domain remains unavailable ($failure). Command was NOT executed. " +
                 "Changing PATH, package names, terminal aliases or installing binaries cannot restore this capability. " +
-                "Report completed work and the blocker. Do not claim the blocked operation succeeded.",
+                "$nextStep Do not claim the blocked operation succeeded.",
             isError = true, classification = "RUNTIME_BACKEND_BLOCKED", backend = domain,
             retryable = false, persistentFailure = true
         )
@@ -107,7 +113,16 @@ class RuntimeBackendLedger {
     companion object {
         private val observedDomains = listOf("android-shell", "termux", "rish")
         private val shellActions = setOf("shell_script", "termux_run", "job_submit")
+        private val termuxFileReads = setOf("file_read", "file_list", "file_find", "file_grep", "file_stat")
+
+        private fun fileReadDomain(call: ToolCall): String? = when (call.name) {
+            "find_files", "grep_search" -> "android-shell"
+            "agent_runtime" -> "termux".takeIf { call.arguments["action"]?.trim()?.lowercase() in termuxFileReads }
+            else -> null
+        }
+
         fun domain(call: ToolCall): String? {
+            fileReadDomain(call)?.let { return it }
             val args = call.arguments
             val command = when (call.name) {
                 "agent_runtime" -> if (args["action"]?.trim()?.lowercase() in shellActions) args["script"] ?: args["command"] else return null
