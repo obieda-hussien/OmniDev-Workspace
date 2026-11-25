@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.tools
 
+import android.app.Activity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -21,7 +22,7 @@ class TermuxReadOutcomeTest {
     @Test
     fun grepExitOneWithDiagnosticsOrTransportFailureIsStillAFailure() {
         assertTrue(observation(exitCode = 1, stderr = "Permission denied").isError)
-        assertTrue(observation(exitCode = 1, transportError = -1).isError)
+        assertTrue(observation(exitCode = 1, transportError = 1).isError)
         assertTrue(observation(exitCode = 1, originalStderrLength = 20).isError)
         assertTrue(observation(exitCode = 1, pipeline = RuntimeReadPipeline.read("ls source", 2)).isError)
     }
@@ -34,6 +35,7 @@ class TermuxReadOutcomeTest {
         assertEquals("FILESYSTEM_PERMISSION_DENIED", result.classification)
         assertEquals(2, result.exitCode)
         assertEquals("termux", result.backend)
+        assertFalse(result.output.contains("[Termux err="))
         assertTrue(result.output.contains("1:example\n[stderr]\ngrep: private: Permission denied"))
     }
 
@@ -51,7 +53,7 @@ class TermuxReadOutcomeTest {
         exitCode: Int,
         stdout: String = "",
         stderr: String = "",
-        transportError: Int = 0,
+        transportError: Int = Activity.RESULT_OK,
         originalStderrLength: Int = stderr.length,
         pipeline: RuntimeReadPipeline = grep
     ): ToolExecutionResult = ToolExecutionSemantics.normalize(

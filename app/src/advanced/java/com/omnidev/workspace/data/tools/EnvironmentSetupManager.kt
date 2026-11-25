@@ -751,7 +751,7 @@ object EnvironmentSetupManager {
         val diagnostic = buildString {
             append("❌ $operation failed")
             if (result.exitCode >= 0) append(" (exit=${result.exitCode})")
-            if (result.internalErrorCode != 0) append(" [Termux err=${result.internalErrorCode}]")
+            if (!result.transportSucceeded) append(" [Termux err=${result.internalErrorCode}]")
             if (output.isNotBlank()) appendLine().append(output.take(MAX_OUTPUT))
             if (!result.transportSucceeded) {
                 appendLine()
