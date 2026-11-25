@@ -62,17 +62,25 @@ internal class DurableTeamRun private constructor(private val store: TeamStateEn
 /** Runtime-known failures pause without speculative model correction. P7/P9 may advise; they cannot override this. */
 internal enum class TeamFailureCategory { DNS, RATE_LIMIT, AUTHENTICATION, CONTEXT, SCHEMA, CHECKOUT, BACKEND, PERMISSION, UNKNOWN }
 internal object TeamFailurePolicy {
+    // Codes in paths, IDs, and line numbers are not provider statuses.
+    private val providerStatus = Regex(
+        """(?:^\s*|\b(?:http(?:/\d+(?:\.\d+)?)?(?: status)?|api error|status code)(?:\s+|\s*[:=]\s*))(401|429)(?=$|[\s:.,;)])"""
+    )
+
     fun classify(message: String): TeamFailureCategory {
         val s = message.lowercase()
+        val status = providerStatus.find(s)?.groupValues?.get(1)
         return when {
             listOf("unable to resolve host", "unknownhost", "no address associated", "name or service not known").any(s::contains) -> TeamFailureCategory.DNS
-            listOf("429", "rate limit", "resource_exhausted").any(s::contains) -> TeamFailureCategory.RATE_LIMIT
-            listOf("401", "authentication", "api key", "unauthorized").any(s::contains) -> TeamFailureCategory.AUTHENTICATION
+            status == "429" || listOf("rate limit", "too many requests", "resource_exhausted").any(s::contains) ->
+                TeamFailureCategory.RATE_LIMIT
+            status == "401" || listOf("authentication", "api key", "unauthorized").any(s::contains) ->
+                TeamFailureCategory.AUTHENTICATION
             listOf("context length", "context window", "too many tokens").any(s::contains) -> TeamFailureCategory.CONTEXT
             listOf("invalid_tool", "tool schema", "invalid argument").any(s::contains) -> TeamFailureCategory.SCHEMA
             s.contains("not a git repository") -> TeamFailureCategory.CHECKOUT
             listOf("permission", "tier_denied", "user_action_required", "confirmation_required").any(s::contains) -> TeamFailureCategory.PERMISSION
-            listOf("backend", "unavailable", "timeout", "connection").any(s::contains) -> TeamFailureCategory.BACKEND
+            listOf("backend", "unavailable", "timeout", "timed out", "connection").any(s::contains) -> TeamFailureCategory.BACKEND
             else -> TeamFailureCategory.UNKNOWN
         }
     }
