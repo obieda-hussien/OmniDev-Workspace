@@ -12,3 +12,13 @@ These fixes address the reported Android Git/GitHub and browser failures without
 - REPORT phase wording follows the actual P0 verdict. Incomplete results are never labeled as publishing a verified result. Team workers do not restart from scratch after P0 has exhausted its bounded completion recoveries. Failure propagates through every dependent before readiness is checked, so a blocked dependency chain is not mislabeled as a cycle.
 
 Deterministic domain and real Agent/Team pipeline tests cover the reported call sequences, safe fallback, discovery, browser correction, interrupted streaming, persistence restoration, honest report wording and transitive dependency failure. Existing UI/flavor/security workflows run unchanged. Live Gemini behavior and actual Android shell/browser sessions require device testing; scripted providers exercise protocol behavior without claiming a live-model success rate.
+
+## Harness engineering handoff
+
+### H0 browser destination evidence
+
+- Baseline `71037c95`: [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45443755690) and the [public repository security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45443755892) passed on the merged SHA and on the #324 and #325 PR heads. #324 preserves shell pipeline failures for five inspection actions, and #325 pages the permitted registry without loading schemas.
+- Reproduced two false-success cases in `BrowserNavigationGuardTest`: readiness on a different path or scheme at the same host passed the old guard.
+- The guard now checks the finished URL against the live WebView URL, then verifies scheme, host, effective port, path, query and fragment against the requested address. It recognizes the existing `www.` alias, browser path dot-segment normalization and query apostrophe encoding. Main-frame HTTP errors are failed observations, and challenge titles retain their dedicated classification.
+- Validation during development includes twelve focused JVM tests. The API 30 UI suite has a loopback WebView fixture for a successful document with a missing image, a canonicalized URL, a same-host redirect and a main-frame 404. Physical Infinix validation is pending.
+- [#326](https://github.com/obieda-hussien/OmniDev-Workspace/pull/326) covers the Termux `proc_find` filtering follow-up. H1 follow-up should verify dynamic registry changes and permission changes during a run. For H2 through H6, use the existing recovery, finish and durable runtime contracts and add regressions against concrete traces before changing policy.
