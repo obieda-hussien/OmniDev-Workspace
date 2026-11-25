@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 object AdvancedFileTools {
 
     private const val MAX_OUTPUT = 12_000
+    private const val MAX_FIND_LINES = 200
 
     // ─────────────────────────────────────────────────────────────────────
     // Tool Definitions
@@ -227,7 +228,10 @@ object AdvancedFileTools {
         return executePrivilegedScript(script, headTruncate = true)
     }
 
-    private suspend fun findFiles(args: Map<String, String>): ToolExecutionResult {
+    internal suspend fun findFiles(
+        args: Map<String, String>,
+        execute: suspend (String) -> ToolExecutionResult = { executePrivilegedScript(it, headTruncate = true) }
+    ): ToolExecutionResult {
         val directory    = args["directory"]      ?: return missingArg("directory")
         val namePattern  = args["name_pattern"]
         val type         = args["type"]
@@ -238,7 +242,7 @@ object AdvancedFileTools {
         val perm         = args["perm"]
         val showDetails  = args["show_details"]?.equals("true", ignoreCase = true) ?: false
 
-        val script = buildString {
+        val find = buildString {
             append("find ${sanitizeShellArg(directory)} -maxdepth $maxDepth")
             if (namePattern != null) append(" -name ${sanitizeShellArg(namePattern)}")
             if (type != null)        append(" -type ${sanitizeShellArg(type)}")
@@ -246,19 +250,18 @@ object AdvancedFileTools {
             if (maxSize != null)     append(" -size -${sanitizeShellArg(maxSize)}")
             if (newerThanDays != null) append(" -mtime -$newerThanDays")
             if (perm != null)        append(" -perm ${sanitizeShellArg(perm)}")
-            append(" 2>/dev/null")
-            if (showDetails) {
-                append(" -exec ls -la {} \\;")
-            } else {
-                append(" | head -n 200")
-            }
         }
 
-        val result = executePrivilegedScript(script, headTruncate = true)
-        return if (!result.isError && (result.output.isBlank() || result.output.trim() == "(no output)")) {
+        val pipeline = if (showDetails) null else RuntimeReadPipeline.read(find, MAX_FIND_LINES)
+        val result = execute(pipeline?.script ?: "$find -exec ls -la {} \\; 2>/dev/null")
+        if (result.isError) return result
+        return if (result.output.isBlank() || result.output.trim() == "(no output)") {
             result.copy(output = "NO_MATCHES: find searched '$directory' to depth $maxDepth and returned nothing. " +
                 "This is NOT proof the files are absent: verify the directory exists, raise max_depth, or list the directory first. " +
                 "Never report file names that this tool did not return.")
+        } else if (pipeline != null) {
+            val bounded = pipeline.limitStdout(result.output)
+            result.copy(output = bounded.trimEnd('\n'), truncated = result.truncated || bounded.length < result.output.length)
         } else result
     }
 
