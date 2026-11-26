@@ -51,6 +51,20 @@ callback*; do not wire it to any agent tool or prompt-produced boolean.
   P0/P6 effects; the agent cannot create its own approval.
 - No extra background service and acceptable memory use on API30 / 4GB phones.
 
+### Financial references
+
+The Bank accounts and cards screen adds, lists and deletes masked references
+locally. Each record stores the issuer, record type and four trailing digits
+with a separate Android Keystore key and no-backup directory. The existing
+credential format and key remain compatible. Financial references cannot be
+used through credential grants or agent tools. The screen has no fields for
+full account or card numbers, PINs, CVVs, passwords or one-time codes.
+
+Two input-validation tests pass on Linux JVM. The encrypted record round trip
+and separation from login credentials have an Android instrumentation test.
+Keystore and device verification are pending. Separate biometric unlocking
+and read-only integrations are future work.
+
 ## P12 — OmniComputer
 
 Use HeadlessBrowserManager and BrowserNavigationGuard rather than a second

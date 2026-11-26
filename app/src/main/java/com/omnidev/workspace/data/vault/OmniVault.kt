@@ -29,8 +29,11 @@ import javax.crypto.spec.GCMParameterSpec
  * This is the storage and policy foundation, NOT an auto-login tool. UI approval
  * and browser integration must be implemented and tested before enabling use.
  */
-class OmniVault(context: Context) {
-    private val folder = File(context.applicationContext.noBackupFilesDir, "omni-vault-v1")
+class OmniVault private constructor(context: Context, private val finance: Boolean) {
+    constructor(context: Context) : this(context, false)
+
+    private val folder = File(context.applicationContext.noBackupFilesDir,
+        if (finance) "omni-finance-vault-v1" else "omni-vault-v1")
 
     data class Reference(val id: String, val label: String, val origin: String)
 
@@ -45,12 +48,28 @@ class OmniVault(context: Context) {
      */
     @Synchronized
     fun storeFromUserInput(label: String, siteUrl: String, secret: CharArray): Reference {
+        try {
+            check(!finance)
+            val origin = VaultAccessPolicy.canonicalOrigin(siteUrl)
+                ?: throw IllegalArgumentException("Credential sites must have a valid HTTPS origin")
+            return store(label, origin, secret)
+        } finally {
+            secret.fill('\u0000')
+        }
+    }
+
+    @Synchronized
+    internal fun storeFinanceRecord(issuer: String, kind: FinanceVaultRecord.Kind, lastFour: String) {
+        check(finance)
+        require(FinanceVaultRecord.isValid(issuer, lastFour))
+        store(issuer, kind.name, lastFour.toCharArray())
+    }
+
+    private fun store(label: String, origin: String, secret: CharArray): Reference {
         var plaintext: ByteArray? = null
         val buffer = WipingBuffer()
         var encodedSecret: ByteArray? = null
         try {
-            val origin = VaultAccessPolicy.canonicalOrigin(siteUrl)
-                ?: throw IllegalArgumentException("Credential sites must have a valid HTTPS origin")
             val cleanLabel = label.trim()
             require(cleanLabel.length in 1..96)
             require(secret.size in 1..2048)
@@ -105,6 +124,22 @@ class OmniVault(context: Context) {
     /** Only non-secret metadata is returned to the caller. */
     @Synchronized
     fun listReferences(): List<Reference> {
+        check(!finance)
+        return listRecords { it.reference }
+    }
+
+    @Synchronized
+    internal fun listFinanceRecords(): List<FinanceVaultRecord> {
+        check(finance)
+        return listRecords { entry ->
+            val reference = entry.reference
+            val lastFour = entry.secret.concatToString()
+            require(FinanceVaultRecord.isValid(reference.label, lastFour))
+            FinanceVaultRecord(reference.id, reference.label, FinanceVaultRecord.Kind.valueOf(reference.origin), lastFour)
+        }
+    }
+
+    private fun <T> listRecords(convert: (Entry) -> T): List<T> {
         val files = folder.listFiles() ?: return emptyList()
         return files.asSequence()
             .filter { it.isFile && isReferenceId(it.name) }
@@ -113,10 +148,11 @@ class OmniVault(context: Context) {
                 // Direct reads of the damaged reference still fail closed.
                 runCatching {
                     val entry = readEntry(file.name)
-                    try { entry.reference } finally { entry.clear() }
+                    try { entry.reference.label to convert(entry) } finally { entry.clear() }
                 }.getOrNull()
             }
-            .sortedBy { it.label }
+            .sortedBy { it.first }
+            .map { it.second }
             .toList()
     }
 
@@ -135,6 +171,7 @@ class OmniVault(context: Context) {
         nowMillis: Long = System.currentTimeMillis(),
         use: (CharArray) -> Unit
     ) {
+        check(!finance)
         require(isReferenceId(referenceId))
         val requestedOrigin = VaultAccessPolicy.canonicalOrigin(targetUrl)
             ?: throw SecurityException("A valid HTTPS origin is required")
@@ -210,7 +247,7 @@ class OmniVault(context: Context) {
                 val origin = input.readUTF()
                 val secretLength = input.readInt()
                 require(label.length in 1..96)
-                require(origin == VaultAccessPolicy.canonicalOrigin(origin))
+                if (!finance) require(origin == VaultAccessPolicy.canonicalOrigin(origin))
                 require(secretLength in 1..MAX_SECRET_BYTES)
                 require(input.available() == secretLength)
                 val bytes = ByteArray(secretLength)
@@ -234,12 +271,13 @@ class OmniVault(context: Context) {
 
     @Synchronized
     private fun key(): SecretKey {
+        val alias = if (finance) FINANCE_KEY_ALIAS else KEY_ALIAS
         val keystore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (keystore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        (keystore.getKey(alias, null) as? SecretKey)?.let { return it }
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {
             init(
                 KeyGenParameterSpec.Builder(
-                    KEY_ALIAS,
+                    alias,
                     KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
                 )
                     .setKeySize(256)
@@ -258,7 +296,10 @@ class OmniVault(context: Context) {
     }
 
     companion object {
+        internal fun finance(context: Context): OmniVault = OmniVault(context, true)
+
         private const val KEY_ALIAS = "omnidev.omnivault.credential.v1"
+        private const val FINANCE_KEY_ALIAS = "omnidev.omnivault.finance.v1"
         private const val CIPHER = "AES/GCM/NoPadding"
         private const val RECORD_VERSION = 1
         private const val MAX_SECRET_BYTES = 8192

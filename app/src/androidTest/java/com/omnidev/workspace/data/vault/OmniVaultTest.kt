@@ -18,6 +18,25 @@ class OmniVaultTest {
     @Before fun clearBefore() { folder.listFiles()?.forEach { it.delete() } }
     @After fun clearAfter() { folder.listFiles()?.forEach { it.delete() } }
 
+    @Test fun financialRecordsUseTheirOwnEncryptedVault() {
+        val finance = OmniVault.finance(context)
+        val previousIds = finance.listFinanceRecords().map { it.id }.toSet()
+        finance.storeFinanceRecord("Example Bank", FinanceVaultRecord.Kind.PAYMENT_CARD, "0042")
+        val saved = OmniVault.finance(context).listFinanceRecords().single { it.id !in previousIds }
+        try {
+            assertEquals("0042", saved.lastFour)
+            assertEquals(FinanceVaultRecord.Kind.PAYMENT_CARD, saved.kind)
+            assertFalse(vault.listReferences().any { it.id == saved.id })
+            assertFalse(vault.delete(saved.id))
+            val bytes = File(context.noBackupFilesDir, "omni-finance-vault-v1/${saved.id}").readBytes()
+            assertFalse(bytes.toString(Charsets.UTF_8).contains("Example Bank"))
+            assertThrows(IllegalStateException::class.java) { finance.listReferences() }
+        } finally {
+            finance.delete(saved.id)
+        }
+        assertFalse(finance.listFinanceRecords().any { it.id == saved.id })
+    }
+
     private fun approved(ref: OmniVault.Reference): VaultAccessPolicy.Grant =
         VaultAccessPolicy.issueAfterUserConfirmation(
             VaultAccessPolicy.Scope(

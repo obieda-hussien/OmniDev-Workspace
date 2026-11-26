@@ -33,6 +33,11 @@ import com.omnidev.workspace.data.vault.VaultAccessPolicy
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OmniVaultSettingsScreen(onNavigateBack: () -> Unit) {
+    var showFinance by remember { mutableStateOf(false) }
+    if (showFinance) {
+        FinanceVaultScreen { showFinance = false }
+        return
+    }
     val context = LocalContext.current
     val vault = remember(context) { OmniVault(context) }
     var site by remember { mutableStateOf("") }
@@ -53,6 +58,7 @@ fun OmniVaultSettingsScreen(onNavigateBack: () -> Unit) {
             item {
                 Text("Encrypted credentials", style = MaterialTheme.typography.titleMedium)
                 Text("Stored on this device only. Agents cannot read passwords. Automatic login is disabled.")
+                TextButton(onClick = { showFinance = true }) { Text("Bank accounts and cards") }
             }
             item {
                 OutlinedTextField(site, { site = it.take(240) },
