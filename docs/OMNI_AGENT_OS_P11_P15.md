@@ -60,10 +60,23 @@ credential format and key remain compatible. Financial references cannot be
 used through credential grants or agent tools. The screen has no fields for
 full account or card numbers, PINs, CVVs, passwords or one-time codes.
 
+The financial screen opens only after Android 11 or later authenticates with
+a strong enrolled biometric or the device screen lock. The screen relocks on
+backgrounding and requests secure window protection. This is a screen gate.
+Full-app locking, a separate app PIN, and requiring two successful factors
+need separate lifecycle and recovery tests.
+
 Two input-validation tests pass on Linux JVM. The encrypted record round trip
 and separation from login credentials have an Android instrumentation test.
-Keystore and device verification are pending. Separate biometric unlocking
-and read-only integrations are future work.
+Keystore and device authentication verification are pending.
+
+### Google account connection
+
+Use separate, revocable Google OAuth grants for each service and keep tokens
+inside the integration runtime. Start with Gmail read access and user-selected
+Drive files. Add broader read scopes only on explicit request. Gate sends,
+file sharing and deletion through operation-specific approvals, and require
+human handoff for one-time sign-in codes and banking confirmations.
 
 ## P12 — OmniComputer
 

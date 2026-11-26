@@ -1,6 +1,17 @@
 package com.omnidev.workspace.ui.settings
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG
+import android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+import android.hardware.biometrics.BiometricPrompt
+import android.os.Build
+import android.os.CancellationSignal
+import android.view.WindowManager
 import androidx.activity.compose.BackHandler
+import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.Column
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -20,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +42,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.omnidev.workspace.data.vault.FinanceVaultRecord
 import com.omnidev.workspace.data.vault.OmniVault
 import kotlinx.coroutines.CancellationException
@@ -40,6 +55,93 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun FinanceVaultScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val activity = remember(context) {
+        generateSequence(context) { (it as? ContextWrapper)?.baseContext }
+            .filterIsInstance<Activity>().firstOrNull()
+    }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var unlocked by remember(activity) { mutableStateOf(false) }
+    var request by remember(activity) { mutableStateOf<CancellationSignal?>(null) }
+    var feedback by remember(activity) { mutableStateOf("") }
+
+    DisposableEffect(activity, lifecycle) {
+        val window = activity?.window
+        val flag = WindowManager.LayoutParams.FLAG_SECURE
+        val alreadySecure = (window?.attributes?.flags ?: 0) and flag != 0
+        window?.addFlags(flag)
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) unlocked = false
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            request?.cancel()
+            request = null
+            if (!alreadySecure) window?.clearFlags(flag)
+        }
+    }
+
+    BackHandler(onBack = onBack)
+    if (unlocked) {
+        FinanceVaultRecords(onBack)
+        return
+    }
+    Scaffold(topBar = {
+        TopAppBar(title = { Text("Bank accounts and cards") },
+            navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
+    }) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (Build.VERSION.SDK_INT >= 30 && activity != null) {
+                Text("Unlock with a supported biometric or your device screen lock.")
+                Button(enabled = request == null, onClick = {
+                    val signal = CancellationSignal()
+                    request = signal
+                    feedback = ""
+                    try {
+                        authenticateFinanceVault(activity, signal) { authorized, message ->
+                            if (request === signal) {
+                                request = null
+                                unlocked = authorized && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                                feedback = if (authorized && !unlocked) "Unlock again while the app is open." else message
+                            }
+                        }
+                    } catch (_: IllegalStateException) {
+                        request = null
+                        feedback = "Device authentication is unavailable."
+                    } catch (_: SecurityException) {
+                        request = null
+                        feedback = "Device authentication is unavailable."
+                    }
+                }) { Text("Unlock") }
+                if (feedback.isNotBlank()) Text(feedback)
+            } else {
+                Text("The financial vault requires Android 11 or later.")
+            }
+        }
+    }
+}
+
+@RequiresApi(30)
+private fun authenticateFinanceVault(
+    context: Context,
+    signal: CancellationSignal,
+    onResult: (Boolean, String) -> Unit
+) {
+    BiometricPrompt.Builder(context)
+        .setTitle("Unlock financial vault")
+        .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+        .build()
+        .authenticate(signal, context.mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onResult(true, "")
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) =
+                onResult(false, "Unlock did not finish. Check your device screen lock and try again.")
+        })
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FinanceVaultRecords(onBack: () -> Unit) {
     val context = LocalContext.current
     val vault = remember(context) { OmniVault.finance(context) }
     val scope = rememberCoroutineScope()
@@ -69,7 +171,6 @@ internal fun FinanceVaultScreen(onBack: () -> Unit) {
     }
 
     LaunchedEffect(vault) { refresh() }
-    BackHandler(onBack = onBack)
     Scaffold(topBar = {
         TopAppBar(title = { Text("Bank accounts and cards") },
             navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
