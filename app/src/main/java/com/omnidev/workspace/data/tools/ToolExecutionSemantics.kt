@@ -72,6 +72,17 @@ object ToolExecutionSemantics {
                 )
             }
 
+            // A completed grep with no matches is the explicit nonzero success case.
+            result.exitCode == 1 && result.classification == "NO_MATCHES" -> result
+
+            (result.exitCode ?: 0) > 0 -> result.copy(
+                output = observationBody(result.output),
+                isError = true,
+                classification = "NON_ZERO_EXIT",
+                verification = null,
+                retryable = false
+            )
+
             toolName !in terminalLikeTools -> result
 
             toolName == "execution_diagnostics" &&
