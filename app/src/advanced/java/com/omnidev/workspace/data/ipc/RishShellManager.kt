@@ -69,7 +69,10 @@ class RishShellManager(private val context: Context) {
     /** Execute exactly like Termux `rish -c <command>`. */
     suspend fun execute(command: String): Result<String> = executeCaptured(command).map { it.output }
 
-    internal suspend fun executeCaptured(command: String): Result<PrivilegedCommandOutput> = withContext(Dispatchers.IO) {
+    internal suspend fun executeCaptured(
+        command: String,
+        requireReceipt: Boolean = false
+    ): Result<PrivilegedCommandOutput> = withContext(Dispatchers.IO) {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("rish command is empty"))
         }
@@ -84,13 +87,31 @@ class RishShellManager(private val context: Context) {
             )
         }
 
+        val receipt = if (requireReceipt) RishCommandReceipt() else null
+        val delegatedCommand = receipt?.wrap(command) ?: command
         val result = TermuxRunCommandBridge.executeShell(
-            script = "rish -c ${shellQuote(command)}",
+            script = "rish -c ${shellQuote(delegatedCommand)}",
             timeoutMs = PROBE_TIMEOUT_MS,
             label = "OmniDev rish"
         )
+        val completed = receipt?.read(result.stdout, result.exitCode, result.transportSucceeded)
+        if (completed != null && completed.exitCode != 0) {
+            val captured = PrivilegedCommandOutput(
+                result.mergedOutput(stdout = completed.stdout), result.wasTruncated
+            ).limitedTo(8_000)
+            return@withContext Result.failure(PrivilegedProcessFailure(
+                "rish command failed (exit=${completed.exitCode})",
+                completed.exitCode,
+                captured,
+                backend = "rish"
+            ))
+        }
         if (result.isSuccess) {
-            Result.success(PrivilegedCommandOutput(result.mergedOutput().ifBlank { "(no output)" }, result.wasTruncated))
+            if (receipt != null && completed == null) {
+                return@withContext Result.failure(IllegalStateException("rish did not report command completion."))
+            }
+            val output = result.mergedOutput(stdout = completed?.stdout ?: result.stdout).ifBlank { "(no output)" }
+            Result.success(PrivilegedCommandOutput(output, result.wasTruncated))
         } else {
             val merged = result.mergedOutput()
             val state = RishFailureClassifier.classify(

@@ -261,6 +261,20 @@ or backend selection.
 
 Eighteen focused Linux Kotlin/JVM tests passed with Android transport stubbed.
 Fixtures cover exit 13 with partial output, exit 2 with historical timeout
-text, and a service timeout with no process code. Android CI and the reference
-device replay are pending. The rish path still needs separate evidence
-linking launcher output to the delegated command's completion.
+text, and a service timeout with no process code. [#365](https://github.com/obieda-hussien/OmniDev-Workspace/pull/365) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45862676781) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45862676856) passed. Device replay remains pending.
+
+### H0 rish filesystem command completion
+
+The filesystem capture path now asks the delegated shell to append a unique
+completion line to stdout. It accepts a process exit only with a successful
+Termux transport callback and a matching completion line. A nonzero outer
+status that conflicts with the inner status is inconclusive. Returned output
+omits the completion line. Confirmed process failures keep their partial
+output and rish identity, and do not enter backend fallback. A missing line
+cannot prove success, including if transport truncation removes it.
+
+The 31 focused Kotlin/JVM tests include real Linux shell cases for exit 13,
+zero exit, quoted partial output, and unsuccessful or inconsistent callback
+fixtures. Android transport was stubbed. Android CI and device replay on the
+actual rish launcher are pending. Next, verify the receipt and truncation
+behavior on Android 11 before extending it to explicit terminal rish calls.

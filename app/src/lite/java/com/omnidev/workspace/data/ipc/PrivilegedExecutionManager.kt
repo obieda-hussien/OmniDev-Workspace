@@ -17,7 +17,8 @@ object PrivilegedExecutionManager {
     ): Result<String>  = Result.failure(IllegalStateException("Privileged execution is not included in Lite."))
     internal suspend fun executeCommandCapture(
         command: String,
-        allowRootFallback: Boolean = false
+        allowRootFallback: Boolean = false,
+        requireRishReceipt: Boolean = true
     ): Result<PrivilegedCommandOutput> = Result.failure(IllegalStateException("Privileged execution is not included in Lite."))
     suspend fun executeRootCommand(command: String): Result<String>  = Result.failure(IllegalStateException("Privileged execution is not included in Lite."))
     fun shellQuote(value: String): String  = "\'" + value.replace("\'", "\'\"\'\"\'") + "\'"

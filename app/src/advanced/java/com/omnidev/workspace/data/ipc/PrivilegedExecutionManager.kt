@@ -122,11 +122,12 @@ object PrivilegedExecutionManager {
     suspend fun executeCommand(
         command: String,
         allowRootFallback: Boolean = false
-    ): Result<String> = executeCommandCapture(command, allowRootFallback).map { it.output }
+    ): Result<String> = executeCommandCapture(command, allowRootFallback, requireRishReceipt = false).map { it.output }
 
     internal suspend fun executeCommandCapture(
         command: String,
-        allowRootFallback: Boolean = false
+        allowRootFallback: Boolean = false,
+        requireRishReceipt: Boolean = true
     ): Result<PrivilegedCommandOutput> = withContext(Dispatchers.IO) {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Command is empty."))
@@ -205,12 +206,14 @@ object PrivilegedExecutionManager {
         if (isRishReady()) {
             rishAttempted = true
             Log.d(TAG, "Trying rish: ${command.take(40)}")
-            val rishResult = rishManager!!.executeCaptured(preparedCommand)
+            val rishResult = rishManager!!.executeCaptured(preparedCommand, requireReceipt = requireRishReceipt)
             if (rishResult.isSuccess) {
                 val out = rishResult.getOrThrow()
                 Log.d(TAG, "rish ✅: ${command.take(40)}")
                 return@withContext Result.success(out.limitedTo(MAX_OUTPUT))
             }
+            val failure = rishResult.exceptionOrNull()
+            if (failure is PrivilegedProcessFailure) return@withContext Result.failure(failure)
             Log.w(TAG, "rish failed: ${rishResult.exceptionOrNull()?.message}")
             if (!crossBackendRetrySafe) {
                 return@withContext Result.failure(
