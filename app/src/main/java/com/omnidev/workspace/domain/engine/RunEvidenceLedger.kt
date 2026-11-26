@@ -90,7 +90,7 @@ class RunEvidenceLedger(
         entries += Entry(
             seq = seq,
             tool = call.name,
-            target = describeArguments(call.name, call.arguments) + githubPageReceipt(call, trimmed),
+            target = describeArguments(call.name, call.arguments, trimmed.takeIf { outcome == Outcome.OK }),
             outcome = outcome,
             evidence = trimmed.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().trim().take(140),
             callId = call.id,
@@ -244,15 +244,18 @@ class RunEvidenceLedger(
     companion object {
         private val nextPage = Regex("""\[Partial file; next start_line=(\d+)]$""")
         private val fileRevision = Regex("""^File SHA-256: ([0-9a-f]{64})$""", RegexOption.MULTILINE)
-        private fun githubPageReceipt(call: ToolCall, output: String): String {
-            if (call.name != "github_manager" || !call.arguments["action"].orEmpty().trim().equals("read_file", true)) return ""
-            val start = call.arguments["start_line"]?.toIntOrNull() ?: 1
+        private fun githubPageReceipt(arguments: Map<String, String>, output: String): String {
+            val start = arguments["start_line"]?.toIntOrNull() ?: 1
             val next = nextPage.find(output)?.groupValues?.get(1) ?: if (output.endsWith("[End of file]")) "end" else return ""
             val revision = fileRevision.find(output)?.groupValues?.get(1)
             return " page=$start:$next" + (revision?.let { ":$it" } ?: "")
         }
 
-        internal fun describeArguments(toolName: String, arguments: Map<String, String>): String {
+        internal fun describeArguments(
+            toolName: String,
+            arguments: Map<String, String>,
+            successfulOutput: String? = null
+        ): String {
             // Keep only low-risk identifiers; raw commands, URLs and free-form queries can carry credentials.
             val normalizedRead = toolName == "github_manager" && arguments["action"]?.trim()?.lowercase() == "read_file"
             val explicitPath = if (normalizedRead) {
@@ -278,7 +281,10 @@ class RunEvidenceLedger(
                     "$key=${SensitiveObservationRedactor.redact(it.replace('\n', ' ')).take(80)}"
                 }
             }
-            return (listOfNotNull(path) + metadata).take(4).joinToString(" ")
+            val target = (listOfNotNull(path) + metadata).take(4).joinToString(" ")
+            return if (normalizedRead && successfulOutput != null) {
+                target + githubPageReceipt(arguments, successfulOutput.trim())
+            } else target
         }
 
         private const val MAX_CORPUS_CHARS = 400_000

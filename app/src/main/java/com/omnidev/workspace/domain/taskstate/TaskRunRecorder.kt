@@ -372,7 +372,8 @@ class TaskRunRecorder(
             val arguments = runCatching {
                 kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(inv.inputSanitized)
             }.getOrDefault(emptyMap())
-            ResumeEntry(inv.callId, inv.toolName, RunEvidenceLedger.describeArguments(inv.toolName, arguments), outcome, evidence,
+            val successfulRead = inv.resultSummary.takeIf { outcome == RunEvidenceLedger.Outcome.OK && inv.effect == Effect.READ_ONLY }
+            ResumeEntry(inv.callId, inv.toolName, RunEvidenceLedger.describeArguments(inv.toolName, arguments, successfulRead), outcome, evidence,
                 EvidenceKinds.classify(inv.toolName, arguments))
         }
     }

@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-26: [`4cb5ba1`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/4cb5ba153d06eea84a6f63b3438436153c173409).
+Baseline after verified merges on 2026-11-26: [`7a85bc0`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/7a85bc08d52411f7996675e624fa89432219afd9).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Baseline after verified merges on 2026-11-26: [`4cb5ba1`](https://github.com/obi
 | H3 Tool-call repair | [#339](https://github.com/obieda-hussien/OmniDev-Workspace/pull/339) merged with canonical text-envelope guidance in preflight feedback. | Replay malformed native arguments and schema correction through provider-backed sessions. |
 | H6 Environment routing | [#338](https://github.com/obieda-hussien/OmniDev-Workspace/pull/338) merged with stricter Team provider-status detection. | [#344](https://github.com/obieda-hussien/OmniDev-Workspace/pull/344) merged with scoped file dispatch after a backend outage. Replay on Android and verify worker routing. |
 | H7 Objective continuity | [#345](https://github.com/obieda-hussien/OmniDev-Workspace/pull/345) merged with persisted workspace restoration during explicit task resume. | Replay the UI handoff and verify routing on the saved objective across provider prompts. |
-| H8 Pagination | The `fix/h8-github-file-page-continuity` branch verifies contiguous README pages from one file revision. | Replay the next-page handoff with a live provider and audit page evidence across task resumes. |
+| H8 Pagination | [#346](https://github.com/obieda-hussien/OmniDev-Workspace/pull/346) merged with same-revision coverage checks. The `fix/h8-persist-github-page-evidence` branch restores successful page receipts after resume. | Replay the next-page handoff with a live provider and verify it on the reference device. |
 | H9–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
 
 ## H0 replay results
@@ -86,4 +86,10 @@ The recovery replay starts a task through the finish runtime, interrupts it, and
 
 Each `read_file` page reports the SHA-256 of the decoded file text. A continuation can pass the same digest as `file_sha256` and receives an explicit error if the content changed. The application still honors the requested ref. The finish gate for detailed README requests verifies contiguous coverage through EOF within one digest, so pages from changed files cannot be combined. Out-of-range cursors and oversized lines cannot supply EOF evidence.
 
-All 45 Linux JVM tests passed. The fixtures cover matching and changed bodies, skipped and duplicated pages, terminal newlines, and out-of-range reads. The mixed-revision replay fails when digest grouping is removed. The GitHub tool source pin and the manifest that references it were refreshed after checking the definition anchor and the unchanged corpus. All 11 provenance checks passed. The authored corpus and checkpoint results are preserved. Android CI, live provider replay, and physical device validation are pending. Next, verify that the continuation uses the returned line and digest across turns and determine how to preserve page receipts across saved-task recovery.
+All 45 Linux JVM tests passed. The fixtures cover matching and changed bodies, skipped and duplicated pages, terminal newlines, and out-of-range reads. The mixed-revision replay fails when digest grouping is removed. The GitHub tool source pin and the manifest that references it were refreshed after checking the definition anchor and the unchanged corpus. All 11 provenance checks passed. The authored corpus and checkpoint results are preserved. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45732752715), the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45732753541), [Neural Core CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45732752907), and the [topic rerank replay](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45732752909) passed at the merged head. Live provider and physical device replays are pending.
+
+## H8 page receipts across task recovery
+
+The in-process evidence ledger and saved-task recovery now use the same page receipt parser. Recovery reconstructs the line range and file digest from summaries of successful read-only invocations. The existing summary retains the start and end of long observations, so the header and continuation marker remain available without a schema change. Failed reads cannot restore page coverage. When a detailed README remains incomplete, the finish gate returns the next line and the digest for that continuation.
+
+The regression records a page large enough to trigger the 8,000-character summary limit, interrupts the task, and restores its evidence. It rejects a failed page and a page from changed content, then verifies completion when the next page matches the original digest. The replay failed before restoring page receipts. All 70 recovery and finish-protocol tests passed on Linux JVM using Kotlin 2.4.21 and JUnit 4.13.2. Android CI and physical replay are pending. Next, exercise the live continuation and audit H9 stall detection against repeated partial results.

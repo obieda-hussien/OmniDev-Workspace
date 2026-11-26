@@ -4,6 +4,7 @@ import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.model.ToolCallResult
+import com.omnidev.workspace.data.tools.GitHubResponseFormatter
 import com.omnidev.workspace.domain.engine.IntentClassifier
 import com.omnidev.workspace.domain.engine.RunEvidenceLedger
 import com.omnidev.workspace.domain.engine.SensitiveObservationRedactor
@@ -327,6 +328,52 @@ class TaskRecoveryTest {
         assertEquals(InvocationStatus.SUCCEEDED, snapshot.invocations.first { it.callId == "read-before-resume" }.status)
         assertEquals(InvocationStatus.INTERRUPTED, snapshot.invocations.first { it.callId == "read-interrupted" }.status)
         assertEquals(2, coordinator.summary("t1")!!.counts.cycles)
+    }
+
+    @Test fun `resume preserves only successful GitHub file page evidence from the original revision`() = runBlocking {
+        val goal = "Explain the README of https://github.com/example/project in detail"
+        val identity = RunIdentity(runId = "readme-task", sessionId = 7L, forceFinishProtocol = true)
+        val signals = IntentClassifier.analyze(goal)
+        val recorder = checkNotNull(FinishRuntime.create(
+            identity, goal, signals, isWorker = false, toolsAvailable = true, modelId = "fixture",
+            enableModelProfiles = false, store = store
+        ).recorder)
+        val file = "x".repeat(7_990) + "\noriginal end"
+        val revision = GitHubResponseFormatter.fileRevision(file)
+        val args = mapOf("action" to "read_file", "repo" to "example/project", "path" to "README.md")
+        val first = ToolCall("first", "github_manager", args + ("start_line" to "1"))
+        val failed = ToolCall("failed", "github_manager", args + ("start_line" to "2"))
+        fun page(body: String, line: Int) =
+            "File SHA-256: ${GitHubResponseFormatter.fileRevision(body)}\n" +
+                GitHubResponseFormatter.filePage(body, line, 1)
+
+        recorder.beginTurn()
+        recorder.requested(listOf(first, failed))
+        assertEquals(RunGate.Proceed, recorder.gateRunning(first))
+        recorder.completed(first, page(file, 1), false, null)
+        assertEquals(RunGate.Proceed, recorder.gateRunning(failed))
+        recorder.completed(failed, page(file, 2), true, "TOOL_ERROR")
+        assertTrue(store.snapshot(identity.runId)!!.invocations.single { it.callId == "first" }.resultTruncated)
+        TaskRecovery(store, ::tick).recover(identity.runId)
+
+        val resumed = (TaskContinuationCoordinator(store, ::tick).resume(identity.runId) as TaskResumeResult.Ready).continuation
+        val evidence = checkNotNull(resumed.identity.resume)
+        assertTrue(evidence.single { it.callId == "first" }.target.endsWith("page=1:2:$revision"))
+        assertFalse(evidence.single { it.callId == "failed" }.target.contains("page="))
+
+        val ledger = RunEvidenceLedger(identity.runId, null).apply { restore(evidence) }
+        val gate = FinishGate(ledger, RunState(goal, ledger, emptyList(), true),
+            FinalizationPolicy(enforce = true, requireExecution = true), resumed.identity)
+        assertTrue(ledger.renderCitable().contains("page=1:2:$revision"))
+        val pending = gate.implicit("README explained") as GateResult.Reject
+        assertTrue(pending.feedback.contains("start_line=2 and file_sha256=$revision"))
+        val changed = ToolCall("changed", "github_manager", args + ("start_line" to "2"))
+        ledger.record(changed, ToolCallResult(changed.id, changed.name, page("edited\nnew end", 2), false))
+        assertTrue(gate.implicit("README explained") is GateResult.Reject)
+        val next = ToolCall("next", "github_manager", args + ("start_line" to "2"))
+        ledger.record(next, ToolCallResult(next.id, next.name, page(file, 2), false))
+        val result = gate.implicit("README explained") as GateResult.Publish
+        assertTrue(result.report.verified)
     }
 
     @Test fun `user follow up updates objective revision without replacing the original request`() = runBlocking {
