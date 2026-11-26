@@ -448,14 +448,11 @@ class ChatViewModel(
                     _uiState.update { it.copy(recoveryError = "The original conversation changed before the task could resume.") }
                     return@launch
                 }
-                val originalMessage = readyState.messages.lastOrNull { message ->
-                    message.role == MessageRole.USER && (
-                        message.userInput == prepared.originalRequest ||
-                            message.content.contains(prepared.originalRequest) ||
-                            prepared.originalRequest.startsWith(message.userInput?.takeIf { it.isNotBlank() } ?: message.content)
-                    )
-                }
-                val scopePath = originalMessage?.userScopePath ?: readyState.targetContext.orEmpty()
+                val scopePath = prepared.workspaceForResume(readyState.messages, readyState.targetContext, readyState.isGodModeEnabled)
+                    ?: run {
+                        _uiState.update { it.copy(recoveryError = "The saved task used the filesystem root as its workspace. Resuming that workspace requires God Mode.") }
+                        return@launch
+                    }
                 val runId = activeRunId.incrementAndGet()
                 preparationRunId = runId
                 val resumeMessage = ChatMessage(

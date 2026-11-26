@@ -169,7 +169,7 @@ class FinishRuntime private constructor(
         fun create(
             runIdentity: RunIdentity?, goal: String, signals: IntentClassifier.TaskSignals, isWorker: Boolean,
             toolsAvailable: Boolean, modelId: String, enableModelProfiles: Boolean,
-            store: TaskStateStore? = null, originalRequest: String = goal
+            store: TaskStateStore? = null, originalRequest: String = goal, workspaceScope: String? = null
         ): FinishRuntime {
             val requestedIdentity = runIdentity ?: RunIdentity()
             val identity = requestedIdentity.copy(
@@ -190,7 +190,7 @@ class FinishRuntime private constructor(
                     resumed = identity.resume != null,
                     effectOf = { if (ToolBatchPolicy.isReadOnly(it)) Effect.READ_ONLY else Effect.SIDE_EFFECT },
                     redact = SensitiveObservationRedactor::redact,
-                    constraintsJson = TaskResumeMetadata.encode(identity, policy),
+                    constraintsJson = TaskResumeMetadata.encode(identity, policy, workspaceScope),
                     resumeClaimed = identity.resumeClaimed,
                     deferInitialPlan = identity.resume == null && PlanningTrigger.complex(goal, identity.acceptance)).also { it.start(goal) }
             } else null
