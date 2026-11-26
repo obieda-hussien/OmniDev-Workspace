@@ -111,6 +111,43 @@ class McpToolDiscoveryTest {
         assertEquals(McpDiscoveryCoverage(1, 0), discovery.discover(mapOf("empty" to config())).coverage)
     }
 
+    @Test fun duplicateNamesOnOneServerDoNotHideOtherServers() = runBlocking {
+        val discovery = McpToolDiscovery(connect = { Connection { name ->
+            val tool = ToolDefinition("mcp_${name}_read", "Read data")
+            if (name == "repeated") listOf(tool, tool) else listOf(tool)
+        } })
+
+        val result = discovery.discover(mapOf("repeated" to config(), "healthy" to config()))
+
+        assertEquals(listOf("mcp_healthy_read"), result.tools.map { it.name })
+        assertEquals(setOf("mcp_healthy_read"), result.routes.keys)
+        assertEquals(McpDiscoveryCoverage(1, 1), result.coverage)
+    }
+
+    @Test fun collidingServerPrefixesExcludeBothUntilTheConflictIsRemoved() = runBlocking {
+        val discovery = McpToolDiscovery(connect = { Connection { name ->
+            when (name) {
+                "team" -> listOf(ToolDefinition("mcp_team_notes_read", "Team notes"))
+                "team_notes" -> listOf(
+                    ToolDefinition("mcp_team_notes_read", "Read notes"),
+                    ToolDefinition("mcp_team_notes_list", "List notes")
+                )
+                else -> listOf(ToolDefinition("mcp_${name}_read", "Read data"))
+            }
+        } }, clock = { 0L })
+
+        val result = discovery.discover(mapOf("team" to config(), "team_notes" to config(), "healthy" to config()))
+
+        assertEquals(listOf("mcp_healthy_read"), result.tools.map { it.name })
+        assertEquals(setOf("mcp_healthy_read"), result.routes.keys)
+        assertEquals(McpDiscoveryCoverage(1, 2), result.coverage)
+
+        val restored = discovery.discover(mapOf("team" to config(), "healthy" to config()))
+
+        assertEquals("team", restored.routes.getValue("mcp_team_notes_read").server)
+        assertEquals(McpDiscoveryCoverage(2, 0), restored.coverage)
+    }
+
     @Test fun callerCancellationPropagatesToPendingDiscovery() = runBlocking {
         val started = CompletableDeferred<Unit>()
         val cancelled = CompletableDeferred<Unit>()

@@ -67,17 +67,27 @@ internal class McpToolDiscovery(
         entries.putAll(refreshed)
         val tools = mutableListOf<ToolDefinition>()
         val routes = mutableMapOf<String, McpToolRoute>()
+        val conflictingServers = mutableSetOf<String>()
         snapshot.keys.forEach { name ->
             val entry = entries.getValue(name)
             val connection = entry.connection ?: return@forEach
             val prefix = "mcp_${name}_"
             entry.tools.filter { it.name.startsWith(prefix) }.forEach { tool ->
-                check(tool.name !in routes) { "Duplicate MCP tool name: ${tool.name}" }
-                routes[tool.name] = McpToolRoute(name, tool.name.removePrefix(prefix), entry.config, connection)
-                tools.add(tool)
+                val route = McpToolRoute(name, tool.name.removePrefix(prefix), entry.config, connection)
+                val previous = routes.putIfAbsent(tool.name, route)
+                if (previous == null) {
+                    tools.add(tool)
+                } else {
+                    conflictingServers += previous.server
+                    conflictingServers += name
+                }
             }
         }
-        val includedServers = entries.values.count { it.connection != null }
+        if (conflictingServers.isNotEmpty()) {
+            routes.values.removeAll { it.server in conflictingServers }
+            tools.removeAll { it.name !in routes }
+        }
+        val includedServers = entries.values.count { it.connection != null } - conflictingServers.size
         Snapshot(tools, routes, McpDiscoveryCoverage(includedServers, snapshot.size - includedServers))
     }
 }
