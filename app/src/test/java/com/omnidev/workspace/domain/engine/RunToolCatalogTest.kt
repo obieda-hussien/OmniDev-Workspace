@@ -44,7 +44,7 @@ class RunToolCatalogTest {
     }
 
     @Test fun `partial MCP discovery is visible without loading schemas or claiming live readiness`() {
-        val run = RunToolCatalog(registry, "all tools", mcpCoverage = McpDiscoveryCoverage(2, 1))
+        val run = RunToolCatalog(registry, "all tools", mcpCoverage = McpDiscoveryCoverage(2, 1, timedOutServers = 1))
         val before = run.definitions()
 
         val page = run.discover("inventory:40").output
@@ -52,6 +52,8 @@ class RunToolCatalogTest {
 
         assertTrue(page.contains("Servers included: 2. Undiscovered: 1."))
         assertTrue(reply.contains("Servers included: 2. Undiscovered: 1."))
+        assertTrue(page.contains("Omission reasons: timed out: 1."))
+        assertTrue(reply.contains("Omission reasons: timed out: 1."))
         assertTrue(page.contains("Live backend availability: unknown."))
         assertEquals(before, run.definitions())
     }
