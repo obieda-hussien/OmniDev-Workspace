@@ -1,11 +1,17 @@
 package com.omnidev.workspace.data.network
 
 import com.omnidev.workspace.data.model.ChatMessage
+import com.omnidev.workspace.data.model.AttachmentMediaType
+import com.omnidev.workspace.data.model.AttachmentMeta
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.TokenUsage
 import com.omnidev.workspace.domain.engine.TokenAccounting
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -72,9 +78,28 @@ class OpenAiTokenUsageTest {
         }
     }
 
+    @Test fun imageEvidenceIsSerializedInTheProviderRequest() = runBlocking {
+        val jpeg = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4n" +
+            "ICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AP//Z"
+        withResponse("""{"choices":[{"message":{"role":"assistant","content":"Done"}}]}""", checkRequest = { body ->
+            val messages = Json.parseToJsonElement(body).jsonObject.getValue("messages").jsonArray
+            val blocks = messages.single().jsonObject.getValue("content").jsonArray
+            val image = blocks.single { it.jsonObject.getValue("type").jsonPrimitive.content == "image_url" }
+            assertEquals("data:image/jpeg;base64,$jpeg", image.jsonObject.getValue("image_url")
+                .jsonObject.getValue("url").jsonPrimitive.content)
+        }) { request ->
+            val sample = AttachmentMeta("routine-video:sample", "image/jpeg", "video-sample.jpg", 159, AttachmentMediaType.IMAGE, jpeg)
+            val response = CompletionService()(request.copy(
+                messages = listOf(ChatMessage(MessageRole.USER, "Inspect this frame", attachments = listOf(sample)))
+            ))
+            assertEquals("Done", response.content)
+        }
+    }
+
     private suspend fun withResponse(
         response: String,
         contentType: String = "application/json",
+        checkRequest: (String) -> Unit = {},
         test: suspend (CompletionRequest) -> Unit
     ) {
         // Android unit-test compilation does not expose the JDK's jdk.httpserver module.
@@ -83,7 +108,7 @@ class OpenAiTokenUsageTest {
             server.soTimeout = 5_000
             val executor = Executors.newSingleThreadExecutor()
             try {
-                val served = executor.submit {
+                val served = executor.submit<String> {
                     server.use { it.accept().use { socket -> respond(socket, response, contentType) } }
                 }
                 test(CompletionRequest(
@@ -93,14 +118,14 @@ class OpenAiTokenUsageTest {
                     customBaseUrl = baseUrl,
                     retryManagedByCaller = true
                 ))
-                served.get(5, TimeUnit.SECONDS)
+                checkRequest(served.get(5, TimeUnit.SECONDS))
             } finally {
                 executor.shutdownNow()
             }
         }
     }
 
-    private fun respond(socket: Socket, response: String, contentType: String) {
+    private fun respond(socket: Socket, response: String, contentType: String): String {
         socket.soTimeout = 5_000
         val request = socket.getInputStream().bufferedReader(Charsets.ISO_8859_1)
         check(request.readLine() == "POST /v1/chat/completions HTTP/1.1")
@@ -113,7 +138,13 @@ class OpenAiTokenUsageTest {
             }
         }
         check(contentLength in 1..65_536)
-        repeat(contentLength) { check(request.read() >= 0) { "Incomplete HTTP request body" } }
+        val body = buildString(contentLength) {
+            repeat(contentLength) {
+                val char = request.read()
+                check(char >= 0) { "Incomplete HTTP request body" }
+                append(char.toChar())
+            }
+        }
 
         val bytes = response.toByteArray(Charsets.UTF_8)
         socket.getOutputStream().apply {
@@ -122,5 +153,6 @@ class OpenAiTokenUsageTest {
             write(bytes)
             flush()
         }
+        return body
     }
 }

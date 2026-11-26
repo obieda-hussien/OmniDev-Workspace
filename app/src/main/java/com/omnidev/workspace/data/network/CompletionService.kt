@@ -401,6 +401,7 @@ class CompletionService(
     // ── Local Edge (on-device GGUF) ───────────────────────────────────────────
 
     private suspend fun callLocalEdge(request: CompletionRequest): CompletionResponse {
+        requireLocalImageSupport(request)
         val engine = LocalEngineHolder.engine
         if (!engine.isLoaded) {
             throw IOException(
@@ -417,6 +418,7 @@ class CompletionService(
         request: CompletionRequest,
         onChunk: suspend (String) -> Unit
     ): CompletionResponse {
+        requireLocalImageSupport(request)
         val engine = LocalEngineHolder.engine
         if (!engine.isLoaded) {
             throw IOException(
@@ -430,6 +432,15 @@ class CompletionService(
             sb.append(token)
         }
         return CompletionResponse(content = sb.toString())
+    }
+
+    private fun requireLocalImageSupport(request: CompletionRequest) {
+        if (request.messages.any { message ->
+                message.attachments.any { it.mediaType == AttachmentMediaType.IMAGE && !it.base64Data.isNullOrBlank() }
+            }
+        ) {
+            throw IOException("Local Edge cannot inspect image attachments. Choose a vision-capable model.")
+        }
     }
 
     /**
