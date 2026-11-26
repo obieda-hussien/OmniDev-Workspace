@@ -121,7 +121,8 @@ object TaskSchedulerTool {
         val result: String,
         val isSuccess: Boolean,
         val iterationsUsed: Int = 0,
-        val errorMessage: String? = null
+        val errorMessage: String? = null,
+        val requiresReviewBeforeRetry: Boolean = false
     ) {
         val durationMs: Long get() = endTimeMs - startTimeMs
         val durationSec: Long get() = durationMs / 1000

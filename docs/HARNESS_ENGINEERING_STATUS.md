@@ -33,7 +33,7 @@ requires a verified identity link and explicit data-sharing policy.
 | H9 Stall detection | [#348](https://github.com/obieda-hussien/OmniDev-Workspace/pull/348) merged with typed GitHub pagination scoring. [#349](https://github.com/obieda-hussien/OmniDev-Workspace/pull/349) merged with page novelty gating both recovery budgets. | Replay live pagination and audit the other duplicate-tool recovery paths. |
 | H10 Team routing | [#350](https://github.com/obieda-hussien/OmniDev-Workspace/pull/350) merged with the handoff check before worker startup. [#351](https://github.com/obieda-hussien/OmniDev-Workspace/pull/351) merged with single-Agent routing for a change and its verification in Auto. | Replay automatic routing and the permission prompt on device. |
 | H11 Attachments | [#352](https://github.com/obieda-hussien/OmniDev-Workspace/pull/352) merged with explicit failures for unavailable routine frames. [#353](https://github.com/obieda-hussien/OmniDev-Workspace/pull/353) merged with an early Local Edge rejection for image-bearing requests. | Verify live-provider analysis, physical-device sampling, and the other attachment paths. |
-| H12 Autopilot | The `fix/h12-scheduled-interruption` branch preserves interrupted or timed-out occurrences for review. | Verify Android CI and replay service termination, process death and manual review on the reference device. |
+| H12 Autopilot | [#354](https://github.com/obieda-hussien/OmniDev-Workspace/pull/354) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45794213471) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45794213562) passed. Interrupted and timed-out occurrences are preserved for review. | [#358](https://github.com/obieda-hussien/OmniDev-Workspace/pull/358) adds replay protection for returned failures after successful calls with possible effects. Verify CI, service termination, process death and manual review on the reference device. |
 
 ## H11 routine video frame evidence
 
@@ -52,6 +52,15 @@ Both local rejection tests failed against the previous path. All 16 completion a
 Process restart already paused persisted running tasks. Service cancellation within the same process could leave a task stuck as running, while a timeout could fail it and schedule an automatic retry. The service now records both as interrupted and pauses the claimed occurrence for review. The scheduler retains its recurrence anchor and retry count through the existing Room snapshot. An explicit cancellation takes precedence and an interruption from a mismatched start time cannot pause the current run. The existing P14 verification gate still determines scheduled success.
 
 Twelve scheduler and P14 verification tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2, using the production scheduler and serialized entity with Room annotations stubbed. Fixtures cover a timeout with retries remaining, stale cleanup, explicit cancellation, recurrence, and restored state. Language and flavor source checks passed. Android service and Room integration verification remain pending. Next, replay an interrupted scheduled run on API 30 and audit retry eligibility for structured failures returned after dispatch.
+
+### Scheduled retries after structured failures
+
+The scheduler now retains a failed occurrence for review when the runtime
+reports a known successful write or action, an unknown mutation outcome, or
+an approval requirement. Existing retry rules still cover ordinary eligible
+read failures. The decision uses typed runtime evidence, error classifications, and the execution policy for the dispatched call. A successful MCP operation can block replay even when its result is empty or the evidence kind is OTHER. Explicitly recognized read-only calls retain their retry eligibility.
+The review flag defaults to false for older serialized summaries. Fifteen Linux JVM tests passed, including an empty successful MCP result and a GitHub read control. Android service and device
+verification are pending.
 
 ## H0 replay results
 

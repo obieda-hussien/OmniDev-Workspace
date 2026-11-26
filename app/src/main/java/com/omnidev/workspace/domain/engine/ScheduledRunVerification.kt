@@ -1,11 +1,27 @@
 package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.domain.engine.completion.CompletionReport
+import com.omnidev.workspace.domain.engine.completion.EvidenceKinds
+import com.omnidev.workspace.domain.engine.completion.EvidenceRef
 import com.omnidev.workspace.domain.engine.completion.FinishStatus
 
 /** Only P0 may attest task completion. Text, tool invocation or transport success cannot. */
 internal object ScheduledRunVerification {
     data class Verdict(val succeeded: Boolean, val reason: String?)
+
+    fun blocksReplay(
+        evidence: EvidenceRef?,
+        classification: String?,
+        successfulCallMayHaveSideEffects: Boolean = false
+    ): Boolean =
+        when (classification) {
+            "MUTATION_OUTCOME_UNKNOWN", "PRIOR_MUTATION_OUTCOME_UNKNOWN",
+            "USER_ACTION_REQUIRED", "CONFIRMATION_REQUIRED" -> true
+            else -> successfulCallMayHaveSideEffects || evidence?.let {
+                it.outcome == RunEvidenceLedger.Outcome.OK &&
+                    (it.kind == EvidenceKinds.Kind.MUTATION || it.kind == EvidenceKinds.Kind.ACTION)
+            } == true
+        }
 
     fun evaluate(result: String, error: String?, report: CompletionReport?): Verdict = when {
         error != null -> Verdict(false, error)

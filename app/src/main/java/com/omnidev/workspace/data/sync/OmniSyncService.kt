@@ -470,11 +470,12 @@ class OmniSyncService : Service() {
                                 "✅ Task completed: ${task.name} (${summary.durationSec}s, ${summary.toolsUsed} tools)"
                             )
                         } else {
-                            TaskSchedulerTool.markFailed(
-                                task.id,
-                                summary.errorMessage ?: "Unknown error",
-                                summary
-                            )
+                            val reason = summary.errorMessage ?: "Unknown error"
+                            if (summary.requiresReviewBeforeRetry) {
+                                TaskSchedulerTool.markInterrupted(task.id, startedAt, reason, summary)
+                            } else {
+                                TaskSchedulerTool.markFailed(task.id, reason, summary)
+                            }
                             tasksFailed.incrementAndGet()
                             DebugLogManager.appendError(
                                 TAG,
