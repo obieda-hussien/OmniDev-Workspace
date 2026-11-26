@@ -2,6 +2,7 @@ package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.model.ToolCallResult
+import com.omnidev.workspace.data.tools.GitHubResponseFormatter
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolParameter
@@ -88,8 +89,9 @@ class PipelineRecoveryTest {
         val governor = AgentRecoveryGovernor()
         val router = AutomaticToolRouter(RunToolCatalog(registry.take(1), "operation_1"))
         repeat(3) { governor.decide(AgentRecoveryGovernor.Kind.EMPTY_RESPONSE) }
-        PipelineRecovery.noteProgress(
-            listOf(ToolCall("c", "tool_1", emptyMap())), listOf(ToolExecutionResult("ok")), governor, router
+        PipelineRecovery.observeProgress(
+            listOf(ToolCall("c", "tool_1", emptyMap())), listOf(ToolExecutionResult("ok")),
+            AgentStagnationDetector(), governor, router
         )
         assertTrue(governor.decide(AgentRecoveryGovernor.Kind.EMPTY_RESPONSE) is AgentRecoveryGovernor.Decision.Recover)
     }
@@ -98,11 +100,49 @@ class PipelineRecoveryTest {
         val governor = AgentRecoveryGovernor()
         val router = AutomaticToolRouter(RunToolCatalog(registry.take(1), "operation_1"))
         repeat(3) { governor.decide(AgentRecoveryGovernor.Kind.EMPTY_RESPONSE) }
-        PipelineRecovery.noteProgress(
+        PipelineRecovery.observeProgress(
             listOf(ToolCall("c", "tool_1", emptyMap()), ToolCall("d", RunToolCatalog.DISCOVER.name, emptyMap())),
-            listOf(ToolExecutionResult("boom", true), ToolExecutionResult("ok")), governor, router
+            listOf(ToolExecutionResult("boom", true), ToolExecutionResult("ok")),
+            AgentStagnationDetector(), governor, router
         )
         assertTrue(governor.decide(AgentRecoveryGovernor.Kind.EMPTY_RESPONSE) is AgentRecoveryGovernor.Decision.GiveUp)
+    }
+
+    @Test fun `replayed GitHub page keeps both recovery budgets spent after stagnation guidance`() {
+        val governor = AgentRecoveryGovernor()
+        val router = AutomaticToolRouter(RunToolCatalog(registry.take(1), "operation_1"))
+        val detector = AgentStagnationDetector()
+        val call = ToolCall("first", "github_manager", mapOf(
+            "action" to "read_file", "repo" to "example/project", "path" to "README.md"
+        ))
+        val text = "Introduction\nInstallation"
+        val revision = GitHubResponseFormatter.fileRevision(text)
+        fun observePage(start: Int) = PipelineRecovery.observeProgress(
+            listOf(
+                call.copy(id = "page-$start", arguments = call.arguments + ("start_line" to start.toString())),
+                ToolCall("discovery", RunToolCatalog.DISCOVER.name, emptyMap())
+            ),
+            listOf(
+                ToolExecutionResult(
+                    "GitHub GET /repos/example/project/contents/README.md → HTTP 200\n" +
+                        "File SHA-256: $revision\n" + GitHubResponseFormatter.filePage(text, start, 1)
+                ),
+                ToolExecutionResult("Different discovery output for line $start")
+            ),
+            detector, governor, router
+        )
+        assertTrue(observePage(1).hasRecoveryProgress)
+        repeat(3) { governor.decide(AgentRecoveryGovernor.Kind.EMPTY_RESPONSE) }
+        repeat(2) { assertNotNull(router.recovery("operation_1", "invalid call")) }
+        detector.resetWindow()
+
+        assertFalse(observePage(1).hasRecoveryProgress)
+        assertTrue(governor.decide(AgentRecoveryGovernor.Kind.EMPTY_RESPONSE) is AgentRecoveryGovernor.Decision.GiveUp)
+        assertNull(router.recovery("operation_1", "invalid call"))
+
+        assertTrue(observePage(2).hasRecoveryProgress)
+        assertTrue(governor.decide(AgentRecoveryGovernor.Kind.EMPTY_RESPONSE) is AgentRecoveryGovernor.Decision.Recover)
+        assertNotNull(router.recovery("operation_1", "invalid call"))
     }
 
     @Test fun `tool turn content keeps its pivot warning and appends extra guidance last`() {

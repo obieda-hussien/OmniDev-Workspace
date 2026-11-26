@@ -891,7 +891,6 @@ When improving: keep every other sentence, the structure, the language and the l
             val routineVideoImages = observedBatch.routineVideoImages
             lastToolObservation = observedBatch.lastObservation ?: lastToolObservation
 
-            PipelineRecovery.noteProgress(response.toolCalls, modelSafeResults, recoveryGovernor, automaticRouter)
             actionProgressBudget.onToolResults(response.toolCalls, modelSafeResults)
 
             if (steering?.changed(revision) == true) {
@@ -907,6 +906,7 @@ When improving: keep every other sentence, the structure, the language and the l
                 return@channelFlow
             }
 
+            val stagnation = PipelineRecovery.observeProgress(response.toolCalls, modelSafeResults, stagnationDetector, recoveryGovernor, automaticRouter)
             var recoveryGuidance: String? = ToolFailurePivot.guidance(response.toolCalls, modelSafeResults, githubFailures.repeatedFailure())
             if (invalidBatches >= 3) {
                 val step = PipelineRecovery.step(recoveryGovernor, AgentRecoveryGovernor.Kind.INVALID_BATCHES, digest = runCatalog.exactToolDigest())
@@ -919,7 +919,6 @@ When improving: keep every other sentence, the structure, the language and the l
                 recoveryGuidance = listOfNotNull(recoveryGuidance, step.guidance).joinToString("\n\n")
             }
 
-            val stagnation = stagnationDetector.observe(response.toolCalls, modelSafeResults)
             if (stagnation.shouldAbort && runtimeBackends.hasBlocks() &&
                 response.toolCalls.zip(modelSafeResults).all { (call, result) -> !result.isError || runtimeBackends.handles(call, result) }) {
                 // Finish with a useful blocker report instead of replacing the answer with an
@@ -928,7 +927,7 @@ When improving: keep every other sentence, the structure, the language and the l
             } else if (stagnation.shouldAbort &&
                 PipelineRecovery.stagnationGuidance(recoveryGovernor, stagnation.reasons)?.also { guidance ->
                     recoveryGuidance = listOfNotNull(recoveryGuidance, guidance).joinToString("\n\n")
-                    stagnationDetector = AgentStagnationDetector(windowSize = 8, minIterationsBeforeAbort = 3, abortThreshold = 0.76f)
+                    stagnationDetector.resetWindow()
                 } != null
             ) {
                 // Stalled but recoverable: the guidance travels with this turn's tool results.
