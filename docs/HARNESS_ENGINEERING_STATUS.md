@@ -2,6 +2,20 @@
 
 Baseline after verified merges on 2026-11-26 is [`c58ca0a`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/c58ca0afe4ba7d5e98a9833ba764cd3caf83ede2).
 
+## Telegram Business auto-replies
+
+Enable Business Mode for the bot in BotFather, then connect it from Telegram's
+automated chats settings with reply rights for the selected chats. Pair the
+owner's private bot chat with OmniDev and send `/business_on <reply text>`.
+`/business_off` disables replies locally. Keep the OmniDev bot listener running.
+
+The listener verifies the active Business connection and paired owner before
+using Telegram's business connection ID to reply. It uses owner-supplied text,
+skips outgoing and bot messages, and limits repeat replies to one per peer every
+five minutes while the listener is running. It persists the update offset before
+dispatch. Incoming Business messages stay outside model context and chat history.
+Android CI and a linked-account smoke test remain pending.
+
 ## Telegram command and response integrity
 
 Telegram now handles mode and session aliases locally, returns the actual mode,

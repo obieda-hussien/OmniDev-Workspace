@@ -55,6 +55,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.Collections
 import java.util.LinkedHashMap
@@ -201,13 +202,21 @@ class TelegramPollingService : Service() {
             offsetPrefs.getLong("next_offset", 0L) else 0L
     }
 
-    private fun advanceOffset(token: String, updateId: Long) {
-        if (updateId < nextOffset) return
+    private fun advanceOffset(token: String, updateId: Long): Boolean {
+        if (updateId < nextOffset) return false
         nextOffset = updateId + 1
-        if (!offsetPrefs.edit().putString("token_hash", tokenFingerprint(token))
-                .putLong("next_offset", nextOffset).commit()) {
+        val persisted = offsetPrefs.edit().putString("token_hash", tokenFingerprint(token))
+            .putLong("next_offset", nextOffset).commit()
+        if (!persisted) {
             android.util.Log.w("TelegramPolling", "Unable to persist Telegram update offset")
         }
+        return persisted
+    }
+
+    // Used only by the polling coroutine. A burst of messages gets one auto-reply per peer.
+    private val businessReplyTimes = object : LinkedHashMap<TelegramBusinessReply.Incoming, Long>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<TelegramBusinessReply.Incoming, Long>?) =
+            size > 200
     }
     private val apiKeyRepository: ApiKeyRepository by lazy {
         ApiKeyRepository(applicationContext)
@@ -327,6 +336,12 @@ class TelegramPollingService : Service() {
                     for (update in updates) {
                         val updateId = update.optLong("update_id")
                         if (updateId < nextOffset) continue
+                        val businessMessage = update.optJSONObject("business_message")
+                        if (businessMessage != null) {
+                            // Claim the update before sending on behalf of an account. An uncertain send is never replayed.
+                            if (advanceOffset(token, updateId)) handleBusinessMessage(token, businessMessage)
+                            continue
+                        }
                         try {
                         // Edits must never re-execute an earlier command or tool call.
                         val msg = update.optJSONObject("message") ?: continue
@@ -462,6 +477,19 @@ class TelegramPollingService : Service() {
         val chatTitle = chatTitles[chatId] ?: chatId.toString()
 
         when (command?.name) {
+            "business_on" -> {
+                val message = command?.argument.orEmpty()
+                val saved = message.isNotBlank() && ownerLinkStore.setBusinessReply(token, chatId, message)
+                sendReply(token, chatId, messageId, if (saved)
+                    "Auto-reply configured. Connect the bot in Telegram settings and allow replies in the chats you choose."
+                else "Use /business_on followed by your reply text (1–500 characters).")
+                return
+            }
+            "business_off" -> {
+                val saved = ownerLinkStore.setBusinessReply(token, chatId, null)
+                sendReply(token, chatId, messageId, if (saved) "Auto-reply is off." else "Could not turn off auto-reply.")
+                return
+            }
             "mode" -> {
                 sendReply(token, chatId, messageId,
                     "Current mode: ${currentMode.label}\nUse /mode chat, /mode agent, or /mode swarm.")
@@ -505,6 +533,8 @@ class TelegramPollingService : Service() {
                     "/status — show mode and statistics\n" +
                     "/new_session [name] — start a new session and save the current one\n" +
                     "/sessions — show saved sessions\n" +
+                    "/business_on text — set a Telegram Business auto-reply\n" +
+                    "/business_off — turn off Business auto-reply\n" +
                     "/clear — clear the current conversation context\n\n" +
                     "Agent and Swarm modes use the Target Context configured in OmniDev settings.")
                 return
@@ -868,6 +898,8 @@ class TelegramPollingService : Service() {
                 "status" to "Show mode and statistics",
                 "new_session" to "Start a new session and save the current one",
                 "sessions" to "Show saved previous sessions",
+                "business_on" to "Set the Business auto-reply text",
+                "business_off" to "Disable Business auto-replies",
                 "mode" to "Show the active mode",
                 "mode_chat" to "Enable standard chat mode 💬",
                 "mode_agent" to "Enable Agent mode with tools 🤖",
@@ -904,10 +936,52 @@ class TelegramPollingService : Service() {
 
     // ── Telegram API helpers ───────────────────────────────────────────────
 
+    private suspend fun handleBusinessMessage(token: String, message: JSONObject) {
+        val owner = ownerLinkStore.owner(token) ?: return
+        val text = ownerLinkStore.businessReply(token, owner.userId) ?: return
+        val incoming = TelegramBusinessReply.incoming(message, owner.userId, System.currentTimeMillis() / 1000) ?: return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (businessReplyTimes[incoming]?.let { now - it < 5 * 60_000L } == true) return
+
+        try {
+            val connection = fetchBusinessConnection(token, incoming.connectionId) ?: return
+            if (!TelegramBusinessReply.canReply(connection, incoming.connectionId, owner.userId)) return
+            if (settingsRepository.observeTelegramBotToken().first() != token ||
+                ownerLinkStore.businessReply(token, owner.userId) != text
+            ) return
+
+            businessReplyTimes[incoming] = now
+            val code = postTelegramMessage(token, TelegramBusinessReply.payload(incoming, text))
+            if (code !in 200..299) android.util.Log.w("TelegramPolling", "Business reply HTTP $code")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            android.util.Log.w("TelegramPolling", "Business reply could not be delivered.")
+        }
+    }
+
+    private fun fetchBusinessConnection(token: String, connectionId: String): JSONObject? {
+        val encoded = URLEncoder.encode(connectionId, Charsets.UTF_8.name())
+        val conn = URL("https://api.telegram.org/bot$token/getBusinessConnection?business_connection_id=$encoded")
+            .openConnection() as HttpURLConnection
+        return try {
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 10_000
+            if (conn.responseCode !in 200..299) return null
+            val response = conn.inputStream.bufferedReader().use { JSONObject(it.readText()) }
+            if (response.optBoolean("ok")) response.optJSONObject("result") else null
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     private suspend fun fetchUpdates(token: String, offset: Long): List<JSONObject> =
         withContext(Dispatchers.IO) {
+            val updateTypes = URLEncoder.encode(
+                JSONArray(listOf("message", "business_connection", "business_message")).toString(), Charsets.UTF_8.name()
+            )
             val urlStr = "https://api.telegram.org/bot$token/getUpdates" +
-                "?offset=$offset&limit=50&timeout=$LONG_POLL_TIMEOUT_SEC"
+                "?offset=$offset&limit=50&timeout=$LONG_POLL_TIMEOUT_SEC&allowed_updates=$updateTypes"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             try {
                 conn.requestMethod = "GET"

@@ -51,12 +51,25 @@ class TelegramOwnerLinkStore(context: Context) {
         }
         prefs.edit().putLong("owner_chat", chatId).putLong("owner_user", userId)
             .putString("owner_token_hash", digest(botToken))
+            .remove("business_auto_reply")
             .remove("pair_hash").remove("pair_token_hash").remove("pair_expires")
             .remove("pair_attempts").commit()
     }
 
     fun isAuthorized(botToken: String, chatId: Long, userId: Long, chatType: String): Boolean =
         isPrivateOwnerChat(chatId, userId, chatType) && owner(botToken) == Owner(chatId, userId)
+
+    internal fun businessReply(botToken: String, userId: Long): String? = synchronized(prefs) {
+        if (owner(botToken)?.userId != userId) return@synchronized null
+        prefs.getString("business_auto_reply", null)
+    }
+
+    internal fun setBusinessReply(botToken: String, chatId: Long, message: String?): Boolean = synchronized(prefs) {
+        if (owner(botToken)?.chatId != chatId || message != null && message.trim().length !in 1..500) {
+            return@synchronized false
+        }
+        prefs.edit().putString("business_auto_reply", message?.trim()).commit()
+    }
 
     fun revoke() = synchronized(prefs) {
         check(prefs.edit().clear().commit()) { "Unable to revoke Telegram owner." }
