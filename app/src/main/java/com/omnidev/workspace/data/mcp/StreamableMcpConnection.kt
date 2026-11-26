@@ -26,7 +26,7 @@ class StreamableMcpConnection(
     private var initialized = false
     private var session: String? = null
     private var protocol = "2025-06-18"
-    private val schemas = java.util.concurrent.ConcurrentHashMap<String, JsonObject>()
+    @Volatile private var schemas: Map<String, JsonObject> = emptyMap()
 
     private suspend fun ensureInitialized() = initialization.withLock {
         if (!initialized) {
@@ -109,16 +109,19 @@ class StreamableMcpConnection(
     override suspend fun getSupportedTools(serverName: String): List<ToolDefinition> {
         ensureInitialized()
         val tools = mutableListOf<ToolDefinition>()
+        val discoveredSchemas = mutableMapOf<String, JsonObject>()
         val cursors = mutableSetOf<String>()
         var cursor: String? = null
         do {
             val page = rpc("tools/list", buildJsonObject { cursor?.let { put("cursor", it) } })
-            page["tools"]?.jsonArray?.forEach { item ->
+            val pageTools = page["tools"] as? JsonArray
+                ?: throw IOException("MCP tools/list response requires a tools array")
+            pageTools.forEach { item ->
                 val tool = item.jsonObject
                 val name = tool.getValue("name").jsonPrimitive.content
                 if (config.tools.isEmpty() || "*" in config.tools || name in config.tools) {
                     val schema = tool["inputSchema"]?.jsonObject ?: buildJsonObject {}
-                    schemas[name] = schema
+                    discoveredSchemas[name] = schema
                     val required = schema["required"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
                     val parameters = schema["properties"]?.jsonObject?.map { (key, value) ->
                         val prop = value.jsonObject
@@ -135,6 +138,7 @@ class StreamableMcpConnection(
             if (cursor != null && !cursors.add(cursor!!)) throw IOException("MCP server repeated pagination cursor")
             if (cursors.size > 100) throw IOException("MCP tool catalogue exceeds page limit")
         } while (cursor != null)
+        schemas = discoveredSchemas
         return tools
     }
 

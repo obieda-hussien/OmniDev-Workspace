@@ -310,5 +310,18 @@ the same counts, without exposing server configuration or loading schemas.
 All 39 focused Linux Kotlin/JVM tests passed, covering discovery failures,
 valid empty lists, cache reuse, removed servers, and both inventory outputs.
 Language and flavor source checks passed without changing multilingual
-fingerprints. Android CI and real MCP inventory replay are pending. Next,
-verify inventory against a live mix of available and unavailable connections.
+fingerprints. [#369](https://github.com/obieda-hussien/OmniDev-Workspace/pull/369) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45894445355) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45894445395) passed. Live inventory replay remains pending.
+
+### H1 malformed MCP tool-list pages
+
+Streamable HTTP discovery now requires a tools array on every successful
+tools/list page. An explicit empty array is valid. Missing, null or invalid
+arrays leave the server undiscovered, including when an earlier page already
+contained tools. The connection publishes the schema map only after all
+pages succeed.
+
+Both new HTTP-response fixtures failed before the fix. They use the
+production OkHttp and MCP discovery path with an interceptor supplying
+deterministic responses. The 43 focused Linux JVM tests passed after the
+fix. Android CI and replay against a live mix of MCP servers are pending.
+Next, verify timeout and cached coverage in a connected Android session.
