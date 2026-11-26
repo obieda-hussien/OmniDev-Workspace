@@ -17,6 +17,12 @@ Baseline after verified merges on 2026-11-26 is [`7a73252`](https://github.com/o
 | H10 Team routing | [#350](https://github.com/obieda-hussien/OmniDev-Workspace/pull/350) merged with the handoff check before worker startup. The `fix/h10-auto-route-atomic` branch keeps an edit and verification of that same edit on a single Agent in Auto. | Verify Android CI for this follow-up and replay automatic routing and the permission prompt on device. |
 | H11 Attachments and H12 Autopilot | Existing attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
 
+## H11 routine video frame evidence
+
+The `fix/h11-video-frame-evidence` branch carries video-frame availability into the Agent evidence ledger. Previously, a non-vision model or an unusable frame received a warning while the tool result stayed successful. Missing and malformed payloads, frames above the existing encoded size limit, and frames unavailable to the selected model now become explicit failed observations. The Agent attaches a bounded JPEG sample to a vision-capable request and keeps the encoded image out of text. The frame receipt describes one sample awaiting inspection. JPEG markers provide a basic format check. Validation of provider analysis and the full source video remain separate work.
+
+Five focused Kotlin 2.4.21 and JUnit 4.13.2 tests passed on Linux JVM. The fixtures cover a 159-byte JPEG, metadata-only output, malformed Base64, non-JPEG bytes, the existing 600,000-character limit, a non-vision model, and tool-error propagation. The failure paths are checked against the production run evidence ledger. Android CI, physical-device sampling and live provider replay remain pending. Next, trace attachment evidence through the selected provider and audit the other foreground attachment paths.
+
 ## H0 replay results
 
 The Linux baseline ran as an unprivileged user with a temporary directory whose read permission was removed. The old `ls | head` returned wrapper status 0 while `ls` returned 2. The pipeline from #324 returned 2 and reported the permission error.
