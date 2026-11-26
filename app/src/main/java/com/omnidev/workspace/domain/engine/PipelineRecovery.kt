@@ -119,17 +119,19 @@ internal object PipelineRecovery {
         return catalog.definitions()
     }
 
-    /** A successful, non-discovery tool result is real progress: it starts a fresh recovery episode. */
-    fun noteProgress(
+    /** Score one batch and reset recovery budgets when it yields qualifying evidence. */
+    fun observeProgress(
         calls: List<ToolCall>,
         results: List<ToolExecutionResult>,
+        detector: AgentStagnationDetector,
         governor: AgentRecoveryGovernor,
         router: AutomaticToolRouter
-    ) {
-        val progressed = calls.zip(results).any { (call, result) -> !result.isError && call.name != RunToolCatalog.DISCOVER.name }
-        if (progressed) {
+    ): AgentStagnationDetector.Snapshot {
+        val observation = detector.observe(calls, results)
+        if (observation.hasRecoveryProgress) {
             governor.onProgress()
             router.resetRecoveries()
         }
+        return observation
     }
 }

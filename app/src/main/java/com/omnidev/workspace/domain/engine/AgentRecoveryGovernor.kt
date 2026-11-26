@@ -6,7 +6,7 @@ package com.omnidev.workspace.domain.engine
  * A run used to end the moment a model repeated itself, invented tool names, answered with nothing,
  * or announced work it never performed. Each of those is now a recovery *episode*: the model gets a
  * precise corrective instruction (escalating with every attempt) and, for failures, a short wait.
- * Real progress (a successful, non-discovery tool result) starts a fresh episode, so a long task
+ * The caller starts a fresh episode when it observes progress, so a long task
  * that keeps working never runs out of recoveries. Without progress every kind still has a hard
  * limit, plus a global cap, so a model that cannot recover is stopped instead of looping forever.
  */

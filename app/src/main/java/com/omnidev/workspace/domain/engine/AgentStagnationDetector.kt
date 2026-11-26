@@ -51,7 +51,8 @@ class AgentStagnationDetector(
         val noActionStreak: Int,
         val shouldAbort: Boolean,
         val canBenefitFromDecomposition: Boolean,
-        val reasons: List<String>
+        val reasons: List<String>,
+        val hasRecoveryProgress: Boolean
     ) {
         fun errorMessage(): String = when (kind) {
             Kind.INFRASTRUCTURE_BLOCK -> buildString {
@@ -87,9 +88,9 @@ class AgentStagnationDetector(
     private val seenResultSignatures = LinkedHashSet<String>()
     private var consecutiveNoAction = 0
 
-    fun reset() {
+    /** Start a fresh scoring window after guidance while retaining the receipts already seen. */
+    fun resetWindow() {
         history.clear()
-        seenResultSignatures.clear()
         consecutiveNoAction = 0
     }
 
@@ -103,17 +104,25 @@ class AgentStagnationDetector(
 
         val callFingerprints = linkedSetOf<String>()
         val resultSignatures = linkedSetOf<String>()
+        var hasRecoveryProgress = false
         toolCalls.forEachIndexed { index, call ->
             val result = results[index]
             val resource = githubFileResource(call)
             if (resource == null) {
                 callFingerprints += fingerprintCall(call)
                 resultSignatures += signatureOfResult(result)
+                if (!result.isError && call.name != RunToolCatalog.DISCOVER.name) hasRecoveryProgress = true
             } else {
                 val start = call.arguments["start_line"]?.toIntOrNull() ?: 1
                 val receipt = if (result.isError) "" else RunEvidenceLedger.githubPageReceipt(call.arguments, result.output.trim())
                 callFingerprints += "github-file $resource line=$start"
-                resultSignatures += if (receipt.isEmpty()) signatureOfResult(result) else "github-file $resource$receipt"
+                if (receipt.isEmpty()) {
+                    resultSignatures += signatureOfResult(result)
+                } else {
+                    val signature = "github-file $resource$receipt"
+                    resultSignatures += signature
+                    if (signature !in seenResultSignatures) hasRecoveryProgress = true
+                }
             }
         }
         val newSignatures = resultSignatures.count { it !in seenResultSignatures }
@@ -178,13 +187,15 @@ class AgentStagnationDetector(
 
         return evaluate(
             currentNovelty = novelty,
-            currentRepeatedObservationRatio = repeatedObservationRatio
+            currentRepeatedObservationRatio = repeatedObservationRatio,
+            hasRecoveryProgress = hasRecoveryProgress
         )
     }
 
     private fun evaluate(
         currentNovelty: Float,
-        currentRepeatedObservationRatio: Float
+        currentRepeatedObservationRatio: Float,
+        hasRecoveryProgress: Boolean
     ): Snapshot {
         val observations = history.toList()
         val totalResults = observations.sumOf { it.totalResults }.coerceAtLeast(1)
@@ -285,7 +296,8 @@ class AgentStagnationDetector(
             noActionStreak = consecutiveNoAction,
             shouldAbort = shouldAbort,
             canBenefitFromDecomposition = kind == Kind.STRATEGY_STAGNATION && score >= 0.68f,
-            reasons = reasons.distinct().take(6)
+            reasons = reasons.distinct().take(6),
+            hasRecoveryProgress = hasRecoveryProgress
         )
     }
 

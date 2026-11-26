@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-26: [`20de33b`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/20de33baea30f4ad248df80368a82ae269dab71d).
+Baseline after verified merges on 2026-11-26 is [`1119a25`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/1119a25d6c58ac13bd8564c44857ba2d2fb00bcc).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ Baseline after verified merges on 2026-11-26: [`20de33b`](https://github.com/obi
 | H6 Environment routing | [#338](https://github.com/obieda-hussien/OmniDev-Workspace/pull/338) merged with stricter Team provider-status detection. | [#344](https://github.com/obieda-hussien/OmniDev-Workspace/pull/344) merged with scoped file dispatch after a backend outage. Replay on Android and verify worker routing. |
 | H7 Objective continuity | [#345](https://github.com/obieda-hussien/OmniDev-Workspace/pull/345) merged with persisted workspace restoration during explicit task resume. | Replay the UI handoff and verify routing on the saved objective across provider prompts. |
 | H8 Pagination | [#346](https://github.com/obieda-hussien/OmniDev-Workspace/pull/346) merged with same-revision coverage checks. [#347](https://github.com/obieda-hussien/OmniDev-Workspace/pull/347) merged with successful page receipt restoration after resume. | Replay the next-page handoff with a live provider and verify it on the reference device. |
-| H9 Stall detection | The `fix/h9-github-page-progress` branch distinguishes advances in typed GitHub file pagination from repeated reads. | Replay live pagination and audit the remaining empty-response and duplicate-tool recovery paths. |
+| H9 Stall detection | [#348](https://github.com/obieda-hussien/OmniDev-Workspace/pull/348) merged with typed GitHub pagination scoring. The `fix/h9-recovery-observation-progress` branch applies page novelty to the recovery budgets. | Verify the current branch in Android CI and replay live pagination. Audit the other duplicate-tool recovery paths. |
 | H10–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
 
 ## H0 replay results
@@ -99,4 +99,12 @@ The regression records a page large enough to trigger the 8,000-character summar
 
 The generic stagnation signature normalizes line numbers and hashes. For typed GitHub file reads, the detector now compares the repository endpoint, requested start line, and the existing successful page receipt. Changing only the requested page size cannot reset repetition if the returned coverage stays the same. GitHub calls use the existing read-only policy for the read/action signal.
 
-Both regressions failed before the change. With the Agent's 0.76 threshold, eight advancing page fixtures remained novel and six observations of the same partial page triggered strategy stagnation. All 78 stagnation, recovery, and finish-protocol tests passed on Linux JVM using Kotlin 2.4.21 and JUnit 4.13.2. Android CI, live-provider replay, and physical-device measurements are pending. Next, verify the recovery decision after duplicate observations, then audit single-subtask routing in H10.
+Both regressions failed before the change. With the Agent's 0.76 threshold, eight advancing page fixtures remained novel and six observations of the same partial page triggered strategy stagnation. All 78 stagnation, recovery, and finish-protocol tests passed on Linux JVM using Kotlin 2.4.21 and JUnit 4.13.2. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45745125373) and the [required security check](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45745125418) passed at the merged head. Live-provider replay and physical-device measurements are pending.
+
+### Recovery after repeated page reads
+
+The Agent previously reset both recovery budgets on every successful GitHub file read. It now uses the detector's existing bounded receipt history to reset both budgets only on a new page observation. Sending stagnation guidance clears the scoring window and keeps the receipt history. A regression exhausts both budgets, replays a page after clearing that window, then verifies both budgets reopen when the next page arrives. All 92 focused tests passed on Linux JVM using Kotlin 2.4.21, Java 21 and JUnit 4.13.2. Android CI and physical-device replay for this follow-up are pending.
+
+### Next H10 investigation
+
+The UI can offer a single-Agent handoff after `SwarmEvent.PlanCompleted` for a fresh Team run. That path has already requested a plan and does not offer the handoff during durable resume. Evaluate whether automatic routing can avoid the planner call for clearly atomic objectives while retaining explicit Team selection and the existing mode-switch permissions. Provider latency, token use and physical-device overhead have yet to be measured.
