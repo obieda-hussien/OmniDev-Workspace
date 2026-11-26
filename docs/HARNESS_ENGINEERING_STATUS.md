@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-26: [`59a266b`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/59a266b3a600d643c1500f79c7531b5ce1ad9fd1).
+Baseline after verified merges on 2026-11-26: [`4cb5ba1`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/4cb5ba153d06eea84a6f63b3438436153c173409).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
@@ -11,8 +11,9 @@ Baseline after verified merges on 2026-11-26: [`59a266b`](https://github.com/obi
 | H5 Context and evidence | [#330](https://github.com/obieda-hussien/OmniDev-Workspace/pull/330) and [#331](https://github.com/obieda-hussien/OmniDev-Workspace/pull/331) merged. The latter keeps an unresolved failure until its recorded target succeeds. | [#341](https://github.com/obieda-hussien/OmniDev-Workspace/pull/341) merged with ledger retention. [#342](https://github.com/obieda-hussien/OmniDev-Workspace/pull/342) merged with OpenAI-compatible usage details through runtime accounting. Replay other provider formats and audit the analytics path. |
 | H3 Tool-call repair | [#339](https://github.com/obieda-hussien/OmniDev-Workspace/pull/339) merged with canonical text-envelope guidance in preflight feedback. | Replay malformed native arguments and schema correction through provider-backed sessions. |
 | H6 Environment routing | [#338](https://github.com/obieda-hussien/OmniDev-Workspace/pull/338) merged with stricter Team provider-status detection. | [#344](https://github.com/obieda-hussien/OmniDev-Workspace/pull/344) merged with scoped file dispatch after a backend outage. Replay on Android and verify worker routing. |
-| H7 Objective continuity | The `fix/h7-resume-workspace-boundary` branch restores the persisted workspace during explicit task resume. | Replay the UI handoff and verify routing on the saved objective across provider prompts. |
-| H8–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
+| H7 Objective continuity | [#345](https://github.com/obieda-hussien/OmniDev-Workspace/pull/345) merged with persisted workspace restoration during explicit task resume. | Replay the UI handoff and verify routing on the saved objective across provider prompts. |
+| H8 Pagination | The `fix/h8-github-file-page-continuity` branch verifies contiguous README pages from one file revision. | Replay the next-page handoff with a live provider and audit page evidence across task resumes. |
+| H9–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
 
 ## H0 replay results
 
@@ -79,4 +80,10 @@ The advanced-flavor replay passes a simulated unavailable-Android-shell result t
 
 Agent task creation records the effective workspace in the existing task constraints JSON. The explicit resume uses that stored workspace before consulting chat history or the current Target Context. Tasks created before this metadata retain their existing fallback. A root workspace requires the current God Mode setting, and tool permissions and mutation reconciliation still apply at execution time.
 
-The recovery replay starts a task through the finish runtime, interrupts it, and resumes it with a later message that repeats the original request in a different workspace. It verifies that the saved workspace, including spaces and quotes, survives the ambiguity, an empty history, and an acceptance update. The replay also covers explicit empty scope, legacy fallback, and the current God Mode check. All 48 persistence and recovery tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. Android CI and physical device validation are pending.
+The recovery replay starts a task through the finish runtime, interrupts it, and resumes it with a later message that repeats the original request in a different workspace. It verifies that the saved workspace, including spaces and quotes, survives the ambiguity, an empty history, and an acceptance update. The replay also covers explicit empty scope, legacy fallback, and the current God Mode check. All 48 persistence and recovery tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45724892849) and the [required security check](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45724892901) passed at the merged head. Physical device validation is pending.
+
+## H8 GitHub file-page continuity
+
+Each `read_file` page reports the SHA-256 of the decoded file text. A continuation can pass the same digest as `file_sha256` and receives an explicit error if the content changed. The application still honors the requested ref. The finish gate for detailed README requests verifies contiguous coverage through EOF within one digest, so pages from changed files cannot be combined. Out-of-range cursors and oversized lines cannot supply EOF evidence.
+
+All 45 Linux JVM tests passed. The fixtures cover matching and changed bodies, skipped and duplicated pages, terminal newlines, and out-of-range reads. The mixed-revision replay fails when digest grouping is removed. The GitHub tool source pin and the manifest that references it were refreshed after checking the definition anchor and the unchanged corpus. All 11 provenance checks passed. The authored corpus and checkpoint results are preserved. Android CI, live provider replay, and physical device validation are pending. Next, verify that the continuation uses the returned line and digest across turns and determine how to preserve page receipts across saved-task recovery.
