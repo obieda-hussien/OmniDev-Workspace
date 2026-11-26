@@ -474,8 +474,12 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         val index = tasks.indexOfFirst { it.id == taskId }
         val task = tasks.getOrNull(index) ?: return
         if (task.status != TaskStatus.RUNNING || task.startedAtMillis != startedAt) return
-        tasks[index] = pauseInterrupted(task, reason, summary)
+        val paused = pauseInterrupted(task, reason, summary)
+        tasks[index] = paused
         notifyChanged()
+        if (task.notifyOnFail && summary != null) {
+            runCatching { notificationCallback?.invoke(paused, summary) }
+        }
     }
 
     private fun pauseInterrupted(task: ScheduledTask, reason: String, summary: ExecutionSummary? = null) =

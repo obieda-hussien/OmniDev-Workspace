@@ -492,7 +492,7 @@ class OmniSyncService : Service() {
                             toolNames = emptyList(),
                             result = "",
                             isSuccess = false,
-                            errorMessage = reason
+                            errorMessage = "$reason Open Scheduled Tasks to review before resuming."
                         )
                         TaskSchedulerTool.markInterrupted(task.id, startedAt, reason, timeoutSummary)
                         tasksFailed.incrementAndGet()

@@ -22,6 +22,9 @@ class TaskSchedulerPersistenceTest {
 
     @Test fun uncertainTimeoutPausesCurrentOccurrenceWithRetriesStillAvailable() {
         val taskId = scheduleRetryingTask()
+        val previousCallback = TaskSchedulerTool.notificationCallback
+        val notifications = mutableListOf<Pair<TaskSchedulerTool.ScheduledTask, TaskSchedulerTool.ExecutionSummary>>()
+        TaskSchedulerTool.notificationCallback = { task, summary -> notifications.add(task to summary) }
         try {
             val startedAt = checkNotNull(TaskSchedulerTool.markRunning(taskId))
             val running = checkNotNull(TaskSchedulerTool.getTaskById(taskId))
@@ -41,9 +44,11 @@ class TaskSchedulerPersistenceTest {
             assertEquals(0, paused.runCount)
             assertEquals(listOf(summary), paused.executionSummaries)
             assertEquals(listOf("INTERRUPTED: Timeout."), paused.executionHistory)
+            assertEquals(listOf(paused to summary), notifications)
             assertFalse(TaskSchedulerTool.getReadyTasks().any { it.id == taskId })
             assertEquals(paused, TaskSchedulerTool.fromEntity(TaskSchedulerTool.toEntity(paused)))
         } finally {
+            TaskSchedulerTool.notificationCallback = previousCallback
             TaskSchedulerTool.deleteTask(taskId)
         }
     }
