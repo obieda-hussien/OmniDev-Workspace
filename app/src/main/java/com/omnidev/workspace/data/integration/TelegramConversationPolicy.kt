@@ -11,7 +11,8 @@ internal object TelegramConversationPolicy {
     private val toolClaim = Regex("(?im)^[ \\t]*(?:Selected capability|Tool Action|Verification Result):[ \\t]*(?!None[ \\t]*\\r?$)\\S")
     private val reportField = Regex("(?im)^[ \\t]*(?:Objective|Selected capability|Tool Action|Verification Result|Blockers):[^\\r\\n]*")
     private val deviceQuery = Regex(
-        """(?i)^(?:(?:which|what) app (?:is open|is using the most storage)\b|list (?:my )?installed apps\b|""" +
+        """(?i)^(?:(?:which|what) app (?:is open(?=\s*(?:[?.!]|$)|\s+(?:on my (?:phone|device)|right now|now|currently)\b)|""" +
+            """is using the most storage\b)|list (?:my )?installed apps\b|""" +
             """(?:طب\s+)?(?:انا\s+فاتح\s+[اإ]ي(?:ه)?\s+على\s+تليفوني|انا\s+فاتح\s+[اإ]ي(?:ه)?\s+علي\s+تلفوني|""" +
             """عندي\s+تطبيقات\s+[اإ]ي(?:ه)?|[اأ]عل[ىي]\s+تطبيق\s+مساحة))"""
     )

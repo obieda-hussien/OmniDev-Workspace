@@ -46,4 +46,11 @@ class TelegramConversationPolicyTest {
         assertTrue(TelegramConversationPolicy.needsDeviceEvidence("اعلي تطبيق مساحة عندي اي هو؟"))
         assertFalse(TelegramConversationPolicy.needsDeviceEvidence("فاكر اسمي؟"))
     }
+
+    @Test fun openSourceQuestionsStayInNormalChat() {
+        assertFalse(TelegramConversationPolicy.needsDeviceEvidence("Which app is open source, Signal or WhatsApp?"))
+        assertFalse(TelegramConversationPolicy.needsDeviceEvidence("What app is open-source and supports offline maps?"))
+        assertTrue(TelegramConversationPolicy.needsDeviceEvidence("Which app is open right now?"))
+        assertTrue(TelegramConversationPolicy.needsDeviceEvidence("Which app is open?"))
+    }
 }
