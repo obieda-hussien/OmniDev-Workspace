@@ -96,7 +96,7 @@
     "sha256": "4ff9902ed413df4b57e0522773629e6785fefdd56f05d9665487c2abbcf51044"
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/IntentClassifier.kt": {
-    "sha256": "222e4332b4abc28c2746e3ca99beed04c9a1a268ab7027d3918852220e83de99",
+    "sha256": "cbefd419836ac52b2766c3a04bf9e6ce18c907aa791a268f620d6530e48efdb2",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   },
   "app/src/main/java/com/omnidev/workspace/domain/engine/LauncherExecutionLedger.kt": {

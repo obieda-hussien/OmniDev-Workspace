@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-26 is [`d5c9bd0`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/d5c9bd088f24ed3e8f0180e7a8d3117a57860cac).
+Baseline after verified merges on 2026-11-26 is [`7a73252`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/7a73252d320747d5aaf7dd9e117dc08108b8b5ff).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
@@ -14,7 +14,7 @@ Baseline after verified merges on 2026-11-26 is [`d5c9bd0`](https://github.com/o
 | H7 Objective continuity | [#345](https://github.com/obieda-hussien/OmniDev-Workspace/pull/345) merged with persisted workspace restoration during explicit task resume. | Replay the UI handoff and verify routing on the saved objective across provider prompts. |
 | H8 Pagination | [#346](https://github.com/obieda-hussien/OmniDev-Workspace/pull/346) merged with same-revision coverage checks. [#347](https://github.com/obieda-hussien/OmniDev-Workspace/pull/347) merged with successful page receipt restoration after resume. | Replay the next-page handoff with a live provider and verify it on the reference device. |
 | H9 Stall detection | [#348](https://github.com/obieda-hussien/OmniDev-Workspace/pull/348) merged with typed GitHub pagination scoring. [#349](https://github.com/obieda-hussien/OmniDev-Workspace/pull/349) merged with page novelty gating both recovery budgets. | Replay live pagination and audit the other duplicate-tool recovery paths. |
-| H10 Team routing | The `fix/h10-handoff-before-workers` branch checks whether to offer an Agent handoff before any Team worker starts. | Verify all Android flavors and the permission prompt. Evaluate pre-planner routing for clearly atomic automatic requests. |
+| H10 Team routing | [#350](https://github.com/obieda-hussien/OmniDev-Workspace/pull/350) merged with the handoff check before worker startup. The `fix/h10-auto-route-atomic` branch keeps an edit and verification of that same edit on a single Agent in Auto. | Verify Android CI for this follow-up and replay automatic routing and the permission prompt on device. |
 | H11 Attachments and H12 Autopilot | Existing attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
 
 ## H0 replay results
@@ -110,6 +110,10 @@ The Agent previously reset both recovery budgets on every successful GitHub file
 
 Fresh foreground Team runs now consult the existing single-Agent handoff policy against the validated plan inside the coordinator, before dispatching workers. The previous UI collector handled a buffered event, so worker startup could race with the permission check. Durable Team resumes continue on their saved plan.
 
-The regression suspends the handoff decision for a one-task write plan and verifies one planner request, zero worker requests and zero tool calls when a handoff is offered. It passed against the production coordinator on a Linux JVM with Kotlin 2.4.21, Java 21, JUnit 4.13.2 and Android-specific dependencies stubbed. Launching the handoff check asynchronously reproduced the failure. The Android suite awaits CI because the local Gradle distribution could not be fetched. Physical-device replay is pending.
+The regression suspends the handoff decision for a one-task write plan and verifies one planner request, zero worker requests and zero tool calls when a handoff is offered. It passed against the production coordinator on a Linux JVM with Kotlin 2.4.21, Java 21, JUnit 4.13.2 and Android-specific dependencies stubbed. Launching the handoff check asynchronously reproduced the failure. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45757842412), including the API 30 UI job, and the [required security check](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45757842417) passed on the merged PR head. Physical-device replay is pending.
 
-Next, evaluate whether automatic routing can avoid the planner call for clearly atomic objectives while respecting explicit Team selection and mode-switch permissions. Provider latency, token use and device overhead remain unmeasured.
+### Auto routing for verification of the same change
+
+The classifier treated the security, database, UI and test terms in a request to fix one bug and verify that fix as independent work. The existing Auto route now classifies clear edit-and-verify requests as Agent before planner selection. The same independence check feeds learned mode selection. Explicit independent work remains eligible for Team, and manual mode selection still follows the existing dispatch path.
+
+The dependent-work regression failed on the previous classifier. All 13 classifier tests passed on Linux JVM using Kotlin 2.4.21 and JUnit 4.13.2. The fixtures cover English and Egyptian Arabic dependent verification, a parallel request with final verification, and a hypothetical question. [Run Quality for #351](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45764783480/job/139722962661) failed on the multilingual input fingerprint. The reviewed diff preserves the existing parallel terms and adds input-only verification expressions, so the classifier's fingerprint was updated. The project language check and flavor source check pass locally. Android CI on the repaired commit and physical-device verification are pending. Provider latency, token use and device overhead remain unmeasured. Next, audit H11 attachment inspection evidence, including metadata-only and inaccessible media paths.

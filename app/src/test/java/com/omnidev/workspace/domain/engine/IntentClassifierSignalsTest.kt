@@ -1,6 +1,7 @@
 package com.omnidev.workspace.domain.engine
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -23,6 +24,34 @@ class IntentClassifierSignalsTest {
         assertTrue(signals.executionIntent > 0.35f)
         assertTrue(signals.mutationIntent > 0f)
         assertEquals(OmniMode.AGENT, IntentClassifier.classify(input))
+    }
+
+    @Test
+    fun `verifying the same fix stays with one agent across multiple domains`() {
+        val requests = listOf(
+            "Fix the security bug in the database screen and run the tests for that fix",
+            "Implement the full fix in the database screen, then run the performance and security tests for that change",
+            "صلح مشكلة الأمان في واجهة قاعدة بيانات الحساب وبعدها شغل الاختبارات لنفس التعديل"
+        )
+        requests.forEach { input ->
+            assertFalse(input, IntentClassifier.hasIndependentWork(input))
+            assertEquals(input, OmniMode.AGENT, IntentClassifier.classify(input))
+        }
+    }
+
+    @Test
+    fun `explicit independent work remains eligible for team with a final verification`() {
+        val input = "Implement the UI and database migration in parallel across the project, then run the security tests for that change"
+
+        assertTrue(IntentClassifier.hasIndependentWork(input))
+        assertEquals(OmniMode.SWARM, IntentClassifier.classify(input))
+    }
+
+    @Test
+    fun `hypothetical verification question stays chat`() {
+        val input = "What would happen if I modify the text and verify the change?"
+
+        assertEquals(OmniMode.CHAT, IntentClassifier.classify(input))
     }
 
     @Test
