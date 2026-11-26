@@ -248,5 +248,19 @@ transport failures retain the existing diagnostic classification.
 
 Two regressions reproduced the false retry and false permission block before
 the fix. All 27 focused Linux Kotlin/JVM semantics and orchestration tests
-passed after it. Android CI and device replay are pending. Next, establish
-reliable rish command-completion evidence before routing its exit status.
+passed after it. [#364](https://github.com/obieda-hussien/OmniDev-Workspace/pull/364) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45853260382) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45853260140) passed. Device replay is pending.
+
+### H0 Shizuku outcomes in the Android terminal router
+
+The automatic Android route used only the failure reason from Shizuku even
+when the backend supplied a process exit code, partial output and truncation.
+The terminal now forwards those fields as a completed process failure.
+A service timeout retains its transport classification and has no process
+exit code. The change applies after dispatch and does not change authorization
+or backend selection.
+
+Eighteen focused Linux Kotlin/JVM tests passed with Android transport stubbed.
+Fixtures cover exit 13 with partial output, exit 2 with historical timeout
+text, and a service timeout with no process code. Android CI and the reference
+device replay are pending. The rish path still needs separate evidence
+linking launcher output to the delegated command's completion.

@@ -65,15 +65,7 @@ object AndroidPrivilegedCommandRouter {
                 backend = "shizuku-user-service"
             )
 
-            is ShizukuResult.Failure -> ToolExecutionResult(
-                output = note("Android privileged command failed: ${shizuku.reason}"),
-                isError = true,
-                classification = ToolExecutionSemantics.classifyText(shizuku.reason)
-                    ?: "ANDROID_SHELL_COMMAND_FAILED",
-                backend = "shizuku-user-service",
-                persistentFailure = ToolExecutionSemantics.classifyText(shizuku.reason) ==
-                    "ANDROID_PERMISSION_DENIED"
-            )
+            is ShizukuResult.Failure -> mapShizukuFailure(shizuku).let { it.copy(output = note(it.output)) }
 
             is ShizukuResult.PermissionRequired -> ToolExecutionResult(
                 output = shizuku.message,
@@ -86,6 +78,29 @@ object AndroidPrivilegedCommandRouter {
 
             is ShizukuResult.Unavailable -> fallbackWithoutShizuku(prepared, shizuku.message)
         }
+    }
+
+    internal fun mapShizukuFailure(failure: ShizukuResult.Failure): ToolExecutionResult {
+        val exitCode = failure.exitCode
+        val classification = if (exitCode != null) {
+            "NON_ZERO_EXIT"
+        } else {
+            ToolExecutionSemantics.classifyText(failure.reason) ?: "ANDROID_SHELL_COMMAND_FAILED"
+        }
+        val output = if (exitCode != null && failure.output.isNotBlank()) {
+            "Android privileged command failed (exit=$exitCode):\n${failure.output}"
+        } else {
+            "Android privileged command failed: ${failure.reason}"
+        }
+        return ToolExecutionResult(
+            output = output,
+            isError = true,
+            truncated = failure.truncated,
+            classification = classification,
+            exitCode = exitCode,
+            backend = "shizuku-user-service",
+            persistentFailure = classification == "ANDROID_PERMISSION_DENIED"
+        )
     }
 
     private suspend fun executeViaRish(
