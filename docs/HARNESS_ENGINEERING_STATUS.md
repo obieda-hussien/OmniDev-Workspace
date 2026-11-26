@@ -323,5 +323,19 @@ pages succeed.
 Both new HTTP-response fixtures failed before the fix. They use the
 production OkHttp and MCP discovery path with an interceptor supplying
 deterministic responses. The 43 focused Linux JVM tests passed after the
-fix. Android CI and replay against a live mix of MCP servers are pending.
-Next, verify timeout and cached coverage in a connected Android session.
+fix. [#370](https://github.com/obieda-hussien/OmniDev-Workspace/pull/370) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45900886702) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45900886716) passed. Replay against live servers remains pending.
+
+### H1 ambiguous MCP tool registrations
+
+A duplicate resolved tool name previously aborted the entire MCP discovery
+snapshot. Discovery now excludes the registrations of each server involved
+in a collision, including duplicates within one server. It retains
+unambiguous registrations from other servers and counts the excluded
+servers as undiscovered. Removing a conflicting configuration allows the
+remaining unique route to reappear on the next discovery.
+
+Both collision fixtures reproduced the failure before the fix. All 45
+focused Kotlin/JVM discovery, HTTP-response and inventory tests passed on
+Linux. Android CI and physical-device verification remain pending. Next,
+report the basis for inventory omissions without exposing connection
+configuration or claiming live readiness.
