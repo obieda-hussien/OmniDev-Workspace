@@ -12,7 +12,8 @@ internal data class PrivilegedCommandOutput(val output: String, val truncated: B
 internal class PrivilegedProcessFailure(
     message: String,
     val exitCode: Int,
-    val captured: PrivilegedCommandOutput
+    val captured: PrivilegedCommandOutput,
+    val backend: String = "shizuku-user-service"
 ) : IllegalStateException(message)
 
 internal fun ShizukuResult.Failure.toPrivilegedProcessFailure(): PrivilegedProcessFailure? =

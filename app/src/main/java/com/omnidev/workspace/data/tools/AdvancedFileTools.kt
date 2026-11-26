@@ -601,7 +601,7 @@ object AdvancedFileTools {
             isError = true,
             classification = "NON_ZERO_EXIT",
             exitCode = failure.exitCode,
-            backend = "shizuku-user-service"
+            backend = failure.backend
         )
     }
 
