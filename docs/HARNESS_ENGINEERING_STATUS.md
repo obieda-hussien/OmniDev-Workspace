@@ -285,5 +285,17 @@ verification and regenerates the status header. A typed grep exit 1 with
 `NO_MATCHES` keeps its empty-search outcome across repeated normalization.
 
 Both regressions failed on the previous code. All 29 focused Linux
-Kotlin/JVM semantics and orchestration tests passed after the fix. Android
-CI, physical rish verification and device measurements are pending.
+Kotlin/JVM semantics and orchestration tests passed after the fix. [#367](https://github.com/obieda-hussien/OmniDev-Workspace/pull/367) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45879203412) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45879203471) passed. Physical rish verification and device measurements are pending.
+
+### H0 typed zero exit and historical output
+
+A successful terminal read of a prior command log could be marked failed
+when the body contained an old exit code. The normalizer now prefers the
+backend's process status. Legacy exit headers still work when typed status is
+unavailable, and authoritative stderr failures still override a zero exit.
+
+The historical-output regression failed before the change. All 31 focused
+Linux Kotlin/JVM tests passed after it, including legacy exit headers and a
+permission error on stderr at exit zero. Android CI and physical device replay
+are pending. Continue the capability inventory audit while the Android 11
+rish device verification is unavailable.

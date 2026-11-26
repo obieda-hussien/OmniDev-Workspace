@@ -90,7 +90,8 @@ object ToolExecutionSemantics {
 
             else -> {
                 val text = result.output
-                val explicitExit = extractExitCode(text)
+                // Prefer the backend's process status to exit markers in historical output.
+                val explicitExit = result.exitCode?.takeIf { it >= 0 } ?: extractExitCode(text)
                 if (explicitExit != null && explicitExit != 0) {
                     val match = classifyMatch(text) ?: Match("NON_ZERO_EXIT")
                     result.copy(
