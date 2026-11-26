@@ -104,6 +104,30 @@ class ToolExecutionSemanticsTest {
     }
 
     @Test
+    fun `typed zero exit survives old process status recorded on stdout`() {
+        val raw = ToolExecutionResult(
+            output = "previous build: test worker exited (exit=13)",
+            backend = "shizuku-user-service",
+            exitCode = 0
+        )
+
+        val result = ToolExecutionSemantics.normalize("run_terminal", raw)
+
+        assertFalse(result.isError)
+        assertEquals(0, result.exitCode)
+        assertEquals("SUCCESS", result.classification)
+        assertEquals(raw.output, ToolExecutionSemantics.observationBody(result.output))
+    }
+
+    @Test
+    fun `legacy exit headers still work when the producer has no typed code`() {
+        val result = ToolExecutionSemantics.normalize("run_terminal", ToolExecutionResult("[exit_code: 7]"))
+
+        assertTrue(result.isError)
+        assertEquals(7, result.exitCode)
+    }
+
+    @Test
     fun `normal terminal output stays successful`() {
         val result = ToolExecutionSemantics.normalize(
             "agent_runtime",
