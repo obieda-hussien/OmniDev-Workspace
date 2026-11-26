@@ -247,10 +247,7 @@ object TaskSchedulerTool {
                 status = TaskStatus.valueOf(entity.status), lastResult = entity.lastExecutionResult
             )
         }
-        return if (task.status == TaskStatus.RUNNING) task.copy(
-            status = TaskStatus.PAUSED, startedAtMillis = null,
-            lastResult = "Interrupted by app restart. Review the previous run before resuming to avoid repeating actions."
-        ) else task
+        return if (task.status == TaskStatus.RUNNING) pauseInterrupted(task, "Interrupted by app restart.") else task
     }
 
     internal fun toEntity(task: ScheduledTask) = ScheduledTaskEntity(
@@ -456,20 +453,40 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
     }
 
     @Synchronized
-    fun markRunning(taskId: String, executionDetails: String? = null): Boolean {
+    fun markRunning(taskId: String, executionDetails: String? = null): Long? {
         val idx = tasks.indexOfFirst { it.id == taskId }
         if (idx != -1 && tasks[idx].status == TaskStatus.PENDING) {
+            val startedAt = System.currentTimeMillis()
             tasks[idx] = tasks[idx].copy(
                 status = TaskStatus.RUNNING,
                 occurrenceTimeMillis = tasks[idx].occurrenceTimeMillis ?: tasks[idx].scheduledTimeMillis,
-                startedAtMillis = System.currentTimeMillis(),
+                startedAtMillis = startedAt,
                 lastResult = executionDetails ?: tasks[idx].lastResult
             )
             notifyChanged()
-            return true
+            return startedAt
         }
-        return false
+        return null
     }
+
+    @Synchronized
+    fun markInterrupted(taskId: String, startedAt: Long, reason: String, summary: ExecutionSummary? = null) {
+        val index = tasks.indexOfFirst { it.id == taskId }
+        val task = tasks.getOrNull(index) ?: return
+        if (task.status != TaskStatus.RUNNING || task.startedAtMillis != startedAt) return
+        tasks[index] = pauseInterrupted(task, reason, summary)
+        notifyChanged()
+    }
+
+    private fun pauseInterrupted(task: ScheduledTask, reason: String, summary: ExecutionSummary? = null) =
+        task.copy(
+            status = TaskStatus.PAUSED,
+            startedAtMillis = null,
+            lastResult = "$reason Review the previous run before resuming to avoid repeating actions.",
+            executionSummaries = if (summary == null) task.executionSummaries else
+                (listOf(summary) + task.executionSummaries).take(10),
+            executionHistory = (listOf("INTERRUPTED: $reason") + task.executionHistory).take(10)
+        )
 
     @Synchronized
     fun markCompleted(taskId: String, result: String, summary: ExecutionSummary? = null) {

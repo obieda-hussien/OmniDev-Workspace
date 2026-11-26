@@ -19,6 +19,52 @@ class TaskSchedulerPersistenceTest {
         assertEquals(TaskSchedulerTool.TaskStatus.PAUSED, restored.status)
         assertEquals(task.id, restored.id)
     }
+
+    @Test fun uncertainTimeoutPausesCurrentOccurrenceWithRetriesStillAvailable() {
+        val taskId = scheduleRetryingTask()
+        try {
+            val startedAt = checkNotNull(TaskSchedulerTool.markRunning(taskId))
+            val running = checkNotNull(TaskSchedulerTool.getTaskById(taskId))
+            val summary = TaskSchedulerTool.ExecutionSummary(
+                taskId, running.name, startedAt, startedAt + 60_000,
+                0, emptyList(), "", false, errorMessage = "Timeout."
+            )
+
+            TaskSchedulerTool.markInterrupted(taskId, startedAt - 1, "Stale attempt.")
+            assertEquals(running, TaskSchedulerTool.getTaskById(taskId))
+            TaskSchedulerTool.markInterrupted(taskId, startedAt, "Timeout.", summary)
+
+            val paused = checkNotNull(TaskSchedulerTool.getTaskById(taskId))
+            assertEquals(TaskSchedulerTool.TaskStatus.PAUSED, paused.status)
+            assertEquals(running.occurrenceTimeMillis, paused.occurrenceTimeMillis)
+            assertEquals(running.retryCount, paused.retryCount)
+            assertEquals(0, paused.runCount)
+            assertEquals(listOf(summary), paused.executionSummaries)
+            assertEquals(listOf("INTERRUPTED: Timeout."), paused.executionHistory)
+            assertFalse(TaskSchedulerTool.getReadyTasks().any { it.id == taskId })
+            assertEquals(paused, TaskSchedulerTool.fromEntity(TaskSchedulerTool.toEntity(paused)))
+        } finally {
+            TaskSchedulerTool.deleteTask(taskId)
+        }
+    }
+
+    @Test fun cancelledTaskStaysCancelledWhenServiceFinishesCancelling() {
+        val taskId = scheduleRetryingTask()
+        try {
+            val startedAt = checkNotNull(TaskSchedulerTool.markRunning(taskId))
+            TaskSchedulerTool.cancelTaskById(taskId)
+            TaskSchedulerTool.markInterrupted(taskId, startedAt, "Execution interrupted.")
+            assertEquals(TaskSchedulerTool.TaskStatus.CANCELLED, TaskSchedulerTool.getTaskById(taskId)?.status)
+        } finally {
+            TaskSchedulerTool.deleteTask(taskId)
+        }
+    }
+
+    private fun scheduleRetryingTask(): String {
+        val name = "Scheduled replay ${java.util.UUID.randomUUID()}"
+        TaskSchedulerTool.scheduleTaskDirectly(name, "Save report", 0, 60, maxRetries = 2)
+        return TaskSchedulerTool.getAllTasks().single { it.name == name }.id
+    }
     @Test fun cronRejectsZeroAndNegativeSteps() {
         assertFalse(TaskSchedulerTool.isValidCron("*/0 * * * *"))
         assertFalse(TaskSchedulerTool.isValidCron("*/-2 * * * *"))

@@ -419,15 +419,16 @@ class OmniSyncService : Service() {
         var executedCount = 0
 
         for (task in readyTasks) {
+            var claimedStart: Long? = null
             try {
                 val startTime = System.currentTimeMillis()
                 val displayPrompt = task.prompt.take(MAX_PROMPT_LENGTH_IN_STATUS)
 
-                if (!TaskSchedulerTool.markRunning(
-                        task.id,
-                        executionDetails = "Started: ${formatTime(startTime)} | $displayPrompt"
-                    )
-                ) continue
+                val startedAt = TaskSchedulerTool.markRunning(
+                    task.id,
+                    executionDetails = "Started: ${formatTime(startTime)} | $displayPrompt"
+                ) ?: continue
+                claimedStart = startedAt
 
                 _syncState.value = SyncState.EXECUTING_TASK
                 _currentlyRunningTask.value = task.name
@@ -481,6 +482,7 @@ class OmniSyncService : Service() {
                             )
                         }
                     } catch (e: TimeoutCancellationException) {
+                        val reason = "Timeout after ${task.timeoutMinutes ?: 30} minutes."
                         val timeoutSummary = TaskSchedulerTool.ExecutionSummary(
                             taskId = task.id,
                             taskName = task.name,
@@ -490,9 +492,9 @@ class OmniSyncService : Service() {
                             toolNames = emptyList(),
                             result = "",
                             isSuccess = false,
-                            errorMessage = "Timeout after ${task.timeoutMinutes ?: 30} minutes"
+                            errorMessage = reason
                         )
-                        TaskSchedulerTool.markFailed(task.id, "Timeout", timeoutSummary)
+                        TaskSchedulerTool.markInterrupted(task.id, startedAt, reason, timeoutSummary)
                         tasksFailed.incrementAndGet()
                     }
                 } else {
@@ -520,6 +522,11 @@ class OmniSyncService : Service() {
                 tasksExecuted.incrementAndGet()
 
             } catch (e: CancellationException) {
+                claimedStart?.let { startedAt ->
+                    runCatching {
+                        TaskSchedulerTool.markInterrupted(task.id, startedAt, "Execution interrupted.")
+                    }.onFailure { Log.e(TAG, "Could not persist interrupted scheduled task ${task.id}", it) }
+                }
                 currentCoroutineContext().ensureActive()
                 if (
                     TaskSchedulerTool.getTaskById(task.id)?.status != TaskSchedulerTool.TaskStatus.CANCELLED &&
