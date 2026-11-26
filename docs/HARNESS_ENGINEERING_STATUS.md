@@ -33,7 +33,7 @@ requires a verified identity link and explicit data-sharing policy.
 | H9 Stall detection | [#348](https://github.com/obieda-hussien/OmniDev-Workspace/pull/348) merged with typed GitHub pagination scoring. [#349](https://github.com/obieda-hussien/OmniDev-Workspace/pull/349) merged with page novelty gating both recovery budgets. | Replay live pagination and audit the other duplicate-tool recovery paths. |
 | H10 Team routing | [#350](https://github.com/obieda-hussien/OmniDev-Workspace/pull/350) merged with the handoff check before worker startup. [#351](https://github.com/obieda-hussien/OmniDev-Workspace/pull/351) merged with single-Agent routing for a change and its verification in Auto. | Replay automatic routing and the permission prompt on device. |
 | H11 Attachments | [#352](https://github.com/obieda-hussien/OmniDev-Workspace/pull/352) merged with explicit failures for unavailable routine frames. [#353](https://github.com/obieda-hussien/OmniDev-Workspace/pull/353) merged with an early Local Edge rejection for image-bearing requests. | Verify live-provider analysis, physical-device sampling, and the other attachment paths. |
-| H12 Autopilot | [#354](https://github.com/obieda-hussien/OmniDev-Workspace/pull/354) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45794213471) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45794213562) passed. Interrupted and timed-out occurrences are preserved for review. | [#358](https://github.com/obieda-hussien/OmniDev-Workspace/pull/358) adds replay protection for returned failures after successful calls with possible effects. Verify CI, service termination, process death and manual review on the reference device. |
+| H12 Autopilot | [#354](https://github.com/obieda-hussien/OmniDev-Workspace/pull/354) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45794213471) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45794213562) passed. Interrupted and timed-out occurrences are preserved for review. | [#358](https://github.com/obieda-hussien/OmniDev-Workspace/pull/358) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45806497024) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45806496860) passed. Verify service termination, process death and manual review on the reference device. |
 
 ## H11 routine video frame evidence
 
@@ -162,3 +162,17 @@ The regression suspends the handoff decision for a one-task write plan and verif
 The classifier treated the security, database, UI and test terms in a request to fix one bug and verify that fix as independent work. The existing Auto route now classifies clear edit-and-verify requests as Agent before planner selection. The same independence check feeds learned mode selection. Explicit independent work remains eligible for Team, and manual mode selection still follows the existing dispatch path.
 
 The dependent-work regression failed on the previous classifier. All 13 classifier tests passed on Linux JVM using Kotlin 2.4.21 and JUnit 4.13.2. The fixtures cover English and Egyptian Arabic dependent verification, a parallel request with final verification, and a hypothetical question. [Run Quality for #351](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45764783480/job/139722962661) failed on the multilingual input fingerprint. The reviewed diff preserves the existing parallel terms and adds input-only verification expressions, so the classifier's fingerprint was updated. The project language check and flavor source check passed locally. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45771765686) and the [required security check](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45771765614) passed on the repaired, merged head. Physical-device verification and performance measurements remain pending.
+
+### H0 privileged disk usage
+
+The old `disk_usage` command returned status 0 for a missing path because the
+output limiters masked the failed `df` and `du` stages. The report now stops if
+the filesystem summary fails, preserves a failed traversal's diagnostic and
+partial output, and flags size reports with more than 60 entries. It uses the
+existing privileged read path and command deadline.
+
+Sixteen focused Kotlin/JVM tests passed with Linux Bash 5.2.37 and GNU
+coreutils 9.7. Six privileged file tests also passed with Linux mksh R59.
+Fixtures cover a missing path, a failed traversal after partial output, and
+a long report. Android CI and the Android 11 device replay are pending.
+Next, compare diagnostic and exit-code reporting over Shizuku and rish.
