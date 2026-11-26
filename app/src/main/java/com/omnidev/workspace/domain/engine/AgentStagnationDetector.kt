@@ -2,6 +2,7 @@ package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.tools.ExecutionDomainGuard
+import com.omnidev.workspace.data.tools.GitHubRequestContract
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import kotlin.math.max
 
@@ -100,10 +101,21 @@ class AgentStagnationDetector(
             "Tool calls/results must preserve one-to-one ordering"
         }
 
-        val callFingerprints: Set<String> =
-            toolCalls.mapTo(linkedSetOf<String>()) { call -> fingerprintCall(call) }
-        val resultSignatures: Set<String> =
-            results.mapTo(linkedSetOf<String>()) { result -> signatureOfResult(result) }
+        val callFingerprints = linkedSetOf<String>()
+        val resultSignatures = linkedSetOf<String>()
+        toolCalls.forEachIndexed { index, call ->
+            val result = results[index]
+            val resource = githubFileResource(call)
+            if (resource == null) {
+                callFingerprints += fingerprintCall(call)
+                resultSignatures += signatureOfResult(result)
+            } else {
+                val start = call.arguments["start_line"]?.toIntOrNull() ?: 1
+                val receipt = if (result.isError) "" else RunEvidenceLedger.githubPageReceipt(call.arguments, result.output.trim())
+                callFingerprints += "github-file $resource line=$start"
+                resultSignatures += if (receipt.isEmpty()) signatureOfResult(result) else "github-file $resource$receipt"
+            }
+        }
         val newSignatures = resultSignatures.count { it !in seenResultSignatures }
         val novelty = if (resultSignatures.isEmpty()) {
             1f
@@ -325,6 +337,7 @@ class AgentStagnationDetector(
 
     private fun isReadOnlyCall(call: ToolCall): Boolean {
         val name = call.name.lowercase()
+        if (name == "github_manager") return ToolBatchPolicy.isReadOnly(call)
         if (name == "omni_link") return com.omnidev.workspace.data.tools.OmniLinkActionSemantics.isReadOnly(call.arguments)
         if (name == "semantic_ui") {
             val action = call.arguments["action"]?.lowercase()
@@ -363,6 +376,10 @@ class AgentStagnationDetector(
         // trigger false-positive stagnation until explicitly classified.
         return false
     }
+
+    private fun githubFileResource(call: ToolCall): String? =
+        if (call.name == "github_manager" && call.arguments["action"] == "read_file")
+            GitHubRequestContract.failureKey("read_file", call.arguments) else null
 
     private fun isInfrastructureFailure(result: ToolExecutionResult): Boolean {
         if (!result.isError) return false

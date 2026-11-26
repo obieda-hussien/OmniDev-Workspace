@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-26: [`7a85bc0`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/7a85bc08d52411f7996675e624fa89432219afd9).
+Baseline after verified merges on 2026-11-26: [`20de33b`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/20de33baea30f4ad248df80368a82ae269dab71d).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
@@ -12,8 +12,9 @@ Baseline after verified merges on 2026-11-26: [`7a85bc0`](https://github.com/obi
 | H3 Tool-call repair | [#339](https://github.com/obieda-hussien/OmniDev-Workspace/pull/339) merged with canonical text-envelope guidance in preflight feedback. | Replay malformed native arguments and schema correction through provider-backed sessions. |
 | H6 Environment routing | [#338](https://github.com/obieda-hussien/OmniDev-Workspace/pull/338) merged with stricter Team provider-status detection. | [#344](https://github.com/obieda-hussien/OmniDev-Workspace/pull/344) merged with scoped file dispatch after a backend outage. Replay on Android and verify worker routing. |
 | H7 Objective continuity | [#345](https://github.com/obieda-hussien/OmniDev-Workspace/pull/345) merged with persisted workspace restoration during explicit task resume. | Replay the UI handoff and verify routing on the saved objective across provider prompts. |
-| H8 Pagination | [#346](https://github.com/obieda-hussien/OmniDev-Workspace/pull/346) merged with same-revision coverage checks. The `fix/h8-persist-github-page-evidence` branch restores successful page receipts after resume. | Replay the next-page handoff with a live provider and verify it on the reference device. |
-| H9–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
+| H8 Pagination | [#346](https://github.com/obieda-hussien/OmniDev-Workspace/pull/346) merged with same-revision coverage checks. [#347](https://github.com/obieda-hussien/OmniDev-Workspace/pull/347) merged with successful page receipt restoration after resume. | Replay the next-page handoff with a live provider and verify it on the reference device. |
+| H9 Stall detection | The `fix/h9-github-page-progress` branch distinguishes advances in typed GitHub file pagination from repeated reads. | Replay live pagination and audit the remaining empty-response and duplicate-tool recovery paths. |
+| H10–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
 
 ## H0 replay results
 
@@ -92,4 +93,10 @@ All 45 Linux JVM tests passed. The fixtures cover matching and changed bodies, s
 
 The in-process evidence ledger and saved-task recovery now use the same page receipt parser. Recovery reconstructs the line range and file digest from summaries of successful read-only invocations. The existing summary retains the start and end of long observations, so the header and continuation marker remain available without a schema change. Failed reads cannot restore page coverage. When a detailed README remains incomplete, the finish gate returns the next line and the digest for that continuation.
 
-The regression records a page large enough to trigger the 8,000-character summary limit, interrupts the task, and restores its evidence. It rejects a failed page and a page from changed content, then verifies completion when the next page matches the original digest. The replay failed before restoring page receipts. All 70 recovery and finish-protocol tests passed on Linux JVM using Kotlin 2.4.21 and JUnit 4.13.2. Android CI and physical replay are pending. Next, exercise the live continuation and audit H9 stall detection against repeated partial results.
+The regression records a page large enough to trigger the 8,000-character summary limit, interrupts the task, and restores its evidence. It rejects a failed page and a page from changed content, then verifies completion when the next page matches the original digest. The replay failed before restoring page receipts. All 70 recovery and finish-protocol tests passed on Linux JVM using Kotlin 2.4.21 and JUnit 4.13.2. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45739110214) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45739110113) passed at the merged head. Live continuation and physical replay are pending.
+
+## H9 progress during GitHub pagination
+
+The generic stagnation signature normalizes line numbers and hashes. For typed GitHub file reads, the detector now compares the repository endpoint, requested start line, and the existing successful page receipt. Changing only the requested page size cannot reset repetition if the returned coverage stays the same. GitHub calls use the existing read-only policy for the read/action signal.
+
+Both regressions failed before the change. With the Agent's 0.76 threshold, eight advancing page fixtures remained novel and six observations of the same partial page triggered strategy stagnation. All 78 stagnation, recovery, and finish-protocol tests passed on Linux JVM using Kotlin 2.4.21 and JUnit 4.13.2. Android CI, live-provider replay, and physical-device measurements are pending. Next, verify the recovery decision after duplicate observations, then audit single-subtask routing in H10.

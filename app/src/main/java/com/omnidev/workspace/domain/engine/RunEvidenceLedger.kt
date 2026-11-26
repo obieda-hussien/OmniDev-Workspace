@@ -244,7 +244,7 @@ class RunEvidenceLedger(
     companion object {
         private val nextPage = Regex("""\[Partial file; next start_line=(\d+)]$""")
         private val fileRevision = Regex("""^File SHA-256: ([0-9a-f]{64})$""", RegexOption.MULTILINE)
-        private fun githubPageReceipt(arguments: Map<String, String>, output: String): String {
+        internal fun githubPageReceipt(arguments: Map<String, String>, output: String): String {
             val start = arguments["start_line"]?.toIntOrNull() ?: 1
             val next = nextPage.find(output)?.groupValues?.get(1) ?: if (output.endsWith("[End of file]")) "end" else return ""
             val revision = fileRevision.find(output)?.groupValues?.get(1)

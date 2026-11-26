@@ -1,6 +1,7 @@
 package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.model.ToolCall
+import com.omnidev.workspace.data.tools.GitHubResponseFormatter
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -204,5 +205,47 @@ class AgentStagnationDetectorTest {
         assertEquals(0f, snapshot.readOnlyRatio, 0.001f)
     }
 
+    @Test
+    fun `consecutive GitHub pages stay novel even when only line numbers change`() {
+        val detector = AgentStagnationDetector(abortThreshold = 0.76f)
+        for (start in 1..8) {
+            val result = detector.observe(listOf(githubPageCall(start)), listOf(githubPage(start)))
+            assertEquals(1f, result.novelty, 0.001f)
+            assertEquals(1f, result.readOnlyRatio, 0.001f)
+            assertFalse(result.shouldAbort)
+        }
+    }
+
+    @Test
+    fun `same GitHub partial page is a stall despite request formatting changes`() {
+        val detector = AgentStagnationDetector(abortThreshold = 0.76f)
+        var result = detector.observe(listOf(githubPageCall(1)), listOf(githubPage(1)))
+        repeat(5) { attempt ->
+            val call = githubPageCall(1)
+            val maxLines = attempt + 1
+            result = detector.observe(
+                listOf(call.copy(arguments = call.arguments + ("max_lines" to maxLines.toString()))),
+                listOf(githubPage(1, maxLines))
+            )
+        }
+        assertEquals(0f, result.novelty, 0.001f)
+        assertEquals(AgentStagnationDetector.Kind.STRATEGY_STAGNATION, result.kind)
+        assertTrue(result.shouldAbort)
+    }
+
+    private fun githubPageCall(start: Int) = call("github_manager", mapOf(
+        "action" to "read_file", "repo" to "example/project", "path" to "README.md", "start_line" to start.toString()
+    ))
+
+    // The formatter's character budget fits one line per page, even at a larger max_lines.
+    private val githubFile = (1..9).joinToString("\n") { "Item $it " + "x".repeat(4_500) }
+    private val githubRevision = GitHubResponseFormatter.fileRevision(githubFile)
+
+    private fun githubPage(start: Int, maxLines: Int = 120) = ToolExecutionResult(
+        "GitHub GET /repos/example/project/contents/README.md → HTTP 200\n" +
+            "File SHA-256: $githubRevision\n" +
+            GitHubResponseFormatter.filePage(githubFile, start, maxLines),
+        truncated = true
+    )
 
 }
