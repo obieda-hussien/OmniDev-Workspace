@@ -411,25 +411,28 @@ object AdvancedFileTools {
     /**
      * Unified diff between two files or recursive diff between two directories.
      */
-    private suspend fun diffFiles(args: Map<String, String>): ToolExecutionResult {
+    internal suspend fun diffFiles(
+        args: Map<String, String>,
+        execute: suspend (String) -> ToolExecutionResult = { executePrivilegedScript(it, headTruncate = true) }
+    ): ToolExecutionResult {
         val pathA           = args["path_a"]           ?: return missingArg("path_a")
         val pathB           = args["path_b"]           ?: return missingArg("path_b")
         val ignoreWhitespace = args["ignore_whitespace"]?.equals("true", ignoreCase = true) ?: false
         val maxLines        = (args["max_lines"]?.toIntOrNull() ?: 200).coerceIn(10, 2000)
 
-        val script = buildString {
-            appendLine("A=${sanitizeShellArg(pathA)}")
-            appendLine("B=${sanitizeShellArg(pathB)}")
-            appendLine("if [ ! -e \"\$A\" ]; then echo '❌ path_a does not exist.'; exit 1; fi")
-            appendLine("if [ ! -e \"\$B\" ]; then echo '❌ path_b does not exist.'; exit 1; fi")
-            appendLine("echo \"═══ Diff: \$A  ↔  \$B ═══\"")
-            val wFlag = if (ignoreWhitespace) "-w" else ""
-            // diff exit code 1 = differences found (normal), 2 = error. Use `|| true` to not break the script.
-            appendLine("diff -u $wFlag \"\$A\" \"\$B\" 2>&1 | head -n $maxLines || true")
-            appendLine("echo \"[diff complete — max_lines=$maxLines]\"")
+        val whitespaceFlag = if (ignoreWhitespace) "-w " else ""
+        val pipeline = RuntimeReadPipeline.read(
+            "{ diff -ur ${whitespaceFlag}-- ${sanitizeShellArg(pathA)} ${sanitizeShellArg(pathB)}; " +
+                "status=\$?; case \$status in 0|1) : ;; *) exit \"\$status\" ;; esac; }",
+            maxLines
+        )
+        val result = execute(pipeline.script)
+        if (result.isError) return result
+        if (result.output.isBlank() || result.output == "(no output)") {
+            return result.copy(output = "No differences found.")
         }
-
-        return executePrivilegedScript(script, headTruncate = true)
+        val bounded = pipeline.limitStdout(result.output)
+        return result.copy(output = bounded.trimEnd('\n'), truncated = result.truncated || bounded.length < result.output.length)
     }
 
     /**
