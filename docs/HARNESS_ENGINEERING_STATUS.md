@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-26 is [`4d2165a`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/4d2165a3b745e3f0dfe8fd878735aa6efaa97e05).
+Baseline after verified merges on 2026-11-26 is [`c58ca0a`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/c58ca0afe4ba7d5e98a9833ba764cd3caf83ede2).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
@@ -58,6 +58,12 @@ Cancelling a Termux wait or reaching a caller deadline used to mark the transpor
 The default `find_files` path used `find ... 2>/dev/null | head`, which could turn an inaccessible search into a successful empty listing. This path now uses the existing draining read pipeline with pipefail and an extra output line to detect the 200-line presentation limit. A failed process stays a failure and an empty successful search keeps its no-match outcome.
 
 The missing-directory and truncation regressions failed before the fix. All 13 privileged and runtime read tests passed on Linux with Bash and three targeted tests also passed with Linux mksh R59, using the production command builder and a subprocess fixture. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45708698218) and [the required security check](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45708698228) passed at the merged head. A physical privileged-backend replay is pending. The detailed listing mode, the privileged transport's lower character cap, and other privileged pipelines require separate verification. The H6 replay below covers the independently authorized workspace read.
+
+### Privileged file comparison
+
+The previous `diff_files` wrapper returned success when `diff` failed behind the output limiter. The comparison now drains bounded output, treats exit 1 as a valid difference, and propagates actual errors. Identical inputs get an explicit result. Recursive comparison uses the tool's documented directory behavior.
+
+Sixteen focused Linux JVM tests passed with Bash 5.2.37 and GNU diff 3.10. The six privileged comparison and find tests also passed with Linux mksh R59. The test suite verifies an error from a diff subprocess, identical inputs including a path starting with a dash, and line truncation of a recursive diff. Recheck the same paths with Android 11 Toybox and the privileged transport. The remaining H0 audit covers advanced search, diagnostics, and process result adapters.
 
 ## H1 backend evidence
 
