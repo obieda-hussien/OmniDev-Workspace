@@ -281,19 +281,28 @@ object AdvancedFileTools {
         return executePrivilegedScript(script)
     }
 
-    private suspend fun diskUsage(args: Map<String, String>): ToolExecutionResult {
-        val path     = args["path"]      ?: return missingArg("path")
+    internal suspend fun diskUsage(
+        args: Map<String, String>,
+        execute: suspend (String) -> ToolExecutionResult = { executePrivilegedScript(it, headTruncate = true) }
+    ): ToolExecutionResult {
+        val path = args["path"] ?: return missingArg("path")
         val maxDepth = args["max_depth"]?.toIntOrNull() ?: 2
-
-        // Toybox du uses `-d` not `--max-depth`. Sort by human-readable size descending.
-        val script = buildString {
-            appendLine("TARGET=${sanitizeShellArg(path)}")
-            appendLine("echo \"═══ Disk Usage: \$TARGET ═══\"")
-            appendLine("df -h \"\$TARGET\" 2>/dev/null | tail -n1 | awk '{print \"Filesystem: \" \$1 \" | Used: \" \$3 \" | Avail: \" \$4 \" | Use%: \" \$5}'")
-            appendLine("echo \"\"")
-            appendLine("du -h -d $maxDepth \"\$TARGET\" 2>/dev/null | sort -rh | head -n 60")
+        val target = sanitizeShellArg(path)
+        val maxLines = 63 // Heading, filesystem summary, separator, and 60 entries.
+        val command = buildString {
+            appendLine("{")
+            appendLine("  TARGET=$target")
+            appendLine("  printf '%s\\n' \"═══ Disk Usage: \$TARGET ═══\"")
+            appendLine("  df -h -- \"\$TARGET\" | tail -n 1 | awk '{print \"Filesystem: \" \$1 \" | Used: \" \$3 \" | Avail: \" \$4 \" | Use%: \" \$5}' || exit \$?")
+            appendLine("  printf '\\n'")
+            appendLine("  du -h -d $maxDepth -- \"\$TARGET\" | sort -rh")
+            append("}")
         }
-        return executePrivilegedScript(script, headTruncate = true)
+        val pipeline = RuntimeReadPipeline.read(command, maxLines)
+        val result = execute(pipeline.script)
+        if (result.isError) return result
+        val bounded = pipeline.limitStdout(result.output)
+        return result.copy(output = bounded.trimEnd('\n'), truncated = result.truncated || bounded.length < result.output.length)
     }
 
     private suspend fun archiveTool(args: Map<String, String>): ToolExecutionResult {
