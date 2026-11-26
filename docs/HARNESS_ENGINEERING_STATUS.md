@@ -42,8 +42,7 @@ The scheduler now retains a failed occurrence for review when the runtime
 reports a known successful write or action, an unknown mutation outcome, or
 an approval requirement. Existing retry rules still cover ordinary eligible
 read failures. The decision uses typed runtime evidence, error classifications, and the execution policy for the dispatched call. A successful MCP operation can block replay even when its result is empty or the evidence kind is OTHER. Explicitly recognized read-only calls retain their retry eligibility.
-The review flag defaults to false for older serialized summaries. Local JVM
-coverage checks both sides of the retry policy. Android service and device
+The review flag defaults to false for older serialized summaries. Fifteen Linux JVM tests passed, including an empty successful MCP result and a GitHub read control. Android service and device
 verification are pending.
 
 ## H0 replay results
