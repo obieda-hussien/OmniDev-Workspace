@@ -296,10 +296,28 @@ object IntentClassifier {
         return ModeScores(chat = chat, agent = agent, swarm = swarm)
     }
 
+    private val explicitParallelWork = Regex(
+        """\b(?:in parallel|independently|separate tasks|multiple agents)\b|بالتوازي|بشكل مستقل|وكلاء متعددين""",
+        RegexOption.IGNORE_CASE
+    )
+
+    private val verificationOfSameChange = Regex(
+        """(?:\b(?:and|then)\s+(?:(?:run|rerun)\b[^.!?؟\n]{0,60}?\btests?\s+(?:for|of|on)|verify|validate|test|check)""" +
+            """\s+(?:that|this|the(?:\s+same)?)\s+(?:fix|change|patch)""" +
+            """|(?:وبعدها|وبعدين|ثم)\s+(?:اختبر|اتأكد|تأكد|شغّل|شغل|راجع)[^.!?؟\n]{0,60}?""" +
+            """(?:لنفس|على نفس)\s+(?:التعديل|الإصلاح|الاصلاح))\s*[.!]?\s*$""",
+        RegexOption.IGNORE_CASE
+    )
+
+    private fun requiresSerialVerification(input: String, signals: TaskSignals): Boolean =
+        signals.mutationIntent > 0f && signals.conversationalIntent == 0f &&
+            verificationOfSameChange.containsMatchIn(input.takeLast(160)) &&
+            !explicitParallelWork.containsMatchIn(input)
+
     /** A long list of topics does not by itself justify paying for multiple workers. */
     fun hasIndependentWork(input: String, signals: TaskSignals = analyze(input)): Boolean {
-        val explicit = Regex("(?i)\\b(in parallel|independently|separate tasks|multiple agents)\\b|بالتوازي|بشكل مستقل|وكلاء متعددين")
-            .containsMatchIn(input)
+        if (requiresSerialVerification(input, signals)) return false
+        val explicit = explicitParallelWork.containsMatchIn(input)
         val distinctParts = listOf(
             "\\b(?:ui|frontend|screen)\\b|واجهة|شاشة",
             "\\b(?:database|backend|migration)\\b|قاعدة بيانات",
@@ -327,6 +345,7 @@ object IntentClassifier {
      */
     fun classify(input: String, previousUserInput: String? = null): OmniMode {
         val signals = analyze(input)
+        if (requiresSerialVerification(input, signals)) return OmniMode.AGENT
         val scores = scoreModes(signals)
 
         // Preserve a focused code-mutation signal deterministically. This prevents generic
