@@ -39,7 +39,7 @@
     "neural-core/fixtures/contract-intents/corpus.tsv": "68d487ed99348588c64d7f6c86eea9460e41c7de468482e550e8d90dc99a5f2e",
     "neural-core/fixtures/contract-intents/protocol.json": "2d51a7cfb4463d5d2abc8864e932c33b3a256f59c449ddf822bea494682f2e2a",
     "app/src/main/java/com/omnidev/workspace/data/tools/AgentRuntimeTool.kt": "8b9a267683313f0ce3c2140dde64f9bb0d4346dafac56931fadf0ded4356cc41",
-    "app/src/main/java/com/omnidev/workspace/data/tools/GitHubManagerTool.kt": "80e57c9374272051b29131fe058714da0128a9b6739aac05b36777b5576eb8ef",
+    "app/src/main/java/com/omnidev/workspace/data/tools/GitHubManagerTool.kt": "8ad842f85f2a8e6889af3e64bb084e8cde1fcfb07bcf35f5993f0ad50a3814b1",
     "app/src/main/java/com/omnidev/workspace/data/tools/BuildDoctorTools.kt": "980b76892cffcc28ec7435bd1e061e7349aae903579364007be9afc8c7049355",
     "app/src/main/java/com/omnidev/workspace/data/tools/AdvancedSystemTools.kt": "12bee3475ec6501626953a23647b997aa6fc45be997a5984fd68153de806705f",
     "app/src/main/java/com/omnidev/workspace/data/tools/WebSearchTool.kt": "844cc58bbff378e3753a708616752ab1d2f231947631b5b0d92b9266b26cfed2",

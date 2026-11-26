@@ -56,6 +56,7 @@ object GitHubManagerTool {
             ToolParameter("per_page", "integer", "list_repos page size 1..100, default 20", required = false),
             ToolParameter("start_line", "integer", "read_file first line, default 1", required = false),
             ToolParameter("max_lines", "integer", "read_file lines 1..200, default 120", required = false),
+            ToolParameter("file_sha256", "string", "read_file: repeat the previous page's File SHA-256 to reject a changed file.", required = false),
             ToolParameter("response_format", "string", "api_request: compact by default; raw for exact fields, still bounded", required = false, allowedValues = listOf("compact", "raw")),
             ToolParameter("title", "string", "Issue/PR title; legacy api_request method fallback", required = false, requiredForActions = listOf("create_issue", "create_pull_request")),
             ToolParameter("body", "string", "Issue/PR text or optional api_request JSON payload. Omit for GET.", required = false),
@@ -113,7 +114,8 @@ object GitHubManagerTool {
                     val read = GitHubRequestContract.read(action.lowercase().trim(), repo, options["path"], options["ref"],
                         options["page"]?.toInt() ?: 1, options["per_page"]?.toInt() ?: 20, options["owner"])
                     apiRequest(policy, token, "GET", read.endpoint, null, read.rawFile,
-                        startLine = options["start_line"]?.toInt() ?: 1, maxLines = options["max_lines"]?.toInt() ?: 120)
+                        startLine = options["start_line"]?.toInt() ?: 1, maxLines = options["max_lines"]?.toInt() ?: 120,
+                        expectedFileRevision = options["file_sha256"])
                 }
                 "api_request" -> {
                     val method = (options["method"] ?: title.takeIf { it.isNotBlank() } ?: "GET").trim().uppercase()
@@ -183,7 +185,8 @@ object GitHubManagerTool {
         rawResponse: Boolean = false,
         startLine: Int = 1,
         maxLines: Int = 120,
-        client: OkHttpClient = httpClient
+        client: OkHttpClient = httpClient,
+        expectedFileRevision: String? = null
     ): ToolExecutionResult {
         val normalizedMethod = method.uppercase()
         require(normalizedMethod in setOf("GET", "POST", "PUT", "PATCH", "DELETE")) {
@@ -193,6 +196,9 @@ object GitHubManagerTool {
         enforceLocalPolicy(policy, normalizedMethod, safeEndpoint)
         validateJsonBody(jsonBody)
         require(!rawFile || startLine >= 1 && maxLines in 1..200) { "Invalid file line range." }
+        require(expectedFileRevision == null || rawFile && expectedFileRevision.matches(Regex("[0-9a-fA-F]{64}"))) {
+            "file_sha256 must be the 64 hexadecimal digits returned by read_file."
+        }
 
         val requestBody = when {
             normalizedMethod in setOf("POST", "PUT", "PATCH") ->
@@ -226,16 +232,27 @@ object GitHubManagerTool {
             if (responseText.length > 1_000_000) return ToolExecutionResult(
                 "GitHub response exceeds the bounded reader. Narrow the endpoint or page; no complete resource was verified.",
                 isError = true, classification = "GITHUB_RESPONSE_TOO_LARGE")
-            val next = GitHubResponseFormatter.nextEndpoint(response.header("Link"))
+            val next = if (rawFile) null else GitHubResponseFormatter.nextEndpoint(response.header("Link"))
             return if (response.isSuccessful) {
+                val revision = if (rawFile) GitHubResponseFormatter.fileRevision(responseText) else null
+                if (expectedFileRevision != null && !expectedFileRevision.equals(revision, ignoreCase = true)) {
+                    return ToolExecutionResult(
+                        "GitHub file changed since the previous read. Restart at start_line=1 or select an exact ref. No page was accepted.",
+                        isError = true, classification = "GITHUB_FILE_CHANGED"
+                    )
+                }
                 val evidence = if (rawFile) GitHubResponseFormatter.filePage(responseText, startLine, maxLines)
                     else GitHubResponseFormatter.format(responseText, safeEndpoint, rawResponse)
+                if (rawFile && evidence.startsWith("[Line ")) return ToolExecutionResult(
+                    evidence, isError = true, truncated = true, classification = "GITHUB_FILE_PAGE_TOO_WIDE"
+                )
                 ToolExecutionResult(buildString {
                     appendLine("GitHub $normalizedMethod $safeEndpoint → HTTP $code")
                     appendLine("Account: @${policy.accountLogin ?: "unknown"}")
+                    if (revision != null) appendLine("File SHA-256: $revision")
                     append(evidence)
                     next?.let { append("\nNext page endpoint: $it (this response is only one page)") }
-                })
+                }, truncated = rawFile && !evidence.endsWith("[End of file]"))
             } else {
                 val classification = when (code) {
                     401 -> "GITHUB_AUTH_REQUIRED"

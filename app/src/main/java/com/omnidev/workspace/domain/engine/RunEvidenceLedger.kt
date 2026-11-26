@@ -243,11 +243,13 @@ class RunEvidenceLedger(
 
     companion object {
         private val nextPage = Regex("""\[Partial file; next start_line=(\d+)]$""")
+        private val fileRevision = Regex("""^File SHA-256: ([0-9a-f]{64})$""", RegexOption.MULTILINE)
         private fun githubPageReceipt(call: ToolCall, output: String): String {
             if (call.name != "github_manager" || !call.arguments["action"].orEmpty().trim().equals("read_file", true)) return ""
             val start = call.arguments["start_line"]?.toIntOrNull() ?: 1
             val next = nextPage.find(output)?.groupValues?.get(1) ?: if (output.endsWith("[End of file]")) "end" else return ""
-            return " page=$start:$next"
+            val revision = fileRevision.find(output)?.groupValues?.get(1)
+            return " page=$start:$next" + (revision?.let { ":$it" } ?: "")
         }
 
         internal fun describeArguments(toolName: String, arguments: Map<String, String>): String {

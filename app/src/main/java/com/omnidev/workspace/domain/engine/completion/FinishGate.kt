@@ -86,20 +86,16 @@ class FinishGate(
                 it.outcome == RunEvidenceLedger.Outcome.OK && it.tool == "github_manager" &&
                     "action=read_file" in fields && "path=README.md" in fields && fields.any { field -> field.equals("repo=$repo", true) }
             }.mapNotNull {
-                val page = it.target.substringAfterLast(" page=", "")
-                page.substringBefore(':').toIntOrNull()?.let { start -> start to page.substringAfter(':') }
-            }.sortedBy { it.first }
-            var nextUnread = 1
-            var reachedEnd = false
-            for ((start, end) in pages) {
-                if (start > nextUnread) break
-                if (end == "end") {
-                    reachedEnd = true
-                    break
-                }
-                nextUnread = maxOf(nextUnread, end.toIntOrNull() ?: continue)
+                val parts = it.target.substringAfterLast(" page=", "").split(':', limit = 3)
+                val start = parts.first().toIntOrNull() ?: return@mapNotNull null
+                val end = parts.getOrNull(1) ?: return@mapNotNull null
+                parts.getOrNull(2) to (start to end)
+            }.groupBy({ it.first }, { it.second })
+            val nextLines = pages.map { (revision, ranges) -> nextReadmeLine(ranges, revision != null) }
+            if (null !in nextLines) {
+                val nextUnread = nextLines.filterNotNull().maxOrNull() ?: 1
+                return reject("Read README.md in $repo from start_line=$nextUnread using one matching File SHA-256. Report partial coverage if unavailable.", request.claims)
             }
-            if (!reachedEnd) return reject("Read README.md in $repo from start_line=$nextUnread. Report partial coverage if unavailable.", request.claims)
         }
         val eval = evaluate(request)
         if (eval.accepted) {
@@ -107,6 +103,18 @@ class FinishGate(
             return publish(request.status, request.summary, eval, verified = request.status == FinishStatus.COMPLETED)
         }
         return reject(eval.problems.joinToString("; "), request.claims, request, eval)
+    }
+
+    private fun nextReadmeLine(ranges: List<Pair<Int, String>>, versioned: Boolean): Int? {
+        // A single first page through EOF is self-contained, even for older unversioned receipts.
+        if (!versioned) return if ((1 to "end") in ranges) null else 1
+        var nextUnread = 1
+        for ((start, end) in ranges.sortedBy { it.first }) {
+            if (start > nextUnread) break
+            if (end == "end") return null
+            nextUnread = maxOf(nextUnread, end.toIntOrNull() ?: continue)
+        }
+        return nextUnread
     }
 
     private fun reject(reason: String, claims: List<CriterionClaim>, request: FinishRequest? = null, eval: Evaluation? = null): GateResult {

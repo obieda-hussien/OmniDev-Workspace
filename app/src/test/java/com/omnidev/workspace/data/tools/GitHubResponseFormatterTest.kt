@@ -32,5 +32,13 @@ class GitHubResponseFormatterTest {
     @Test fun `binary and invalid file ranges are rejected`() {
         assertThrows(IllegalArgumentException::class.java) { GitHubResponseFormatter.filePage("a\u0000b", 1, 20) }
         assertThrows(IllegalArgumentException::class.java) { GitHubResponseFormatter.filePage("one", 0, 20) }
+        assertThrows(IllegalArgumentException::class.java) { GitHubResponseFormatter.filePage("one", 2, 20) }
+        assertThrows(IllegalArgumentException::class.java) { GitHubResponseFormatter.filePage("one\r\n", 2, 20) }
+        assertTrue(GitHubResponseFormatter.filePage("one\n\n", 2, 20).endsWith("[End of file]"))
+    }
+    @Test fun `oversized line cannot mint an EOF receipt`() {
+        val body = "short\n" + "x".repeat(9_000)
+        assertTrue(GitHubResponseFormatter.filePage(body, 1, 20).endsWith("[Partial file; next start_line=2]"))
+        assertFalse(GitHubResponseFormatter.filePage(body, 2, 20).contains("[End of file]"))
     }
 }

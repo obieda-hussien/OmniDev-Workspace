@@ -50,6 +50,25 @@ class GitHubManagerToolContractTest {
             })
         assertTrue(result.output.contains("1: first"))
         assertTrue(result.output.contains("next start_line=2"))
+        assertTrue(result.truncated)
+        assertTrue(result.output.contains("File SHA-256: ${GitHubResponseFormatter.fileRevision("first\nsecond")}"))
+    }
+    @Test fun `continuation accepts the same file and rejects a changed body`() {
+        val endpoint = "/repos/a/b/contents/README.md"
+        val original = "first\nsecond"
+        val revision = GitHubResponseFormatter.fileRevision(original)
+        val next = GitHubManagerTool.apiRequest(policy, "secret-token", "GET", endpoint, null,
+            rawFile = true, startLine = 2, client = client(200, original), expectedFileRevision = revision)
+        assertFalse(next.isError)
+        assertFalse(next.truncated)
+        assertTrue(next.output.contains("2: second\n[End of file]"))
+
+        val changed = GitHubManagerTool.apiRequest(policy, "secret-token", "GET", endpoint, null,
+            rawFile = true, startLine = 2, client = client(200, "first\nreplacement"), expectedFileRevision = revision)
+        assertTrue(changed.isError)
+        assertEquals("GITHUB_FILE_CHANGED", changed.classification)
+        assertFalse(changed.output.contains("replacement"))
+        assertFalse(changed.output.contains("[End of file]"))
     }
     @Test fun `write and delete gates reject before HTTP even with destructive flag alone`() {
         var sent = false

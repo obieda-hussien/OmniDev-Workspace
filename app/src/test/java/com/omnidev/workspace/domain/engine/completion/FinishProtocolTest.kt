@@ -56,11 +56,15 @@ class FinishProtocolTest {
         val r = rig()
         r.state.goal = "Explain the README of https://github.com/example/project in detail"
         val args = mapOf("repo" to "example/project", "path" to "README.md", "action" to "read_file")
-        r.run("first", "github_manager", args, "1: Intro\n2: Detail\n[Partial file; next start_line=3]")
-        r.run("skip", "github_manager", args + ("start_line" to "4"), "4: End\n[End of file]")
+        val revision = "File SHA-256: ${"a".repeat(64)}\n"
+        r.run("first", "github_manager", args, revision + "1: Intro\n2: Detail\n[Partial file; next start_line=3]")
+        r.run("skip", "github_manager", args + ("start_line" to "4"), revision + "4: End\n[End of file]")
         assertTrue(r.gate.implicit("Full explanation") is GateResult.Reject)
-        r.run("second", "github_manager", args + ("start_line" to "3"), "3: End\n[End of file]")
-        r.run("reread", "github_manager", args, "1: Intro\n[Partial file; next start_line=2]")
+        val differentRevision = "File SHA-256: ${"b".repeat(64)}\n"
+        r.run("changed", "github_manager", args + ("start_line" to "3"), differentRevision + "3: Changed\n[End of file]")
+        assertTrue(r.gate.implicit("Full explanation") is GateResult.Reject)
+        r.run("second", "github_manager", args + ("start_line" to "3"), revision + "3: End\n[End of file]")
+        r.run("reread", "github_manager", args, revision + "1: Intro\n[Partial file; next start_line=2]")
         assertTrue(r.gate.implicit("Full explanation") is GateResult.Publish)
     }
 
