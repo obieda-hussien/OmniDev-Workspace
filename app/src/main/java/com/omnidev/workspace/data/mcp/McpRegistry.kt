@@ -38,20 +38,22 @@ class McpRegistry(
      * Add-to-chat `Tools = Off` is enforced before any remote discovery happens,
      * so disabling tools also suppresses MCP schemas and avoids unnecessary I/O.
      */
-    suspend fun fetchAllAvailableTools(): List<ToolDefinition> = withContext(Dispatchers.IO) {
+    suspend fun fetchAllAvailableTools(): List<ToolDefinition> = discoverInventory()?.tools.orEmpty()
+
+    internal suspend fun discoverInventory(): McpToolDiscovery.Snapshot? = withContext(Dispatchers.IO) {
         if (!toolsAllowedForChat()) {
             routes = emptyMap()
-            return@withContext emptyList()
+            return@withContext null
         }
 
         refreshMutex.withLock {
-            val (tools, nextRoutes) = discovery.discover(configManager.getServers())
+            val snapshot = discovery.discover(configManager.getServers())
             if (!toolsAllowedForChat()) {
                 routes = emptyMap()
-                return@withContext emptyList()
+                return@withLock null
             }
-            routes = nextRoutes
-            tools
+            routes = snapshot.routes
+            snapshot
         }
     }
 

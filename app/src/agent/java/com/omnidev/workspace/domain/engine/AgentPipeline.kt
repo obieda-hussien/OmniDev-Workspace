@@ -358,13 +358,14 @@ When improving: keep every other sentence, the structure, the language and the l
 
         var taskSignals = IntentClassifier.analyze(routingObjective)
         val localTools = toolManager.getToolDefinitions()
-        val mcpTools = try {
-            if (toolAccessMode == "DISABLED") emptyList() else mcpRegistry?.fetchAllAvailableTools().orEmpty()
+        val mcpSnapshot = try {
+            if (toolAccessMode == "DISABLED") null else mcpRegistry?.discoverInventory()
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            emptyList()
+            null
         }
+        val mcpTools = mcpSnapshot?.tools.orEmpty()
         val registeredDefinitions = (localTools + mcpTools).distinctBy { it.name }
         val permittedDefinitions = if (toolAccessMode == "DISABLED") emptyList() else registeredDefinitions
             .filter { it.name !in disabledToolNames && toolEligibility?.invoke(it.name) == null }
@@ -392,7 +393,8 @@ When improving: keep every other sentence, the structure, the language and the l
             preferredToolNames + (if (routineCandidates.isEmpty()) emptySet() else setOf("learned_routine")), toolQuality, additionalToolDomains, mentionFocus.tools,
             budget = ToolSurfaceBudget.forContext(model.contextWindow),
             registeredToolCount = registeredDefinitions.count { it.name != RunToolCatalog.DISCOVER.name },
-            mcpToolNames = mcpTools.map { it.name }.toSet() - localTools.map { it.name }.toSet()
+            mcpToolNames = mcpTools.map { it.name }.toSet() - localTools.map { it.name }.toSet(),
+            mcpCoverage = mcpSnapshot?.coverage
         )
         if (workerPersona == null && runIdentity?.forceFinishProtocol != true && runIdentity?.resume == null &&
             steeringRevision == null && !mentionFocus.active && userAttachments.isEmpty()) {

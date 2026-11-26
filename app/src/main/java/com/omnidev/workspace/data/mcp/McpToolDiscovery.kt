@@ -16,6 +16,8 @@ internal data class McpToolRoute(
     val connection: McpConnection
 )
 
+data class McpDiscoveryCoverage(val includedServers: Int, val undiscoveredServers: Int)
+
 /** Cache schemas and live sessions, including failed discovery, independently of model turns. */
 internal class McpToolDiscovery(
     private val connect: (McpServerConfig) -> McpConnection?,
@@ -24,6 +26,12 @@ internal class McpToolDiscovery(
     private val successTtlMillis: Long = 5 * 60_000,
     private val failureTtlMillis: Long = 60_000
 ) {
+    data class Snapshot(
+        val tools: List<ToolDefinition>,
+        val routes: Map<String, McpToolRoute>,
+        val coverage: McpDiscoveryCoverage
+    )
+
     private data class Entry(
         val config: McpServerConfig,
         val connection: McpConnection?,
@@ -33,7 +41,7 @@ internal class McpToolDiscovery(
     private val mutex = Mutex()
     private val entries = mutableMapOf<String, Entry>()
 
-    suspend fun discover(servers: Map<String, McpServerConfig>): Pair<List<ToolDefinition>, Map<String, McpToolRoute>> = mutex.withLock {
+    suspend fun discover(servers: Map<String, McpServerConfig>): Snapshot = mutex.withLock {
         val snapshot = servers.mapValues { (_, config) -> config.copy(tools = config.tools.toList(), env = config.env.toMap()) }
         entries.keys.retainAll(snapshot.keys)
         val stale = snapshot.filter { (name, config) ->
@@ -69,6 +77,7 @@ internal class McpToolDiscovery(
                 tools.add(tool)
             }
         }
-        tools to routes
+        val includedServers = entries.values.count { it.connection != null }
+        Snapshot(tools, routes, McpDiscoveryCoverage(includedServers, snapshot.size - includedServers))
     }
 }

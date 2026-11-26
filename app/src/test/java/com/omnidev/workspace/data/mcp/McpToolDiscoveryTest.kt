@@ -26,9 +26,9 @@ class McpToolDiscoveryTest {
         val discovery = McpToolDiscovery(connect = { creations++; connection }, clock = { now }, successTtlMillis = 100)
         val servers = mapOf("one" to config())
         val first = discovery.discover(servers)
-        repeat(3) { assertEquals(first.first, discovery.discover(servers).first) }
+        repeat(3) { assertEquals(first.tools, discovery.discover(servers).tools) }
         assertEquals(1, creations); assertEquals(1, queries)
-        assertSame(connection, first.second.getValue("mcp_one_read").connection)
+        assertSame(connection, first.routes.getValue("mcp_one_read").connection)
         now = 101
         discovery.discover(servers)
         assertEquals(1, creations); assertEquals(2, queries)
@@ -40,8 +40,8 @@ class McpToolDiscoveryTest {
         val connection = Connection { queries++; throw IOException("Offline") }
         val discovery = McpToolDiscovery(connect = { connection }, clock = { now }, failureTtlMillis = 100)
         val servers = mapOf("offline" to config())
-        assertTrue(discovery.discover(servers).first.isEmpty())
-        repeat(3) { assertTrue(discovery.discover(servers).first.isEmpty()) }
+        assertTrue(discovery.discover(servers).tools.isEmpty())
+        repeat(3) { assertTrue(discovery.discover(servers).tools.isEmpty()) }
         assertEquals(1, queries)
         now = 101
         discovery.discover(servers)
@@ -51,11 +51,11 @@ class McpToolDiscoveryTest {
     @Test fun configChangesInvalidateSessionsAndRemovedServersLoseRoutes() = runBlocking {
         var creations = 0
         val discovery = McpToolDiscovery(connect = { creations++; Connection { name -> listOf(ToolDefinition("mcp_${name}_read", "Read data")) } })
-        val first = discovery.discover(mapOf("one" to config())).second.getValue("mcp_one_read")
+        val first = discovery.discover(mapOf("one" to config())).routes.getValue("mcp_one_read")
         val changed = config().copy(env = mapOf("API_KEY" to "replacement-fixture"))
-        val next = discovery.discover(mapOf("one" to changed)).second.getValue("mcp_one_read")
+        val next = discovery.discover(mapOf("one" to changed)).routes.getValue("mcp_one_read")
         assertEquals(2, creations); assertNotSame(first.connection, next.connection); assertEquals(changed, next.config)
-        assertTrue(discovery.discover(emptyMap()).second.isEmpty())
+        assertTrue(discovery.discover(emptyMap()).routes.isEmpty())
     }
 
     @Test fun hangingServersAreConcurrentBoundedAndDoNotHideHealthyTools() = runBlocking {
@@ -72,7 +72,7 @@ class McpToolDiscoveryTest {
         } }, timeoutMillis = 250)
         val result = withTimeout(2_000) { discovery.discover(mapOf("slow1" to config(), "slow2" to config(), "healthy" to config())) }
         assertTrue(allStarted.isCompleted)
-        assertEquals(listOf("mcp_healthy_read"), result.first.map { it.name })
+        assertEquals(listOf("mcp_healthy_read"), result.tools.map { it.name })
         assertEquals(2, cancelled)
         discovery.discover(mapOf("slow1" to config(), "slow2" to config(), "healthy" to config()))
         assertEquals(3, started)
@@ -87,15 +87,28 @@ class McpToolDiscoveryTest {
             listOf(ToolDefinition("mcp_${name}_read", "Read data"))
         } }, clock = { now }, successTtlMillis = 100, failureTtlMillis = 50)
         val servers = mapOf("one" to config())
-        assertFalse(discovery.discover(servers).second.isEmpty())
+        assertFalse(discovery.discover(servers).routes.isEmpty())
         now = 101; fail = true
-        assertTrue(discovery.discover(servers).second.isEmpty())
+        assertTrue(discovery.discover(servers).routes.isEmpty())
         fail = false
-        assertTrue(discovery.discover(servers).second.isEmpty())
+        assertTrue(discovery.discover(servers).routes.isEmpty())
         assertEquals(1, creations)
         now = 152
-        assertFalse(discovery.discover(servers).second.isEmpty())
+        assertFalse(discovery.discover(servers).routes.isEmpty())
         assertEquals(2, creations)
+    }
+
+    @Test fun emptySchemaListAndFailedDiscoveryHaveDifferentCoverage() = runBlocking {
+        val discovery = McpToolDiscovery(connect = { Connection { name ->
+            if (name == "offline") throw IOException("Offline")
+            emptyList()
+        } })
+        val snapshot = discovery.discover(mapOf("empty" to config(), "offline" to config()))
+
+        assertEquals(McpDiscoveryCoverage(includedServers = 1, undiscoveredServers = 1), snapshot.coverage)
+        assertTrue(snapshot.tools.isEmpty())
+        assertEquals(snapshot.coverage, discovery.discover(mapOf("empty" to config(), "offline" to config())).coverage)
+        assertEquals(McpDiscoveryCoverage(1, 0), discovery.discover(mapOf("empty" to config())).coverage)
     }
 
     @Test fun callerCancellationPropagatesToPendingDiscovery() = runBlocking {

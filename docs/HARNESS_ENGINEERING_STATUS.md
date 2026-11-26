@@ -296,6 +296,19 @@ unavailable, and authoritative stderr failures still override a zero exit.
 
 The historical-output regression failed before the change. All 31 focused
 Linux Kotlin/JVM tests passed after it, including legacy exit headers and a
-permission error on stderr at exit zero. Android CI and physical device replay
-are pending. Continue the capability inventory audit while the Android 11
-rish device verification is unavailable.
+permission error on stderr at exit zero. [#368](https://github.com/obieda-hussien/OmniDev-Workspace/pull/368) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45886312791) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45886312790) passed. Android 11 rish replay remains pending.
+
+### H1 MCP discovery coverage
+
+The run inventory now carries aggregate MCP discovery coverage from the same
+cache snapshot that supplied tool schemas. A server with a valid empty list
+counts as included, while a failed, timed-out, or unsupported discovery
+counts as undiscovered. These are snapshot counts and do not prove current
+server readiness. Paginated discovery and the direct inventory reply display
+the same counts, without exposing server configuration or loading schemas.
+
+All 39 focused Linux Kotlin/JVM tests passed, covering discovery failures,
+valid empty lists, cache reuse, removed servers, and both inventory outputs.
+Language and flavor source checks passed without changing multilingual
+fingerprints. Android CI and real MCP inventory replay are pending. Next,
+verify inventory against a live mix of available and unavailable connections.

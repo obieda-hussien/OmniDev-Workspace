@@ -1,5 +1,6 @@
 package com.omnidev.workspace.domain.engine
 
+import com.omnidev.workspace.data.mcp.McpDiscoveryCoverage
 import com.omnidev.workspace.data.tools.*
 import kotlin.math.ln
 
@@ -13,7 +14,8 @@ class RunToolCatalog(
     private val mentionedToolNames: Set<String> = emptySet(),
     private val budget: ToolSurfaceBudget = ToolSurfaceBudget(),
     private val registeredToolCount: Int? = null,
-    private val mcpToolNames: Set<String> = emptySet()
+    private val mcpToolNames: Set<String> = emptySet(),
+    private val mcpCoverage: McpDiscoveryCoverage? = null
 ) {
     private val catalog = definitions.filter { it.name != DISCOVER.name }.distinctBy { it.name }
     private val terms = catalog.associate { tool -> tool.name to words(
@@ -52,6 +54,10 @@ class RunToolCatalog(
     internal data class InventoryCounts(val registered: Int, val authorized: Int, val loaded: Int)
 
     internal fun inventoryCounts() = InventoryCounts(registeredToolCount ?: catalog.size, catalog.size, loaded.size)
+
+    internal fun mcpInventorySummary(): String? = mcpCoverage?.let {
+        "MCP discovery snapshot. Servers included: ${it.includedServers}. Undiscovered: ${it.undiscoveredServers}."
+    }
 
     fun advisoryContext(): String {
         val query = focus?.query ?: currentObjective
@@ -188,6 +194,7 @@ class RunToolCatalog(
             if (backendAvailability == null) appendLine("Live backend availability: unknown.")
             else appendLine("Shell backends observed in this run: $backendAvailability. Other backends: unknown.")
             appendLine("Registration is limited to this build and discovered MCP tools.")
+            mcpInventorySummary()?.let { appendLine(it) }
             appendLine("Permitted inventory. $filterLabel: ${filter ?: "all"}; total: ${entries.size}; offset: $offset; count: ${page.size}.")
             page.forEach { tool ->
                 appendLine("${tool.name} — ${if (isLoaded(tool.name)) "schema loaded" else "schema on demand"} [${inventorySource(tool.name)}]")
