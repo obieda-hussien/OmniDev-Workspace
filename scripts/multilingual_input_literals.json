@@ -75,6 +75,10 @@
     "sha256": "e169326c07e98035ca996e087bffceb1782184e9b2cdb131a9ee38546172d66e",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
   },
+  "app/src/main/java/com/omnidev/workspace/data/integration/TelegramConversationPolicy.kt": {
+    "sha256": "ea597682474ae9fda7a1b93629c1925e9aa5aac1e69f676d7a5236dd0ebf55e2",
+    "purpose": "Match user requests for current device information in Telegram Chat."
+  },
   "app/src/main/java/com/omnidev/workspace/domain/engine/AutomaticToolRouter.kt": {
     "sha256": "5528d59883f8d754e5b79443d6443fc546bcfd4119c57e660b6d88dec1e248fc",
     "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."

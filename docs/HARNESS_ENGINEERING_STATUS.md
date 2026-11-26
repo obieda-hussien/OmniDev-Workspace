@@ -1,5 +1,21 @@
 # Harness engineering status
 
+## Telegram command and response integrity
+
+Telegram now handles mode and session aliases locally, returns the actual mode,
+checks build capabilities and workspace scope before switching, and routes
+unknown bot commands to help. Chat status no longer presents the global tool
+count as a per-session capability. Recognized device inventory, foreground
+application and storage questions stop before text-only inference in Chat.
+Replies strip reasoning blocks and reject execution-report claims in the
+tool-free Chat path. Agent responses require a final answer instead of
+falling back to draft streaming output.
+
+Five isolated Kotlin/JVM tests cover the reported commands, pairing parsing,
+reasoning tags, fabricated execution reports, and Arabic device questions.
+Android and linked Telegram device checks are pending. Cross-channel memory
+requires a verified identity link and explicit data-sharing policy.
+
 Baseline after verified merges on 2026-11-26 is [`fae12d8`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/fae12d8875a3c70909c1a15c7f03443e56ef72d5).
 
 | Phase | Evidence | Open work |
