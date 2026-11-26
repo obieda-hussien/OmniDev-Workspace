@@ -2,6 +2,23 @@
 
 Baseline after verified merges on 2026-11-26 is [`c58ca0a`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/c58ca0afe4ba7d5e98a9833ba764cd3caf83ede2).
 
+## Telegram command and response integrity
+
+Telegram now handles mode and session aliases locally, returns the actual mode,
+checks build capabilities and workspace scope before switching, and routes
+unknown bot commands to help. Chat status no longer presents the global tool
+count as a per-session capability. Recognized device inventory, foreground
+application and storage questions stop before text-only inference in Chat.
+Replies strip reasoning blocks and reject execution-report claims in the
+tool-free Chat path. Agent responses require a final answer instead of
+falling back to draft streaming output.
+
+Five isolated Kotlin/JVM tests cover the reported commands, pairing parsing,
+reasoning tags, fabricated execution reports, and Arabic device questions.
+The merged Telegram change passed Android CI, including API 30, and the security gate. A linked Telegram device check is pending. Cross-channel memory
+requires a verified identity link and explicit data-sharing policy.
+
+
 | Phase | Evidence | Open work |
 | --- | --- | --- |
 | H0 Execution integrity | [#324](https://github.com/obieda-hussien/OmniDev-Workspace/pull/324) merged. The [Android workflow](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45370669076) passed the API 30 UI job and all-flavor test job. [#326](https://github.com/obieda-hussien/OmniDev-Workspace/pull/326) and [#327](https://github.com/obieda-hussien/OmniDev-Workspace/pull/327) merged after Android CI passed, including API 30 instrumentation. [#332](https://github.com/obieda-hussien/OmniDev-Workspace/pull/332) merged after Android CI and the provenance workflows passed. [#337](https://github.com/obieda-hussien/OmniDev-Workspace/pull/337) merged with cancellation-safe Termux transport health. | Verify Termux on the Android 11 reference device. Audit timeout and cancellation outcomes and mutation receipts. [#343](https://github.com/obieda-hussien/OmniDev-Workspace/pull/343) merged with the default privileged file search's exit status and output limit preserved. |
