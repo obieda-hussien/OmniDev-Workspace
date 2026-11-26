@@ -386,7 +386,10 @@ object AdvancedFileTools {
     /**
      * Hex + ASCII dump of binary file contents.
      */
-    private suspend fun hexDump(args: Map<String, String>): ToolExecutionResult {
+    internal suspend fun hexDump(
+        args: Map<String, String>,
+        execute: suspend (String) -> ToolExecutionResult = { executePrivilegedScript(it, headTruncate = true) }
+    ): ToolExecutionResult {
         val path   = args["path"]   ?: return missingArg("path")
         val bytes  = (args["bytes"]?.toIntOrNull()  ?: 512).coerceIn(1, 8192)
         val offset = (args["offset"]?.toIntOrNull() ?: 0).coerceAtLeast(0)
@@ -397,15 +400,16 @@ object AdvancedFileTools {
             appendLine("echo \"═══ Hex Dump: \$P (offset=$offset, bytes=$bytes) ═══\"")
             // Use xxd if available, fall back to od (which is always present on Android)
             appendLine("if command -v xxd >/dev/null 2>&1; then")
-            appendLine("  xxd -s $offset -l $bytes \"\$P\" 2>/dev/null")
+            appendLine("  xxd -s $offset -l $bytes \"\$P\"")
             appendLine("elif command -v od >/dev/null 2>&1; then")
-            appendLine("  od -A x -t x1z -j $offset -N $bytes \"\$P\" 2>/dev/null")
+            appendLine("  od -A x -t x1z -j $offset -N $bytes \"\$P\"")
             appendLine("else")
-            appendLine("  dd if=\"\$P\" bs=1 skip=$offset count=$bytes 2>/dev/null | cat -v")
+            appendLine("  set -o pipefail || exit")
+            appendLine("  dd if=\"\$P\" bs=1 skip=$offset count=$bytes | cat -v")
             appendLine("fi")
         }
 
-        return executePrivilegedScript(script, headTruncate = true)
+        return execute(script)
     }
 
     /**

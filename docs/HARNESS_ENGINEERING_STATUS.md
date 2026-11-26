@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-26 is [`c58ca0a`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/c58ca0afe4ba7d5e98a9833ba764cd3caf83ede2).
+Baseline after verified merges on 2026-11-26 is [`a88fda7`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/a88fda7c7229c69198a8712b919f1c1fd05459da).
 
 ## Telegram Business auto-replies
 
@@ -14,7 +14,7 @@ using Telegram's business connection ID to reply. It uses owner-supplied text,
 skips outgoing and bot messages, and limits repeat replies to one per peer every
 five minutes while the listener is running. It persists the update offset before
 dispatch. Incoming Business messages stay outside model context and chat history.
-Android CI and a linked-account smoke test remain pending.
+[#357](https://github.com/obieda-hussien/OmniDev-Workspace/pull/357) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45813727945) and the security gate passed. A linked-account smoke test remains pending.
 
 ## Telegram command and response integrity
 
@@ -101,7 +101,7 @@ The missing-directory and truncation regressions failed before the fix. All 13 p
 
 ### Privileged file comparison
 
-The previous `diff_files` wrapper returned success when `diff` failed behind the output limiter. The comparison now drains bounded output, treats exit 1 as a valid difference, and propagates actual errors. Identical inputs get an explicit result. Recursive comparison uses the tool's documented directory behavior.
+[#359](https://github.com/obieda-hussien/OmniDev-Workspace/pull/359) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45813721251) and the security gate passed. The previous `diff_files` wrapper returned success when `diff` failed behind the output limiter. The comparison now drains bounded output, treats exit 1 as a valid difference, and propagates actual errors. Identical inputs get an explicit result. Recursive comparison uses the tool's documented directory behavior.
 
 Sixteen focused Linux JVM tests passed with Bash 5.2.37 and GNU diff 3.10. The six privileged comparison and find tests also passed with Linux mksh R59. The test suite verifies an error from a diff subprocess, identical inputs including a path starting with a dash, and line truncation of a recursive diff. Recheck the same paths with Android 11 Toybox and the privileged transport. The remaining H0 audit covers advanced search, diagnostics, and process result adapters.
 
@@ -194,5 +194,18 @@ existing privileged read path and command deadline.
 Sixteen focused Kotlin/JVM tests passed with Linux Bash 5.2.37 and GNU
 coreutils 9.7. Six privileged file tests also passed with Linux mksh R59.
 Fixtures cover a missing path, a failed traversal after partial output, and
-a long report. Android CI and the Android 11 device replay are pending.
+a long report. [#360](https://github.com/obieda-hussien/OmniDev-Workspace/pull/360) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45813981346) and the security gate passed. The Android 11 device replay remains pending.
 Next, compare diagnostic and exit-code reporting over Shizuku and rish.
+
+### H0 privileged hex dump
+
+The `dd | cat -v` fallback used the formatter's exit status and suppressed read
+diagnostics. A partial read could therefore appear successful. The fallback now
+propagates both stage failures and all dump paths retain diagnostics.
+
+Twenty-two focused Kotlin/JVM tests passed on Linux Bash 5.2.37, including
+three new regressions for failed fallback reads, formatter diagnostics, and
+successful bounded reads. The three new tests also passed on Linux mksh R59.
+Android CI and replay through the actual Shizuku and rish backends are pending.
+Next, verify whether the privileged result adapter preserves exit codes,
+partial output, and truncation metadata through both backends.
