@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-26 is [`1119a25`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/1119a25d6c58ac13bd8564c44857ba2d2fb00bcc).
+Baseline after verified merges on 2026-11-26 is [`d5c9bd0`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/d5c9bd088f24ed3e8f0180e7a8d3117a57860cac).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
@@ -13,8 +13,9 @@ Baseline after verified merges on 2026-11-26 is [`1119a25`](https://github.com/o
 | H6 Environment routing | [#338](https://github.com/obieda-hussien/OmniDev-Workspace/pull/338) merged with stricter Team provider-status detection. | [#344](https://github.com/obieda-hussien/OmniDev-Workspace/pull/344) merged with scoped file dispatch after a backend outage. Replay on Android and verify worker routing. |
 | H7 Objective continuity | [#345](https://github.com/obieda-hussien/OmniDev-Workspace/pull/345) merged with persisted workspace restoration during explicit task resume. | Replay the UI handoff and verify routing on the saved objective across provider prompts. |
 | H8 Pagination | [#346](https://github.com/obieda-hussien/OmniDev-Workspace/pull/346) merged with same-revision coverage checks. [#347](https://github.com/obieda-hussien/OmniDev-Workspace/pull/347) merged with successful page receipt restoration after resume. | Replay the next-page handoff with a live provider and verify it on the reference device. |
-| H9 Stall detection | [#348](https://github.com/obieda-hussien/OmniDev-Workspace/pull/348) merged with typed GitHub pagination scoring. The `fix/h9-recovery-observation-progress` branch applies page novelty to the recovery budgets. | Verify the current branch in Android CI and replay live pagination. Audit the other duplicate-tool recovery paths. |
-| H10–H12 | Existing Agent, Team, Room, GitHub, attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
+| H9 Stall detection | [#348](https://github.com/obieda-hussien/OmniDev-Workspace/pull/348) merged with typed GitHub pagination scoring. [#349](https://github.com/obieda-hussien/OmniDev-Workspace/pull/349) merged with page novelty gating both recovery budgets. | Replay live pagination and audit the other duplicate-tool recovery paths. |
+| H10 Team routing | The `fix/h10-handoff-before-workers` branch checks whether to offer an Agent handoff before any Team worker starts. | Verify all Android flavors and the permission prompt. Evaluate pre-planner routing for clearly atomic automatic requests. |
+| H11 Attachments and H12 Autopilot | Existing attachment and scheduling components provide starting points. | Audit each runtime path and its incident replay coverage before marking a phase complete. |
 
 ## H0 replay results
 
@@ -103,8 +104,12 @@ Both regressions failed before the change. With the Agent's 0.76 threshold, eigh
 
 ### Recovery after repeated page reads
 
-The Agent previously reset both recovery budgets on every successful GitHub file read. It now uses the detector's existing bounded receipt history to reset both budgets only on a new page observation. Sending stagnation guidance clears the scoring window and keeps the receipt history. A regression exhausts both budgets, replays a page after clearing that window, then verifies both budgets reopen when the next page arrives. All 92 focused tests passed on Linux JVM using Kotlin 2.4.21, Java 21 and JUnit 4.13.2. Android CI and physical-device replay for this follow-up are pending.
+The Agent previously reset both recovery budgets on every successful GitHub file read. It now uses the detector's existing bounded receipt history to reset both budgets only on a new page observation. Sending stagnation guidance clears the scoring window and keeps the receipt history. A regression exhausts both budgets, replays a page after clearing that window, then verifies both budgets reopen when the next page arrives. All 92 focused tests passed on Linux JVM using Kotlin 2.4.21, Java 21 and JUnit 4.13.2. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45751532136) and the [required security check](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45751532190) passed at the merged head. Physical-device replay is pending.
 
-### Next H10 investigation
+## H10 Team handoff before worker dispatch
 
-The UI can offer a single-Agent handoff after `SwarmEvent.PlanCompleted` for a fresh Team run. That path has already requested a plan and does not offer the handoff during durable resume. Evaluate whether automatic routing can avoid the planner call for clearly atomic objectives while retaining explicit Team selection and the existing mode-switch permissions. Provider latency, token use and physical-device overhead have yet to be measured.
+Fresh foreground Team runs now consult the existing single-Agent handoff policy against the validated plan inside the coordinator, before dispatching workers. The previous UI collector handled a buffered event, so worker startup could race with the permission check. Durable Team resumes continue on their saved plan.
+
+The regression suspends the handoff decision for a one-task write plan and verifies one planner request, zero worker requests and zero tool calls when a handoff is offered. It passed against the production coordinator on a Linux JVM with Kotlin 2.4.21, Java 21, JUnit 4.13.2 and Android-specific dependencies stubbed. Launching the handoff check asynchronously reproduced the failure. The Android suite awaits CI because the local Gradle distribution could not be fetched. Physical-device replay is pending.
+
+Next, evaluate whether automatic routing can avoid the planner call for clearly atomic objectives while respecting explicit Team selection and mode-switch permissions. Provider latency, token use and device overhead remain unmeasured.

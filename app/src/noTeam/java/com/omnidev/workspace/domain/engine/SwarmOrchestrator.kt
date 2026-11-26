@@ -50,6 +50,7 @@ class SwarmOrchestrator(
         coordinatorAuto: Boolean = false,
         workerAuto: Boolean = false,
         sessionId: Long? = null,
-        resumeTeamId: String? = null
+        resumeTeamId: String? = null,
+        beforeWorkers: (suspend (List<SwarmTask>) -> Unit)? = null
     ): Flow<SwarmEvent> = kotlinx.coroutines.flow.flowOf(SwarmEvent.Error("Team mode is not included in this build."))
 }

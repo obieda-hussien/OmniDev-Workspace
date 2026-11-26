@@ -1771,19 +1771,17 @@ class ChatViewModel(
                 userContext = settingsRepository.observeUserPromptContext().first(),
                 steering = control,
                 sessionId = sessionId,
-                resumeTeamId = resumeTeamId
-            ).collect { event ->
-                handleSwarmEvent(event, sessionId, runId)
-                if (event is SwarmEvent.PlanCompleted && resumeTeamId == null) {
+                resumeTeamId = resumeTeamId,
+                beforeWorkers = { tasks ->
                     val suggestion = AdaptiveModeRouter.fromTeamPlan(
-                        taskCount = event.tasks.size,
-                        parallelSafeTaskCount = event.tasks.count { it.parallelSafe }
+                        taskCount = tasks.size,
+                        parallelSafeTaskCount = tasks.count { it.parallelSafe }
                     )
                     if (suggestion != null && modePermissionStore.shouldOfferSwitch(suggestion.from, suggestion.to, sessionId)) {
                         throw ModeHandoffSignal(suggestion)
                     }
                 }
-            }
+            ).collect { event -> handleSwarmEvent(event, sessionId, runId) }
         } catch (signal: ModeHandoffSignal) {
             if (runId != activeRunId.get()) return
             _uiState.update { it.copy(isProcessing = false, canSteer = false, agentStatus = null, streamingContent = null) }

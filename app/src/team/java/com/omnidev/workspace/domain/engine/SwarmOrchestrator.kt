@@ -119,7 +119,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         coordinatorAuto: Boolean = false,
         workerAuto: Boolean = false,
         sessionId: Long? = null,
-        resumeTeamId: String? = null
+        resumeTeamId: String? = null,
+        beforeWorkers: (suspend (List<SwarmTask>) -> Unit)? = null
     ): Flow<SwarmEvent> = channelFlow {
         val focusContext = try {
             if (mentionFocus.tools.isNotEmpty()) {
@@ -158,7 +159,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
                 executeAttempt(objective + evidence.context(), orchestratorModelId, workerModelId,
                     coordinatorAuto, workerAuto, scopePath, enableDeepThinking, godModeEnabled, steering, revision,
                     teamStartedAt, observedTeamTokens, mentionFocus, disabledToolNames, toolAccessMode,
-                    focusContext, userContext.take(5000), teamRunId, objective, durable, liveRevision, sessionId).collect { event ->
+                    focusContext, userContext.take(5000), teamRunId, objective, durable, liveRevision, sessionId,
+                    beforeWorkers.takeIf { resumeTeamId == null }).collect { event ->
                     evidence.record(event)
                     send(event)
                 }
@@ -197,7 +199,8 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         rootObjective: String,
         durable: DurableTeamRun?,
         steeringRevision: Long,
-        sessionId: Long?
+        sessionId: Long?,
+        beforeWorkers: (suspend (List<SwarmTask>) -> Unit)?
     ): Flow<SwarmEvent> = channelFlow {
         steering?.check(steeringRevision)
         if (observedTeamTokens.get() >= TEAM_TOTAL_TOKEN_HARD_LIMIT - SYNTHESIS_TOKEN_RESERVE) {
@@ -296,6 +299,11 @@ Synthesize specialist evidence into the single final answer the user sees. Worke
         durable?.savePlan(revision, rootObjective, runtimeTasks)
         runtimeTasks
         }
+
+        // A foreground caller may stop for a mode handoff. A buffered PlanCompleted event
+        // cannot gate dispatch because workers can start before the collector handles it.
+        beforeWorkers?.invoke(runtimeTasks)
+        steering?.check(steeringRevision)
 
         val remainingRunBudget = (
             TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE
