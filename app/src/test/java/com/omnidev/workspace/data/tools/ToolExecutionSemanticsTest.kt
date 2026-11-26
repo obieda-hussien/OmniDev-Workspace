@@ -27,6 +27,39 @@ class ToolExecutionSemanticsTest {
     }
 
     @Test
+    fun `typed nonzero status overrides successful wrapper and stale header`() {
+        val raw = ToolExecutionResult(
+            "[omni-outcome] status=PASS class=SUCCESS\npartial output",
+            classification = "SUCCESS",
+            exitCode = 13,
+            backend = "shizuku-user-service",
+            verification = "wrapper finished"
+        )
+
+        val result = ToolExecutionSemantics.normalize("hex_dump", raw)
+
+        assertTrue(result.isError)
+        assertEquals("NON_ZERO_EXIT", result.classification)
+        assertEquals(13, result.exitCode)
+        assertEquals(null, result.verification)
+        assertTrue(result.output.startsWith("[omni-outcome] status=FAIL"))
+        assertEquals("partial output", ToolExecutionSemantics.observationBody(result.output))
+    }
+
+    @Test
+    fun `structured grep no matches stays successful across normalization`() {
+        val raw = ToolExecutionResult("NO_MATCHES: empty search", classification = "NO_MATCHES",
+            exitCode = 1, backend = "termux")
+
+        val first = ToolExecutionSemantics.normalize("agent_runtime", raw)
+        val second = ToolExecutionSemantics.normalize("agent_runtime", first)
+
+        assertFalse(second.isError)
+        assertEquals(1, second.exitCode)
+        assertEquals("NO_MATCHES", second.classification)
+    }
+
+    @Test
     fun `old crash log on stdout is data not current command failure`() {
         val raw = ToolExecutionResult(
             output = """

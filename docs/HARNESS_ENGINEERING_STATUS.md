@@ -275,6 +275,15 @@ cannot prove success, including if transport truncation removes it.
 
 The 31 focused Kotlin/JVM tests include real Linux shell cases for exit 13,
 zero exit, quoted partial output, and unsuccessful or inconsistent callback
-fixtures. Android transport was stubbed. Android CI and device replay on the
-actual rish launcher are pending. Next, verify the receipt and truncation
-behavior on Android 11 before extending it to explicit terminal rish calls.
+fixtures. Android transport was stubbed. [#366](https://github.com/obieda-hussien/OmniDev-Workspace/pull/366) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45871288966) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45871289049) passed. Verify the receipt and truncation behavior on Android 11 before extending it to explicit terminal rish calls.
+
+### H0 contradictory process status
+
+A result marked successful could keep that status despite a typed nonzero
+exit. The normalizer now marks that combination as failed, drops success
+verification and regenerates the status header. A typed grep exit 1 with
+`NO_MATCHES` keeps its empty-search outcome across repeated normalization.
+
+Both regressions failed on the previous code. All 29 focused Linux
+Kotlin/JVM semantics and orchestration tests passed after the fix. Android
+CI, physical rish verification and device measurements are pending.
