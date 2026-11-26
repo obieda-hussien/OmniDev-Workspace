@@ -3,7 +3,12 @@ package com.omnidev.workspace.data.tools
 sealed class ShizukuResult {
     data class Success(val output: String) : ShizukuResult()
     data class PartialSuccess(val output: String, val exitCode: Int) : ShizukuResult()
-    data class Failure(val reason: String) : ShizukuResult()
+    data class Failure(
+        val reason: String,
+        val exitCode: Int? = null,
+        val output: String = "",
+        val truncated: Boolean = false
+    ) : ShizukuResult()
     data class PermissionRequired(val message: String) : ShizukuResult()
     data class Unavailable(val message: String) : ShizukuResult()
 
