@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.tools
 
 import android.util.Base64
+import com.omnidev.workspace.data.ipc.PrivilegedCommandOutput
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -574,33 +575,33 @@ object AdvancedFileTools {
                 )
             }
 
-            val execResult = PrivilegedExecutionManager.executeCommand(
+            val execResult = PrivilegedExecutionManager.executeCommandCapture(
                 "sh $tmpPath 2>&1; rc=\$?; rm -f $tmpPath; exit \$rc"
             )
 
             execResult.fold(
-                onSuccess = { rawOutput ->
-                    val output = rawOutput.trim().ifBlank { "(no output)" }
-                    val isTruncated = output.length > MAX_OUTPUT
-
-                    val finalOutput = if (isTruncated) {
-                        if (headTruncate) {
-                            output.take(MAX_OUTPUT) + "\n\n...[TRUNCATED — use a narrower filter or reduce max_results]..."
-                        } else {
-                            "...[TRUNCATED — showing tail]...\n\n" + output.takeLast(MAX_OUTPUT)
-                        }
-                    } else output
-
-                    ToolExecutionResult(
-                        output = finalOutput,
-                        truncated = isTruncated,
-                        classification = "SUCCESS",
-                        backend = "privileged-router"
-                    )
-                },
+                onSuccess = { captured -> formatPrivilegedOutput(captured, headTruncate) },
                 onFailure = { ToolExecutionResult("Execution failed: ${it.message}", isError = true) }
             )
         }
+
+    internal fun formatPrivilegedOutput(captured: PrivilegedCommandOutput, headTruncate: Boolean): ToolExecutionResult {
+        val output = captured.output.trim().ifBlank { "(no output)" }
+        val outputExceedsLimit = output.length > MAX_OUTPUT
+        val finalOutput = when {
+            outputExceedsLimit && headTruncate ->
+                output.take(MAX_OUTPUT) + "\n\n...[TRUNCATED — use a narrower filter or reduce max_results]..."
+            outputExceedsLimit -> "...[TRUNCATED — showing tail]...\n\n" + output.takeLast(MAX_OUTPUT)
+            captured.truncated -> output + "\n\n...[TRUNCATED — output was limited by the execution backend]..."
+            else -> output
+        }
+        return ToolExecutionResult(
+            output = finalOutput,
+            truncated = captured.truncated || outputExceedsLimit,
+            classification = "SUCCESS",
+            backend = "privileged-router"
+        )
+    }
 
     // ─────────────────────────────────────────────────────────────────────
     // Helpers

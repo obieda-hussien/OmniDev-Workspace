@@ -206,6 +206,20 @@ propagates both stage failures and all dump paths retain diagnostics.
 Twenty-two focused Kotlin/JVM tests passed on Linux Bash 5.2.37, including
 three new regressions for failed fallback reads, formatter diagnostics, and
 successful bounded reads. The three new tests also passed on Linux mksh R59.
-Android CI and replay through the actual Shizuku and rish backends are pending.
-Next, verify whether the privileged result adapter preserves exit codes,
-partial output, and truncation metadata through both backends.
+[#361](https://github.com/obieda-hussien/OmniDev-Workspace/pull/361) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45824442639) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45824442557) passed. Replay through Shizuku and rish on the reference device remains pending.
+
+### H0 privileged filesystem output capture
+
+The execution router already bounded successful Shizuku and rish output at
+8,000 characters. The filesystem tool received a string and compared it to
+its own 12,000-character limit, so a clipped response looked complete. The
+router now retains its truncation flag. The rish path also carries the
+existing Termux transport flag forward. The filesystem tool reports the flag
+and shows a truncation notice. Legacy string callers keep their existing
+output, and Lite still rejects privileged execution.
+
+Twenty-five focused Kotlin/JVM tests passed on Linux with Android dispatch
+stubbed. Three new cases cover 8,000 characters exactly, 8,001 characters
+clipped by the router, and earlier transport truncation. Android CI and
+physical replay remain pending. Next, carry typed failed process exit codes
+and partial output across the privileged router.

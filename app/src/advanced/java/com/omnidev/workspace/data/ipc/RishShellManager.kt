@@ -67,7 +67,9 @@ class RishShellManager(private val context: Context) {
     fun cachedHealth(): RishRuntimeHealth = lastHealth
 
     /** Execute exactly like Termux `rish -c <command>`. */
-    suspend fun execute(command: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun execute(command: String): Result<String> = executeCaptured(command).map { it.output }
+
+    internal suspend fun executeCaptured(command: String): Result<PrivilegedCommandOutput> = withContext(Dispatchers.IO) {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("rish command is empty"))
         }
@@ -88,7 +90,7 @@ class RishShellManager(private val context: Context) {
             label = "OmniDev rish"
         )
         if (result.isSuccess) {
-            Result.success(result.mergedOutput().ifBlank { "(no output)" })
+            Result.success(PrivilegedCommandOutput(result.mergedOutput().ifBlank { "(no output)" }, result.wasTruncated))
         } else {
             val merged = result.mergedOutput()
             val state = RishFailureClassifier.classify(
