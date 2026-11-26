@@ -1,6 +1,7 @@
 package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.model.ToolCall
+import com.omnidev.workspace.data.mcp.McpDiscoveryCoverage
 import com.omnidev.workspace.data.tools.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -40,6 +41,19 @@ class RunToolCatalogTest {
         val reply = OmniIdentityReply.reply("list all tools", null, run)!!
         assertTrue(reply.contains("Registered tools: 5. Authorized for this session: 2. Schemas loaded: 1."))
         assertTrue(reply.contains("Live backend availability is unknown."))
+    }
+
+    @Test fun `partial MCP discovery is visible without loading schemas or claiming live readiness`() {
+        val run = RunToolCatalog(registry, "all tools", mcpCoverage = McpDiscoveryCoverage(2, 1))
+        val before = run.definitions()
+
+        val page = run.discover("inventory:40").output
+        val reply = OmniIdentityReply.reply("list all tools", null, run)!!
+
+        assertTrue(page.contains("Servers included: 2. Undiscovered: 1."))
+        assertTrue(reply.contains("Servers included: 2. Undiscovered: 1."))
+        assertTrue(page.contains("Live backend availability: unknown."))
+        assertEquals(before, run.definitions())
     }
 
     @Test fun `inventory can report observed backend health without changing authorization or schemas`() {

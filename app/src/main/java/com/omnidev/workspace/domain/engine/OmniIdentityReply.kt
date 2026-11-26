@@ -23,8 +23,9 @@ internal object OmniIdentityReply {
             "Registered tools: ${counts.registered}. Authorized for this session: ${counts.authorized}. " +
                 "Schemas loaded: ${counts.loaded}. Live backend availability is unknown."
         }
-        if (tools.isEmpty()) return heading
-        return tools.joinToString("\n", prefix = heading + "\n\n") { tool ->
+        val summary = listOfNotNull(heading, catalog.mcpInventorySummary()).joinToString("\n")
+        if (tools.isEmpty()) return summary
+        return tools.joinToString("\n", prefix = summary + "\n\n") { tool ->
             "- `${tool.name}` [${catalog.inventorySource(tool.name)}] — ${tool.description.trim().lineSequence().firstOrNull().orEmpty().take(140)}"
         }
     }
