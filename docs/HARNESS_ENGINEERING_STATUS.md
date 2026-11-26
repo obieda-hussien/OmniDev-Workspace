@@ -220,6 +220,20 @@ output, and Lite still rejects privileged execution.
 
 Twenty-five focused Kotlin/JVM tests passed on Linux with Android dispatch
 stubbed. Three new cases cover 8,000 characters exactly, 8,001 characters
-clipped by the router, and earlier transport truncation. Android CI and
-physical replay remain pending. Next, carry typed failed process exit codes
-and partial output across the privileged router.
+clipped by the router, and earlier transport truncation. [#362](https://github.com/obieda-hussien/OmniDev-Workspace/pull/362) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45834024279) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45834024337) passed. Physical replay remains pending.
+
+### H0 Shizuku process failures
+
+Completed Shizuku processes with a nonzero exit now carry their exit code and
+bounded partial output into the filesystem tool result. The typed result
+prevents diagnostic text from triggering a transport retry or backend
+fallback for a process that already returned. Shizuku transport exceptions
+still follow the existing retry and replay policy. The filesystem adapter
+keeps failed executions marked as errors, including when output is truncated.
+
+Twenty-eight Linux Kotlin/JVM tests passed with Android dispatch stubbed.
+New cases exercise exit 13 with partial output, a truncated failed response,
+and a transport error with no process exit code. Android CI and replay on
+the Android 11 reference device are pending. Next, distinguish completed rish
+commands from launcher or transport failures before forwarding their exit
+codes through the same boundary.

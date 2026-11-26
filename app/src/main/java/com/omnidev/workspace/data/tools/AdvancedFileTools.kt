@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.tools
 import android.util.Base64
 import com.omnidev.workspace.data.ipc.PrivilegedCommandOutput
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
+import com.omnidev.workspace.data.ipc.PrivilegedProcessFailure
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -581,9 +582,28 @@ object AdvancedFileTools {
 
             execResult.fold(
                 onSuccess = { captured -> formatPrivilegedOutput(captured, headTruncate) },
-                onFailure = { ToolExecutionResult("Execution failed: ${it.message}", isError = true) }
+                onFailure = ::formatPrivilegedFailure
             )
         }
+
+    internal fun formatPrivilegedFailure(failure: Throwable): ToolExecutionResult {
+        if (failure !is PrivilegedProcessFailure) {
+            return ToolExecutionResult("Execution failed: ${failure.message}", isError = true)
+        }
+        val captured = formatPrivilegedOutput(failure.captured, headTruncate = true)
+        val output = if (failure.captured.output.isBlank() && !failure.captured.truncated) {
+            "Execution failed: ${failure.message}"
+        } else {
+            "Execution failed (exit=${failure.exitCode}):\n${captured.output}"
+        }
+        return captured.copy(
+            output = output,
+            isError = true,
+            classification = "NON_ZERO_EXIT",
+            exitCode = failure.exitCode,
+            backend = "shizuku-user-service"
+        )
+    }
 
     internal fun formatPrivilegedOutput(captured: PrivilegedCommandOutput, headTruncate: Boolean): ToolExecutionResult {
         val output = captured.output.trim().ifBlank { "(no output)" }

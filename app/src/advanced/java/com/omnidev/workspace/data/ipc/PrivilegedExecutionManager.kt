@@ -166,6 +166,7 @@ object PrivilegedExecutionManager {
                 }
 
                 is ShizukuResult.Failure -> {
+                    r.toPrivilegedProcessFailure()?.let { return@withContext Result.failure(it) }
                     if (isShizukuBackendFailure(r.reason)) {
                         if (!crossBackendRetrySafe) {
                             return@withContext Result.failure(

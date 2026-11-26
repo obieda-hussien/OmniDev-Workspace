@@ -82,7 +82,7 @@ object ShizukuCommandTool {
 
                 is ShizukuResult.Failure -> {
                     lastFailure = result
-                    val transportRetry = isRetryableError(result.reason)
+                    val transportRetry = result.exitCode == null && isRetryableError(result.reason)
                     val hasNextAttempt = attempt + 1 < maxAttempts
                     if (!transportRetry || !hasNextAttempt) {
                         if (transportRetry && !retrySafe) {
@@ -109,7 +109,11 @@ object ShizukuCommandTool {
     private suspend fun executeOnce(command: String, timeoutMs: Long): ShizukuResult {
         return try {
             val result = ShizukuUserServiceClient.execute(command, timeoutMs)
-            val output = result.mergedOutput().trim().take(MAX_OUTPUT_CHARS)
+            val merged = result.mergedOutput().trim()
+            val output = merged.take(MAX_OUTPUT_CHARS)
+            val exitCode = result.exitCode.takeIf { it > 0 }
+            fun commandFailure(reason: String): ShizukuResult.Failure =
+                ShizukuResult.Failure(reason, exitCode, output, merged.length > output.length)
             val failureEvidence = buildString {
                 if (result.stderr.isNotBlank()) append(result.stderr)
                 if (!result.error.isNullOrBlank()) {
@@ -129,14 +133,14 @@ object ShizukuCommandTool {
                     result.error ?: "Execution timeout exceeded (${timeoutMs / 1000}s): ${command.take(80)}"
                 )
                 result.error != null -> ShizukuResult.Failure(result.error)
-                semanticFailure != null -> ShizukuResult.Failure(
+                semanticFailure != null -> commandFailure(
                     "$semanticFailure: ${failureEvidence.take(2_000)}"
                 )
                 result.exitCode != 0 -> {
                     if (result.exitCode == 127 || output.contains("not found", ignoreCase = true)) {
-                        ShizukuResult.Failure("Command not found (exit=${result.exitCode}): ${output.take(500)}")
+                        commandFailure("Command not found (exit=${result.exitCode}): ${output.take(500)}")
                     } else {
-                        ShizukuResult.Failure(
+                        commandFailure(
                             "Command failed (exit=${result.exitCode}): ${output.ifBlank { "(no output)" }.take(2_000)}"
                         )
                     }
