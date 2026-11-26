@@ -91,10 +91,13 @@ class FinishGate(
                 val end = parts.getOrNull(1) ?: return@mapNotNull null
                 parts.getOrNull(2) to (start to end)
             }.groupBy({ it.first }, { it.second })
-            val nextLines = pages.map { (revision, ranges) -> nextReadmeLine(ranges, revision != null) }
-            if (null !in nextLines) {
-                val nextUnread = nextLines.filterNotNull().maxOrNull() ?: 1
-                return reject("Read README.md in $repo from start_line=$nextUnread using one matching File SHA-256. Report partial coverage if unavailable.", request.claims)
+            val nextLines = pages.mapValues { (revision, ranges) -> nextReadmeLine(ranges, revision != null) }
+            if (null !in nextLines.values) {
+                val best = nextLines.entries.maxByOrNull { it.value ?: 1 }
+                val nextUnread = best?.value ?: 1
+                val revision = best?.key?.takeIf { nextUnread > 1 }
+                val cursor = "start_line=$nextUnread" + (revision?.let { " and file_sha256=$it" } ?: "")
+                return reject("Read README.md in $repo using $cursor. Report partial coverage if unavailable.", request.claims)
             }
         }
         val eval = evaluate(request)
