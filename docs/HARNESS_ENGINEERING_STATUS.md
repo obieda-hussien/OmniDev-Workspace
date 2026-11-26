@@ -1,6 +1,23 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-26 is [`4d2165a`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/4d2165a3b745e3f0dfe8fd878735aa6efaa97e05).
+Baseline after verified merges on 2026-11-26 is [`c58ca0a`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/c58ca0afe4ba7d5e98a9833ba764cd3caf83ede2).
+
+## Telegram command and response integrity
+
+Telegram now handles mode and session aliases locally, returns the actual mode,
+checks build capabilities and workspace scope before switching, and routes
+unknown bot commands to help. Chat status no longer presents the global tool
+count as a per-session capability. Recognized device inventory, foreground
+application and storage questions stop before text-only inference in Chat.
+Replies strip reasoning blocks and reject execution-report claims in the
+tool-free Chat path. Agent responses require a final answer instead of
+falling back to draft streaming output.
+
+Five isolated Kotlin/JVM tests cover the reported commands, pairing parsing,
+reasoning tags, fabricated execution reports, and Arabic device questions.
+The previous head passed Android CI, including API 30, and the security gate. The updated head and a linked Telegram device check are pending. Cross-channel memory
+requires a verified identity link and explicit data-sharing policy.
+
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |

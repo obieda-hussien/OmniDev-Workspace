@@ -9,12 +9,15 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import com.omnidev.workspace.BuildConfig
 import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.data.network.CompletionService
+import com.omnidev.workspace.data.network.PartialCompletionException
+import com.omnidev.workspace.data.network.RateLimitException
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
@@ -33,6 +36,7 @@ import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.domain.engine.SwarmOrchestrator
 import com.omnidev.workspace.registry.ModelRegistry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -129,8 +133,8 @@ class TelegramPollingService : Service() {
 
         /** System prompt for CHAT mode on Telegram. */
         private const val TELEGRAM_SYSTEM_PROMPT =
-            "You are Omni — an autonomous AI assistant accessible via Telegram. " +
-            "You can answer questions, help with tasks, write code, and coordinate complex workflows. " +
+            "You are Omni in Telegram Chat mode. You cannot run tools, inspect the phone, change modes, or manage sessions. " +
+            "Use the current conversation and any supplied profile for memory. A Telegram handle is not evidence of a remembered name. Never invent device data or report tool execution. Answer naturally without a reasoning transcript or execution report. " +
             "Be direct, helpful, and concise. Respond in the same language the user writes in."
 
         /** Append a message to the in-app mirror, capping at [MAX_MIRROR_MESSAGES]. */
@@ -334,9 +338,11 @@ class TelegramPollingService : Service() {
                         val userId = fromObj.optLong("id")
                         val chatType = chatObj.optString("type")
                         val rawText = msg.optString("text", "").trim()
-                        if (rawText.substringBefore(' ').substringBefore('@').equals("/pair", ignoreCase = true)) {
+                        val command = TelegramConversationPolicy.parse(rawText)
+                        if (command?.target?.equals(botUsername.removePrefix("@"), ignoreCase = true) == false) continue
+                        if (command?.name == "pair") {
                             if (TelegramOwnerLinkStore.isPrivateOwnerChat(chatId, userId, chatType)) {
-                                val code = rawText.substringAfter(' ', "").trim()
+                                val code = command.argument
                                 val linked = ownerLinkStore.pair(token, chatId, userId, chatType, code)
                                 sendReply(token, chatId, messageId, if (linked)
                                     "✅ This private chat is linked to OmniDev. Use /help to get started."
@@ -427,7 +433,7 @@ class TelegramPollingService : Service() {
                             )
                         )
 
-                        handleIncoming(token, chatId, messageId, senderName, text)
+                        handleIncoming(token, chatId, messageId, senderName, text, command)
                         } finally {
                             // Commit after handling, including ignored updates, to prevent replays on restart.
                             advanceOffset(token, updateId)
@@ -449,31 +455,32 @@ class TelegramPollingService : Service() {
         chatId: Long,
         messageId: Long,
         senderName: String,
-        text: String
+        text: String,
+        command: TelegramConversationPolicy.Command?
     ) {
         val currentMode = chatModes[chatId] ?: OmniMode.CHAT
         val chatTitle = chatTitles[chatId] ?: chatId.toString()
 
-        // ── Built-in commands ──────────────────────────────────────────────
-        // Strip optional @BotName suffix (Telegram appends it in groups, e.g. /status@OmniBot)
-        val cmd = text.lowercase().trim().split(" ")[0].let {
-            if (it.contains("@")) it.substringBefore("@") else it
-        }
-        when (cmd) {
-            "/start" -> {
+        when (command?.name) {
+            "mode" -> {
                 sendReply(token, chatId, messageId,
-                    "👋 Welcome! I'm *Omni* — your AI assistant on Telegram.\n\n" +
-                    "Current mode: *${currentMode.label}*\n\n" +
+                    "Current mode: ${currentMode.label}\nUse /mode chat, /mode agent, or /mode swarm.")
+                return
+            }
+            "start" -> {
+                sendReply(token, chatId, messageId,
+                    "👋 Welcome! I'm Omni — your AI assistant on Telegram.\n\n" +
+                    "Current mode: ${currentMode.label}\n\n" +
                     "Send any question or task and I'll respond right away 🤖\n\n" +
                     "/help — command list\n/clear — clear the conversation\n" +
-                    "/mode\\_chat — standard chat mode\n" +
-                    "/mode\\_agent — Agent mode with all tools\n" +
-                    "/mode\\_swarm — multi-agent Swarm mode\n" +
+                    "/mode_chat — standard chat mode\n" +
+                    "/mode_agent — Agent mode with permitted tools\n" +
+                    "/mode_swarm — multi-agent Swarm mode\n" +
                     "/status — current session status")
                 return
             }
 
-            "/clear", "/reset" -> {
+            "clear", "reset" -> {
                 // Archive before clearing
                 val oldHistory = sessionHistory[chatId]
                 val oldName = sessionNameMap[chatId] ?: "Session ${sessionCounters.getOrDefault(chatId, 1)}"
@@ -483,82 +490,88 @@ class TelegramPollingService : Service() {
                 }
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "✅ Conversation history cleared.\n_Use /sessions to view previous sessions._")
+                    "✅ Conversation history cleared.\nUse /sessions to view previous sessions.")
                 return
             }
 
-            "/help" -> {
+            "help" -> {
                 sendReply(token, chatId, messageId,
-                    "*Omni — available commands:*\n\n" +
-                    "🎛️ *Modes:*\n" +
-                    "/mode\\_chat — standard conversation\n" +
-                    "/mode\\_agent — autonomous agent with all tools\n" +
-                    "/mode\\_swarm — multi-agent team\n\n" +
-                    "📋 *Session management:*\n" +
+                    "Omni — available commands:\n\n" +
+                    "🎛️ Modes:\n/mode — show current mode\n" +
+                    "/mode_chat — standard conversation\n" +
+                    "/mode_agent — agent with permitted tools\n" +
+                    "/mode_swarm — multi-agent team\n\n" +
+                    "📋 Session management:\n" +
                     "/status — show mode and statistics\n" +
-                    "/new\\_session [name] — start a new session and save the current one\n" +
+                    "/new_session [name] — start a new session and save the current one\n" +
                     "/sessions — show saved sessions\n" +
                     "/clear — clear the current conversation context\n\n" +
                     "Agent and Swarm modes use the Target Context configured in OmniDev settings.")
                 return
             }
 
-            "/mode_chat" -> {
+            "mode_chat" -> {
                 chatModes[chatId] = OmniMode.CHAT
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "✅ Switched to *Chat mode* 💬\nDirect responses without tools.")
+                    "✅ Switched to Chat mode 💬\nDirect responses without tools.")
                 return
             }
 
-            "/mode_agent" -> {
+            "mode_agent" -> {
+                if (!BuildConfig.ALLOW_AGENT) {
+                    sendReply(token, chatId, messageId, "Agent mode is unavailable in this app edition.")
+                    return
+                }
                 if (configuredScope() == null) {
                     sendReply(token, chatId, messageId,
-                        "⚠️ Set a specific Target Context in OmniDev settings before enabling Agent mode.")
+                        "⚠️ Choose a specific workspace folder in OmniDev Settings → Target Context, then send /mode agent again.")
                     return
                 }
                 chatModes[chatId] = OmniMode.AGENT
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "🤖 Switched to *Agent mode* ⚡\n" +
-                    "The agent has full access to all tools and runs a ReAct loop.\n" +
-                    "_Note: replies can take longer while tools are being executed._")
+                    "🤖 Switched to Agent mode ⚡\n" +
+                    "The agent can use permitted tools within the configured workspace.\n" +
+                    "Replies can take longer while tools are being executed.")
                 return
             }
 
-            "/mode_swarm" -> {
+            "mode_swarm" -> {
+                if (!BuildConfig.ALLOW_TEAM) {
+                    sendReply(token, chatId, messageId, "Swarm mode is unavailable in this app edition.")
+                    return
+                }
                 if (configuredScope() == null) {
                     sendReply(token, chatId, messageId,
-                        "⚠️ Set a specific Target Context in OmniDev settings before enabling Swarm mode.")
+                        "⚠️ Choose a specific workspace folder in OmniDev Settings → Target Context, then send /mode swarm again.")
                     return
                 }
                 chatModes[chatId] = OmniMode.SWARM
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "🐝 Switched to *Swarm mode* 🌐\n" +
+                    "🐝 Switched to Swarm mode 🌐\n" +
                     "The orchestrator divides the task across a team of specialized agents.\n" +
-                    "_Best for complex multi-step tasks._")
+                    "Best for complex multi-step tasks.")
                 return
             }
 
-            "/status" -> {
+            "status" -> {
                 val history = sessionHistory[chatId]
                 val msgCount = history?.size ?: 0
-                val toolCount = toolManager.getToolDefinitions().size
                 val sesName = sessionNameMap[chatId] ?: "Default session"
                 sendReply(token, chatId, messageId,
-                    "📊 *Session status:*\n\n" +
-                    "🎛️ Mode: *${(chatModes[chatId] ?: OmniMode.CHAT).label}*\n" +
-                    "📝 Session name: *$sesName*\n" +
-                    "💬 Messages in context: *$msgCount*\n" +
-                    "🛠️ Available tools: *$toolCount*\n" +
+                    "📊 Session status:\n\n" +
+                    "🎛️ Mode: ${(chatModes[chatId] ?: OmniMode.CHAT).label}\n" +
+                    "📝 Session name: $sesName\n" +
+                    "💬 Messages in context: $msgCount\n" +
                     "🤖 Bot running: ${if (isRunning) "✅" else "❌"}\n\n" +
-                    "_/new\\_session [name] — start a new session_\n" +
-                    "_/sessions — show all previous sessions_")
+                    "/new_session [name] — start a new session\n" +
+                    "/sessions — show previous session summaries")
                 return
             }
 
-            "/new_session" -> {
+            "new_session" -> {
                 // Archive current session
                 val oldHistory = sessionHistory[chatId]
                 val oldName = sessionNameMap[chatId] ?: "Session ${sessionCounters.getOrDefault(chatId, 1)}"
@@ -569,35 +582,44 @@ class TelegramPollingService : Service() {
                 // Start new session
                 val counter = (sessionCounters.getOrDefault(chatId, 1)) + 1
                 sessionCounters[chatId] = counter
-                val parts = text.split(" ", limit = 2)
-                val newName = if (parts.size > 1 && parts[1].isNotBlank())
-                    parts[1].trim() else "Session $counter"
+                val newName = command?.argument.orEmpty().ifBlank { "Session $counter" }.take(100)
                 sessionHistory.remove(chatId)
                 sessionNameMap[chatId] = newName
                 sendReply(token, chatId, messageId,
-                    "🆕 Started a new session: *$newName*\n" +
+                    "🆕 Started a new session: $newName\n" +
                     "Conversation context was cleared — start fresh!")
                 return
             }
 
-            "/sessions" -> {
+            "sessions" -> {
                 val list = namedSessions[chatId]
                 if (list.isNullOrEmpty()) {
                     sendReply(token, chatId, messageId,
                         "📋 No saved sessions yet.\n\n" +
-                        "_Use /new\\_session [name] to start a session and save the current one._")
+                        "Use /new_session [name] to start a session.")
                 } else {
-                    val sb = StringBuilder("📋 *Previous sessions:*\n\n")
+                    val sb = StringBuilder("📋 Previous sessions:\n\n")
                     list.takeLast(10).forEachIndexed { i, (name, count) ->
-                        sb.append("${i + 1}. *$name* — $count messages\n")
+                        sb.append("${i + 1}. $name — $count messages\n")
                     }
                     val currentName = sessionNameMap[chatId] ?: "Current session"
                     val currentCount = sessionHistory[chatId]?.size ?: 0
-                    sb.append("\n🟢 Current: *$currentName* ($currentCount messages)")
+                    sb.append("\n🟢 Current: $currentName ($currentCount messages)")
                     sendReply(token, chatId, messageId, sb.toString())
                 }
                 return
             }
+            null -> Unit
+            else -> {
+                sendReply(token, chatId, messageId, "Unknown command. Use /help for commands.")
+                return
+            }
+        }
+
+        if (currentMode == OmniMode.CHAT && TelegramConversationPolicy.needsDeviceEvidence(text)) {
+            sendReply(token, chatId, messageId,
+                "Chat mode cannot inspect this phone. Configure a workspace in OmniDev, then use /mode agent.")
+            return
         }
 
         // ── Route to the right engine based on mode ──────────────────────
@@ -619,11 +641,11 @@ class TelegramPollingService : Service() {
             }
         }
 
-        val reply = when (chatModes[chatId] ?: OmniMode.CHAT) {
+        val reply = TelegramConversationPolicy.visibleReply(when (chatModes[chatId] ?: OmniMode.CHAT) {
             OmniMode.AGENT -> handleAgentMode(token, chatId, senderName, text)
             OmniMode.SWARM -> handleSwarmMode(token, chatId, text)
             else -> handleChatMode(chatId, senderName, text)
-        }
+        })
 
         if (reply.isNotBlank()) {
             // Mirror bot reply to app
@@ -664,6 +686,7 @@ class TelegramPollingService : Service() {
         }
         history.add(ChatMessage(role = MessageRole.USER, content = "$senderName: $text"))
 
+        val accumulated = StringBuilder()
         return try {
             val modelId = settingsRepository.observeModelIdForRole(ModelRole.CHAT).first()
             val model = ModelRegistry.findModelById(modelId)
@@ -681,15 +704,24 @@ class TelegramPollingService : Service() {
                 temperature = 0.7,
                 apiKey = apiKey
             )
-            val accumulated = StringBuilder()
-            completionService.stream(request) { chunk -> accumulated.append(chunk) }
-            val reply = accumulated.toString().trim()
+            val response = completionService.stream(request) { chunk -> accumulated.append(chunk) }
+            val reply = TelegramConversationPolicy.visibleReply(
+                response.content.ifBlank { accumulated.toString() }, chatHasNoTools = true
+            )
             if (reply.isNotBlank()) {
                 history.add(ChatMessage(role = MessageRole.ASSISTANT, content = reply))
             }
             reply
-        } catch (e: Exception) {
-            "⚠️ Error: ${e.message?.take(200) ?: "Unknown error"}"
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (partial: PartialCompletionException) {
+            val visible = TelegramConversationPolicy.visibleReply(accumulated.toString(), chatHasNoTools = true)
+            if (visible.isBlank()) "The model response was interrupted before a usable reply."
+            else "$visible\n\nThe model response was interrupted."
+        } catch (limited: RateLimitException) {
+            "The selected model provider rate-limited this request. ${limited.message.orEmpty()}"
+        } catch (_: Exception) {
+            "Could not get a reply from the selected model provider."
         }
     }
 
@@ -729,9 +761,6 @@ class TelegramPollingService : Service() {
             val history = sessionHistory.getOrPut(chatId) { mutableListOf() }
 
             val replyBuilder = StringBuilder()
-            val streamBuilder = StringBuilder()
-            val toolLog = StringBuilder()
-
             val result = withTypingIndicator(token, chatId) {
                 withTimeoutOrNull(AGENT_TIMEOUT_MS) {
                     agentPipeline.execute(
@@ -746,11 +775,7 @@ class TelegramPollingService : Service() {
                                 replyBuilder.clear()
                                 replyBuilder.append(event.content)
                             }
-                            is AgentEvent.ToolExecution ->
-                                toolLog.append("\n🛠 `${event.toolName}` — iteration ${event.iteration}")
                             is AgentEvent.Error -> replyBuilder.append("\n⚠️ ${event.message}")
-                            is AgentEvent.StreamChunk -> if (streamBuilder.length < 30_000)
-                                streamBuilder.append(event.delta)
                             else -> Unit
                         }
                     }
@@ -764,7 +789,7 @@ class TelegramPollingService : Service() {
             }
 
             // Store the exchange in session history
-            val answer = replyBuilder.toString().ifBlank { streamBuilder.toString() }
+            val answer = TelegramConversationPolicy.visibleReply(replyBuilder.toString())
             if (answer.isNotBlank()) {
                 while (history.size > MAX_HISTORY_MSGS) {
                     history.removeAt(0)
@@ -774,13 +799,7 @@ class TelegramPollingService : Service() {
                 history.add(ChatMessage(role = MessageRole.ASSISTANT, content = answer))
             }
 
-            val suffix = if (toolLog.isNotEmpty())
-                "\n\n_⚙️ Tools used:${toolLog}_"
-            else ""
-
-            (answer.trim() + suffix).ifBlank {
-                "✅ Task completed. (The agent did not produce a text response.)"
-            }
+            answer.ifBlank { "The agent did not produce a verified response." }
         } catch (e: Exception) {
             "⚠️ Agent mode error: ${e.message?.take(200) ?: "Unknown error"}"
         }
@@ -826,7 +845,7 @@ class TelegramPollingService : Service() {
             }
 
             replyBuilder.toString().trim().ifBlank {
-                "✅ Swarm task completed. (The team did not produce a text response.)"
+                "The team did not produce a verified response."
             }
         } catch (e: Exception) {
             "⚠️ Swarm mode error: ${e.message?.take(200) ?: "Unknown error"}"
@@ -849,6 +868,7 @@ class TelegramPollingService : Service() {
                 "status" to "Show mode and statistics",
                 "new_session" to "Start a new session and save the current one",
                 "sessions" to "Show saved previous sessions",
+                "mode" to "Show the active mode",
                 "mode_chat" to "Enable standard chat mode 💬",
                 "mode_agent" to "Enable Agent mode with tools 🤖",
                 "mode_swarm" to "Enable multi-agent Swarm mode 🐝"
@@ -917,7 +937,7 @@ class TelegramPollingService : Service() {
                         if (idx == 0) put("reply_to_message_id", replyToId)
                     }
                     val firstCode = postTelegramMessage(token, body)
-                    if (firstCode !in 200..299 && idx == 0) {
+                    if (firstCode == 400 && idx == 0) {
                         body.remove("reply_to_message_id")
                         val retryCode = postTelegramMessage(token, body)
                         if (retryCode !in 200..299) throw java.io.IOException("sendMessage HTTP $retryCode")
