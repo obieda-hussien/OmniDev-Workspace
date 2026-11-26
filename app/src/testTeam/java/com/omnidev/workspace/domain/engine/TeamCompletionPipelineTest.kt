@@ -2,8 +2,11 @@ package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.model.*
 import com.omnidev.workspace.data.tools.*
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -24,6 +27,42 @@ class TeamCompletionPipelineTest {
     }
     private fun assigned(request: CompletionRequest) = request.messages.firstOrNull { it.content.contains("## Assigned Team Task") }?.content.orEmpty()
 
+    @Test fun `atomic team handoff waits before starting a worker`() = runTest {
+        val tools = Tools()
+        val planReady = CompletableDeferred<List<SwarmTask>>()
+        val decision = CompletableDeferred<Unit>()
+        val handoff = IllegalStateException("single Agent handoff")
+        var plannerCalls = 0
+        var workerCalls = 0
+        val team = SwarmOrchestrator(tools, completionProvider = { request ->
+            if (request.systemPrompt.orEmpty().contains("Omni Team Orchestrator")) {
+                plannerCalls++
+                CompletionResponse("""[{"id":"edit","description":"Write the project configuration","parallelSafe":false}]""")
+            } else {
+                workerCalls++
+                CompletionResponse("", listOf(ToolCall("write", "write_file", mapOf("path" to "/tmp/config.kt"))))
+            }
+        })
+        val outcome = async {
+            runCatching {
+                team.execute("Write the project configuration", "gpt-4o-mini", "gpt-4o-mini", "/tmp",
+                    beforeWorkers = { tasks ->
+                        planReady.complete(tasks)
+                        decision.await()
+                        throw handoff
+                    }).toList()
+            }
+        }
+
+        assertEquals("edit", withTimeout(1_000) { planReady.await() }.single().id)
+        assertEquals(0, workerCalls)
+        decision.complete(Unit)
+
+        assertEquals(handoff.message, outcome.await().exceptionOrNull()?.message)
+        assertEquals(1, plannerCalls)
+        assertEquals(0, workerCalls)
+        assertTrue(tools.executed.isEmpty())
+    }
 
     @Test fun `unkept inspection promise gets one alternative worker attempt with real read evidence`() = runTest {
         val tools = Tools()
