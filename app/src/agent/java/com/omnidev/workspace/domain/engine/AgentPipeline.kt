@@ -339,7 +339,8 @@ When improving: keep every other sentence, the structure, the language and the l
             val result = if (denied != null) ToolExecutionResult("Routine requires disabled tool: $denied", true) else
                 toolManager.executeTool("learned_routine", mapOf("action" to "run", "routine_id" to routine.id,
                     "parameters" to kotlinx.serialization.json.Json.encodeToString(kotlinx.serialization.serializer<Map<String, String>>(), parameters)), scopePath)
-            send(AgentEvent.ToolResult("learned_routine", result.output.substringBefore("\nCheckpoint:"), result.isError, 0))
+            send(AgentEvent.ToolResult("learned_routine", result.output.substringBefore("\nCheckpoint:"), result.isError, 0,
+                classification = result.classification, successfulCallMayHaveSideEffects = !result.isError))
             phase(AgentExecutionPhase.REPORT, "Local routine · 0 model tokens")
             emitUsage(0, 0)
             send(AgentEvent.FinalAnswer(result.output.substringBefore("\nCheckpoint:"), 0, 0, conversationHistory +
@@ -999,7 +1000,8 @@ When improving: keep every other sentence, the structure, the language and the l
             toolResults += ToolCallResult(call.id, call.name, modelSafe.output, modelSafe.isError)
             evidenceLedger.record(call, toolResults.last(), modelSafe.classification)
             onEvent(AgentEvent.ToolResult(call.name, modelSafe.output, modelSafe.isError, iteration,
-                evidenceLedger.snapshot().last(), modelSafe.classification))
+                evidenceLedger.snapshot().last(), modelSafe.classification,
+                successfulCallMayHaveSideEffects = !modelSafe.isError && !ToolBatchPolicy.isReadOnly(call)))
             brain?.onToolExecutionEnd(
                 toolName = call.name,
                 parameters = call.arguments,

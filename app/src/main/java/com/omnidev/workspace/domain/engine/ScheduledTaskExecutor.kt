@@ -3,6 +3,7 @@ package com.omnidev.workspace.domain.engine
 import android.content.Context
 import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.domain.engine.completion.CompletionReport
+import com.omnidev.workspace.domain.engine.completion.FinishStatus
 import com.omnidev.workspace.domain.engine.completion.RunIdentity
 import com.omnidev.workspace.data.tools.ScheduledTaskChatLogger
 import com.omnidev.workspace.data.tools.TaskSchedulerTool
@@ -26,6 +27,7 @@ class ScheduledTaskExecutor(private val context: Context) {
         var result = ""
         var error: String? = null
         var completionReport: CompletionReport? = null
+        var reviewBeforeRetry = false
         var iterations = 0
         val tools = mutableListOf<String>()
         val entries = mutableListOf<AgentConsoleEntry>()
@@ -49,6 +51,11 @@ class ScheduledTaskExecutor(private val context: Context) {
                     }
                     is AgentEvent.Error -> error = event.message
                     is AgentEvent.ToolExecution -> tools.add(event.toolName)
+                    is AgentEvent.ToolResult -> if (ScheduledRunVerification.blocksReplay(
+                            event.evidence, event.classification, event.successfulCallMayHaveSideEffects
+                        )) {
+                        reviewBeforeRetry = true
+                    }
                     else -> Unit
                 }
                 if (System.currentTimeMillis() - lastSaved >= 750) {
@@ -69,6 +76,8 @@ class ScheduledTaskExecutor(private val context: Context) {
         logger.progress(row, output, entries)
         runtime.chatRepository.touchSession(session, task.name)
         return TaskSchedulerTool.ExecutionSummary(task.id, task.name, started, System.currentTimeMillis(),
-            tools.size, tools.toList(), output, success, iterations, error)
+            tools.size, tools.toList(), output, success, iterations, error,
+            requiresReviewBeforeRetry = !success &&
+                (reviewBeforeRetry || completionReport?.status == FinishStatus.AWAITING_APPROVAL))
     }
 }

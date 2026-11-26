@@ -57,7 +57,8 @@ sealed class AgentEvent {
         val isError: Boolean,
         val iteration: Int,
         val evidence: com.omnidev.workspace.domain.engine.completion.EvidenceRef? = null,
-        val classification: String? = null
+        val classification: String? = null,
+        val successfulCallMayHaveSideEffects: Boolean = false
     ) : AgentEvent()
     data class TokenUsageUpdate(
         val iterationTokens: Int,
