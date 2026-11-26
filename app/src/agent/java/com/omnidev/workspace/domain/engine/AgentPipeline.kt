@@ -988,12 +988,11 @@ When improving: keep every other sentence, the structure, the language and the l
         for ((call, result) in calls.zip(rawResults)) {
             // Authentication secrets are transient by design. Do not persist them in model
             // context, Agent Brain, checkpoints, or the user-visible execution console.
-            val videoSample = if (call.name == "learned_routine" && call.arguments["action"] == "video_frame" && !result.isError)
-                com.omnidev.workspace.data.routines.RoutineVideoObservation.extract(result.output, supportsVision) else null
+            val videoSample = if (call.name == "learned_routine" && call.arguments["action"] == "video_frame")
+                com.omnidev.workspace.data.routines.RoutineVideoObservation.extract(result, supportsVision) else null
             videoSample?.image?.let { routineVideoImages += it }
-            val modelSafe = result.copy(
-                output = SensitiveObservationRedactor.redact(videoSample?.observation ?: result.output)
-            )
+            val observation = videoSample?.result ?: result
+            val modelSafe = observation.copy(output = SensitiveObservationRedactor.redact(observation.output))
             lastObservation = "${call.name} ${if (modelSafe.isError) "failed" else "returned"}: " +
                 modelSafe.output.replace(Regex("\\s+"), " ").take(600)
             modelSafeResults += modelSafe
