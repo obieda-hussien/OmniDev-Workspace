@@ -1,5 +1,7 @@
 # Harness engineering status
 
+Baseline after verified merges on 2026-11-26 is [`c58ca0a`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/c58ca0afe4ba7d5e98a9833ba764cd3caf83ede2).
+
 ## Telegram command and response integrity
 
 Telegram now handles mode and session aliases locally, returns the actual mode,
@@ -13,10 +15,9 @@ falling back to draft streaming output.
 
 Five isolated Kotlin/JVM tests cover the reported commands, pairing parsing,
 reasoning tags, fabricated execution reports, and Arabic device questions.
-Android and linked Telegram device checks are pending. Cross-channel memory
+The previous head passed Android CI, including API 30, and the security gate. The updated head and a linked Telegram device check are pending. Cross-channel memory
 requires a verified identity link and explicit data-sharing policy.
 
-Baseline after verified merges on 2026-11-26 is [`fae12d8`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/fae12d8875a3c70909c1a15c7f03443e56ef72d5).
 
 | Phase | Evidence | Open work |
 | --- | --- | --- |
@@ -31,8 +32,8 @@ Baseline after verified merges on 2026-11-26 is [`fae12d8`](https://github.com/o
 | H8 Pagination | [#346](https://github.com/obieda-hussien/OmniDev-Workspace/pull/346) merged with same-revision coverage checks. [#347](https://github.com/obieda-hussien/OmniDev-Workspace/pull/347) merged with successful page receipt restoration after resume. | Replay the next-page handoff with a live provider and verify it on the reference device. |
 | H9 Stall detection | [#348](https://github.com/obieda-hussien/OmniDev-Workspace/pull/348) merged with typed GitHub pagination scoring. [#349](https://github.com/obieda-hussien/OmniDev-Workspace/pull/349) merged with page novelty gating both recovery budgets. | Replay live pagination and audit the other duplicate-tool recovery paths. |
 | H10 Team routing | [#350](https://github.com/obieda-hussien/OmniDev-Workspace/pull/350) merged with the handoff check before worker startup. [#351](https://github.com/obieda-hussien/OmniDev-Workspace/pull/351) merged with single-Agent routing for a change and its verification in Auto. | Replay automatic routing and the permission prompt on device. |
-| H11 Attachments | [#352](https://github.com/obieda-hussien/OmniDev-Workspace/pull/352) merged with explicit failures for unavailable routine frames. The `fix/h11-deliverable-vision-routing` branch rejects image-bearing requests on the text-only Local Edge path before inference. | Verify Android CI, live-provider analysis, and the other attachment paths. |
-| H12 Autopilot | Existing scheduling and durable execution components provide a starting point. | Audit scheduled recovery and completion evidence against the P14 implementation before marking this phase complete. |
+| H11 Attachments | [#352](https://github.com/obieda-hussien/OmniDev-Workspace/pull/352) merged with explicit failures for unavailable routine frames. [#353](https://github.com/obieda-hussien/OmniDev-Workspace/pull/353) merged with an early Local Edge rejection for image-bearing requests. | Verify live-provider analysis, physical-device sampling, and the other attachment paths. |
+| H12 Autopilot | The `fix/h12-scheduled-interruption` branch preserves interrupted or timed-out occurrences for review. | Verify Android CI and replay service termination, process death and manual review on the reference device. |
 
 ## H11 routine video frame evidence
 
@@ -44,7 +45,13 @@ Five focused Kotlin 2.4.21 and JUnit 4.13.2 tests passed on Linux JVM. The fixtu
 
 The Local Edge adapter serializes prompts as text. Requests containing image bytes now fail with an explicit vision-capability message before local inference in both normal and streaming execution. This also applies when the image is present in retained request history. A loopback HTTP fixture verified the exact JPEG data URL in the OpenAI-compatible request. It verifies delivery of bytes to the endpoint fixture. Live model analysis remains pending.
 
-Both local rejection tests failed against the previous path. All 16 completion and token-accounting tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. The project language and flavor source checks passed. New Android CI and physical-device replay remain pending. Next, replay the foreground attachment paths and begin H12 scheduled recovery coverage.
+Both local rejection tests failed against the previous path. All 16 completion and token-accounting tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. The project language and flavor source checks passed. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45778816291) and the [required security check](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45778816322) passed on the merged head. Physical-device replay remains pending.
+
+## H12 scheduled run interruption
+
+Process restart already paused persisted running tasks. Service cancellation within the same process could leave a task stuck as running, while a timeout could fail it and schedule an automatic retry. The service now records both as interrupted and pauses the claimed occurrence for review. The scheduler retains its recurrence anchor and retry count through the existing Room snapshot. An explicit cancellation takes precedence and an interruption from a mismatched start time cannot pause the current run. The existing P14 verification gate still determines scheduled success.
+
+Twelve scheduler and P14 verification tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2, using the production scheduler and serialized entity with Room annotations stubbed. Fixtures cover a timeout with retries remaining, stale cleanup, explicit cancellation, recurrence, and restored state. Language and flavor source checks passed. Android service and Room integration verification remain pending. Next, replay an interrupted scheduled run on API 30 and audit retry eligibility for structured failures returned after dispatch.
 
 ## H0 replay results
 
