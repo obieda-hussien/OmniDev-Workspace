@@ -59,8 +59,10 @@ object ToolExecutionSemantics {
     ): ToolExecutionResult {
         val normalized = when {
             result.isError -> {
-                // The tool already declared failure, so its whole diagnostic payload is evidence.
-                val match = classifyMatch(result.output)
+                // A reported process exit is authoritative. Its output can contain historical diagnostics.
+                val confirmedProcessFailure = result.classification == "NON_ZERO_EXIT" &&
+                    (result.exitCode ?: 0) > 0
+                val match = if (confirmedProcessFailure) null else classifyMatch(result.output)
                 result.copy(
                     classification = result.classification ?: match?.classification ?: "TOOL_ERROR",
                     backend = result.backend ?: inferBackend(toolName, result.output),

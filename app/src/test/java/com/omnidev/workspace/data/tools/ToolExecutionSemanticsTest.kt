@@ -171,6 +171,39 @@ class ToolExecutionSemanticsTest {
 
 
     @Test
+    fun `confirmed process failure cannot inherit transport retry from its output`() {
+        val raw = ToolExecutionResult(
+            output = "old log: Shizuku request timeout",
+            isError = true,
+            classification = "NON_ZERO_EXIT",
+            exitCode = 13,
+            backend = "shizuku-user-service"
+        )
+
+        val result = ToolExecutionSemantics.normalize("privileged_tool", raw)
+
+        assertTrue(result.isError)
+        assertEquals(13, result.exitCode)
+        assertEquals("NON_ZERO_EXIT", result.classification)
+        assertFalse(result.retryable)
+    }
+
+    @Test
+    fun `confirmed process failure cannot inherit a persistent permission block from output`() {
+        val raw = ToolExecutionResult(
+            output = "old log: java.lang.SecurityException: Permission Denial: historical crash only",
+            isError = true,
+            classification = "NON_ZERO_EXIT",
+            exitCode = 2,
+            backend = "shizuku-user-service"
+        )
+
+        val result = ToolExecutionSemantics.normalize("privileged_tool", raw)
+
+        assertFalse(ToolExecutionSemantics.isPersistentFailure(result))
+    }
+
+    @Test
     fun `pending user approval is a persistent non-retryable outcome`() {
         val raw = ToolExecutionResult(
             output =

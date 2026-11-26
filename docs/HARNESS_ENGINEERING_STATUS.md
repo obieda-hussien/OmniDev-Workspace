@@ -233,7 +233,20 @@ keeps failed executions marked as errors, including when output is truncated.
 
 Twenty-eight Linux Kotlin/JVM tests passed with Android dispatch stubbed.
 New cases exercise exit 13 with partial output, a truncated failed response,
-and a transport error with no process exit code. Android CI and replay on
-the Android 11 reference device are pending. Next, distinguish completed rish
+and a transport error with no process exit code. [#363](https://github.com/obieda-hussien/OmniDev-Workspace/pull/363) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45843711417) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45843711392) passed. Android 11 device replay is pending. Next, distinguish completed rish
 commands from launcher or transport failures before forwarding their exit
 codes through the same boundary.
+
+### H0 process failures during tool-result normalization
+
+The normalizer inferred retry and backend-blocking flags from the body of a
+failed result even when a completed process had already reported a nonzero
+exit. Historical diagnostic text in partial output could then trigger
+transport recovery or mark the backend unavailable. For typed nonzero exits,
+the normalizer now preserves the producer's recovery flags. Untyped
+transport failures retain the existing diagnostic classification.
+
+Two regressions reproduced the false retry and false permission block before
+the fix. All 27 focused Linux Kotlin/JVM semantics and orchestration tests
+passed after it. Android CI and device replay are pending. Next, establish
+reliable rish command-completion evidence before routing its exit status.
