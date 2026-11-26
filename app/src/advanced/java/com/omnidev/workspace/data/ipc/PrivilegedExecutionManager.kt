@@ -122,7 +122,12 @@ object PrivilegedExecutionManager {
     suspend fun executeCommand(
         command: String,
         allowRootFallback: Boolean = false
-    ): Result<String> = withContext(Dispatchers.IO) {
+    ): Result<String> = executeCommandCapture(command, allowRootFallback).map { it.output }
+
+    internal suspend fun executeCommandCapture(
+        command: String,
+        allowRootFallback: Boolean = false
+    ): Result<PrivilegedCommandOutput> = withContext(Dispatchers.IO) {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Command is empty."))
         }
@@ -137,7 +142,7 @@ object PrivilegedExecutionManager {
             when (val r = ShizukuCommandTool.execute(preparedCommand)) {
                 is ShizukuResult.Success -> {
                     Log.d(TAG, "Shizuku ✅ exit=0: ${command.take(40)}")
-                    return@withContext Result.success(r.output.trim().take(MAX_OUTPUT))
+                    return@withContext Result.success(PrivilegedCommandOutput(r.output.trim()).limitedTo(MAX_OUTPUT))
                 }
 
                 // Retained only for source compatibility; treat it as a real command failure.
@@ -199,11 +204,11 @@ object PrivilegedExecutionManager {
         if (isRishReady()) {
             rishAttempted = true
             Log.d(TAG, "Trying rish: ${command.take(40)}")
-            val rishResult = rishManager!!.execute(preparedCommand)
+            val rishResult = rishManager!!.executeCaptured(preparedCommand)
             if (rishResult.isSuccess) {
                 val out = rishResult.getOrThrow()
                 Log.d(TAG, "rish ✅: ${command.take(40)}")
-                return@withContext Result.success(out.take(MAX_OUTPUT))
+                return@withContext Result.success(out.limitedTo(MAX_OUTPUT))
             }
             Log.w(TAG, "rish failed: ${rishResult.exceptionOrNull()?.message}")
             if (!crossBackendRetrySafe) {
@@ -223,7 +228,7 @@ object PrivilegedExecutionManager {
         val rootReady = if (rootMayRun) isRootAvailable(forceProbe = true) else null
         if (rootMayRun && rootReady == true) {
             Log.d(TAG, "Trying explicitly allowed root fallback: ${command.take(40)}")
-            return@withContext executeViaRoot(preparedCommand)
+            return@withContext executeViaRoot(preparedCommand).map { PrivilegedCommandOutput(it) }
         }
 
         // ── Failure: Clear diagnostics ──

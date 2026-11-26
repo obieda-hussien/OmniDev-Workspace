@@ -15,6 +15,10 @@ object PrivilegedExecutionManager {
         command: String,
         allowRootFallback: Boolean = false
     ): Result<String>  = Result.failure(IllegalStateException("Privileged execution is not included in Lite."))
+    internal suspend fun executeCommandCapture(
+        command: String,
+        allowRootFallback: Boolean = false
+    ): Result<PrivilegedCommandOutput> = Result.failure(IllegalStateException("Privileged execution is not included in Lite."))
     suspend fun executeRootCommand(command: String): Result<String>  = Result.failure(IllegalStateException("Privileged execution is not included in Lite."))
     fun shellQuote(value: String): String  = "\'" + value.replace("\'", "\'\"\'\"\'") + "\'"
     suspend fun getDeviceState(context: Context): DeviceStateSnapshot  = DeviceStateSnapshot(android.os.Build.FINGERPRINT, android.os.Build.VERSION.SDK_INT, android.os.Build.MODEL, android.os.Build.VERSION.RELEASE, false, false, false, "", 0, 0L)
