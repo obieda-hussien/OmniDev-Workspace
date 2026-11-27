@@ -539,7 +539,7 @@ class CompletionService(
         val toolCalls = parsed.content
             .filter { it.type == "tool_use" }
             .mapIndexed { idx, block ->
-                val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decode(block.input ?: if (block.name == "discover_tools") JsonObject(emptyMap()) else null)
+                val decoded = decodeAnthropicToolInput(block.name.orEmpty(), block.input)
                 ToolCall(
                     id = block.id ?: "tool_$idx",
                     name = block.name ?: "",
@@ -1008,7 +1008,9 @@ class CompletionService(
         if (!finished) throw IOException("Provider stream ended before message_stop.")
 
         val toolCalls = toolUseIds.keys.sorted().map { idx ->
-            val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decode(toolUseArgs[idx]?.toString() ?: toolInitialInputs[idx]?.toString() ?: "{}")
+            val decoded = decodeAnthropicToolInput(
+                toolUseNames[idx].orEmpty(), toolInitialInputs[idx], toolUseArgs[idx]?.toString()
+            )
             ToolCall(
                 id        = toolUseIds[idx]   ?: "tool_$idx",
                 name      = toolUseNames[idx] ?: "",
