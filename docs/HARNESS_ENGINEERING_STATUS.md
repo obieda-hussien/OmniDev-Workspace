@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-26 is [`a88fda7`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/a88fda7c7229c69198a8712b919f1c1fd05459da).
+Baseline after verified merges on 2026-11-27 is [`a66be9b`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/a66be9ba782f04b9dbc9b30ae14ac1346e5bfd6b). [#372](https://github.com/obieda-hussien/OmniDev-Workspace/pull/372) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300078) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300076) passed at its latest head.
 
 ## Telegram Business auto-replies
 
@@ -114,6 +114,12 @@ Use `inventory:local` and `inventory:mcp` to filter permitted registrations by s
 ## H2 schema refresh
 
 The catalog drops observation-only entries in a same-turn rebuild if it only receives the original objective and the new discovery hint. It now retains up to two ranked catalog matches plus environment-priority names from the current observation. The next preparation replaces those hints. Existing source priority, schema budgets, and permission checks govern the refreshed surface. The regression failed on the baseline and passed alongside 28 other catalog and runtime-ledger tests in an isolated Kotlin 2.4.21 JVM run.
+
+### Text-provider schema budget
+
+The tool surface used Kotlin object display lengths to budget schema text. The selector now counts the same JSON rendering used for text-model tool definitions, including JSON escaping and the discovery schema, header, and line breaks. An oversized definition is deferred whole, and selection continues with the next eligible candidate. Native tool payloads retain their provider-specific request accounting.
+
+The 1,500-character regression uses an enum value containing 750 backslashes. The old selector exceeded the budget after rendering. The revised selector retains discovery and the smaller candidate within the budget. All 47 focused tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2, compiling the production catalog, text protocol, selector and MCP discovery with platform stubs. The project language and flavor source checks passed. Android CI and physical device replay are pending. Next, replay the equivalent small-context request through native tool providers to compare their request budgets.
 
 ## H3 malformed text envelopes
 
