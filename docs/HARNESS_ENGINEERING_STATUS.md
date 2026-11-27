@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-27 is [`a66be9b`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/a66be9ba782f04b9dbc9b30ae14ac1346e5bfd6b). [#372](https://github.com/obieda-hussien/OmniDev-Workspace/pull/372) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300078) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300076) passed at its latest head.
+Baseline after verified merges on 2026-11-27 is [`1d5e070`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/1d5e0701edc4118116dcaa0ca5c67eb33b5aac27). [#372](https://github.com/obieda-hussien/OmniDev-Workspace/pull/372) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300078) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300076) passed at its latest head.
 
 ## Telegram Business auto-replies
 
@@ -115,7 +115,7 @@ Use `inventory:local` and `inventory:mcp` to filter permitted registrations by s
 
 Agent history admission and fallback usage now measure the native JSON tool array through the same provider-specific mappings as the network requests. OpenAI-compatible and Anthropic request formats keep their own schema shapes. The token calculation still uses a three-character estimate, and provider-reported usage remains authoritative.
 
-A Linux JVM loopback request with an escaped enum exposed a 279-token fallback estimate for a tool array whose JSON measured 577 tokens under the same heuristic. The regression checks the actual transmitted array. A separate fixture checks the Anthropic array shape. All 18 network and token-accounting tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. Android CI and device verification are pending.
+A Linux JVM loopback request with an escaped enum exposed a 279-token fallback estimate for a tool array whose JSON measured 577 tokens under the same heuristic. The regression checks the actual transmitted array. A separate fixture checks the Anthropic array shape. All 18 network and token-accounting tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. [#374](https://github.com/obieda-hussien/OmniDev-Workspace/pull/374) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45920595756) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45920595999) passed. Physical-device verification is pending.
 
 ## H2 schema refresh
 
@@ -125,11 +125,17 @@ The catalog drops observation-only entries in a same-turn rebuild if it only rec
 
 The tool surface used Kotlin object display lengths to budget schema text. The selector now counts the same JSON rendering used for text-model tool definitions, including JSON escaping and the discovery schema, header, and line breaks. An oversized definition is deferred whole, and selection continues with the next eligible candidate. Native tool payloads retain their provider-specific request accounting.
 
-The 1,500-character regression uses an enum value containing 750 backslashes. The old selector exceeded the budget after rendering. The revised selector retains discovery and the smaller candidate within the budget. All 47 focused tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2, compiling the production catalog, text protocol, selector and MCP discovery with platform stubs. The project language and flavor source checks passed. Android CI and physical device replay are pending. Next, replay the equivalent small-context request through native tool providers to compare their request budgets.
+The 1,500-character regression uses an enum value containing 750 backslashes. The old selector exceeded the budget after rendering. The revised selector retains discovery and the smaller candidate within the budget. All 47 focused tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2, compiling the production catalog, text protocol, selector and MCP discovery with platform stubs. The project language and flavor source checks passed. [#373](https://github.com/obieda-hussien/OmniDev-Workspace/pull/373) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45919641714) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45919641815) passed. Physical-device replay remains pending.
 
 ## H3 malformed text envelopes
 
 The text adapter can represent a malformed envelope with an internal discovery proposal carrying a parse error. Preflight now gives those proposals the same complete envelope example advertised by the text protocol. Malformed calls still fail before dispatch, and corrected proposals go through the ordinary tool contract. Native discovery keeps its existing arguments guidance. The regression failed on the baseline and passed alongside 33 other adapter, preflight and correction tests using Kotlin 2.4.21 on an isolated JVM.
+
+### Anthropic native input omissions
+
+The Anthropic streaming adapter previously substituted an empty object for any tool call without initial input or argument deltas. Streaming and ordinary replies now use the same decoder. Only discovery can omit input; a transmitted empty object still undergoes normal preflight. Malformed accumulated JSON produces an argument error even when the initial object was valid.
+
+The omitted-input regression failed with the former fallback. All 23 network and accounting tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. Fixtures cover valid initial input, explicit empty input, discovery omission, and malformed deltas. Android CI and physical-device verification are pending. Next, replay a full Anthropic SSE session through tool-call correction.
 
 ## H4 Termux mutation deadlines
 
