@@ -33,6 +33,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import java.io.BufferedReader
+import java.io.EOFException
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -855,7 +856,7 @@ class CompletionService(
             }
         }
         conn.disconnect()
-        if (!finished) throw IOException("Provider stream ended before a finish event.")
+        if (!finished) throw EOFException("Provider stream ended before a finish event.")
 
         val toolCalls = tcIds.keys.sorted().map { idx ->
             val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decodeProviderCall(tcNames[idx].orEmpty(), tcArgs[idx]?.toString())
@@ -1077,7 +1078,7 @@ internal suspend fun readAnthropicStream(
             }
         } catch (_: kotlinx.serialization.SerializationException) { /* skip malformed SSE events */ }
     }
-    if (!finished) throw IOException("Provider stream ended before message_stop.")
+    if (!finished) throw EOFException("Provider stream ended before message_stop.")
 
     val toolCalls = toolUseIds.keys.sorted().map { idx ->
         val decoded = decodeAnthropicToolInput(

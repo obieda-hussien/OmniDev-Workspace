@@ -1,5 +1,6 @@
 package com.omnidev.workspace.domain.engine
 
+import java.io.EOFException
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -14,7 +15,7 @@ internal object CompletionRetry {
             catch (error: IOException) {
                 val message = error.message.orEmpty()
                 val transient = Regex("\\b(500|502|503|504)\\b").containsMatchIn(message) ||
-                    error is java.net.SocketTimeoutException || error is java.net.ConnectException
+                    error is EOFException || error is java.net.SocketTimeoutException || error is java.net.ConnectException
                 if (!transient || attempt == 2) throw error
                 onRetry(attempt + 1)
                 delay(1_000L shl attempt)
