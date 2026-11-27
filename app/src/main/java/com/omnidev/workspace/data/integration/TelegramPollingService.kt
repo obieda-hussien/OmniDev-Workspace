@@ -536,7 +536,7 @@ class TelegramPollingService : Service() {
                     "/business_on text — set a Telegram Business auto-reply\n" +
                     "/business_off — turn off Business auto-reply\n" +
                     "/clear — clear the current conversation context\n\n" +
-                    "Agent and Swarm modes use the Target Context configured in OmniDev settings.")
+                    "Agent and Swarm modes use the folder selected at ${TelegramWorkspace.SETTINGS_PATH}.")
                 return
             }
 
@@ -555,7 +555,7 @@ class TelegramPollingService : Service() {
                 }
                 if (configuredScope() == null) {
                     sendReply(token, chatId, messageId,
-                        "⚠️ Choose a specific workspace folder in OmniDev Settings → Target Context, then send /mode agent again.")
+                        TelegramWorkspace.missingScope("agent"))
                     return
                 }
                 chatModes[chatId] = OmniMode.AGENT
@@ -574,7 +574,7 @@ class TelegramPollingService : Service() {
                 }
                 if (configuredScope() == null) {
                     sendReply(token, chatId, messageId,
-                        "⚠️ Choose a specific workspace folder in OmniDev Settings → Target Context, then send /mode swarm again.")
+                        TelegramWorkspace.missingScope("swarm"))
                     return
                 }
                 chatModes[chatId] = OmniMode.SWARM
@@ -785,7 +785,7 @@ class TelegramPollingService : Service() {
         text: String
     ): String {
         return try {
-            val scope = configuredScope() ?: return "⚠️ Set a specific Target Context in OmniDev settings."
+            val scope = configuredScope() ?: return TelegramWorkspace.missingScope("agent")
             val modelId = settingsRepository.observeModelIdForRole(ModelRole.AGENT).first()
             val persona = settingsRepository.observeUserPromptContext().first()
             val history = sessionHistory.getOrPut(chatId) { mutableListOf() }
@@ -839,7 +839,7 @@ class TelegramPollingService : Service() {
 
     private suspend fun handleSwarmMode(token: String, chatId: Long, text: String): String {
         return try {
-            val scope = configuredScope() ?: return "⚠️ Set a specific Target Context in OmniDev settings."
+            val scope = configuredScope() ?: return TelegramWorkspace.missingScope("swarm")
             val orchestratorModelId = settingsRepository
                 .observeModelIdForRole(ModelRole.SWARM_ORCHESTRATOR).first()
             val workerModelId = settingsRepository

@@ -704,6 +704,10 @@ fun IntegrationsScreen(
                         }
                         telegramLinkStatus?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
+                        if (com.omnidev.workspace.BuildConfig.ALLOW_AGENT || com.omnidev.workspace.BuildConfig.ALLOW_TEAM) {
+                            TelegramWorkspaceSetting(settingsRepository)
+                        }
+
                         // Telegram Bot Listener toggle (OpenClaw-style polling)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
