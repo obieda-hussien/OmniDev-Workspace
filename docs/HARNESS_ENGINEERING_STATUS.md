@@ -111,6 +111,12 @@ Agent inventory pages can report Android shell, Termux and rish status from the 
 
 Use `inventory:local` and `inventory:mcp` to filter permitted registrations by source. A returned cursor such as `inventory:mcp:40` keeps its filter on the next page. Sources come from the registration lists, independently of tool name prefixes. All 28 catalog and runtime-ledger tests passed in an isolated Kotlin 2.4.21 JVM run, including the source filter, cursor, direct reply and authorization regression.
 
+## H2 native provider request budgeting
+
+Agent history admission and fallback usage now measure the native JSON tool array through the same provider-specific mappings as the network requests. OpenAI-compatible and Anthropic request formats keep their own schema shapes. The token calculation still uses a three-character estimate, and provider-reported usage remains authoritative.
+
+A Linux JVM loopback request with an escaped enum exposed a 279-token fallback estimate for a tool array whose JSON measured 577 tokens under the same heuristic. The regression checks the actual transmitted array. A separate fixture checks the Anthropic array shape. All 18 network and token-accounting tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. Android CI and device verification are pending.
+
 ## H2 schema refresh
 
 The catalog drops observation-only entries in a same-turn rebuild if it only receives the original objective and the new discovery hint. It now retains up to two ranked catalog matches plus environment-priority names from the current observation. The next preparation replaces those hints. Existing source priority, schema budgets, and permission checks govern the refreshed surface. The regression failed on the baseline and passed alongside 28 other catalog and runtime-ledger tests in an isolated Kotlin 2.4.21 JVM run.

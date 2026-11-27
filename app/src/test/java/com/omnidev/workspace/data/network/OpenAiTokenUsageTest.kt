@@ -5,7 +5,10 @@ import com.omnidev.workspace.data.model.AttachmentMediaType
 import com.omnidev.workspace.data.model.AttachmentMeta
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.MessageRole
+import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.model.TokenUsage
+import com.omnidev.workspace.data.tools.ToolDefinition
+import com.omnidev.workspace.data.tools.ToolParameter
 import com.omnidev.workspace.domain.engine.TokenAccounting
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -94,6 +97,36 @@ class OpenAiTokenUsageTest {
             ))
             assertEquals("Done", response.content)
         }
+    }
+
+    @Test
+    fun nativeSchemaEstimateMatchesEscapedToolArray() = runBlocking {
+        val escapedValue = "\\".repeat(750)
+        val tool = ToolDefinition("inspect_config", "Inspect a configuration", listOf(
+            ToolParameter("variant", "string", "Variant", allowedValues = listOf(escapedValue))
+        ))
+        var budgetedTokens = 0
+        val reply = """{"choices":[{"message":{"role":"assistant","content":"Done"}}]}"""
+        withResponse(reply, checkRequest = { body ->
+            val tools = Json.parseToJsonElement(body).jsonObject.getValue("tools").jsonArray
+            assertEquals(escapedValue, tools.single().jsonObject.getValue("function").jsonObject
+                .getValue("parameters").jsonObject.getValue("properties").jsonObject
+                .getValue("variant").jsonObject.getValue("enum").jsonArray.single().jsonPrimitive.content)
+            assertEquals((tools.toString().length + 2) / 3, budgetedTokens)
+        }) { request ->
+            val withTools = request.copy(tools = listOf(tool))
+            budgetedTokens = TokenAccounting.estimateInputTokens(withTools) - TokenAccounting.estimateInputTokens(request)
+            assertEquals("Done", CompletionService()(withTools).content)
+        }
+    }
+
+    @Test
+    fun nativeAnthropicBudgetUsesInputSchemaAndOmitsEmptyRequiredList() {
+        val tool = ToolDefinition("inspect_config", "Inspect", listOf(
+            ToolParameter("variant", "string", "Variant", required = false)
+        ))
+        val expected = """[{"name":"inspect_config","description":"Inspect","input_schema":{"type":"object","properties":{"variant":{"type":"string","description":"Variant"}}}}]"""
+        assertEquals(expected.length, nativeToolSchemaChars(listOf(tool), ModelProvider.ANTHROPIC))
     }
 
     private suspend fun withResponse(

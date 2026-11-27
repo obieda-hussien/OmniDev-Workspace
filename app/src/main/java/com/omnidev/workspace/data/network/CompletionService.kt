@@ -1080,65 +1080,71 @@ class CompletionService(
         }
         throw IOException(friendlyMessage)
     }
+}
 
-    // ── Tool definition conversion helpers ───────────────────────────────────
+/** Counts the JSON tool array sent by the selected native provider adapter. */
+internal fun nativeToolSchemaChars(tools: List<ToolDefinition>, provider: ModelProvider): Int {
+    if (tools.isEmpty()) return 0
+    return when (provider) {
+        ModelProvider.ANTHROPIC -> json.encodeToString(tools.map { it.toAnthropicToolDef() }).length
+        else -> json.encodeToString(tools.map { it.toOpenAiToolDef() }).length
+    }
+}
 
-    /**
-     * Converts a generic [ToolDefinition] to Anthropic's `input_schema` format.
-     */
-    private fun ToolDefinition.toAnthropicToolDef(): AnthropicToolDef {
-        val required = parameters.filter { it.required }.map { it.name }
-        val inputSchema: JsonElement = buildJsonObject {
-            put("type", "object")
-            putJsonObject("properties") {
-                parameters.forEach { param ->
-                    putJsonObject(param.name) {
-                        put("type", param.type.lowercase())
-                        put("description", param.description + if (param.requiredForActions.isEmpty()) "" else " Required for actions: ${param.requiredForActions.joinToString()}.")
-                        if (param.allowedValues.isNotEmpty()) {
-                            putJsonArray("enum") { param.allowedValues.forEach { add(JsonPrimitive(it)) } }
-                        }
+/**
+ * Converts a generic [ToolDefinition] to Anthropic's `input_schema` format.
+ */
+private fun ToolDefinition.toAnthropicToolDef(): AnthropicToolDef {
+    val required = parameters.filter { it.required }.map { it.name }
+    val inputSchema: JsonElement = buildJsonObject {
+        put("type", "object")
+        putJsonObject("properties") {
+            parameters.forEach { param ->
+                putJsonObject(param.name) {
+                    put("type", param.type.lowercase())
+                    put("description", param.description + if (param.requiredForActions.isEmpty()) "" else " Required for actions: ${param.requiredForActions.joinToString()}.")
+                    if (param.allowedValues.isNotEmpty()) {
+                        putJsonArray("enum") { param.allowedValues.forEach { add(JsonPrimitive(it)) } }
                     }
                 }
-            }
-            if (required.isNotEmpty()) {
-                putJsonArray("required") { required.forEach { add(JsonPrimitive(it)) } }
             }
         }
-        return AnthropicToolDef(name = name, description = description, inputSchema = inputSchema)
-    }
-
-    /**
-     * Converts a generic [ToolDefinition] to OpenAI's function tool format.
-     * Always includes a `required` array (even when empty) to satisfy strict validators
-     * such as the Gemini OpenAI-compatibility endpoint.
-     */
-    private fun ToolDefinition.toOpenAiToolDef(): OpenAiToolDef {
-        val required = parameters.filter { it.required }.map { it.name }
-        val parameters: JsonElement = buildJsonObject {
-            put("type", "object")
-            putJsonObject("properties") {
-                this@toOpenAiToolDef.parameters.forEach { param ->
-                    putJsonObject(param.name) {
-                        put("type", param.type.lowercase())
-                        put("description", param.description + if (param.requiredForActions.isEmpty()) "" else " Required for actions: ${param.requiredForActions.joinToString()}.")
-                        if (param.allowedValues.isNotEmpty()) {
-                            putJsonArray("enum") { param.allowedValues.forEach { add(JsonPrimitive(it)) } }
-                        }
-                    }
-                }
-            }
-            // Always include 'required' — even as an empty array — to satisfy
-            // strict OpenAPI validators (required by Gemini's OpenAI-compatible endpoint).
+        if (required.isNotEmpty()) {
             putJsonArray("required") { required.forEach { add(JsonPrimitive(it)) } }
         }
-        return OpenAiToolDef(function = OpenAiFunction(
-            name = name,
-            description = description,
-            parameters = parameters
-        ))
     }
+    return AnthropicToolDef(name = name, description = description, inputSchema = inputSchema)
+}
 
+/**
+ * Converts a generic [ToolDefinition] to OpenAI's function tool format.
+ * Always includes a `required` array (even when empty) to satisfy strict validators
+ * such as the Gemini OpenAI-compatibility endpoint.
+ */
+private fun ToolDefinition.toOpenAiToolDef(): OpenAiToolDef {
+    val required = parameters.filter { it.required }.map { it.name }
+    val parameters: JsonElement = buildJsonObject {
+        put("type", "object")
+        putJsonObject("properties") {
+            this@toOpenAiToolDef.parameters.forEach { param ->
+                putJsonObject(param.name) {
+                    put("type", param.type.lowercase())
+                    put("description", param.description + if (param.requiredForActions.isEmpty()) "" else " Required for actions: ${param.requiredForActions.joinToString()}.")
+                    if (param.allowedValues.isNotEmpty()) {
+                        putJsonArray("enum") { param.allowedValues.forEach { add(JsonPrimitive(it)) } }
+                    }
+                }
+            }
+        }
+        // Always include 'required' — even as an empty array — to satisfy
+        // strict OpenAPI validators (required by Gemini's OpenAI-compatible endpoint).
+        putJsonArray("required") { required.forEach { add(JsonPrimitive(it)) } }
+    }
+    return OpenAiToolDef(function = OpenAiFunction(
+        name = name,
+        description = description,
+        parameters = parameters
+    ))
 }
 
 /**

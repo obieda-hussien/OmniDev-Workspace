@@ -2,6 +2,7 @@ package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.model.AIModel
+import com.omnidev.workspace.data.network.nativeToolSchemaChars
 
 /**
  * Per-iteration prompt and input-budget arithmetic, moved out of AgentPipeline's flow lambda, which is
@@ -29,7 +30,9 @@ class IterationPlan(
                 (if (exposed.isEmpty() || runtimeBackends.reportOnly) "" else if (nativeTools) "\nCall tools through the native function interface using the advertised schemas." else "\n" + TextToolCallAdapter.CONTRACT) +
                 (if (nativeTools || exposed.isEmpty() || runtimeBackends.reportOnly) "" else "\n" + ToolTextProtocol.schemas(exposed))
             // Tool definitions are already compacted to the exact set sent to the provider.
-            val schemaEstimate = if (nativeTools) (exposed.sumOf { it.toString().length } / 3).coerceAtLeast(0) else 0
+            val schemaEstimate = if (nativeTools) {
+                ((nativeToolSchemaChars(exposed, model.provider).toLong() + 2) / 3).toInt()
+            } else 0
             val budget = model.contextWindow - desiredOutputBudget - contextWindowBuffer -
                 prompt.length / 3 - schemaEstimate - inputReserveTokens
             return IterationPlan(prompt, exposed, budget)
