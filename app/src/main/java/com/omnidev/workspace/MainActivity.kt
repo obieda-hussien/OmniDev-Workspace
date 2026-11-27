@@ -20,6 +20,7 @@ import com.omnidev.workspace.ui.browser.BrowserFileChooserBridge
 import com.omnidev.workspace.ui.navigation.AppNavigation
 import com.omnidev.workspace.ui.providers.ProvidersViewModel
 import com.omnidev.workspace.ui.settings.AISettingsViewModel
+import com.omnidev.workspace.ui.settings.WorkspaceLockGate
 import com.omnidev.workspace.ui.theme.OmniDevTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -62,13 +63,15 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             OmniDevTheme {
-                AppNavigation(
-                    settingsViewModel = settingsViewModel,
-                    chatViewModel = chatViewModel,
-                    providersViewModel = providersViewModel,
-                    settingsRepository = settingsRepository,
-                    database = database
-                )
+                WorkspaceLockGate(settingsRepository) {
+                    AppNavigation(
+                        settingsViewModel = settingsViewModel,
+                        chatViewModel = chatViewModel,
+                        providersViewModel = providersViewModel,
+                        settingsRepository = settingsRepository,
+                        database = database
+                    )
+                }
             }
         }
 

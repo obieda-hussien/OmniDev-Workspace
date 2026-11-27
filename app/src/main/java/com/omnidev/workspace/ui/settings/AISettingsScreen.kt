@@ -95,6 +95,7 @@ fun AISettingsScreen(
         SettingsCatalog.entries.filter { entry ->
             (com.omnidev.workspace.BuildConfig.TIER != "LITE" || entry.destination != SettingsDestination.INTEGRATIONS) &&
             (allowVoice || entry.destination != SettingsDestination.VOICE) &&
+            (android.os.Build.VERSION.SDK_INT >= 30 || entry.destination != SettingsDestination.WORKSPACE_LOCK) &&
                 (com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility || entry.destination != SettingsDestination.ACCESSIBILITY) &&
                 (com.omnidev.workspace.BuildConfig.ALLOW_AGENT || entry.destination !in setOf(SettingsDestination.FILE_ACCESS, SettingsDestination.SCHEDULE, SettingsDestination.EXECUTION_MODES))
         }
@@ -222,6 +223,7 @@ fun AISettingsScreen(
                             SettingsDestination.REASONING -> DeepThinkingCard(uiState.deepThinkingEnabled, viewModel::toggleDeepThinking)
                             SettingsDestination.EXECUTION_MODES -> ExecutionModeCard(uiState, viewModel)
                             SettingsDestination.FILE_ACCESS -> GodModeCard(uiState.godModeEnabled, viewModel::toggleGodMode)
+                            SettingsDestination.WORKSPACE_LOCK -> WorkspaceLockSettings()
                             SettingsDestination.ACCESSIBILITY -> AccessibilityServiceCard(viewModel::showStatusMessage)
                             SettingsDestination.COMPANION -> com.omnidev.workspace.ui.companion.CompanionSettingsCard()
                             SettingsDestination.ASSISTANT -> com.omnidev.workspace.ui.assistant.AssistantSettingsCard(showAccessLinks = false)
