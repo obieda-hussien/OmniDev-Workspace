@@ -80,8 +80,8 @@ private data class AnthropicContent(
 
 @Serializable
 private data class AnthropicUsage(
-    @SerialName("input_tokens") val inputTokens: Int = 0,
-    @SerialName("output_tokens") val outputTokens: Int = 0
+    @SerialName("input_tokens") val inputTokens: Int? = null,
+    @SerialName("output_tokens") val outputTokens: Int? = null
 )
 
 // ─── Anthropic Native Tool Calling DTOs ──────────────────────────────────────
@@ -555,11 +555,9 @@ class CompletionService(
             toolCalls = toolCalls,
             finishReason = parsed.stopReason,
             tokensUsed = parsed.usage?.let {
-                TokenUsage(
-                    promptTokens = it.inputTokens,
-                    completionTokens = it.outputTokens,
-                    totalTokens = it.inputTokens + it.outputTokens
-                )
+                val input = it.inputTokens ?: 0
+                val output = it.outputTokens ?: 0
+                TokenUsage(promptTokens = input, completionTokens = output, totalTokens = input + output)
             }
         )
     }
@@ -1028,16 +1026,15 @@ internal suspend fun readAnthropicStream(
         val data = l.substring(5).trim()
         try {
             val event = json.decodeFromString(AnthropicStreamEvent.serializer(), data)
-            if (event.type == "message_start" && event.message?.usage != null) {
-                inputTokens += event.message.usage.inputTokens
-                outputTokens += event.message.usage.outputTokens
-            } else if (event.type == "message_delta") {
-                event.delta?.stopReason?.let { stopReason = it }
-                event.usage?.let {
-                    inputTokens += it.inputTokens
-                    outputTokens += it.outputTokens
-                }
+            val usage = when (event.type) {
+                "message_start" -> event.message?.usage
+                "message_delta" -> event.usage
+                else -> null
             }
+            // Anthropic reports cumulative usage. A missing field leaves its previous count intact.
+            usage?.inputTokens?.let { inputTokens = it }
+            usage?.outputTokens?.let { outputTokens = it }
+            if (event.type == "message_delta") event.delta?.stopReason?.let { stopReason = it }
             if (event.type == "message_stop") {
                 finished = true
                 break
