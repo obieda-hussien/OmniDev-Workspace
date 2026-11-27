@@ -78,6 +78,10 @@ Drive files. Add broader read scopes only on explicit request. Gate sends,
 file sharing and deletion through operation-specific approvals, and require
 human handoff for one-time sign-in codes and banking confirmations.
 
+The API 30 emulator suite selects the vault instrumentation package to verify
+encrypted storage and separation from sign-in credentials. Physical biometric
+enrollment and device-lock prompt behavior still need a device smoke test.
+
 ## P12 — OmniComputer
 
 Use HeadlessBrowserManager and BrowserNavigationGuard rather than a second
