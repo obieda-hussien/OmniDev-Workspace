@@ -1,7 +1,10 @@
 package com.omnidev.workspace.data.network
 
+import com.omnidev.workspace.data.model.CompletionRequest
+import com.omnidev.workspace.data.model.TokenUsage
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolParameter
+import com.omnidev.workspace.domain.engine.TokenAccounting
 import com.omnidev.workspace.domain.engine.ToolCallPreflight
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -112,6 +115,21 @@ class AnthropicStreamContentBlockTest {
         """.trimIndent()
         val failure = runCatching { stream.reader().buffered().use { readAnthropicStream(it) } }.exceptionOrNull()
         assertEquals(EOFException::class.java, failure?.javaClass)
+    }
+
+    @Test fun streamUsageKeepsLatestCumulativeValuePerField() = runBlocking {
+        val stream = """
+            data: {"type":"message_start","message":{"usage":{"input_tokens":30,"output_tokens":1}}}
+            data: {"type":"message_delta","usage":{"input_tokens":31,"output_tokens":17}}
+            data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":41}}
+            data: {"type":"message_stop"}
+        """.trimIndent()
+        val response = stream.reader().buffered().use { readAnthropicStream(it) }
+
+        assertEquals(TokenUsage(promptTokens = 31, completionTokens = 41, totalTokens = 72), response.tokensUsed)
+        val accounted = TokenAccounting.usage(CompletionRequest("ANTHROPIC::fixture", emptyList()), response)
+        assertEquals(72, accounted.totalTokens)
+        assertFalse(accounted.estimated)
     }
 
     @Test fun nonToolBlocksNeedNoInput() {

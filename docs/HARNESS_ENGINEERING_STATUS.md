@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-27 is [`21a88da`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/21a88da8c2a2fd6a7eb3f0b75a45106d625f12ea). [#372](https://github.com/obieda-hussien/OmniDev-Workspace/pull/372) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300078) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300076) passed at its latest head.
+Baseline after verified merges on 2026-11-27 is [`ec80847`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/ec80847cac35fbe4d7d184e410eb593c964df0e0). [#372](https://github.com/obieda-hussien/OmniDev-Workspace/pull/372) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300078) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300076) passed at its latest head.
 
 ## Telegram Business auto-replies
 
@@ -151,7 +151,7 @@ A returned Termux response deadline after dispatch means the outcome of a side e
 
 The OpenAI-compatible and Anthropic adapters now report a stream that closes before its terminal event as an EOF error. Chat uses the existing completion-only retry budget on this error. If the provider already streamed answer text, the existing partial-response exception prevents a retry. Tool dispatch stays outside the retry boundary.
 
-A loopback fixture closes the first response after a tool-call delta and before any finish event. The previous code failed after one request. The revised code discards the first response and succeeds on the second request. Another loopback fixture verifies one attempt when answer text has already arrived. A separate fixture verifies EOF from the Anthropic reader when `message_stop` is missing. All 28 focused tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. Android CI and physical-device verification are pending. Next, replay the interruption through a live provider and verify the UI's preserved draft and checkpoint.
+A loopback fixture closes the first response after a tool-call delta and before any finish event. The previous code failed after one request. The revised code discards the first response and succeeds on the second request. Another loopback fixture verifies one attempt when answer text has already arrived. A separate fixture verifies EOF from the Anthropic reader when `message_stop` is missing. All 28 focused tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. [#377](https://github.com/obieda-hussien/OmniDev-Workspace/pull/377) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45936330875) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45936330696) passed at its latest head. Live-provider and physical-device verification of the preserved draft and checkpoint remain pending.
 
 ## H5 run ledger under context pressure
 
@@ -166,6 +166,12 @@ Normal Chat Completions responses and SSE usage events now carry optional cached
 Three local loopback HTTP regressions failed before wiring the new fields and passed afterward. They replay a regular completion, a usage-only SSE event after the last choice, and an unexpected optional details shape. The fixture reports 180 input and 64 output tokens. Its 128 cached-input and 48 reasoning tokens remain within the 244-token total. All 13 completion and accounting tests passed on the isolated Linux JVM with Kotlin 2.4.21, Java 21 and JUnit 4.13.2. The [first Android CI run](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45699756054/job/139506444580) failed while compiling the Lite test fixture because the Android test classpath does not expose `jdk.httpserver`. The fixture now uses standard `java.net.ServerSocket` on loopback. All 13 completion and accounting tests passed again with the replacement. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45708203206) and [the required security check](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45708203216) passed at the repaired head. Physical-device validation is pending.
 
 Next, confirm the remaining providers' usage contracts before extending this normalization. The new fields are available to runtime callers. Room analytics and the UI still show their existing totals. Coordinate with P11–P15 before editing shared components. Workload-level completion, latency, memory and device baselines remain pending.
+
+## H5 Anthropic stream usage
+
+Anthropic sends cumulative usage in [streaming message deltas](https://platform.claude.com/docs/en/build-with-claude/streaming). The reader now retains the latest reported value for each token count. An omitted counter keeps its prior value. The resulting total feeds the existing usage and run accounting.
+
+An isolated Linux JVM stream fixture previously reported 120 tokens (61 input and 59 output) for provider counts of 31 input and 41 output. The corrected response reports 72 tokens, which the accounting layer preserves as provider-reported usage. All 29 focused tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. Android CI and live-device verification are pending. Next, verify the separate prompt-cache counters against the provider contract before wiring cache usage into analytics.
 
 ## H6 independent workspace reads
 
