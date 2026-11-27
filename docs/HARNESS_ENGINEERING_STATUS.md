@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-27 is [`1d5e070`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/1d5e0701edc4118116dcaa0ca5c67eb33b5aac27). [#372](https://github.com/obieda-hussien/OmniDev-Workspace/pull/372) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300078) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300076) passed at its latest head.
+Baseline after verified merges on 2026-11-27 is [`b070344`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/b070344ccc5b62c73d937614b39fa4487cefa183). [#372](https://github.com/obieda-hussien/OmniDev-Workspace/pull/372) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300078) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300076) passed at its latest head.
 
 ## Telegram Business auto-replies
 
@@ -135,7 +135,13 @@ The text adapter can represent a malformed envelope with an internal discovery p
 
 The Anthropic streaming adapter previously substituted an empty object for any tool call without initial input or argument deltas. Streaming and ordinary replies now use the same decoder. Only discovery can omit input; a transmitted empty object still undergoes normal preflight. Malformed accumulated JSON produces an argument error even when the initial object was valid.
 
-The omitted-input regression failed with the former fallback. All 23 network and accounting tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. Fixtures cover valid initial input, explicit empty input, discovery omission, and malformed deltas. Android CI and physical-device verification are pending. Next, replay a full Anthropic SSE session through tool-call correction.
+The omitted-input regression failed with the former fallback. All 23 network and accounting tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. Fixtures cover valid initial input, explicit empty input, discovery omission, and malformed deltas. [#375](https://github.com/obieda-hussien/OmniDev-Workspace/pull/375) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45924847382) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45924847432) passed. Physical-device verification is pending.
+
+### Anthropic stream completion status
+
+Full SSE replay exercises the reader used by the HTTP adapter. The reader carries the provider's stop reason into the completion response so Chat can recognize an output limit. The former implementation reported a replayed `max_tokens` response as `end_turn`. Another fixture verifies that malformed tool JSON reaches preflight and blocks the batch while arguments from a separate complete block remain intact.
+
+All 25 network and accounting tests passed with Kotlin 2.4.21 and JUnit 4.13.2 on Linux JVM. Android CI, live-provider replay, and physical-device verification remain pending. The next review should cover recovery when a provider closes the connection before delivering a stop event.
 
 ## H4 Termux mutation deadlines
 

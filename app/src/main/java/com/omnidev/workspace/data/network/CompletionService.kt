@@ -32,6 +32,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import java.io.BufferedReader
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -937,95 +938,13 @@ class CompletionService(
             throw IOException(friendlyMessage)
         }
 
-        val fullContent = StringBuilder()
-        val fullReasoning = StringBuilder()
-        var finished = false
-        // Tool-use accumulation: indexed by content block index
-        val toolUseIds   = mutableMapOf<Int, String>()
-        val toolUseNames = mutableMapOf<Int, String>()
-        val toolUseArgs  = mutableMapOf<Int, StringBuilder>()
-        val toolInitialInputs = mutableMapOf<Int, JsonElement>()
-        var inputTokens = 0
-        var outputTokens = 0
-
-        conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                val l = line!!
-                if (!l.startsWith("data:")) continue
-                val data = l.substring(5).trim()
-                try {
-                    val event = json.decodeFromString(AnthropicStreamEvent.serializer(), data)
-                    if (event.type == "message_start" && event.message?.usage != null) {
-                        inputTokens += event.message.usage.inputTokens
-                        outputTokens += event.message.usage.outputTokens
-                    } else if (event.type == "message_delta" && event.usage != null) {
-                        inputTokens += event.usage.inputTokens
-                        outputTokens += event.usage.outputTokens
-                    }
-                    if (event.type == "message_stop") {
-                        finished = true
-                        break
-                    }
-                    if (event.type == "error") throw IOException("Provider reported an error during streaming.")
-                    when (event.type) {
-                        "content_block_start" -> {
-                            val block = event.contentBlock
-                            if (block?.type == "tool_use") {
-                                val idx = event.index ?: 0
-                                toolUseIds[idx]   = block.id   ?: "tool_$idx"
-                                toolUseNames[idx] = block.name ?: ""
-                                block.input?.let { toolInitialInputs[idx] = it }
-                            }
-                        }
-                        "content_block_delta" -> {
-                            val idx = event.index ?: 0
-                            val delta = event.delta
-                            when (delta?.type) {
-                                "thinking_delta" -> {
-                                    delta.thinking?.let { fullReasoning.append(it); request.onReasoning?.invoke(it) }
-                                }
-                                "text_delta" -> {
-                                    val text = delta.text
-                                    if (!text.isNullOrEmpty()) {
-                                        fullContent.append(text)
-                                        onChunk(text)
-                                    }
-                                }
-                                "input_json_delta" -> {
-                                    val partial = delta.partialJson
-                                    if (!partial.isNullOrEmpty()) {
-                                        toolUseArgs.getOrPut(idx) { StringBuilder() }.append(partial)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (_: kotlinx.serialization.SerializationException) { /* skip malformed SSE events */ }
+        return try {
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                readAnthropicStream(reader, request.onReasoning, onChunk)
             }
+        } finally {
+            conn.disconnect()
         }
-        conn.disconnect()
-        if (!finished) throw IOException("Provider stream ended before message_stop.")
-
-        val toolCalls = toolUseIds.keys.sorted().map { idx ->
-            val decoded = decodeAnthropicToolInput(
-                toolUseNames[idx].orEmpty(), toolInitialInputs[idx], toolUseArgs[idx]?.toString()
-            )
-            ToolCall(
-                id        = toolUseIds[idx]   ?: "tool_$idx",
-                name      = toolUseNames[idx] ?: "",
-                arguments = decoded.arguments,
-                argumentError = decoded.error
-            )
-        }
-
-        return CompletionResponse(
-            content      = fullContent.toString(),
-            thinkingContent = fullReasoning.toString().ifBlank { null },
-            toolCalls    = toolCalls,
-            finishReason = "end_turn",
-            tokensUsed   = if (inputTokens > 0 || outputTokens > 0) TokenUsage(inputTokens, outputTokens, inputTokens + outputTokens) else null
-        )
     }
 
     // ── Shared HTTP helper ─────────────────────────────────────────────────────
@@ -1082,6 +1001,103 @@ class CompletionService(
         }
         throw IOException(friendlyMessage)
     }
+}
+
+internal suspend fun readAnthropicStream(
+    reader: BufferedReader,
+    onReasoning: (suspend (String) -> Unit)? = null,
+    onChunk: suspend (String) -> Unit = {}
+): CompletionResponse {
+    val fullContent = StringBuilder()
+    val fullReasoning = StringBuilder()
+    var finished = false
+    var stopReason: String? = null
+    // Tool-use accumulation: indexed by content block index
+    val toolUseIds   = mutableMapOf<Int, String>()
+    val toolUseNames = mutableMapOf<Int, String>()
+    val toolUseArgs  = mutableMapOf<Int, StringBuilder>()
+    val toolInitialInputs = mutableMapOf<Int, JsonElement>()
+    var inputTokens = 0
+    var outputTokens = 0
+
+    var line: String?
+    while (reader.readLine().also { line = it } != null) {
+        val l = line!!
+        if (!l.startsWith("data:")) continue
+        val data = l.substring(5).trim()
+        try {
+            val event = json.decodeFromString(AnthropicStreamEvent.serializer(), data)
+            if (event.type == "message_start" && event.message?.usage != null) {
+                inputTokens += event.message.usage.inputTokens
+                outputTokens += event.message.usage.outputTokens
+            } else if (event.type == "message_delta") {
+                event.delta?.stopReason?.let { stopReason = it }
+                event.usage?.let {
+                    inputTokens += it.inputTokens
+                    outputTokens += it.outputTokens
+                }
+            }
+            if (event.type == "message_stop") {
+                finished = true
+                break
+            }
+            if (event.type == "error") throw IOException("Provider reported an error during streaming.")
+            when (event.type) {
+                "content_block_start" -> {
+                    val block = event.contentBlock
+                    if (block?.type == "tool_use") {
+                        val idx = event.index ?: 0
+                        toolUseIds[idx]   = block.id   ?: "tool_$idx"
+                        toolUseNames[idx] = block.name ?: ""
+                        block.input?.let { toolInitialInputs[idx] = it }
+                    }
+                }
+                "content_block_delta" -> {
+                    val idx = event.index ?: 0
+                    val delta = event.delta
+                    when (delta?.type) {
+                        "thinking_delta" -> {
+                            delta.thinking?.let { fullReasoning.append(it); onReasoning?.invoke(it) }
+                        }
+                        "text_delta" -> {
+                            val text = delta.text
+                            if (!text.isNullOrEmpty()) {
+                                fullContent.append(text)
+                                onChunk(text)
+                            }
+                        }
+                        "input_json_delta" -> {
+                            val partial = delta.partialJson
+                            if (!partial.isNullOrEmpty()) {
+                                toolUseArgs.getOrPut(idx) { StringBuilder() }.append(partial)
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: kotlinx.serialization.SerializationException) { /* skip malformed SSE events */ }
+    }
+    if (!finished) throw IOException("Provider stream ended before message_stop.")
+
+    val toolCalls = toolUseIds.keys.sorted().map { idx ->
+        val decoded = decodeAnthropicToolInput(
+            toolUseNames[idx].orEmpty(), toolInitialInputs[idx], toolUseArgs[idx]?.toString()
+        )
+        ToolCall(
+            id        = toolUseIds[idx]   ?: "tool_$idx",
+            name      = toolUseNames[idx] ?: "",
+            arguments = decoded.arguments,
+            argumentError = decoded.error
+        )
+    }
+
+    return CompletionResponse(
+        content      = fullContent.toString(),
+        thinkingContent = fullReasoning.toString().ifBlank { null },
+        toolCalls    = toolCalls,
+        finishReason = stopReason ?: "end_turn",
+        tokensUsed   = if (inputTokens > 0 || outputTokens > 0) TokenUsage(inputTokens, outputTokens, inputTokens + outputTokens) else null
+    )
 }
 
 /** Counts the JSON tool array sent by the selected native provider adapter. */
