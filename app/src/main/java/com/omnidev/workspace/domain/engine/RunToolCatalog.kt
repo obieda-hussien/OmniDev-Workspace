@@ -55,8 +55,19 @@ class RunToolCatalog(
 
     internal fun inventoryCounts() = InventoryCounts(registeredToolCount ?: catalog.size, catalog.size, loaded.size)
 
-    internal fun mcpInventorySummary(): String? = mcpCoverage?.let {
-        "MCP discovery snapshot. Servers included: ${it.includedServers}. Undiscovered: ${it.undiscoveredServers}."
+    internal fun mcpInventorySummary(): String? = mcpCoverage?.let { coverage ->
+        val reasons = listOf(
+            "timed out" to coverage.timedOutServers,
+            "discovery failed" to coverage.failedServers,
+            "unsupported" to coverage.unsupportedServers,
+            "name conflict" to coverage.conflictingServers
+        ).filter { (_, count) -> count > 0 }
+        buildString {
+            append("MCP discovery snapshot. Servers included: ${coverage.includedServers}. Undiscovered: ${coverage.undiscoveredServers}.")
+            if (reasons.isNotEmpty()) {
+                append(reasons.joinToString(prefix = " Omission reasons: ", postfix = ".") { (reason, count) -> "$reason: $count" })
+            }
+        }
     }
 
     fun advisoryContext(): String {

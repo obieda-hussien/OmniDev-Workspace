@@ -16,7 +16,14 @@ internal data class McpToolRoute(
     val connection: McpConnection
 )
 
-data class McpDiscoveryCoverage(val includedServers: Int, val undiscoveredServers: Int)
+data class McpDiscoveryCoverage(
+    val includedServers: Int,
+    val undiscoveredServers: Int,
+    val timedOutServers: Int = 0,
+    val failedServers: Int = 0,
+    val unsupportedServers: Int = 0,
+    val conflictingServers: Int = 0
+)
 
 /** Cache schemas and live sessions, including failed discovery, independently of model turns. */
 internal class McpToolDiscovery(
@@ -32,11 +39,14 @@ internal class McpToolDiscovery(
         val coverage: McpDiscoveryCoverage
     )
 
+    private enum class Omission { TIMEOUT, FAILED, UNSUPPORTED }
+
     private data class Entry(
         val config: McpServerConfig,
         val connection: McpConnection?,
         val tools: List<ToolDefinition>,
-        val refreshAt: Long
+        val refreshAt: Long,
+        val omission: Omission?
     )
     private val mutex = Mutex()
     private val entries = mutableMapOf<String, Entry>()
@@ -52,16 +62,19 @@ internal class McpToolDiscovery(
             stale.map { (name, config) -> async {
                 val previous = entries[name]?.takeIf { it.config == config }
                 var connection = previous?.connection
-                val tools = try {
+                val (tools, omission) = try {
                     connection = connection ?: connect(config)
-                    connection?.let { active -> withTimeoutOrNull(timeoutMillis) { active.getSupportedTools(name) } }
+                    val active = connection
+                    if (active == null) null to Omission.UNSUPPORTED
+                    else withTimeoutOrNull(timeoutMillis) { active.getSupportedTools(name) to null }
+                        ?: (null to Omission.TIMEOUT)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
-                    null
+                    null to Omission.FAILED
                 }
                 name to Entry(config, if (tools == null) null else connection, tools.orEmpty(),
-                    clock() + if (tools == null) failureTtlMillis else successTtlMillis)
+                    clock() + if (tools == null) failureTtlMillis else successTtlMillis, omission)
             } }.awaitAll()
         }
         entries.putAll(refreshed)
@@ -88,6 +101,15 @@ internal class McpToolDiscovery(
             tools.removeAll { it.name !in routes }
         }
         val includedServers = entries.values.count { it.connection != null } - conflictingServers.size
-        Snapshot(tools, routes, McpDiscoveryCoverage(includedServers, snapshot.size - includedServers))
+        val omissions = entries.values.mapNotNull { it.omission }.groupingBy { it }.eachCount()
+        val coverage = McpDiscoveryCoverage(
+            includedServers = includedServers,
+            undiscoveredServers = snapshot.size - includedServers,
+            timedOutServers = omissions[Omission.TIMEOUT] ?: 0,
+            failedServers = omissions[Omission.FAILED] ?: 0,
+            unsupportedServers = omissions[Omission.UNSUPPORTED] ?: 0,
+            conflictingServers = conflictingServers.size
+        )
+        Snapshot(tools, routes, coverage)
     }
 }

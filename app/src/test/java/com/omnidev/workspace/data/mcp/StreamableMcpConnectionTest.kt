@@ -40,7 +40,7 @@ class StreamableMcpConnectionTest {
             "malformed" to McpServerConfig("http", "https://example.test/malformed")
         ))
 
-        assertEquals(McpDiscoveryCoverage(includedServers = 1, undiscoveredServers = 1), result.coverage)
+        assertEquals(McpDiscoveryCoverage(includedServers = 1, undiscoveredServers = 1, failedServers = 1), result.coverage)
         assertTrue(result.tools.isEmpty())
         assertTrue(result.routes.isEmpty())
     }
@@ -55,7 +55,7 @@ class StreamableMcpConnectionTest {
 
         val result = discovery.discover(mapOf("paged" to McpServerConfig("http", "https://example.test/mcp")))
 
-        assertEquals(McpDiscoveryCoverage(includedServers = 0, undiscoveredServers = 1), result.coverage)
+        assertEquals(McpDiscoveryCoverage(includedServers = 0, undiscoveredServers = 1, failedServers = 1), result.coverage)
         assertTrue(result.tools.isEmpty())
         assertTrue(result.routes.isEmpty())
     }

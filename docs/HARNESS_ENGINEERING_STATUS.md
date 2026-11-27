@@ -336,6 +336,19 @@ remaining unique route to reappear on the next discovery.
 
 Both collision fixtures reproduced the failure before the fix. All 45
 focused Kotlin/JVM discovery, HTTP-response and inventory tests passed on
-Linux. Android CI and physical-device verification remain pending. Next,
-report the basis for inventory omissions without exposing connection
-configuration or claiming live readiness.
+Linux. [#371](https://github.com/obieda-hussien/OmniDev-Workspace/pull/371) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45907642505) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45907642590) passed. Physical-device replay remains pending.
+
+### H1 reasons for MCP inventory omissions
+
+Discovery records aggregate counts for timed-out, failed, unsupported and
+name-conflicting server registrations. Cached discovery failures retain
+their original reason until refresh. Both inventory entry points show the
+counts without exposing server identifiers, configuration or exception
+messages. The counts describe the discovery snapshot.
+
+All 46 focused Kotlin/JVM tests passed on Linux, including timeout and
+cache reuse, unsupported connector versus failed discovery, name
+conflicts and both inventory outputs. Language and flavor source checks
+passed with no fingerprint updates. Android CI and live replay remain
+pending. Next, check schema budget handling in H2 while live verification
+of H1 remains pending.

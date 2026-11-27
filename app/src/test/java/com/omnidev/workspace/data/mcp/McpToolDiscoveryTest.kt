@@ -74,7 +74,9 @@ class McpToolDiscoveryTest {
         assertTrue(allStarted.isCompleted)
         assertEquals(listOf("mcp_healthy_read"), result.tools.map { it.name })
         assertEquals(2, cancelled)
-        discovery.discover(mapOf("slow1" to config(), "slow2" to config(), "healthy" to config()))
+        assertEquals(McpDiscoveryCoverage(1, 2, timedOutServers = 2), result.coverage)
+        assertEquals(result.coverage,
+            discovery.discover(mapOf("slow1" to config(), "slow2" to config(), "healthy" to config())).coverage)
         assertEquals(3, started)
     }
 
@@ -105,7 +107,7 @@ class McpToolDiscoveryTest {
         } })
         val snapshot = discovery.discover(mapOf("empty" to config(), "offline" to config()))
 
-        assertEquals(McpDiscoveryCoverage(includedServers = 1, undiscoveredServers = 1), snapshot.coverage)
+        assertEquals(McpDiscoveryCoverage(includedServers = 1, undiscoveredServers = 1, failedServers = 1), snapshot.coverage)
         assertTrue(snapshot.tools.isEmpty())
         assertEquals(snapshot.coverage, discovery.discover(mapOf("empty" to config(), "offline" to config())).coverage)
         assertEquals(McpDiscoveryCoverage(1, 0), discovery.discover(mapOf("empty" to config())).coverage)
@@ -121,7 +123,7 @@ class McpToolDiscoveryTest {
 
         assertEquals(listOf("mcp_healthy_read"), result.tools.map { it.name })
         assertEquals(setOf("mcp_healthy_read"), result.routes.keys)
-        assertEquals(McpDiscoveryCoverage(1, 1), result.coverage)
+        assertEquals(McpDiscoveryCoverage(1, 1, conflictingServers = 1), result.coverage)
     }
 
     @Test fun collidingServerPrefixesExcludeBothUntilTheConflictIsRemoved() = runBlocking {
@@ -140,12 +142,21 @@ class McpToolDiscoveryTest {
 
         assertEquals(listOf("mcp_healthy_read"), result.tools.map { it.name })
         assertEquals(setOf("mcp_healthy_read"), result.routes.keys)
-        assertEquals(McpDiscoveryCoverage(1, 2), result.coverage)
+        assertEquals(McpDiscoveryCoverage(1, 2, conflictingServers = 2), result.coverage)
 
         val restored = discovery.discover(mapOf("team" to config(), "healthy" to config()))
 
         assertEquals("team", restored.routes.getValue("mcp_team_notes_read").server)
         assertEquals(McpDiscoveryCoverage(2, 0), restored.coverage)
+    }
+
+    @Test fun unsupportedConnectorIsCountedSeparatelyFromDiscoveryFailure() = runBlocking {
+        val discovery = McpToolDiscovery(connect = { config ->
+            if (config.type == "unsupported") null else Connection { throw IOException("Offline") }
+        })
+        val result = discovery.discover(mapOf("unsupported" to config().copy(type = "unsupported"), "offline" to config()))
+
+        assertEquals(McpDiscoveryCoverage(0, 2, failedServers = 1, unsupportedServers = 1), result.coverage)
     }
 
     @Test fun callerCancellationPropagatesToPendingDiscovery() = runBlocking {
