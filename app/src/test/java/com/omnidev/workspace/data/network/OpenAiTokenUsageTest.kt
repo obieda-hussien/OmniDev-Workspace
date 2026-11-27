@@ -4,11 +4,13 @@ import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.AttachmentMediaType
 import com.omnidev.workspace.data.model.AttachmentMeta
 import com.omnidev.workspace.data.model.CompletionRequest
+import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.model.TokenUsage
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolParameter
+import com.omnidev.workspace.domain.engine.CompletionRetry
 import com.omnidev.workspace.domain.engine.TokenAccounting
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -18,6 +20,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -127,6 +130,53 @@ class OpenAiTokenUsageTest {
         ))
         val expected = """[{"name":"inspect_config","description":"Inspect","input_schema":{"type":"object","properties":{"variant":{"type":"string","description":"Variant"}}}}]"""
         assertEquals(expected.length, nativeToolSchemaChars(listOf(tool), ModelProvider.ANTHROPIC))
+    }
+
+    @Test
+    fun closedStreamBeforeVisibleOutputRetriesOnlyCompletion() = runBlocking {
+        val unfinished = """
+            data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"incomplete","function":{"name":"search","arguments":"{}"}}]}}]}
+
+        """.trimIndent()
+        val complete = """
+            data: {"choices":[{"delta":{"content":"Done"},"finish_reason":"stop"}]}
+
+            data: [DONE]
+
+        """.trimIndent()
+        val retryNumbers = mutableListOf<Int>()
+        val chunks = mutableListOf<String>()
+        var attempts = 0
+        val response = CompletionRetry.run(onRetry = { retryNumbers += it }) {
+            var received: CompletionResponse? = null
+            withResponse(if (attempts++ == 0) unfinished else complete, "text/event-stream") { request ->
+                received = CompletionService().stream(request) { chunks += it }
+            }
+            checkNotNull(received)
+        }
+        assertEquals(2, attempts)
+        assertEquals(listOf(1), retryNumbers)
+        assertEquals(listOf("Done"), chunks)
+        assertEquals("Done", response.content)
+        assertTrue(response.toolCalls.isEmpty())
+    }
+
+    @Test
+    fun closedStreamAfterVisibleOutputDoesNotRetry() = runBlocking {
+        val unfinished = """data: {"choices":[{"delta":{"content":"Partial"}}]}"""
+        val chunks = mutableListOf<String>()
+        var attempts = 0
+        withResponse(unfinished, "text/event-stream") { request ->
+            val failure = runCatching {
+                CompletionRetry.run {
+                    attempts++
+                    CompletionService().stream(request) { chunks += it }
+                }
+            }.exceptionOrNull()
+            assertEquals(PartialCompletionException::class.java, failure?.javaClass)
+        }
+        assertEquals(1, attempts)
+        assertEquals(listOf("Partial"), chunks)
     }
 
     private suspend fun withResponse(

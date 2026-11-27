@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import org.junit.Assert.*
 import org.junit.Test
+import java.io.EOFException
 
 class AnthropicStreamContentBlockTest {
     private val json = Json { ignoreUnknownKeys = true }
@@ -101,6 +102,16 @@ class AnthropicStreamContentBlockTest {
         ))
         assertEquals(listOf("INVALID_TOOL_ARGUMENTS", "BATCH_PREFLIGHT_BLOCKED"),
             preflight.checkBatch(calls).map { it?.classification })
+    }
+
+    @Test fun streamWithoutMessageStopReportsPrematureEof() = runBlocking {
+        val stream = """
+            data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"call_0","name":"search","input":{}}}
+            data: {"type":"content_block_stop","index":0}
+            data: {"type":"message_delta","delta":{"stop_reason":"tool_use"}}
+        """.trimIndent()
+        val failure = runCatching { stream.reader().buffered().use { readAnthropicStream(it) } }.exceptionOrNull()
+        assertEquals(EOFException::class.java, failure?.javaClass)
     }
 
     @Test fun nonToolBlocksNeedNoInput() {

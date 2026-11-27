@@ -1,6 +1,6 @@
 # Harness engineering status
 
-Baseline after verified merges on 2026-11-27 is [`b070344`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/b070344ccc5b62c73d937614b39fa4487cefa183). [#372](https://github.com/obieda-hussien/OmniDev-Workspace/pull/372) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300078) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300076) passed at its latest head.
+Baseline after verified merges on 2026-11-27 is [`21a88da`](https://github.com/obieda-hussien/OmniDev-Workspace/commit/21a88da8c2a2fd6a7eb3f0b75a45106d625f12ea). [#372](https://github.com/obieda-hussien/OmniDev-Workspace/pull/372) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300078) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45913300076) passed at its latest head.
 
 ## Telegram Business auto-replies
 
@@ -141,11 +141,17 @@ The omitted-input regression failed with the former fallback. All 23 network and
 
 Full SSE replay exercises the reader used by the HTTP adapter. The reader carries the provider's stop reason into the completion response so Chat can recognize an output limit. The former implementation reported a replayed `max_tokens` response as `end_turn`. Another fixture verifies that malformed tool JSON reaches preflight and blocks the batch while arguments from a separate complete block remain intact.
 
-All 25 network and accounting tests passed with Kotlin 2.4.21 and JUnit 4.13.2 on Linux JVM. Android CI, live-provider replay, and physical-device verification remain pending. The next review should cover recovery when a provider closes the connection before delivering a stop event.
+All 25 network and accounting tests passed with Kotlin 2.4.21 and JUnit 4.13.2 on Linux JVM. [#376](https://github.com/obieda-hussien/OmniDev-Workspace/pull/376) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45930651250) and the [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45930651273) passed at its latest head. Live-provider and physical-device verification are pending.
 
 ## H4 Termux mutation deadlines
 
 A returned Termux response deadline after dispatch means the outcome of a side effect is unknown. Agent and Chat now pass their existing read-only decision to result normalization. The existing Agent recorder persists `MUTATION_OUTCOME_UNKNOWN` as `UNKNOWN`, and replay of an identical effect requires exact reconciliation. Verified read-only operations keep their timeout guidance. A regression using the orchestration entry point failed on the baseline because it kept the retryable timeout classification. All 25 result semantics and orchestration tests passed after the fix using Kotlin 2.4.21 on JVM. [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45679424466) passed all five flavor unit test targets and the API 30 UI job. The [security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45679424356) passed at the same PR head. Physical device replay is pending.
+
+### Completion retry after premature stream closure
+
+The OpenAI-compatible and Anthropic adapters now report a stream that closes before its terminal event as an EOF error. Chat uses the existing completion-only retry budget on this error. If the provider already streamed answer text, the existing partial-response exception prevents a retry. Tool dispatch stays outside the retry boundary.
+
+A loopback fixture closes the first response after a tool-call delta and before any finish event. The previous code failed after one request. The revised code discards the first response and succeeds on the second request. Another loopback fixture verifies one attempt when answer text has already arrived. A separate fixture verifies EOF from the Anthropic reader when `message_stop` is missing. All 28 focused tests passed on Linux JVM with Kotlin 2.4.21 and JUnit 4.13.2. Android CI and physical-device verification are pending. Next, replay the interruption through a live provider and verify the UI's preserved draft and checkpoint.
 
 ## H5 run ledger under context pressure
 
