@@ -7,6 +7,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RunToolCatalogTest {
+    @Test fun `escaped schema entries count against the text tool budget`() {
+        val escaped = ToolDefinition("escaped_tool", "A tool with escaped values", listOf(
+            ToolParameter("argument", "string", "Required value", allowedValues = listOf("\\".repeat(750)))
+        ))
+        val fallback = ToolDefinition("small_tool", "A compact tool")
+        val budget = ToolSurfaceBudget(maxSchemaChars = 1_500)
+        val candidates = listOf(escaped, fallback).map { ToolSurfaceCandidate(it, ToolSurfaceSource.OBJECTIVE) }
+
+        val selection = ToolSurfaceSelector.select(candidates, budget)
+        val rendered = ToolTextProtocol.schemas(selection.definitions)
+
+        assertTrue(rendered.length <= budget.maxSchemaChars)
+        assertEquals(rendered.length, selection.snapshot.schemaChars)
+        assertEquals(listOf("discover_tools", "small_tool"), selection.definitions.map { it.name })
+        assertEquals(1, selection.snapshot.omitted)
+    }
+
     @Test fun `inventory enumerates all permitted tools without expanding schemas`() {
         val run = RunToolCatalog(registry, "all available tools and capabilities")
         val before = run.definitions()

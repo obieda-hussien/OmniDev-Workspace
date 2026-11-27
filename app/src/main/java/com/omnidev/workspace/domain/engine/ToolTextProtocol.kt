@@ -7,22 +7,26 @@ import kotlinx.serialization.json.*
 
 /** Same catalog/guard for plain-text models; adapters never require native tool support. */
 object ToolTextProtocol {
+    private const val SCHEMA_HEADER = "CURRENT LOADED TOOLS (exact contract):"
+
     fun schemas(tools: List<ToolDefinition>): String = buildString {
-        appendLine("CURRENT LOADED TOOLS (exact contract):")
-        tools.forEach { tool ->
-            appendLine(buildJsonObject {
-                put("name", tool.name)
-                put("description", tool.description)
-                putJsonArray("parameters") {
-                    tool.parameters.forEach { p -> add(buildJsonObject {
-                        put("name", p.name); put("type", p.type); put("required", p.required)
-                        put("description", p.description + if (p.requiredForActions.isEmpty()) "" else " Required for actions: ${p.requiredForActions.joinToString()}.")
-                        if (p.allowedValues.isNotEmpty()) putJsonArray("enum") { p.allowedValues.forEach { add(JsonPrimitive(it)) } }
-                    }) }
-                }
-            })
-        }
+        appendLine(SCHEMA_HEADER)
+        tools.forEach { appendLine(schema(it)) }
     }
+
+    internal fun schema(tool: ToolDefinition): String = buildJsonObject {
+        put("name", tool.name)
+        put("description", tool.description)
+        putJsonArray("parameters") {
+            tool.parameters.forEach { p -> add(buildJsonObject {
+                put("name", p.name)
+                put("type", p.type)
+                put("required", p.required)
+                put("description", p.description + if (p.requiredForActions.isEmpty()) "" else " Required for actions: ${p.requiredForActions.joinToString()}.")
+                if (p.allowedValues.isNotEmpty()) putJsonArray("enum") { p.allowedValues.forEach { add(JsonPrimitive(it)) } }
+            }) }
+        }
+    }.toString()
 
     fun messages(history: List<ChatMessage>, textCallsOnly: Boolean = false): List<ChatMessage> {
         val textIds = history.flatMap { it.toolCalls }.filter { it.textProtocol }.mapTo(mutableSetOf()) { it.id }

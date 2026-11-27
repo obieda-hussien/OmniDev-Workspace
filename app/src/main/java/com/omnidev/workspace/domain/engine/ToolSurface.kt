@@ -40,12 +40,13 @@ object ToolSurfaceSelector {
         val discovery = ToolSchemaCompactor.compact(listOf(RunToolCatalog.DISCOVER), emptyList()).orEmpty().single()
         val selected = mutableListOf(discovery)
         val entries = mutableListOf<ToolSurfaceEntry>()
-        var cost = discovery.toString().length
+        var cost = ToolTextProtocol.schemas(selected).length
         val unique = candidates.distinctBy { it.tool.name }
         for (candidate in unique) {
+            if (entries.size >= budget.maxTools) break
             val tool = ToolSchemaCompactor.compact(listOf(candidate.tool), emptyList()).orEmpty().single()
-            val size = tool.toString().length
-            if (entries.size >= budget.maxTools || cost + size > budget.maxSchemaChars) continue
+            val size = ToolTextProtocol.schema(tool).length + 1 // Per-schema newline.
+            if (size > budget.maxSchemaChars - cost) continue
             selected += tool
             entries += ToolSurfaceEntry(tool.name, IntentClassifier.getToolDomain(tool.name), candidate.source)
             cost += size
