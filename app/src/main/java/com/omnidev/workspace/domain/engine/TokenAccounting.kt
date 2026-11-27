@@ -4,7 +4,8 @@ import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.AttachmentMediaType
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
-import com.omnidev.workspace.data.tools.ToolDefinition
+import com.omnidev.workspace.data.network.nativeToolSchemaChars
+import com.omnidev.workspace.registry.ModelRegistry
 
 /**
  * Provider-independent token accounting.
@@ -60,8 +61,10 @@ object TokenAccounting {
     }
 
     fun estimateInputTokens(request: CompletionRequest): Int {
-        val chars = (request.systemPrompt?.length ?: 0).toLong() +
-            request.tools.orEmpty().sumOf(::toolChars)
+        val schemaChars = request.tools?.takeIf { it.isNotEmpty() }?.let { tools ->
+            nativeToolSchemaChars(tools, ModelRegistry.getModelById(request.modelId).provider)
+        } ?: 0
+        val chars = (request.systemPrompt?.length ?: 0).toLong() + schemaChars
         // Code, JSON schemas and multilingual text often tokenize denser than plain English.
         return ((chars + 2) / 3 + request.messages.sumOf { estimateMessageTokens(it).toLong() })
             .coerceIn(1, Int.MAX_VALUE.toLong()).toInt()
@@ -124,15 +127,4 @@ object TokenAccounting {
         return (16 + (textChars + charsPerToken - 1) / charsPerToken + mediaTokens)
             .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     }
-
-    private fun toolChars(tool: ToolDefinition): Long =
-        tool.name.length.toLong() + tool.description.length + tool.parameters.sumOf { parameter ->
-            // Native adapters serialize enum values and append conditional requirements to the description.
-            val enumChars = if (parameter.allowedValues.isEmpty()) 0L else
-                "\"enum\":[],".length + parameter.allowedValues.sumOf { it.length.toLong() + 3 }
-            val conditionalChars = if (parameter.requiredForActions.isEmpty()) 0L else
-                " Required for actions: .".length + parameter.requiredForActions.sumOf { it.length.toLong() + 2 } - 2
-            parameter.name.length.toLong() + parameter.type.length + parameter.description.length +
-                16 + enumChars + conditionalChars
-        }
 }
