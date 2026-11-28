@@ -51,6 +51,37 @@ callback*; do not wire it to any agent tool or prompt-produced boolean.
   P0/P6 effects; the agent cannot create its own approval.
 - No extra background service and acceptable memory use on API30 / 4GB phones.
 
+### Financial references
+
+The Bank accounts and cards screen adds, lists and deletes masked references
+locally. Each record stores the issuer, record type and four trailing digits
+with a separate Android Keystore key and no-backup directory. The existing
+credential format and key remain compatible. Financial references cannot be
+used through credential grants or agent tools. The screen has no fields for
+full account or card numbers, PINs, CVVs, passwords or one-time codes.
+
+The financial screen opens only after Android 11 or later authenticates with
+a strong enrolled biometric or the device screen lock. The screen relocks on
+backgrounding and requests secure window protection. This is a screen gate.
+Full-app locking, a separate app PIN, and requiring two successful factors
+need separate lifecycle and recovery tests.
+
+Two input-validation tests pass on Linux JVM. The encrypted record round trip
+and separation from login credentials have an Android instrumentation test.
+Keystore and device authentication verification are pending.
+
+### Google account connection
+
+Use separate, revocable Google OAuth grants for each service and keep tokens
+inside the integration runtime. Start with Gmail read access and user-selected
+Drive files. Add broader read scopes only on explicit request. Gate sends,
+file sharing and deletion through operation-specific approvals, and require
+human handoff for one-time sign-in codes and banking confirmations.
+
+The API 30 emulator suite selects the vault instrumentation package to verify
+encrypted storage and separation from sign-in credentials. Physical biometric
+enrollment and device-lock prompt behavior still need a device smoke test.
+
 ## P12 — OmniComputer
 
 Use HeadlessBrowserManager and BrowserNavigationGuard rather than a second
