@@ -16,6 +16,10 @@ five minutes while the listener is running. It persists the update offset before
 dispatch. Incoming Business messages stay outside model context and chat history.
 [#357](https://github.com/obieda-hussien/OmniDev-Workspace/pull/357) merged after [Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/runs/45813727945) and the security gate passed. A linked-account smoke test remains pending.
 
+## Telegram project folder setup
+
+Linked accounts → Telegram now provides a Project folder picker for Agent and Swarm. It saves the selected device-folder grant in the existing Target Context settings. Telegram's help, mode switches, and runtime errors point to that same control. Scoped execution, owner authorization, and edition checks still apply. Three local Kotlin/JVM tests cover storage paths and the command guidance. Android CI and a paired-device replay are pending.
+
 ## Telegram command and response integrity
 
 Telegram now handles mode and session aliases locally, returns the actual mode,
