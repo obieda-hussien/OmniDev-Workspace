@@ -64,7 +64,15 @@ class SettingsRepository(private val context: Context) {
     //  Preference Keys
     // ──────────────────────────────────────────────
 
+    internal fun observeWorkspaceLock(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.WORKSPACE_LOCK] ?: false }
+
+    internal suspend fun setWorkspaceLock(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.WORKSPACE_LOCK] = enabled }
+    }
+
     private object Keys {
+        val WORKSPACE_LOCK = booleanPreferencesKey("workspace_screen_lock")
         val GEMINI_AUTO_FREE_PROJECT = booleanPreferencesKey("gemini_auto_free_project")
         // Null (ALL) or a single connected provider. Scoped per execution role.
         val AUTO_SCOPE_CHAT = stringPreferencesKey("auto_scope_chat")

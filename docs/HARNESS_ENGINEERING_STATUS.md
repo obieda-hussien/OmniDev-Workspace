@@ -392,3 +392,7 @@ conflicts and both inventory outputs. Language and flavor source checks
 passed with no fingerprint updates. Android CI and live replay remain
 pending. Next, check schema budget handling in H2 while live verification
 of H1 remains pending.
+
+## Workspace screen lock
+
+On Android 11 and above, Assistant & device settings can require Android device authentication for the main workspace screen. Unlock state is in memory and resets when the activity stops. The operating system verifies enrolled strong biometrics or the device PIN, pattern, or password. This feature covers the main workspace activity. Separate session locks and coverage of independent assistant surfaces require additional work. Android instrumentation covers the persisted enabled and disabled states. Enrollment and unlock flows are pending a physical device check.

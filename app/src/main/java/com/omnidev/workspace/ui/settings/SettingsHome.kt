@@ -126,7 +126,7 @@ private fun SettingsDestination.icon(): ImageVector = when (this) {
     SettingsDestination.LOCAL_MODELS -> Icons.Default.PhoneAndroid
     SettingsDestination.ASSISTANT -> Icons.Default.SmartToy
     SettingsDestination.VOICE -> Icons.Default.Mic
-    SettingsDestination.DEVICE_ACCESS -> Icons.Default.Security
+    SettingsDestination.DEVICE_ACCESS, SettingsDestination.WORKSPACE_LOCK -> Icons.Default.Security
     SettingsDestination.ACCESSIBILITY -> Icons.Default.AccessibilityNew
     SettingsDestination.FILE_ACCESS -> Icons.Default.FolderOpen
     SettingsDestination.COMPANION -> Icons.Default.AutoAwesome

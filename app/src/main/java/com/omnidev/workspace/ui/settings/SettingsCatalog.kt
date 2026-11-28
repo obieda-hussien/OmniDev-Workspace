@@ -10,7 +10,7 @@ internal enum class SettingsGroup(val title: String, val description: String) {
     INSIGHTS("Usage & diagnostics", "Costs, agent activity and troubleshooting")
 }
 
-internal enum class SettingsDestination { PROVIDERS, MODELS, REASONING, EXECUTION_MODES, LOCAL_MODELS, ASSISTANT, VOICE, DEVICE_ACCESS, ACCESSIBILITY, FILE_ACCESS, COMPANION, PROFILE, MEMORY, INTEGRATIONS, VAULT, INBOX, MCP, SCHEDULE, SKILLS, ANALYTICS, BRAIN, DEBUG }
+internal enum class SettingsDestination { PROVIDERS, MODELS, REASONING, EXECUTION_MODES, LOCAL_MODELS, ASSISTANT, VOICE, DEVICE_ACCESS, WORKSPACE_LOCK, ACCESSIBILITY, FILE_ACCESS, COMPANION, PROFILE, MEMORY, INTEGRATIONS, VAULT, INBOX, MCP, SCHEDULE, SKILLS, ANALYTICS, BRAIN, DEBUG }
 
 internal data class SettingsEntry(
     val destination: SettingsDestination,
@@ -30,6 +30,7 @@ internal object SettingsCatalog {
         SettingsEntry(SettingsDestination.ASSISTANT, SettingsGroup.ASSISTANT, "Default assistant", "Set up Omni for the Home button or assistant gesture", "overlay screen screenshot floating افتراضي مساعد شاشة عائم"),
         SettingsEntry(SettingsDestination.VOICE, SettingsGroup.ASSISTANT, "Voice activation", "Wake phrase, training and hands-free listening", "hi omni wake up microphone speech audio صوت تدريب تنبيه ميكروفون"),
         SettingsEntry(SettingsDestination.DEVICE_ACCESS, SettingsGroup.ASSISTANT, "Device access & permissions", "Review and grant the access Omni needs", "shizuku root lock screen صلاحيات اذونات أذونات شيزوكو روت قفل"),
+        SettingsEntry(SettingsDestination.WORKSPACE_LOCK, SettingsGroup.ASSISTANT, "Workspace screen lock", "Require device authentication when opening OmniDev Workspace", "pin face fingerprint biometric app lock"),
         SettingsEntry(SettingsDestination.ACCESSIBILITY, SettingsGroup.ASSISTANT, "Accessibility service", "Let Omni read and interact with app screens", "semantic ui control الوصول تحكم"),
         SettingsEntry(SettingsDestination.FILE_ACCESS, SettingsGroup.ASSISTANT, "Extended file access", "Allow file tools outside the selected project", "god mode filesystem storage ملفات تخزين"),
         SettingsEntry(SettingsDestination.COMPANION, SettingsGroup.PERSONAL, "Virtual companion", "A playful little Omni in your conversations", "pet hopping character buddy animation رفيق افتراضي تنطيط شخصية ارنب أرنب"),
