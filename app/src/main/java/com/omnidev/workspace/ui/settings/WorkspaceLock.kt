@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -43,6 +44,7 @@ internal fun WorkspaceLockGate(settings: SettingsRepository, content: @Composabl
         return
     }
 
+    val workspaceState = rememberSaveableStateHolder()
     val enabled by remember(settings) { settings.observeWorkspaceLock() }.collectAsStateWithLifecycle(null)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val activity = LocalContext.current.findActivity()
@@ -64,7 +66,7 @@ internal fun WorkspaceLockGate(settings: SettingsRepository, content: @Composabl
     }
 
     when {
-        enabled == false || unlocked -> content()
+        enabled == false || unlocked -> workspaceState.SaveableStateProvider("workspace") { content() }
         enabled == true -> Surface(Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
